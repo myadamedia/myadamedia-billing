@@ -963,6 +963,31 @@ try {
   console.error('Failed to migrate odps parent_odp_id:', e);
 }
 
+// Inisialisasi tabel admins
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS admins (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      name TEXT NOT NULL,
+      phone TEXT DEFAULT '',
+      role TEXT NOT NULL, -- superadmin, finance, teknisi, kolektor, noc
+      is_active INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT (NOW_LOCAL())
+    );
+  `);
+  
+  // Seed default superadmin jika tabel kosong
+  const adminCount = db.prepare('SELECT COUNT(*) as count FROM admins').get().count;
+  if (adminCount === 0) {
+    db.prepare("INSERT INTO admins (username, password, name, role) VALUES ('admin', 'admin123', 'Super Admin', 'superadmin')").run();
+    console.log('[DB] Default superadmin account has been seeded.');
+  }
+} catch (e) {
+  console.error('[DB] Gagal menginisialisasi tabel admins:', e.message);
+}
+
 module.exports = db;
 module.exports.getAppSetting = getAppSetting;
 module.exports.saveAppSetting = saveAppSetting;

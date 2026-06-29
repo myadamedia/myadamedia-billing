@@ -171,6 +171,7 @@
         "payroll": "Gaji Karyawan",
         "cashier_attendance": "Absensi Saya",
         "collectors": "Kolektor",
+        "admins": "Administrator",
         "backup": "Backup & Recovery",
         "monitoring": "Monitoring Sistem",
         "audit_logs": "Log Aktivitas"
@@ -705,6 +706,34 @@
         "password": "Password",
         "phone": "No. HP",
         "phone_placeholder": "Contoh: 08123456789",
+        "account_status": "Status Akun"
+      }
+    },
+    "admins": {
+      "add": "Tambah Admin",
+      "list": "Daftar Pengguna Administrator",
+      "empty": "Belum ada data admin.",
+      "confirm_delete": "Hapus administrator ini?",
+      "save_changes": "Simpan Perubahan",
+      "table": {
+        "name": "Nama",
+        "username": "Username",
+        "password": "Password",
+        "phone": "No. HP",
+        "role": "Tingkatan Role",
+        "status": "Status",
+        "actions": "Aksi"
+      },
+      "modal": {
+        "add_title": "Tambah Admin Baru",
+        "edit_title": "Edit Data Admin"
+      },
+      "form": {
+        "full_name": "Nama Lengkap",
+        "login_username": "Username Login",
+        "password": "Password",
+        "phone": "No. HP",
+        "role": "Tingkatan Role",
         "account_status": "Status Akun"
       }
     },

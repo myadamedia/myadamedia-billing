@@ -1,0 +1,40 @@
+Langkah 1: Install Git di Komputer Anda (Jika belum ada)
+Download installer Git untuk Windows di: git-scm.com/download/win.
+Jalankan file installer tersebut. Selama proses instalasi, ikuti saja pengaturan default.
+Penting: Pastikan opsi "Git from the command line and also from 3rd-party software" tercentang agar perintah git dapat dikenali di terminal mana pun.
+Langkah 2: Hubungkan Project ke GitHub (Pertama Kali)
+Setelah Git terinstal, Anda perlu menghubungkan project lokal ini ke repositori GitHub Anda secara manual untuk pertama kali:
+
+Buat repositori baru di GitHub Anda (jika belum ada). Contoh nama: myadamedia-billing.
+Buka terminal (PowerShell atau Command Prompt) di VS Code Anda, lalu jalankan perintah berikut secara berurutan:
+bash
+# 1. Inisialisasi Git lokal
+git init
+# 2. Hubungkan ke GitHub Anda (Ganti URL di bawah dengan link repo GitHub Anda)
+git remote add origin https://github.com/USERNAME_ANDA/NAMA_REPO_ANDA.git
+# 3. Kumpulkan file & lakukan commit pertama
+git add .
+git commit -m "First commit"
+# 4. Ganti nama branch menjadi main
+git branch -M main
+# 5. Push pertama kali ke GitHub
+git push -u origin main
+(Saat melakukan langkah ke-5, GitHub akan meminta Anda untuk login/otorisasi akun. Silakan login untuk mengonfirmasi keamanan).
+Langkah 3: Menjalankan Auto-Push Otomatis
+Saya telah membuatkan file script otomatis bernama 
+
+autopush.bat
+ di dalam folder project Anda.
+
+Buka folder project Anda di File Explorer Windows.
+Klik ganda (Double-click) pada file autopush.bat.
+Sebuah jendela Command Prompt akan terbuka dan terus berjalan di latar belakang.
+Script ini akan memeriksa project Anda setiap 5 menit (300 detik).
+Jika Anda melakukan perubahan kode dan menyimpannya, script akan otomatis melakukan git add, git commit dengan tanggal & waktu, lalu langsung mengunggahnya (git push) ke GitHub.
+Jika tidak ada perubahan file, script tidak akan melakukan push untuk menghemat kuota internet dan log commit Anda.
+TIP
+
+Jika ingin mengubah interval waktu pengecekan (misal menjadi setiap 2 menit sekali), Anda cukup mengedit baris set INTERVAL=300 di dalam file 
+
+autopush.bat
+ menjadi set INTERVAL=120 (dalam satuan detik).

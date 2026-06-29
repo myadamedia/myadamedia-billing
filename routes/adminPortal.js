@@ -232,11 +232,24 @@ async function sendPaymentSuccessWA(customerPhone, customerName, periodText, amo
   }
 }
 
-// Middleware strictly for Admin
+// Middleware strictly for Admin (hanya Super Admin)
 function restrictToAdmin(req, res, next) {
-  if (req.session?.isAdmin) return next();
-  req.session._msg = { type: 'error', text: 'Hanya Admin yang dapat mengakses halaman ini.' };
+  const role = req.session?.adminRole || 'superadmin';
+  if (req.session?.isAdmin && role === 'superadmin') return next();
+  req.session._msg = { type: 'error', text: 'Hanya Super Admin yang dapat mengakses halaman/tindakan ini.' };
   return res.redirect('/admin');
+}
+
+// Middleware for specific roles
+function restrictToRoles(allowedRoles) {
+  return (req, res, next) => {
+    const role = req.session?.adminRole || 'superadmin';
+    if (req.session?.isAdmin && (role === 'superadmin' || allowedRoles.includes(role))) {
+      return next();
+    }
+    req.session._msg = { type: 'error', text: 'Anda tidak memiliki hak akses untuk tindakan ini.' };
+    return res.redirect('/admin');
+  };
 }
 
 function company() { return getSetting('company_header', 'ISP Admin'); }
@@ -519,19 +532,35 @@ router.get('/login', (req, res) => {
 
 router.post('/login', express.urlencoded({ extended: true }), (req, res) => {
   const { username, password } = req.body;
+  
+  // 1. Cek Admin Utama (dari settings.json) - Selalu Super Admin
   if (username === getSetting('admin_username', 'admin') && password === getSetting('admin_password', 'admin123')) {
     req.session.isAdmin = true;
     req.session.adminUser = username;
+    req.session.adminName = 'Super Admin';
+    req.session.adminRole = 'superadmin';
+    return res.redirect('/admin');
+  }
+
+  // 2. Cek Admin Multi-Tingkat (dari database)
+  const admin = adminSvc.authenticateAdmin(username, password);
+  if (admin) {
+    req.session.isAdmin = true;
+    req.session.adminId = admin.id;
+    req.session.adminName = admin.name;
+    req.session.adminUser = admin.username;
+    req.session.adminRole = admin.role; // superadmin, finance, teknisi, kolektor, noc
     return res.redirect('/admin');
   }
   
-  // Check Cashier
+  // 3. Cek Cashier (Legacy)
   const cashier = adminSvc.authenticateCashier(username, password);
   if (cashier) {
     req.session.isCashier = true;
     req.session.cashierId = cashier.id;
     req.session.cashierName = cashier.name;
     req.session.cashierUsername = cashier.username;
+    req.session.adminRole = 'finance'; // Posisikan cashier ke role finance untuk kompatibilitas menu
     return res.redirect('/admin');
   }
 
@@ -642,7 +671,7 @@ router.get('/olts/:id/stats', requireAdminSession, async (req, res) => {
   }
 });
 
-router.post('/olts/:id/onu/:index/reboot', requireAdminSession, restrictToAdmin, async (req, res) => {
+router.post('/olts/:id/onu/:index/reboot', requireAdminSession, restrictToRoles(['noc', 'teknisi']), async (req, res) => {
   try {
     await oltSvc.rebootOnu(req.params.id, req.params.index);
     res.json({ success: true, message: 'Perintah reboot berhasil dikirim.' });
@@ -651,7 +680,7 @@ router.post('/olts/:id/onu/:index/reboot', requireAdminSession, restrictToAdmin,
   }
 });
 
-router.post('/olts/:id/onu/:index/rename', requireAdminSession, restrictToAdmin, express.urlencoded({ extended: true }), async (req, res) => {
+router.post('/olts/:id/onu/:index/rename', requireAdminSession, restrictToRoles(['noc', 'teknisi']), express.urlencoded({ extended: true }), async (req, res) => {
   try {
     const { name } = req.body;
     if (!name) throw new Error('Nama tidak boleh kosong');
@@ -662,7 +691,7 @@ router.post('/olts/:id/onu/:index/rename', requireAdminSession, restrictToAdmin,
   }
 });
 
-router.post('/olts/:id/onu/authorize', requireAdminSession, restrictToAdmin, express.urlencoded({ extended: true }), async (req, res) => {
+router.post('/olts/:id/onu/authorize', requireAdminSession, restrictToRoles(['noc', 'teknisi']), express.urlencoded({ extended: true }), async (req, res) => {
   try {
     const output = await oltSvc.authorizeOnu(req.params.id, req.body);
     res.json({ success: true, message: 'Otorisasi berhasil.', output });
@@ -671,7 +700,7 @@ router.post('/olts/:id/onu/authorize', requireAdminSession, restrictToAdmin, exp
   }
 });
 
-router.post('/olts/:id/onu/configure-wan', requireAdminSession, restrictToAdmin, express.urlencoded({ extended: true }), async (req, res) => {
+router.post('/olts/:id/onu/configure-wan', requireAdminSession, restrictToRoles(['noc', 'teknisi']), express.urlencoded({ extended: true }), async (req, res) => {
   try {
     const { method, sn } = req.body;
     let output;
@@ -686,7 +715,7 @@ router.post('/olts/:id/onu/configure-wan', requireAdminSession, restrictToAdmin,
   }
 });
 
-router.post('/olts', requireAdminSession, restrictToAdmin, express.urlencoded({ extended: true }), (req, res) => {
+router.post('/olts', requireAdminSession, restrictToRoles(['noc']), express.urlencoded({ extended: true }), (req, res) => {
   try {
     oltSvc.createOlt(req.body);
     req.session._msg = { type: 'success', text: 'OLT berhasil ditambahkan.' };
@@ -696,7 +725,7 @@ router.post('/olts', requireAdminSession, restrictToAdmin, express.urlencoded({ 
   res.redirect('/admin/olts');
 });
 
-router.post('/olts/:id/update', requireAdminSession, restrictToAdmin, express.urlencoded({ extended: true }), (req, res) => {
+router.post('/olts/:id/update', requireAdminSession, restrictToRoles(['noc']), express.urlencoded({ extended: true }), (req, res) => {
   try {
     oltSvc.updateOlt(req.params.id, req.body);
     req.session._msg = { type: 'success', text: 'OLT berhasil diperbarui.' };
@@ -706,7 +735,7 @@ router.post('/olts/:id/update', requireAdminSession, restrictToAdmin, express.ur
   res.redirect('/admin/olts');
 });
 
-router.post('/olts/:id/delete', requireAdminSession, restrictToAdmin, (req, res) => {
+router.post('/olts/:id/delete', requireAdminSession, restrictToRoles(['noc']), (req, res) => {
   try {
     oltSvc.deleteOlt(req.params.id);
     req.session._msg = { type: 'success', text: 'OLT berhasil dihapus.' };
@@ -899,7 +928,7 @@ router.post('/api/customers/:id/cable-path', requireAdminSession, (req, res) => 
   }
 });
 
-router.post('/odps', requireAdminSession, restrictToAdmin, express.urlencoded({ extended: true }), (req, res) => {
+router.post('/odps', requireAdminSession, restrictToRoles(['noc', 'teknisi']), express.urlencoded({ extended: true }), (req, res) => {
   try {
     odpSvc.createOdp(req.body);
     req.session._msg = { type: 'success', text: 'ODP berhasil ditambahkan.' };
@@ -909,7 +938,7 @@ router.post('/odps', requireAdminSession, restrictToAdmin, express.urlencoded({ 
   res.redirect('/admin/map');
 });
 
-router.post('/odps/:id/update', requireAdminSession, restrictToAdmin, express.urlencoded({ extended: true }), (req, res) => {
+router.post('/odps/:id/update', requireAdminSession, restrictToRoles(['noc', 'teknisi']), express.urlencoded({ extended: true }), (req, res) => {
   try {
     odpSvc.updateOdp(req.params.id, req.body);
     req.session._msg = { type: 'success', text: 'ODP berhasil diperbarui.' };
@@ -919,7 +948,7 @@ router.post('/odps/:id/update', requireAdminSession, restrictToAdmin, express.ur
   res.redirect('/admin/map');
 });
 
-router.post('/odps/:id/delete', requireAdminSession, restrictToAdmin, (req, res) => {
+router.post('/odps/:id/delete', requireAdminSession, restrictToRoles(['noc', 'teknisi']), (req, res) => {
   try {
     odpSvc.deleteOdp(req.params.id);
     req.session._msg = { type: 'success', text: 'ODP berhasil dihapus.' };
@@ -1023,6 +1052,47 @@ router.post('/collectors/:id/delete', requireAdminSession, restrictToAdmin, (req
   adminSvc.deleteCollector(req.params.id);
   req.session._msg = { type: 'success', text: 'Kolektor berhasil dihapus.' };
   res.redirect('/admin/collectors');
+});
+
+// --- ADMIN MANAGEMENT (MULTI-ROLE) ---
+router.get('/admins', requireAdminSession, requireSidebarMenuAccess('admins'), restrictToAdmin, (req, res) => {
+  const admins = adminSvc.getAllAdmins();
+  res.render('admin/admins', { title: 'Manajemen Admin', company: company(), activePage: 'admins', admins, msg: flashMsg(req) });
+});
+
+router.post('/admins', requireAdminSession, restrictToAdmin, express.urlencoded({ extended: true }), (req, res) => {
+  try {
+    adminSvc.createAdmin(req.body);
+    req.session._msg = { type: 'success', text: 'Admin berhasil ditambahkan.' };
+  } catch (e) {
+    req.session._msg = { type: 'error', text: 'Gagal: ' + e.message };
+  }
+  res.redirect('/admin/admins');
+});
+
+router.post('/admins/:id/update', requireAdminSession, restrictToAdmin, express.urlencoded({ extended: true }), (req, res) => {
+  try {
+    adminSvc.updateAdmin(req.params.id, req.body);
+    req.session._msg = { type: 'success', text: 'Data admin diperbarui.' };
+  } catch (e) {
+    req.session._msg = { type: 'error', text: 'Gagal: ' + e.message };
+  }
+  res.redirect('/admin/admins');
+});
+
+router.post('/admins/:id/delete', requireAdminSession, restrictToAdmin, (req, res) => {
+  try {
+    const targetAdmin = db.prepare('SELECT username FROM admins WHERE id = ?').get(req.params.id);
+    if (targetAdmin && targetAdmin.username === req.session.adminUser) {
+      req.session._msg = { type: 'error', text: 'Anda tidak dapat menghapus akun Anda sendiri.' };
+    } else {
+      adminSvc.deleteAdmin(req.params.id);
+      req.session._msg = { type: 'success', text: 'Admin berhasil dihapus.' };
+    }
+  } catch (e) {
+    req.session._msg = { type: 'error', text: 'Gagal: ' + e.message };
+  }
+  res.redirect('/admin/admins');
 });
 
 router.get('/collector-payments', requireAdminSession, requireSidebarMenuAccess('collector_payments'), (req, res) => {
@@ -1417,7 +1487,7 @@ router.get('/agents', requireAdminSession, requireSidebarMenuAccess('agents'), (
   });
 });
 
-router.post('/agents', requireAdminSession, restrictToAdmin, express.urlencoded({ extended: true }), (req, res) => {
+router.post('/agents', requireAdminSession, restrictToRoles(['finance']), express.urlencoded({ extended: true }), (req, res) => {
   try {
     agentSvc.createAgent(req.body);
     req.session._msg = { type: 'success', text: 'Agent berhasil ditambahkan.' };
@@ -1427,7 +1497,7 @@ router.post('/agents', requireAdminSession, restrictToAdmin, express.urlencoded(
   res.redirect('/admin/agents');
 });
 
-router.post('/agents/:id/update', requireAdminSession, restrictToAdmin, express.urlencoded({ extended: true }), (req, res) => {
+router.post('/agents/:id/update', requireAdminSession, restrictToRoles(['finance']), express.urlencoded({ extended: true }), (req, res) => {
   try {
     agentSvc.updateAgent(req.params.id, req.body);
     req.session._msg = { type: 'success', text: 'Data agent diperbarui.' };
@@ -1437,7 +1507,7 @@ router.post('/agents/:id/update', requireAdminSession, restrictToAdmin, express.
   res.redirect('/admin/agents');
 });
 
-router.post('/agents/:id/delete', requireAdminSession, restrictToAdmin, (req, res) => {
+router.post('/agents/:id/delete', requireAdminSession, restrictToRoles(['finance']), (req, res) => {
   try {
     agentSvc.deleteAgent(req.params.id);
     req.session._msg = { type: 'success', text: 'Agent berhasil dihapus.' };
@@ -1460,7 +1530,7 @@ router.post('/agents/:id/topup', requireAdminSession, express.urlencoded({ exten
   res.redirect('/admin/agents');
 });
 
-router.get('/agents/reports', requireAdminSession, requireSidebarMenuAccess('agents_reports'), restrictToAdmin, (req, res) => {
+router.get('/agents/reports', requireAdminSession, requireSidebarMenuAccess('agents_reports'), restrictToRoles(['finance']), (req, res) => {
   const agents = agentSvc.getAllAgents();
   const agentId = req.query.agentId ? Number(req.query.agentId) : null;
   const txs = agentSvc.listAgentTransactions({ agentId, limit: 500 });
@@ -1475,7 +1545,7 @@ router.get('/agents/reports', requireAdminSession, requireSidebarMenuAccess('age
   });
 });
 
-router.get('/api/agents/:id/prices', requireAdmin, restrictToAdmin, (req, res) => {
+router.get('/api/agents/:id/prices', requireAdmin, restrictToRoles(['finance']), (req, res) => {
   try {
     const rows = agentSvc.getAgentPrices(Number(req.params.id));
     res.json(rows);
@@ -1484,7 +1554,7 @@ router.get('/api/agents/:id/prices', requireAdmin, restrictToAdmin, (req, res) =
   }
 });
 
-router.post('/api/agents/:id/prices', requireAdmin, restrictToAdmin, express.json(), (req, res) => {
+router.post('/api/agents/:id/prices', requireAdmin, restrictToRoles(['finance']), express.json(), (req, res) => {
   try {
     const agentId = Number(req.params.id);
     const result = agentSvc.upsertAgentHotspotPrice(agentId, req.body);
@@ -1494,7 +1564,7 @@ router.post('/api/agents/:id/prices', requireAdmin, restrictToAdmin, express.jso
   }
 });
 
-router.post('/api/agents/:id/prices/:priceId/delete', requireAdmin, restrictToAdmin, (req, res) => {
+router.post('/api/agents/:id/prices/:priceId/delete', requireAdmin, restrictToRoles(['finance']), (req, res) => {
   try {
     const agentId = Number(req.params.id);
     const priceId = Number(req.params.priceId);
@@ -1947,7 +2017,7 @@ router.post('/customers/:id/billing/generate', requireAdminSession, express.urle
   res.redirect('back');
 });
 
-router.post('/customers/:id/billing/reset-promo-cycles', requireAdminSession, restrictToAdmin, (req, res) => {
+router.post('/customers/:id/billing/reset-promo-cycles', requireAdminSession, restrictToRoles(['finance']), (req, res) => {
   try {
     const r = customerSvc.resetPromoCyclesUsed(req.params.id);
     if (!r.changes) {
@@ -1962,7 +2032,7 @@ router.post('/customers/:id/billing/reset-promo-cycles', requireAdminSession, re
   res.redirect('back');
 });
 
-router.post('/customers/:id/billing/install-prorata', requireAdminSession, restrictToAdmin, (req, res) => {
+router.post('/customers/:id/billing/install-prorata', requireAdminSession, restrictToRoles(['finance']), (req, res) => {
   try {
     const out = billingSvc.createInstallProrataCatchUpInvoice(req.params.id);
     req.session._msg = {
@@ -4041,7 +4111,7 @@ router.get('/api/vouchers/template', requireAdminSession, (req, res) => {
   });
 });
 
-router.post('/api/vouchers/template', requireAdminSession, restrictToAdmin, express.json({ limit: '1mb' }), (req, res) => {
+router.post('/api/vouchers/template', requireAdminSession, restrictToRoles(['finance']), express.json({ limit: '1mb' }), (req, res) => {
   try {
     const useTemplate = !!req.body.use_template;
     const defaultStyle = String(req.body.default_style || '').trim().toLowerCase();

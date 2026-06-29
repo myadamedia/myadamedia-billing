@@ -171,6 +171,7 @@
         "payroll": "Employee Payroll",
         "cashier_attendance": "My Attendance",
         "collectors": "Collectors",
+        "admins": "Administrator",
         "backup": "Backup & Recovery",
         "monitoring": "System Monitoring",
         "audit_logs": "Activity Logs"
@@ -705,6 +706,34 @@
         "password": "Password",
         "phone": "Phone",
         "phone_placeholder": "Example: 08123456789",
+        "account_status": "Account Status"
+      }
+    },
+    "admins": {
+      "add": "Add Admin",
+      "list": "Administrator User List",
+      "empty": "No administrators yet.",
+      "confirm_delete": "Delete this administrator?",
+      "save_changes": "Save Changes",
+      "table": {
+        "name": "Name",
+        "username": "Username",
+        "password": "Password",
+        "phone": "Phone",
+        "role": "Role Level",
+        "status": "Status",
+        "actions": "Actions"
+      },
+      "modal": {
+        "add_title": "Add New Admin",
+        "edit_title": "Edit Admin"
+      },
+      "form": {
+        "full_name": "Full Name",
+        "login_username": "Login Username",
+        "password": "Password",
+        "phone": "Phone",
+        "role": "Role Level",
         "account_status": "Account Status"
       }
     },

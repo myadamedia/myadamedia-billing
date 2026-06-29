@@ -77,6 +77,46 @@ function authenticateCollector(username, password) {
   return db.prepare('SELECT * FROM collectors WHERE username = ? AND password = ? AND is_active = 1').get(username, password);
 }
 
+/**
+ * ADMINS (Multi-Level)
+ */
+function getAllAdmins() {
+  return db.prepare('SELECT * FROM admins ORDER BY created_at DESC').all();
+}
+
+function createAdmin(data) {
+  const stmt = db.prepare('INSERT INTO admins (username, password, name, phone, role, is_active) VALUES (?, ?, ?, ?, ?, ?)');
+  return stmt.run(
+    String(data.username || '').trim(),
+    String(data.password || ''),
+    String(data.name || '').trim(),
+    String(data.phone || '').trim(),
+    String(data.role || 'noc').trim(),
+    data.hasOwnProperty('is_active') ? (data.is_active ? 1 : 0) : 1
+  );
+}
+
+function updateAdmin(id, data) {
+  const stmt = db.prepare('UPDATE admins SET username = ?, password = ?, name = ?, phone = ?, role = ?, is_active = ? WHERE id = ?');
+  return stmt.run(
+    String(data.username || '').trim(),
+    String(data.password || ''),
+    String(data.name || '').trim(),
+    String(data.phone || '').trim(),
+    String(data.role || 'noc').trim(),
+    data.is_active ? 1 : 0,
+    id
+  );
+}
+
+function deleteAdmin(id) {
+  return db.prepare('DELETE FROM admins WHERE id = ?').run(id);
+}
+
+function authenticateAdmin(username, password) {
+  return db.prepare('SELECT * FROM admins WHERE username = ? AND password = ? AND is_active = 1').get(username, password);
+}
+
 module.exports = {
   getAllTechnicians,
   createTechnician,
@@ -91,5 +131,10 @@ module.exports = {
   createCollector,
   updateCollector,
   deleteCollector,
-  authenticateCollector
+  authenticateCollector,
+  getAllAdmins,
+  createAdmin,
+  updateAdmin,
+  deleteAdmin,
+  authenticateAdmin
 };
