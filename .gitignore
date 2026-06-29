@@ -1,0 +1,31 @@
+# Dependensi Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Konfigurasi Lokal \ Kredensial Sensitif
+.env
+settings.json
+settings.json.bak
+env-example.txt
+
+# Database SQLite
+database/*.db
+database/*.db-journal
+database/*.db-wal
+database.sqlite
+
+# Folder Sesi WhatsApp (Baileys)
+auth_info_baileys/
+
+# File Log
+logs/
+*.log
+
+# Editor dan System
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
