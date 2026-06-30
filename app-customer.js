@@ -753,6 +753,72 @@ app.get('/admin/manifest.webmanifest', (req, res) => {
     ]
   });
 });
+app.get('/dev/icon-generator', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head><title>PWA Icon Generator</title></head>
+    <body>
+      <h3>Generating PNG icons from SVG...</h3>
+      <canvas id="canvas192" width="192" height="192" style="display:none;"></canvas>
+      <canvas id="canvas512" width="512" height="512" style="display:none;"></canvas>
+      <script>
+        const img = new Image();
+        img.onload = function() {
+          // Draw 192
+          const c192 = document.getElementById('canvas192');
+          const ctx192 = c192.getContext('2d');
+          ctx192.drawImage(img, 0, 0, 192, 192);
+          const data192 = c192.toDataURL('image/png');
+
+          // Draw 512
+          const c512 = document.getElementById('canvas512');
+          const ctx512 = c512.getContext('2d');
+          ctx512.drawImage(img, 0, 0, 512, 512);
+          const data512 = c512.toDataURL('image/png');
+
+          fetch('/dev/save-icons', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ icon192: data192, icon512: data512 })
+          })
+          .then(r => r.json())
+          .then(data => {
+            document.body.innerHTML += '<h4>Success: ' + JSON.stringify(data) + '</h4>';
+          })
+          .catch(err => {
+            document.body.innerHTML += '<h4>Error: ' + err.message + '</h4>';
+          });
+        };
+        img.src = '/img/pwa-icon.svg';
+      </script>
+    </body>
+    </html>
+  `);
+});
+
+app.post('/dev/save-icons', express.json({ limit: '10mb' }), (req, res) => {
+  try {
+    const { icon192, icon512 } = req.body;
+    if (!icon192 || !icon512) {
+      return res.status(400).json({ error: 'Missing icons' });
+    }
+
+    const base64Data192 = icon192.replace('data:image/png;base64,', "");
+    const base64Data512 = icon512.replace('data:image/png;base64,', "");
+
+    const fs = require('fs');
+    const path = require('path');
+
+    fs.writeFileSync(path.join(__dirname, 'public', 'img', 'pwa-icon-192.png'), base64Data192, 'base64');
+    fs.writeFileSync(path.join(__dirname, 'public', 'img', 'pwa-icon-512.png'), base64Data512, 'base64');
+
+    res.json({ success: true, message: 'Icons saved successfully!' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/uploads/qris/:filename', async (req, res) => {
