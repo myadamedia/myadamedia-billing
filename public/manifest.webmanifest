@@ -1,6 +1,6 @@
 {
-  "name": "Portal Pelanggan",
-  "short_name": "Pelanggan",
+  "name": "MyAdamedia Portal Pelanggan",
+  "short_name": "MyAdamedia",
   "start_url": "/customer/login?source=pwa",
   "scope": "/customer/",
   "display": "standalone",

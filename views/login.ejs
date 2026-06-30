@@ -334,6 +334,7 @@
       </div>
     </div>
   </div>
+  <%- include('partials/pwa_install', { hasBottomNav: false }) %>
   <script>
     // Defer service worker registration to not block page load
     if ('serviceWorker' in navigator) {

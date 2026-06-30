@@ -739,8 +739,8 @@ app.get('/manifest.webmanifest', (req, res) => {
 app.get('/admin/manifest.webmanifest', (req, res) => {
   res.type('application/manifest+json');
   res.send({
-    name: 'Admin Billing',
-    short_name: 'Admin',
+    name: 'MyAdamedia Admin',
+    short_name: 'MyAdamedia Admin',
     start_url: '/admin/settings?source=pwa',
     scope: '/admin/',
     display: 'standalone',
