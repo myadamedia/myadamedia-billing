@@ -2217,7 +2217,9 @@ router.get('/billing', requireAdminSession, requireSidebarMenuAccess('billing'),
   const invoices = billingSvc.getAllInvoices({ month: filterMonth, year: filterYear, status: filterStatus, search });
   res.render('admin/billing', {
     title: 'Tagihan', company: company(), activePage: 'billing',
-    invoices, summary, filterMonth, filterYear: parseInt(filterYear), filterStatus, search, msg: flashMsg(req)
+    invoices, summary, filterMonth, filterYear: parseInt(filterYear), filterStatus, search,
+    currentMonth: timeInfo.month, currentYear: timeInfo.year,
+    msg: flashMsg(req)
   });
 });
 
