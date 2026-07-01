@@ -200,6 +200,11 @@ const VALIDATION_RULES = {
     minLength: 10,
     description: 'Midtrans server key'
   },
+  midtrans_client_key: {
+    type: 'string',
+    minLength: 5,
+    description: 'Midtrans client key (public key untuk Snap.js frontend)'
+  },
   midtrans_mode: {
     type: 'string',
     enum: ['sandbox', 'production'],

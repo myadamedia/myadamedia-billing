@@ -528,8 +528,8 @@
                 </select>
               </div>
               <div class="fg">
-                <label class="fl">Midtrans Server Key</label>
-                <input class="fc" name="midtrans_server_key" value="<%= settings.midtrans_server_key || '' %>" type="password">
+                <label class="fl">Midtrans Server Key <span style="color:var(--danger);font-size:10px;">(Rahasia)</span></label>
+                <input class="fc" name="midtrans_server_key" value="<%= settings.midtrans_server_key || '' %>" type="password" placeholder="SB-Mid-server-... / Mid-server-...">
               </div>
               <div class="fg">
                 <label class="fl">Midtrans Mode</label>
@@ -537,6 +537,18 @@
                   <option value="sandbox" <%= settings.midtrans_mode === 'sandbox' ? 'selected' : '' %>>Sandbox</option>
                   <option value="live" <%= settings.midtrans_mode === 'live' ? 'selected' : '' %>>Live</option>
                 </select>
+              </div>
+            </div>
+            <div class="form-row2" style="margin-top:10px;">
+              <div class="fg">
+                <label class="fl">Midtrans Client Key <span style="color:var(--success);font-size:10px;">(Public Key)</span></label>
+                <input class="fc" name="midtrans_client_key" value="<%= settings.midtrans_client_key || '' %>" type="text" placeholder="SB-Mid-client-... / Mid-client-...">
+              </div>
+              <div class="fg" style="display:flex; align-items:flex-end;">
+                <div style="font-size:10px; color:var(--muted); padding-bottom:6px;">
+                  📌 <strong>Client Key</strong> = Public Key Midtrans. Digunakan di frontend (Snap.js) untuk popup pembayaran.<br>
+                  Dapatkan di <a href="https://dashboard.midtrans.com" target="_blank" style="color:var(--primary);">dashboard.midtrans.com</a> &rarr; Settings &rarr; Access Keys.
+                </div>
               </div>
             </div>
           </div>

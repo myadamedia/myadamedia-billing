@@ -114,6 +114,7 @@ async function createTripayTransaction(invoice, customer, method = 'QRIS', appUr
 async function createMidtransTransaction(invoice, customer, method = 'snap', appUrl = '', opts = {}) {
   const settings = getSettingsWithCache();
   const serverKey = settings.midtrans_server_key;
+  const clientKey = settings.midtrans_client_key || '';
   const isLive = settings.midtrans_mode === 'live' || settings.midtrans_mode === 'production';
   
   if (!serverKey) {
@@ -193,6 +194,8 @@ async function createMidtransTransaction(invoice, customer, method = 'snap', app
       success: true,
       link: res.data.redirect_url,
       reference: res.data.token,
+      snap_token: res.data.token,
+      client_key: clientKey,
       order_id: orderId,
       payload: res.data
     };
