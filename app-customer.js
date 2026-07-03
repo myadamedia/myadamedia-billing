@@ -708,14 +708,24 @@ app.get('/health', (req, res) => {
     });
 });
 
-// Redirect root ke portal pelanggan
+// Halaman Utama SSO (Single Sign-On / Portal Gateway)
 app.get('/', (req, res) => {
-  res.redirect('/customer/login');
+  const settings = getSettingsWithCache();
+  res.render('sso', {
+    title: 'Portal Single Sign-On',
+    company: settings.company_header || 'ISP App',
+    version: VERSION
+  });
 });
 
 // Alias singkat: /login → /customer/login
 app.get('/login', (req, res) => {
   res.redirect('/customer/login');
+});
+
+// Redirect /sso ke halaman utama
+app.get('/sso', (req, res) => {
+  res.redirect('/');
 });
 
 // Halaman Isolir (Akses langsung dari redirect MikroTik)

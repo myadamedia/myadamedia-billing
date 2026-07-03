@@ -15,7 +15,7 @@
   .tsc-d { border-bottom: 3px solid #ef4444; }
 
   /* Tech Legend Grid */
-  .legend-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
+  .legend-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px; }
   .lc { background: #1e293b; border: 1px solid #334155; padding: 8px; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 8px; }
   .lc i { width: 10px; height: 10px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5); }
   .lc span { font-size: 11px; font-weight: 700; color: #f1f5f9; }
@@ -53,20 +53,25 @@
 </div>
 
 <div class="legend-grid">
-  <label class="lc" style="cursor:pointer; user-select:none; margin-bottom:0">
-    <input type="checkbox" id="toggle-odp" checked onchange="toggleLayers()" style="width:16px;height:16px;cursor:pointer">
+  <label class="lc" style="cursor:pointer; user-select:none; margin-bottom:0; padding: 6px;">
+    <input type="checkbox" id="toggle-odp" checked onchange="toggleLayers()" style="width:14px;height:14px;cursor:pointer">
     <i style="background: #f59e0b;"></i>
     <span>ODP</span>
   </label>
-  <label class="lc" style="cursor:pointer; user-select:none; margin-bottom:0">
-    <input type="checkbox" id="toggle-active" checked onchange="toggleLayers()" style="width:16px;height:16px;cursor:pointer">
+  <label class="lc" style="cursor:pointer; user-select:none; margin-bottom:0; padding: 6px;">
+    <input type="checkbox" id="toggle-active" checked onchange="toggleLayers()" style="width:14px;height:14px;cursor:pointer">
     <i style="background: #3b82f6;"></i>
     <span>Aktif</span>
   </label>
-  <label class="lc" style="cursor:pointer; user-select:none; margin-bottom:0">
-    <input type="checkbox" id="toggle-suspended" checked onchange="toggleLayers()" style="width:16px;height:16px;cursor:pointer">
+  <label class="lc" style="cursor:pointer; user-select:none; margin-bottom:0; padding: 6px;">
+    <input type="checkbox" id="toggle-suspended" checked onchange="toggleLayers()" style="width:14px;height:14px;cursor:pointer">
     <i style="background: #ef4444;"></i>
     <span>Isolir</span>
+  </label>
+  <label class="lc" style="cursor:pointer; user-select:none; margin-bottom:0; padding: 6px;" title="Tiket Gangguan Aktif">
+    <input type="checkbox" id="toggle-tickets" checked onchange="toggleLayers()" style="width:14px;height:14px;cursor:pointer">
+    <i style="background: #ef4444; border-radius: 0; transform: rotate(45deg);"></i>
+    <span>Gangguan</span>
   </label>
 </div>
 
@@ -117,16 +122,51 @@
   const odpGroup = L.layerGroup().addTo(map);
   const activeCustGroup = L.layerGroup().addTo(map);
   const suspendedCustGroup = L.layerGroup().addTo(map);
+  const ticketGroup = L.layerGroup().addTo(map);
 
   // Data Injection with safety
   let customers = [];
   let odps = [];
+  let tickets = [];
   try {
     customers = <%- JSON.stringify(customers).replace(/<\/script/g, '<\\/script').replace(/<!--/g, '<\\!--') %>;
     odps = <%- JSON.stringify(odps).replace(/<\/script/g, '<\\/script').replace(/<!--/g, '<\\!--') %>;
+    tickets = <%- JSON.stringify(tickets || []).replace(/<\/script/g, '<\\/script').replace(/<!--/g, '<\\!--') %>;
   } catch (e) {
     console.error("Data mapping error:", e);
   }
+
+  // Add Ticket Markers
+  tickets.forEach(ticket => {
+    if (ticket.lat && ticket.lng) {
+      const tLat = parseFloat(ticket.lat);
+      const tLng = parseFloat(ticket.lng);
+      
+      const marker = L.marker([tLat, tLng], {
+        icon: L.divIcon({
+          html: '<i class="bi bi-exclamation-triangle-fill text-danger" style="font-size: 22px; text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff;"></i>',
+          className: 'custom-div-icon',
+          iconSize: [22, 22],
+          iconAnchor: [11, 11]
+        })
+      }).addTo(ticketGroup);
+      
+      marker.bindPopup(`
+        <div class="popup-dark">
+          <h6 style="color: #ef4444; border-bottom: 1px solid #ef4444;"><i class="bi bi-exclamation-triangle-fill me-1"></i>${ticket.category}</h6>
+          <div style="font-size:11px">
+            <b>Target:</b> ${ticket.target_name || '-'}<br>
+            <b>Kendala:</b> <span class="text-danger">${ticket.subject}</span><br>
+            <b>Pesan:</b> ${ticket.message}<br>
+            <b>Status:</b> <span class="badge bg-warning text-dark">${ticket.status}</span>
+          </div>
+          <a href="https://www.google.com/maps/dir/?api=1&destination=${tLat},${tLng}" target="_blank" class="btn btn-wa w-100 text-center mt-2" style="background:#ef4444">
+            <i class="bi bi-signpost-2"></i> Petunjuk Arah
+          </a>
+        </div>
+      `);
+    }
+  });
 
   // Add ODP Markers
   const odpMarkers = {};
@@ -287,6 +327,18 @@
         })
       }).addTo(is_active ? activeCustGroup : suspendedCustGroup);
 
+      function normalizePhone(phone) {
+        const raw = String(phone || '').trim();
+        const digits = raw.replace(/\D/g, '');
+        if (!digits) return '';
+        if (digits.startsWith('62')) return digits;
+        if (digits.startsWith('0')) return `62${digits.slice(1)}`;
+        if (digits.length >= 9) return `62${digits}`;
+        return digits;
+      }
+      const normalizedPhone = normalizePhone(cust.phone);
+      const waLink = normalizedPhone ? `https://wa.me/${normalizedPhone}?text=${encodeURIComponent('Halo ' + String(cust.name || '').trim())}` : '#';
+
       marker.bindPopup(`
         <div class="popup-dark">
           <h6>${cust.name}</h6>
@@ -296,7 +348,7 @@
             <b>Status:</b> ${cust.status}
           </div>
           <div class="d-flex gap-1">
-            <a href="https://wa.me/${cust.phone}" class="btn btn-wa flex-grow-1 text-center">
+            <a href="${waLink}" target="_blank" class="btn btn-wa flex-grow-1 text-center">
               <i class="bi bi-whatsapp"></i> Chat
             </a>
             <a href="https://www.google.com/maps/dir/?api=1&destination=${cust.lat},${cust.lng}" target="_blank" class="btn btn-wa flex-grow-1 text-center" style="background:#3b82f6">
@@ -335,6 +387,7 @@
     const showOdp = document.getElementById('toggle-odp').checked;
     const showActive = document.getElementById('toggle-active').checked;
     const showSuspended = document.getElementById('toggle-suspended').checked;
+    const showTickets = document.getElementById('toggle-tickets').checked;
 
     if (showOdp) {
       if (!map.hasLayer(odpGroup)) map.addLayer(odpGroup);
@@ -359,20 +412,31 @@
       if (map.hasLayer(suspendedCustGroup)) map.removeLayer(suspendedCustGroup);
       localStorage.setItem('map_show_suspended', 'false');
     }
+
+    if (showTickets) {
+      if (!map.hasLayer(ticketGroup)) map.addLayer(ticketGroup);
+      localStorage.setItem('map_show_tickets', 'true');
+    } else {
+      if (map.hasLayer(ticketGroup)) map.removeLayer(ticketGroup);
+      localStorage.setItem('map_show_tickets', 'false');
+    }
   };
 
   // Load preferences
   const prefOdp = localStorage.getItem('map_show_odp') !== 'false';
   const prefActive = localStorage.getItem('map_show_active') !== 'false';
   const prefSuspended = localStorage.getItem('map_show_suspended') !== 'false';
+  const prefTickets = localStorage.getItem('map_show_tickets') !== 'false';
 
   document.getElementById('toggle-odp').checked = prefOdp;
   document.getElementById('toggle-active').checked = prefActive;
   document.getElementById('toggle-suspended').checked = prefSuspended;
+  document.getElementById('toggle-tickets').checked = prefTickets;
 
   if (!prefOdp) map.removeLayer(odpGroup);
   if (!prefActive) map.removeLayer(activeCustGroup);
   if (!prefSuspended) map.removeLayer(suspendedCustGroup);
+  if (!prefTickets) map.removeLayer(ticketGroup);
 
   // Fix for blank map on load
   setTimeout(() => {

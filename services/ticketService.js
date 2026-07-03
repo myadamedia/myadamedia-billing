@@ -4,7 +4,7 @@ function getAllTickets(status = null) {
   let query = `
     SELECT t.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address, tech.name as technician_name
     FROM tickets t
-    JOIN customers c ON t.customer_id = c.id
+    LEFT JOIN customers c ON t.customer_id = c.id
     LEFT JOIN technicians tech ON t.technician_id = tech.id
   `;
   
@@ -31,7 +31,7 @@ function getTicketById(id) {
   return db.prepare(`
     SELECT t.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address, tech.name as technician_name
     FROM tickets t
-    JOIN customers c ON t.customer_id = c.id
+    LEFT JOIN customers c ON t.customer_id = c.id
     LEFT JOIN technicians tech ON t.technician_id = tech.id
     WHERE t.id = ?
   `).get(id);

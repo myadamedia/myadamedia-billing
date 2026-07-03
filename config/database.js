@@ -176,7 +176,11 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS tickets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    customer_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
+    category TEXT DEFAULT 'Pelanggan',
+    target_name TEXT,
+    lat TEXT,
+    lng TEXT,
     subject TEXT NOT NULL,
     message TEXT NOT NULL,
     status TEXT DEFAULT 'open', -- open, in_progress, resolved
@@ -641,6 +645,91 @@ try { db.exec("ALTER TABLE tickets ADD COLUMN photos TEXT DEFAULT ''"); } catch 
 try { db.exec("ALTER TABLE tickets ADD COLUMN photo_metadata TEXT DEFAULT ''"); } catch (e) {}
 try { db.exec("ALTER TABLE tickets ADD COLUMN customer_photos TEXT DEFAULT ''"); } catch (e) {}
 try { db.exec("ALTER TABLE tickets ADD COLUMN customer_photo_metadata TEXT DEFAULT ''"); } catch (e) {}
+
+// Migration for tickets table: make customer_id nullable and add category & target_name
+try {
+  const pragma = db.pragma('table_info(tickets)');
+  const customerIdCol = pragma.find(c => c.name === 'customer_id');
+  const hasCategory = pragma.some(c => c.name === 'category');
+  
+  if (customerIdCol && (customerIdCol.notnull === 1 || !hasCategory)) {
+    console.log('[DB] Migrating tickets table schema to make customer_id nullable and add category/target_name...');
+    db.pragma('foreign_keys = OFF');
+    
+    // Rename old table
+    db.exec('ALTER TABLE tickets RENAME TO tickets_old');
+    
+    // Create new table
+    db.exec(`
+      CREATE TABLE tickets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        customer_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
+        category TEXT DEFAULT 'Pelanggan',
+        target_name TEXT,
+        lat TEXT,
+        lng TEXT,
+        subject TEXT NOT NULL,
+        message TEXT NOT NULL,
+        status TEXT DEFAULT 'open',
+        technician_id INTEGER REFERENCES technicians(id) ON DELETE SET NULL,
+        technician_notes TEXT DEFAULT '',
+        photos TEXT DEFAULT '',
+        photo_metadata TEXT DEFAULT '',
+        customer_photos TEXT DEFAULT '',
+        customer_photo_metadata TEXT DEFAULT '',
+        created_at DATETIME,
+        updated_at DATETIME
+      )
+    `);
+    
+    // If we are migrating from a schema that already has category
+    if (hasCategory) {
+      // Check if old table has lat/lng to copy them safely
+      const oldPragma = db.pragma('table_info(tickets_old)');
+      const hasLatLng = oldPragma.some(c => c.name === 'lat');
+      if (hasLatLng) {
+        db.exec('INSERT INTO tickets SELECT * FROM tickets_old');
+      } else {
+        db.exec(`
+          INSERT INTO tickets (
+            id, customer_id, category, target_name, subject, message, status, 
+            technician_id, technician_notes, photos, photo_metadata, 
+            customer_photos, customer_photo_metadata, created_at, updated_at
+          )
+          SELECT 
+            id, customer_id, category, target_name, subject, message, status, 
+            technician_id, technician_notes, photos, photo_metadata, 
+            customer_photos, customer_photo_metadata, created_at, updated_at
+          FROM tickets_old
+        `);
+      }
+    } else {
+      // Migrating from legacy schema
+      db.exec(`
+        INSERT INTO tickets (
+          id, customer_id, subject, message, status, technician_id, 
+          technician_notes, photos, photo_metadata, customer_photos, 
+          customer_photo_metadata, created_at, updated_at
+        ) 
+        SELECT 
+          id, customer_id, subject, message, status, technician_id, 
+          technician_notes, photos, photo_metadata, customer_photos, 
+          customer_photo_metadata, created_at, updated_at 
+        FROM tickets_old
+      `);
+    }
+    
+    db.exec('DROP TABLE tickets_old');
+    db.pragma('foreign_keys = ON');
+    console.log('[DB] Tickets table migrated successfully');
+  }
+} catch (err) {
+  console.error('[DB] Error migrating tickets table:', err.message);
+}
+
+// ALTER TABLE try-catch for lat/lng for existing users who already did migration
+try { db.exec("ALTER TABLE tickets ADD COLUMN lat TEXT"); } catch (e) {}
+try { db.exec("ALTER TABLE tickets ADD COLUMN lng TEXT"); } catch (e) {}
 
 // Kolom untuk Payment Gateway di tabel invoices
 try { db.exec("ALTER TABLE invoices ADD COLUMN payment_gateway TEXT"); } catch (e) {}

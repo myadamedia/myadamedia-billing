@@ -103,25 +103,52 @@ function addStock(data, actor = 'Admin') {
   return run();
 }
 
-function assignStockToCustomer(stockId, customerId, actor = 'Admin', note = '') {
+function releaseStock(stockId, targetType, customerId = null, note = '', actor = 'Admin') {
   const stock = db.prepare('SELECT * FROM inventory_stock WHERE id = ?').get(stockId);
   if (!stock) throw new Error('Stock tidak ditemukan');
-  if (stock.status === 'assigned') throw new Error('Stock sudah terpasang di pelanggan lain');
+  if (stock.status !== 'available') throw new Error('Stock tidak tersedia (sudah keluar/terpasang)');
 
   const run = db.transaction(() => {
+    let finalStatus = 'assigned';
+    let resolvedCustomerId = null;
+    let logType = 'out';
+    let defaultNote = '';
+
+    if (targetType === 'customer') {
+      finalStatus = 'assigned';
+      resolvedCustomerId = customerId ? Number(customerId) : null;
+      defaultNote = `Keluar (Terpasang ke pelanggan ID: ${resolvedCustomerId})`;
+    } else if (targetType === 'internal') {
+      finalStatus = 'internal';
+      logType = 'out';
+      defaultNote = 'Keluar (Penggunaan Internal / NOC)';
+    } else if (targetType === 'broken') {
+      finalStatus = 'broken';
+      logType = 'broken';
+      defaultNote = 'Keluar (Barang Rusak)';
+    } else if (targetType === 'lost') {
+      finalStatus = 'lost';
+      logType = 'lost';
+      defaultNote = 'Keluar (Barang Hilang / Discard)';
+    }
+
     db.prepare(`
       UPDATE inventory_stock 
-      SET status = 'assigned', assigned_to_customer_id = ?, updated_at = CURRENT_TIMESTAMP
+      SET status = ?, assigned_to_customer_id = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(customerId, stockId);
+    `).run(finalStatus, resolvedCustomerId, stockId);
 
     db.prepare(`
       INSERT INTO inventory_logs (item_id, stock_id, type, quantity, actor, note)
-      VALUES (?, ?, 'out', ?, ?, ?)
-    `).run(stock.item_id, stockId, stock.quantity, actor, note || `Terpasang ke pelanggan ID: ${customerId}`);
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(stock.item_id, stockId, logType, stock.quantity, actor, note || defaultNote);
   });
 
   return run();
+}
+
+function assignStockToCustomer(stockId, customerId, actor = 'Admin', note = '') {
+  return releaseStock(stockId, 'customer', customerId, note, actor);
 }
 
 function adjustStock(stockId, newQuantity, note, actor = 'Admin') {
@@ -166,6 +193,6 @@ function getLowStockItems() {
 module.exports = {
   getAllCategories, createCategory, updateCategory, deleteCategory,
   getAllItems, getItemById, createItem, updateItem, deleteItem,
-  getStockByItem, addStock, assignStockToCustomer, adjustStock,
+  getStockByItem, addStock, assignStockToCustomer, releaseStock, adjustStock,
   getInventoryLogs, getLowStockItems
 };

@@ -158,6 +158,11 @@ router.get('/history', requireTechSession, (req, res) => {
 router.get('/map', requireTechSession, (req, res) => {
   const customers = customerSvc.getAllCustomers();
   const odps = odpSvc.getAllOdps();
+  const tickets = db.prepare(`
+    SELECT id, category, target_name, subject, message, lat, lng, status, customer_id
+    FROM tickets
+    WHERE status != 'resolved' AND lat IS NOT NULL AND lat != '' AND lng IS NOT NULL AND lng != ''
+  `).all();
   
   res.render('tech/map', { 
     title: 'Peta Jaringan', 
@@ -165,6 +170,7 @@ router.get('/map', requireTechSession, (req, res) => {
     activePage: 'map', 
     customers, 
     odps,
+    tickets,
     msg: flashMsg(req),
     settings: getSetting('office_lat') ? { office_lat: getSetting('office_lat'), office_lng: getSetting('office_lng') } : {}
   });

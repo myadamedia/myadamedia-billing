@@ -24,7 +24,7 @@ function getAssignedTickets(techId) {
   return db.prepare(`
     SELECT t.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address 
     FROM tickets t 
-    JOIN customers c ON t.customer_id = c.id 
+    LEFT JOIN customers c ON t.customer_id = c.id 
     WHERE t.technician_id = ? AND t.status != 'resolved'
     ORDER BY t.created_at DESC
   `).all(techId);
@@ -34,7 +34,7 @@ function getOpenTickets() {
   return db.prepare(`
     SELECT t.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address 
     FROM tickets t 
-    JOIN customers c ON t.customer_id = c.id 
+    LEFT JOIN customers c ON t.customer_id = c.id 
     WHERE t.status = 'open'
     ORDER BY t.created_at DESC
   `).all();
@@ -44,7 +44,7 @@ function getResolvedTickets(techId) {
   return db.prepare(`
     SELECT t.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address 
     FROM tickets t 
-    JOIN customers c ON t.customer_id = c.id 
+    LEFT JOIN customers c ON t.customer_id = c.id 
     WHERE t.technician_id = ? AND t.status = 'resolved'
     ORDER BY t.updated_at DESC LIMIT 50
   `).all(techId);

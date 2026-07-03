@@ -2802,10 +2802,100 @@ router.get('/tickets', requireAdminSession, requireSidebarMenuAccess('tickets'),
   const tickets = ticketSvc.getAllTickets(status);
   const stats = ticketSvc.getTicketStats();
   const technicians = adminSvc.getAllTechnicians().filter(t => t.is_active !== 0);
+  const customers = db.prepare('SELECT id, name, phone, address FROM customers ORDER BY name ASC').all();
+  const odps = db.prepare('SELECT id, name, lat, lng FROM odps ORDER BY name ASC').all();
   res.render('admin/tickets', {
-    title: 'Keluhan Pelanggan', company: company(), activePage: 'tickets',
-    tickets, stats, filterStatus: status, msg: flashMsg(req), technicians
+    title: 'Tiket Gangguan & Keluhan', company: company(), activePage: 'tickets',
+    tickets, stats, filterStatus: status, msg: flashMsg(req), technicians, customers, odps
   });
+});
+
+router.post('/tickets/create', requireAdminSession, express.urlencoded({ extended: true }), async (req, res) => {
+  try {
+    const { category, customer_id, odp_id, target_name, lat, lng, subject, message, technician_id, status } = req.body;
+    
+    let resolvedCustomerId = null;
+    let resolvedTargetName = null;
+    let resolvedLat = null;
+    let resolvedLng = null;
+    
+    if (category === 'Pelanggan') {
+      resolvedCustomerId = customer_id ? Number(customer_id) : null;
+      if (resolvedCustomerId) {
+        const cust = db.prepare('SELECT name, lat, lng FROM customers WHERE id = ?').get(resolvedCustomerId);
+        if (cust) {
+          resolvedTargetName = cust.name;
+          resolvedLat = cust.lat || null;
+          resolvedLng = cust.lng || null;
+        }
+      }
+    } else if (category === 'ODP') {
+      const resolvedOdpId = odp_id ? Number(odp_id) : null;
+      if (resolvedOdpId) {
+        const odp = db.prepare('SELECT name, lat, lng FROM odps WHERE id = ?').get(resolvedOdpId);
+        if (odp) {
+          resolvedTargetName = odp.name;
+          resolvedLat = odp.lat || null;
+          resolvedLng = odp.lng || null;
+        }
+      }
+    } else {
+      resolvedTargetName = target_name || null;
+      resolvedLat = lat || null;
+      resolvedLng = lng || null;
+    }
+    
+    const resolvedTechId = technician_id ? Number(technician_id) : null;
+    const resolvedStatus = status || 'open';
+    
+    const stmt = db.prepare(`
+      INSERT INTO tickets (customer_id, category, target_name, lat, lng, subject, message, technician_id, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const info = stmt.run(resolvedCustomerId, category, resolvedTargetName, resolvedLat, resolvedLng, subject, message, resolvedTechId, resolvedStatus);
+    
+    req.session._msg = { type: 'success', text: 'Tiket gangguan berhasil dibuat.' };
+    
+    // --- WHATSAPP NOTIFICATION FOR TECHNICIAN ASSIGNMENT ---
+    if (resolvedTechId) {
+      try {
+        const settings = getSettings();
+        const tech = db.prepare('SELECT * FROM technicians WHERE id = ?').get(resolvedTechId);
+        if (settings.whatsapp_enabled && tech && tech.phone) {
+          const { sendWA } = await import('../services/whatsappBot.mjs');
+          
+          let targetText = '';
+          if (category === 'Pelanggan' && resolvedCustomerId) {
+            targetText = `👤 *Pelanggan:* ${resolvedTargetName}\n📍 *Alamat:* ${db.prepare('SELECT address FROM customers WHERE id = ?').get(resolvedCustomerId)?.address || '-'}`;
+          } else {
+            targetText = `🏷️ *Kategori:* ${category}\n📍 *Target:* ${resolvedTargetName || '-'}`;
+          }
+          if (resolvedLat && resolvedLng) {
+            targetText += `\n📍 *Koordinat:* ${resolvedLat},${resolvedLng}`;
+          }
+          
+          const waMessage = `🛠️ *PENUGASAN KELUHAN BARU*\n\n` +
+                            `🎫 *ID Tiket:* #${info.lastInsertRowid}\n` +
+                            `${targetText}\n` +
+                            `📝 *Subjek:* ${subject}\n` +
+                            `💬 *Pesan:* ${message}\n\n` +
+                            `Silakan segera lakukan pengecekan dan perbaikan di lokasi.`;
+          
+          let digits = String(tech.phone).replace(/\D/g, '');
+          if (digits) {
+            if (digits.startsWith('0')) digits = '62' + digits.slice(1);
+            await sendWA(digits, waMessage);
+          }
+        }
+      } catch (err) {
+        logger.error(`Error sending WA notify for new ticket assignment: ${err.message}`);
+      }
+    }
+  } catch (err) {
+    logger.error(`Error creating ticket: ${err.message}`);
+    req.session._msg = { type: 'danger', text: `Gagal membuat tiket: ${err.message}` };
+  }
+  res.redirect('/admin/tickets');
 });
 
 router.post('/tickets/:id/update', requireAdminSession, express.urlencoded({ extended: true }), async (req, res) => {
@@ -2833,13 +2923,19 @@ router.post('/tickets/:id/update', requireAdminSession, express.urlencoded({ ext
           const { sendWA } = await import('../services/whatsappBot.mjs');
           const ticket = ticketSvc.getTicketById(ticketId);
           if (ticket) {
+            let targetText = '';
+            if (ticket.customer_id) {
+              targetText = `👤 *Pelanggan:* ${ticket.customer_name}\n📍 *Alamat:* ${ticket.customer_address || '-'}`;
+            } else {
+              targetText = `🏷️ *Kategori:* ${ticket.category || 'Gangguan'}\n📍 *Target:* ${ticket.target_name || '-'}`;
+            }
+            
             const waMsg = `🛠️ *PENUGASAN KELUHAN BARU*\n\n` +
                           `🎫 *ID Tiket:* #${ticket.id}\n` +
-                          `👤 *Pelanggan:* ${ticket.customer_name}\n` +
-                          `📍 *Alamat:* ${ticket.customer_address || '-'}\n` +
+                          `${targetText}\n` +
                           `📝 *Subjek:* ${ticket.subject}\n` +
                           `💬 *Pesan:* ${ticket.message}\n\n` +
-                          `Silakan segera lakukan pengecekan dan perbaikan di lokasi pelanggan.`;
+                          `Silakan segera lakukan pengecekan dan perbaikan di lokasi.`;
             
             let digits = String(tech.phone).replace(/\D/g, '');
             if (digits) {
@@ -2886,12 +2982,22 @@ router.post('/tickets/:id/update', requireAdminSession, express.urlencoded({ ext
           const ticket = ticketSvc.getTicketById(ticketId);
           
           if (ticket) {
+            let targetText = '';
+            let targetAdminText = '';
+            if (ticket.customer_id) {
+              targetText = `👤 *Pelanggan:* ${ticket.customer_name}`;
+              targetAdminText = `👤 *Pelanggan:* ${ticket.customer_name}`;
+            } else {
+              targetText = `🏷️ *Kategori:* ${ticket.category || 'Gangguan'}\n📍 *Target:* ${ticket.target_name || '-'}`;
+              targetAdminText = `🏷️ *Kategori:* ${ticket.category || 'Gangguan'}\n📍 *Target:* ${ticket.target_name || '-'}`;
+            }
+
             const waMsg = `✅ *TIKET KELUHAN SELESAI*\n\n` +
-                         `🎫 *ID Tiket:* #${ticket.id}\n` +
-                         `👤 *Pelanggan:* ${ticket.customer_name}\n` +
-                         `📝 *Subjek:* ${ticket.subject}\n` +
-                         `🛠️ *Petugas:* Admin\n\n` +
-                         `Keluhan Anda telah selesai dikerjakan. Terima kasih atas kesabarannya.`;
+                          `🎫 *ID Tiket:* #${ticket.id}\n` +
+                          `${targetText}\n` +
+                          `📝 *Subjek:* ${ticket.subject}\n` +
+                          `🛠️ *Petugas:* Admin\n\n` +
+                          `Keluhan Anda telah selesai dikerjakan. Terima kasih atas kesabarannya.`;
 
             // Kirim ke Pelanggan
             if (ticket.customer_phone) {
@@ -2902,7 +3008,7 @@ router.post('/tickets/:id/update', requireAdminSession, express.urlencoded({ ext
             if (settings.whatsapp_admin_numbers && settings.whatsapp_admin_numbers.length > 0) {
               const adminMsg = `✅ *LAPORAN TIKET SELESAI (OLEH ADMIN)*\n\n` +
                                `🎫 *ID Tiket:* #${ticket.id}\n` +
-                               `👤 *Pelanggan:* ${ticket.customer_name}\n` +
+                               `${targetAdminText}\n` +
                                `📝 *Subjek:* ${ticket.subject}\n` +
                                `💬 *Pesan:* ${ticket.message}`;
               const seen = new Set();
@@ -3719,10 +3825,12 @@ router.get('/inventory/item/:id/stock', requireAdminSession, (req, res) => {
 
 router.post('/inventory/stock/assign', requireAdminSession, express.urlencoded({ extended: true }), (req, res) => {
   try {
-    const { stock_id, customer_id, note } = req.body;
+    const { stock_id, target_type, customer_id, note } = req.body;
     const actor = req.session.adminUser || 'Admin';
-    inventorySvc.assignStockToCustomer(stock_id, customer_id, actor, note);
-    req.session._msg = { type: 'success', text: 'Barang berhasil dialokasikan/keluar ke pelanggan.' };
+    const resolvedType = target_type || 'customer';
+    
+    inventorySvc.releaseStock(stock_id, resolvedType, customer_id, note, actor);
+    req.session._msg = { type: 'success', text: 'Transaksi barang keluar berhasil dicatat.' };
   } catch (e) {
     req.session._msg = { type: 'error', text: 'Gagal: ' + e.message };
   }
@@ -4942,6 +5050,45 @@ router.post('/whatsapp/templates', requireAdminSession, express.urlencoded({ ext
     req.session._msg = { type: 'danger', text: 'Gagal menyimpan template: ' + e.message };
   }
   res.redirect('/admin/whatsapp/templates');
+});
+
+router.get('/whatsapp/monitoring', requireAdminSession, requireSidebarMenuAccess('whatsapp_monitoring'), (req, res) => {
+  const settings = getSettings();
+  res.render('admin/whatsapp_monitoring', {
+    title: 'Alert Monitoring WA',
+    company: company(),
+    activePage: 'whatsapp_monitoring',
+    msg: flashMsg(req),
+    settings: {
+      monitoring_rx_power_alert_enabled: settings.monitoring_rx_power_alert_enabled !== undefined ? (settings.monitoring_rx_power_alert_enabled === true || settings.monitoring_rx_power_alert_enabled === 'true') : true,
+      monitoring_rx_power_threshold: settings.monitoring_rx_power_threshold !== undefined ? parseFloat(settings.monitoring_rx_power_threshold) : -27,
+      monitoring_offline_alert_enabled: settings.monitoring_offline_alert_enabled !== undefined ? (settings.monitoring_offline_alert_enabled === true || settings.monitoring_offline_alert_enabled === 'true') : true,
+      monitoring_offline_threshold_hours: settings.monitoring_offline_threshold_hours !== undefined ? parseInt(settings.monitoring_offline_threshold_hours) : 24
+    }
+  });
+});
+
+router.post('/whatsapp/monitoring', requireAdminSession, restrictToAdmin, express.urlencoded({ extended: true }), (req, res) => {
+  try {
+    const rxPowerEnabled = req.body.monitoring_rx_power_alert_enabled === '1' || req.body.monitoring_rx_power_alert_enabled === 'true';
+    const rxPowerThreshold = parseFloat(req.body.monitoring_rx_power_threshold) || -27;
+    const offlineEnabled = req.body.monitoring_offline_alert_enabled === '1' || req.body.monitoring_offline_alert_enabled === 'true';
+    const offlineThresholdHours = parseInt(req.body.monitoring_offline_threshold_hours) || 24;
+
+    const success = saveSettings({
+      monitoring_rx_power_alert_enabled: rxPowerEnabled,
+      monitoring_rx_power_threshold: rxPowerThreshold,
+      monitoring_offline_alert_enabled: offlineEnabled,
+      monitoring_offline_threshold_hours: offlineThresholdHours
+    });
+
+    if (!success) throw new Error('Gagal menyimpan pengaturan.');
+
+    req.session._msg = { type: 'success', text: 'Pengaturan alert monitoring berhasil disimpan.' };
+  } catch (e) {
+    req.session._msg = { type: 'error', text: e.message };
+  }
+  res.redirect('/admin/whatsapp/monitoring');
 });
 
 router.get('/whatsapp/broadcast', requireAdminSession, requireSidebarMenuAccess('broadcast'), (req, res) => {

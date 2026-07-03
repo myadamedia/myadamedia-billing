@@ -283,15 +283,24 @@
 <div class="mo" id="modal-assign-stock">
   <div class="mb" style="max-width:450px">
     <div class="mh">
-      <div class="mt">Pasang/Gunakan Barang (Barang Keluar)</div>
+      <div class="mt">Alokasi Barang Keluar</div>
       <button class="mc" onclick="closeModal('modal-assign-stock')">&times;</button>
     </div>
     <form action="/admin/inventory/stock/assign" method="POST">
       <input type="hidden" name="stock_id" id="assign_stock_id">
       <div class="mbody">
         <div class="fg">
+          <label class="fl">Tujuan Pengeluaran Barang</label>
+          <select class="fs" name="target_type" id="assign_target_type" onchange="toggleAssignType()" required>
+            <option value="customer" selected>Pasang/Gunakan ke Pelanggan</option>
+            <option value="internal">Penggunaan Internal / Kantor / NOC</option>
+            <option value="broken">Rusak / Afkir</option>
+            <option value="lost">Hilang / Discard</option>
+          </select>
+        </div>
+        <div class="fg" id="assign_customer_group">
           <label class="fl">Pilih Pelanggan</label>
-          <select class="fs" name="customer_id" required>
+          <select class="fs" name="customer_id" id="assign_customer_id" required>
             <option value="">-- Pilih Pelanggan --</option>
             <% customers.forEach(c => { %>
               <option value="<%= c.id %>">MDE-<%= String(c.id).padStart(4, '0') %> — <%= c.name %></option>
@@ -300,7 +309,7 @@
         </div>
         <div class="fg">
           <label class="fl">Catatan / Deskripsi Keluar</label>
-          <textarea class="fc" name="note" placeholder="Contoh: Dipasang di ONT pelanggan, penggantian perangkat, dll." required></textarea>
+          <textarea class="fc" name="note" placeholder="Contoh: Dipasang di ONT pelanggan, instalasi perangkat NOC baru, rusak karena petir, dll." required></textarea>
         </div>
       </div>
       <div class="mf">

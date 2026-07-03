@@ -34,8 +34,9 @@
 
     <!-- Filter -->
     <div class="card">
-      <div class="card-hd">
-        <h6><i class="bi bi-list-ul"></i> <%= t('admin.tickets.list_title', 'Daftar Keluhan') %> (<%= tickets.length %>)</h6>
+      <div class="card-hd" style="display:flex; justify-content:space-between; align-items:center; width:100%">
+        <h6><i class="bi bi-list-ul"></i> <%= t('admin.tickets.list_title', 'Daftar Keluhan & Gangguan') %> (<%= tickets.length %>)</h6>
+        <button class="btn btn-p btn-sm" onclick="openModal('createModal')"><i class="bi bi-plus-lg"></i> Buat Tiket Gangguan</button>
       </div>
       <div class="card-bd" style="padding-bottom:0">
         <form method="GET" action="/admin/tickets" style="display:flex;gap:10px;margin-bottom:18px">
@@ -53,7 +54,7 @@
             <tr>
               <th>#ID</th>
               <th><%= t('admin.tickets.table.time', 'Waktu') %></th>
-              <th><%= t('admin.tickets.table.customer', 'Pelanggan') %></th>
+              <th><%= t('admin.tickets.table.customer', 'Pelanggan / Target') %></th>
               <th><%= t('admin.tickets.table.issue', 'Kendala') %></th>
               <th><%= t('admin.tickets.table.technician', 'Teknisi') %></th>
               <th><%= t('admin.tickets.table.status', 'Status') %></th>
@@ -71,8 +72,13 @@
                 <%= new Date(ticket.created_at).toLocaleString('id-ID', {dateStyle:'short', timeStyle:'short'}) %>
               </td>
               <td>
-                <div class="fw6"><%= ticket.customer_name %></div>
-                <div style="font-size:11px;color:var(--muted)"><%= ticket.customer_phone || '-' %></div>
+                <% if (ticket.customer_id) { %>
+                  <div class="fw6"><%= ticket.customer_name %></div>
+                  <div style="font-size:11px;color:var(--muted)"><%= ticket.customer_phone || '-' %></div>
+                <% } else { %>
+                  <div class="fw6 text-warning"><i class="bi bi-tag-fill me-1"></i><%= ticket.category %></div>
+                  <div style="font-size:11px;color:var(--muted)"><%= ticket.target_name || '-' %></div>
+                <% } %>
               </td>
               <td style="color:var(--primary)"><%= ticket.subject %></td>
               <td>
@@ -93,7 +99,7 @@
                   data-status="<%= ticket.status %>"
                   data-message="<%= ticket.message %>"
                   data-subject="<%= ticket.subject %>"
-                  data-customer="<%= ticket.customer_name %>"
+                  data-customer="<%= ticket.customer_id ? ticket.customer_name : ticket.category + ' (' + (ticket.target_name || '-') + ')' %>"
                   data-notes="<%= ticket.technician_notes || '' %>"
                   data-photos="<%= ticket.photos || '' %>"
                   data-customer-photos="<%= ticket.customer_photos || '' %>"
@@ -106,7 +112,7 @@
                     data-id="<%= ticket.id %>"
                     data-photos="<%= ticket.photos || '' %>"
                     data-customer-photos="<%= ticket.customer_photos || '' %>"
-                    data-customer="<%= ticket.customer_name %>"
+                    data-customer="<%= ticket.customer_id ? ticket.customer_name : ticket.category + ' (' + (ticket.target_name || '-') + ')' %>"
                     data-subject="<%= ticket.subject %>">
                     <i class="bi bi-images"></i>
                   </button>
@@ -288,7 +294,169 @@ document.addEventListener('click', function(e) {
   openModal('photoModal');
 });
 
+function toggleCreateFields() {
+  const cat = document.getElementById('createCategory').value;
+  const custGroup = document.getElementById('createCustomerGroup');
+  const odpGroup = document.getElementById('createOdpGroup');
+  const targetGroup = document.getElementById('createTargetGroup');
+  const latLngGroup = document.getElementById('createLatLngGroup');
+  
+  const custSelect = document.getElementById('createCustomerId');
+  const odpSelect = document.getElementById('createOdpId');
+  const targetInput = document.getElementById('createTargetName');
+  const latInput = document.getElementById('createLat');
+  const lngInput = document.getElementById('createLng');
+  
+  if (cat === 'Pelanggan') {
+    custGroup.style.display = 'block';
+    odpGroup.style.display = 'none';
+    targetGroup.style.display = 'none';
+    latLngGroup.style.display = 'none';
+    
+    custSelect.setAttribute('required', 'required');
+    odpSelect.removeAttribute('required');
+    targetInput.removeAttribute('required');
+    
+    odpSelect.value = '';
+    targetInput.value = '';
+    latInput.value = '';
+    lngInput.value = '';
+  } else if (cat === 'ODP') {
+    custGroup.style.display = 'none';
+    odpGroup.style.display = 'block';
+    targetGroup.style.display = 'none';
+    latLngGroup.style.display = 'none';
+    
+    custSelect.removeAttribute('required');
+    odpSelect.setAttribute('required', 'required');
+    targetInput.removeAttribute('required');
+    
+    custSelect.value = '';
+    targetInput.value = '';
+    latInput.value = '';
+    lngInput.value = '';
+  } else {
+    custGroup.style.display = 'none';
+    odpGroup.style.display = 'none';
+    targetGroup.style.display = 'block';
+    latLngGroup.style.display = 'flex';
+    
+    custSelect.removeAttribute('required');
+    odpSelect.removeAttribute('required');
+    targetInput.setAttribute('required', 'required');
+    
+    custSelect.value = '';
+    odpSelect.value = '';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const catSelect = document.getElementById('createCategory');
+  if (catSelect) {
+    toggleCreateFields();
+  }
+});
+
 setTimeout(()=>document.querySelectorAll('.alert').forEach(a=>a.style.display='none'),5000);
 </script>
+
+<!-- Modal Create Ticket -->
+<div class="mo" id="createModal">
+  <div class="mb">
+    <div class="mh">
+      <span class="mt"><i class="bi bi-plus-lg"></i> Buat Tiket Gangguan Baru</span>
+      <button class="mc" onclick="closeModal('createModal')">&times;</button>
+    </div>
+    <form method="POST" action="/admin/tickets/create">
+      <div class="mbody">
+        <div class="fg">
+          <label class="fl">Kategori Gangguan</label>
+          <select class="fs" name="category" id="createCategory" onchange="toggleCreateFields()" required>
+            <option value="Pelanggan">Pelanggan</option>
+            <option value="Jalur Distribusi">Jalur Distribusi</option>
+            <option value="Jalur Backbone">Jalur Backbone</option>
+            <option value="ODP">ODP</option>
+            <option value="ODC">ODC</option>
+            <option value="Perangkat">Perangkat</option>
+          </select>
+        </div>
+        
+        <!-- Field Pelanggan (Hanya tampil jika kategori = Pelanggan) -->
+        <div class="fg" id="createCustomerGroup">
+          <label class="fl">Pilih Pelanggan</label>
+          <select class="fs" name="customer_id" id="createCustomerId">
+            <option value="">-- Pilih Pelanggan --</option>
+            <% customers.forEach(c => { %>
+              <option value="<%= c.id %>"><%= c.name %> (<%= c.phone || 'No WA' %>)</option>
+            <% }) %>
+          </select>
+        </div>
+
+        <!-- Field ODP (Hanya tampil jika kategori = ODP) -->
+        <div class="fg" id="createOdpGroup" style="display:none;">
+          <label class="fl">Pilih ODP</label>
+          <select class="fs" name="odp_id" id="createOdpId">
+            <option value="">-- Pilih ODP --</option>
+            <% odps.forEach(o => { %>
+              <option value="<%= o.id %>"><%= o.name %> (<%= o.lat && o.lng ? 'Map Lokasi' : 'No GPS' %>)</option>
+            <% }) %>
+          </select>
+        </div>
+        
+        <!-- Field Target (Tampil jika kategori != Pelanggan & ODP) -->
+        <div class="fg" id="createTargetGroup" style="display:none;">
+          <label class="fl">Target / Lokasi Gangguan</label>
+          <input class="fc" name="target_name" id="createTargetName" placeholder="Contoh: ODC-MADA-01, Backbone Cluster Utara">
+        </div>
+
+        <!-- Field Manual Lat/Lng (Tampil jika kategori != Pelanggan & ODP) -->
+        <div class="fg row" id="createLatLngGroup" style="display:none; margin: 0 -5px;">
+          <div class="col-6" style="padding: 0 5px;">
+            <label class="fl">Latitude (Opsional)</label>
+            <input class="fc" name="lat" id="createLat" placeholder="Contoh: -6.2000">
+          </div>
+          <div class="col-6" style="padding: 0 5px;">
+            <label class="fl">Longitude (Opsional)</label>
+            <input class="fc" name="lng" id="createLng" placeholder="Contoh: 106.816">
+          </div>
+        </div>
+        
+        <div class="fg">
+          <label class="fl">Subjek / Masalah</label>
+          <input class="fc" name="subject" placeholder="Contoh: Loss Redaman, Kabel Putus, Mati Power" required>
+        </div>
+        
+        <div class="fg">
+          <label class="fl">Detail Gangguan</label>
+          <textarea class="fc" name="message" rows="3" placeholder="Jelaskan detail kendala, lokasi tepat, atau kronologi kejadian..." required></textarea>
+        </div>
+        
+        <div class="fg">
+          <label class="fl">Tugaskan Teknisi</label>
+          <select class="fs" name="technician_id">
+            <option value="">-- Pilih Teknisi --</option>
+            <% technicians.forEach(t => { %>
+              <option value="<%= t.id %>"><%= t.name %></option>
+            <% }) %>
+          </select>
+        </div>
+        
+        <div class="fg">
+          <label class="fl">Status Awal</label>
+          <select class="fs" name="status">
+            <option value="open" selected>Belum Ditangani (Open)</option>
+            <option value="in_progress">Sedang Dikerjakan (In Progress)</option>
+            <option value="resolved">Selesai (Resolved)</option>
+          </select>
+        </div>
+      </div>
+      <div class="mf">
+        <button type="button" class="btn btn-g" onclick="closeModal('createModal')">Batal</button>
+        <button type="submit" class="btn btn-p"><i class="bi bi-check-lg"></i> Simpan Tiket</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 </body>
 </html>

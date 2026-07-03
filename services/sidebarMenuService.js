@@ -28,6 +28,7 @@ const MENU_DEFINITIONS = [
   { key: 'olts', section: 'main', href: '/admin/olts', icon: 'bi bi-hdd-fill', labelKey: 'admin.nav.olt_management', labelDefault: 'Manajemen OLT', roles: ['superadmin', 'noc'], activePages: ['olts'] },
   { key: 'whatsapp', section: 'main', href: '/admin/whatsapp', icon: 'bi bi-whatsapp', labelKey: 'admin.nav.whatsapp', labelDefault: 'WhatsApp', roles: ['superadmin', 'noc'], activePages: ['whatsapp'] },
   { key: 'broadcast', section: 'main', href: '/admin/whatsapp/broadcast', icon: 'bi bi-megaphone', labelKey: 'admin.broadcast.title', labelDefault: 'Broadcast WhatsApp', roles: ['superadmin', 'finance'], activePages: ['broadcast'] },
+  { key: 'whatsapp_monitoring', section: 'main', href: '/admin/whatsapp/monitoring', icon: 'bi bi-bell-fill', labelKey: 'admin.nav.whatsapp_monitoring', labelDefault: 'Alert Monitoring WA', roles: ['superadmin', 'noc'], activePages: ['whatsapp_monitoring'] },
 
   { key: 'customers', section: 'billing', href: '/admin/customers', icon: 'bi bi-people', labelKey: 'admin.nav.customers', labelDefault: 'Pelanggan', roles: ['superadmin', 'finance', 'teknisi', 'kolektor', 'noc'], bottomNav: true, activePages: ['customers'] },
   { key: 'packages', section: 'billing', href: '/admin/packages', icon: 'bi bi-box-seam', labelKey: 'admin.nav.internet_packages', labelDefault: 'Paket Internet', roles: ['superadmin', 'finance'], activePages: ['packages'] },
@@ -52,7 +53,6 @@ const MENU_DEFINITIONS = [
   { key: 'technicians', section: 'user_management', href: '/admin/technicians', icon: 'bi bi-person-gear', labelKey: 'admin.nav.technicians', labelDefault: 'Teknisi', roles: ['superadmin'], activePages: ['technicians'] },
   { key: 'cashiers', section: 'user_management', href: '/admin/cashiers', icon: 'bi bi-person-vcard', labelKey: 'admin.nav.cashiers', labelDefault: 'Kasir', roles: ['superadmin', 'finance'], activePages: ['cashiers'] },
   { key: 'collectors', section: 'user_management', href: '/admin/collectors', icon: 'bi bi-person-badge', labelKey: 'admin.nav.collectors', labelDefault: 'Kolektor', roles: ['superadmin', 'finance'], activePages: ['collectors'] },
-  { key: 'admins', section: 'user_management', href: '/admin/admins', icon: 'bi bi-shield-lock', labelKey: 'admin.nav.admins', labelDefault: 'Administrator', roles: ['superadmin'], activePages: ['admins'] },
   { key: 'agents', section: 'user_management', href: '/admin/agents', icon: 'bi bi-person-badge', labelKey: 'admin.nav.agents', labelDefault: 'Agent', roles: ['superadmin', 'finance'], activePages: ['agents'] },
   { key: 'agents_reports', section: 'user_management', href: '/admin/agents/reports', icon: 'bi bi-journal-text', labelKey: 'admin.nav.agent_reports', labelDefault: 'Laporan Agent', roles: ['superadmin', 'finance'], activePages: ['agents_reports'] },
 
@@ -73,6 +73,7 @@ const DEFAULT_MENU_STATES = {
   olts: STATE_VISIBLE,
   whatsapp: STATE_VISIBLE,
   broadcast: STATE_VISIBLE,
+  whatsapp_monitoring: STATE_VISIBLE,
   customers: STATE_VISIBLE,
   packages: STATE_VISIBLE,
   voucher_packages: STATE_VISIBLE,
@@ -91,7 +92,6 @@ const DEFAULT_MENU_STATES = {
   technicians: STATE_VISIBLE,
   cashiers: STATE_VISIBLE,
   collectors: STATE_VISIBLE,
-  admins: STATE_VISIBLE,
   agents: STATE_VISIBLE,
   agents_reports: STATE_VISIBLE,
   update: STATE_VISIBLE,
@@ -204,11 +204,16 @@ function isMenuAllowedForSession(menu, session) {
 
   // Jika session adalah Cashier lama
   if (session.isCashier && !session.isAdmin) {
-    return roles.includes('cashier');
+    return roles.includes('cashier') || roles.includes(session.adminRole || 'finance');
   }
 
   // Jika session adalah Admin (dengan role spesifik atau default superadmin)
   if (session.isAdmin) {
+    // Menu absensi kasir pribadi hanya untuk kasir (memiliki cashierId)
+    if (menu.key === 'cashier_attendance') {
+      return false;
+    }
+
     const adminRole = session.adminRole || 'superadmin';
     if (adminRole === 'superadmin') return true; // Super Admin memiliki hak akses penuh ke semua menu
     return roles.includes(adminRole);

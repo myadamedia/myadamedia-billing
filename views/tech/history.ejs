@@ -20,7 +20,13 @@
         <span class="text-secondary" style="font-size: 11px;"><%= new Date(ticket.updated_at).toLocaleString('id-ID', {day: '2-digit', month: 'short', year: 'numeric'}) %></span>
       </div>
       
-      <div class="fw-bold mb-1" style="font-size: 14px;"><%= ticket.customer_name %></div>
+      <div class="fw-bold mb-1" style="font-size: 14px;">
+        <% if (ticket.customer_id) { %>
+          <%= ticket.customer_name %>
+        <% } else { %>
+          <i class="bi bi-tag-fill text-warning me-1"></i><%= ticket.category %> - <%= ticket.target_name || '-' %>
+        <% } %>
+      </div>
       
       <div class="text-secondary" style="font-size: 12px;">
         <i class="bi bi-tools me-1"></i><%= ticket.subject %>

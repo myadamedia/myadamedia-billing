@@ -802,6 +802,15 @@ const genieacsApi = {
 // Fungsi untuk memeriksa nilai RXPower dari semua perangkat
 async function monitorRXPower(threshold = -27) {
     try {
+        const isEnabled = getSetting('monitoring_rx_power_alert_enabled', true);
+        if (isEnabled === false || isEnabled === 'false' || isEnabled === 0 || isEnabled === '0') {
+            logger.info('[RXPower] WhatsApp monitoring alert for high attenuation (RX Power) is disabled in settings');
+            return { success: true, message: 'Monitoring disabled' };
+        }
+
+        if (threshold === -27 || threshold === null || threshold === undefined) {
+            threshold = parseFloat(getSetting('monitoring_rx_power_threshold', -27));
+        }
         logger.info(`[RXPower] Memulai pemantauan RXPower dengan threshold ${threshold} dBm`);
         
         // Ambil semua perangkat
@@ -1031,6 +1040,15 @@ function getDeviceSerialNumber(device) {
 // Fungsi untuk memantau perangkat yang tidak aktif (offline)
 async function monitorOfflineDevices(thresholdHours = 24) {
     try {
+        const isEnabled = getSetting('monitoring_offline_alert_enabled', true);
+        if (isEnabled === false || isEnabled === 'false' || isEnabled === 0 || isEnabled === '0') {
+            logger.info('[Offline] WhatsApp monitoring alert for offline devices is disabled in settings');
+            return { success: true, message: 'Monitoring disabled' };
+        }
+
+        if (thresholdHours === 24 || thresholdHours === null || thresholdHours === undefined) {
+            thresholdHours = parseInt(getSetting('monitoring_offline_threshold_hours', 24));
+        }
         logger.info(`[Offline] Memulai pemantauan perangkat offline dengan threshold ${thresholdHours} jam`);
         
         // Ambil semua perangkat

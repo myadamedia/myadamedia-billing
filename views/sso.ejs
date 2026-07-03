@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="<%= lang || 'id' %>">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> | <%= company %></title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="icon" href="/img/logo.png">
+  <style>
+    body {
+      background: radial-gradient(1200px 600px at 10% 0%, rgba(99, 102, 241, 0.22) 0%, rgba(15, 23, 42, 0) 60%),
+        radial-gradient(900px 450px at 100% 0%, rgba(59, 130, 246, 0.18) 0%, rgba(15, 23, 42, 0) 55%),
+        #0f172a;
+      color: #e2e8f0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 40px 20px;
+    }
+
+    .sso-wrapper {
+      max-width: 900px;
+      width: 100%;
+    }
+
+    .sso-header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .logo-container {
+      width: 90px;
+      height: 90px;
+      background: rgba(30, 41, 59, 0.7);
+      border: 1.5px solid rgba(148, 163, 184, 0.25);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+      backdrop-filter: blur(10px);
+    }
+
+    .logo-container img {
+      width: 55px;
+      height: 55px;
+      object-fit: contain;
+    }
+
+    .company-title {
+      font-size: 26px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #f8fafc 30%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 5px;
+    }
+
+    .sso-subtitle {
+      color: #64748b;
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .sso-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 24px;
+    }
+
+    @media (max-width: 768px) {
+      .sso-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+      }
+    }
+
+    .portal-card {
+      background: rgba(30, 41, 59, 0.6);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 20px;
+      padding: 24px;
+      text-decoration: none;
+      color: inherit;
+      display: flex;
+      align-items: flex-start;
+      gap: 20px;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+    }
+
+    .portal-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 100%);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .portal-card:hover {
+      transform: translateY(-5px);
+      border-color: rgba(255, 255, 255, 0.18);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+      color: #fff;
+    }
+
+    .portal-card:hover::before {
+      opacity: 1;
+    }
+
+    .portal-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      color: white;
+      flex-shrink: 0;
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.35);
+    }
+
+    .icon-admin {
+      background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+    }
+
+    .icon-tech {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    }
+
+    .icon-collector {
+      background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+    }
+
+    .icon-agent {
+      background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    }
+
+    .portal-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .portal-name {
+      font-size: 18px;
+      font-weight: 800;
+      margin-bottom: 8px;
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .portal-desc {
+      font-size: 13px;
+      color: #94a3b8;
+      line-height: 1.5;
+      font-weight: 500;
+    }
+
+    .portal-arrow {
+      font-size: 16px;
+      color: #475569;
+      transition: transform 0.3s ease, color 0.3s ease;
+    }
+
+    .portal-card:hover .portal-arrow {
+      transform: translateX(4px);
+      color: #f8fafc;
+    }
+
+    .sso-footer {
+      text-align: center;
+      margin-top: 50px;
+      color: #475569;
+      font-size: 12px;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="sso-wrapper">
+    <div class="sso-header">
+      <div class="logo-container">
+        <img src="/img/logo.png" alt="Company Logo" onerror="this.src='https://cdn-icons-png.flaticon.com/512/10061/10061739.png'">
+      </div>
+      <h1 class="company-title"><%= company %></h1>
+      <p class="sso-subtitle"><i class="bi bi-shield-check me-1"></i> Single Sign-On (SSO) Portal Gateway</p>
+    </div>
+
+    <div class="sso-grid">
+      <!-- Portal Admin -->
+      <a href="/admin/login" class="portal-card">
+        <div class="portal-icon icon-admin">
+          <i class="bi bi-shield-lock-fill"></i>
+        </div>
+        <div class="portal-info">
+          <div class="portal-name">
+            <span>Portal Administrator</span>
+            <i class="bi bi-arrow-right portal-arrow"></i>
+          </div>
+          <p class="portal-desc">Mengelola tagihan pelanggan, pemantauan sistem OLT/ONU, paket internet, payroll, dan konfigurasi utama aplikasi.</p>
+        </div>
+      </a>
+
+      <!-- Portal Teknisi -->
+      <a href="/tech/login" class="portal-card">
+        <div class="portal-icon icon-tech">
+          <i class="bi bi-wrench-adjustable-circle-fill"></i>
+        </div>
+        <div class="portal-info">
+          <div class="portal-name">
+            <span>Portal Teknisi</span>
+            <i class="bi bi-arrow-right portal-arrow"></i>
+          </div>
+          <p class="portal-desc">Mengelola tiket gangguan/keluhan pelanggan, provisioning ONU baru, peta jaringan, dan detail ODP.</p>
+        </div>
+      </a>
+
+      <!-- Portal Kolektor -->
+      <a href="/collector/login" class="portal-card">
+        <div class="portal-icon icon-collector">
+          <i class="bi bi-cash-coin"></i>
+        </div>
+        <div class="portal-info">
+          <div class="portal-name">
+            <span>Portal Kolektor</span>
+            <i class="bi bi-arrow-right portal-arrow"></i>
+          </div>
+          <p class="portal-desc">Mencatat pembayaran tagihan pelanggan secara langsung di lapangan dan pengajuan setoran harian.</p>
+        </div>
+      </a>
+
+      <!-- Portal Agen -->
+      <a href="/agent/login" class="portal-card">
+        <div class="portal-icon icon-agent">
+          <i class="bi bi-people-fill"></i>
+        </div>
+        <div class="portal-info">
+          <div class="portal-name">
+            <span>Portal Agen / Reseller</span>
+            <i class="bi bi-arrow-right portal-arrow"></i>
+          </div>
+          <p class="portal-desc">Melakukan transaksi penjualan voucher hotspot, memantau riwayat penjualan, saldo topup, dan cetak invoice.</p>
+        </div>
+      </a>
+    </div>
+
+    <div class="sso-footer">
+      <span><%= company %> &copy; 2026 | Version <%= version %></span>
+    </div>
+  </div>
+</body>
+</html>
