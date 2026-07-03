@@ -63,6 +63,19 @@
       color: #6366f1;
       margin-bottom: 10px;
     }
+     .back-btn {
+      display: block;
+      text-align: center;
+      margin-top: 20px;
+      font-size: 13px;
+      color: #94a3b8;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .back-btn:hover {
+      color: #3b82f6;
+    }
   </style>
 </head>
 
@@ -102,6 +115,9 @@
             <%= t('agent.sign_in', 'Masuk' ) %>
           </button>
         </form>
+        <a href="/" class="back-btn">
+          <i class="bi bi-arrow-left"></i> Kembali ke Portal SSO
+        </a>
   </div>
 </body>
 
