@@ -3163,7 +3163,9 @@ router.get('/reports', requireAdminSession, requireSidebarMenuAccess('reports'),
     pendingAmount = Number(pendingMonthRow?.t || 0);
 
     // 5. Expenses by category bulan terpilih
-
+    expensesByCategory = db.prepare(
+      "SELECT category, SUM(amount) as total FROM expenses WHERE strftime('%Y', date) = ? AND strftime('%m', date) = ? GROUP BY category"
+    ).all(yStr, mStr);
 
     // 6. Recent Payments bulan terpilih
     recentPayments = db.prepare(`
@@ -3273,7 +3275,9 @@ router.get('/reports/print', requireAdminSession, requireSidebarMenuAccess('repo
     expensesSelected = expensesRegularMonthVal;
     netProfitSelected = cashInSelected - expensesSelected;
 
-
+    expensesByCategory = db.prepare(
+      "SELECT category, SUM(amount) as total FROM expenses WHERE strftime('%Y', date) = ? AND strftime('%m', date) = ? GROUP BY category"
+    ).all(yStr, mStr);
   } else {
     const revenueYearDirect = Number(db.prepare("SELECT SUM(amount) as t FROM invoices WHERE status='paid' AND strftime('%Y', paid_at) = ? AND (paid_by_name IS NULL OR paid_by_name NOT LIKE 'Agent %')").get(yStr)?.t || 0);
     const agentDepositYear = Number(db.prepare("SELECT SUM(amount_buy) as t FROM agent_transactions WHERE type='topup' AND strftime('%Y', created_at) = ?").get(yStr)?.t || 0);
