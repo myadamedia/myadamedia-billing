@@ -6,7 +6,7 @@ const { logger } = require('../config/logger');
 const { getCurrentDateInTimezone } = require('../config/settingsManager');
 
 // ─── CUSTOMERS ───────────────────────────────────────────────
-function getAllCustomers(search = '') {
+function getAllCustomers(search = '', sortBy = 'name_asc') {
   const now = getCurrentDateInTimezone();
   const month = now.getMonth() + 1;
   const year = now.getFullYear();
@@ -28,11 +28,26 @@ function getAllCustomers(search = '') {
     LEFT JOIN odps odp ON c.odp_id = odp.id
     LEFT JOIN customer_usage u ON u.customer_id = c.id AND u.period_month = ${month} AND u.period_year = ${year}
   `;
+
+  // Define allowed sorting mappings to prevent SQL Injection
+  const sortingClauses = {
+    'name_asc': 'c.name ASC',
+    'name_desc': 'c.name DESC',
+    'id_asc': 'c.id ASC',
+    'id_desc': 'c.id DESC',
+    'install_asc': 'c.install_date ASC',
+    'install_desc': 'c.install_date DESC',
+    'due_asc': 'COALESCE(c.isolate_day, 10) ASC, c.name ASC',
+    'due_desc': 'COALESCE(c.isolate_day, 10) DESC, c.name ASC'
+  };
+
+  const orderClause = sortingClauses[sortBy] || 'c.name ASC';
+
   if (search) {
     const s = `%${search}%`;
-    return db.prepare(base + ` WHERE ('MDE-' || printf('%04d', c.id)) LIKE ? OR c.name LIKE ? OR c.phone LIKE ? OR c.genieacs_tag LIKE ? OR c.address LIKE ? ORDER BY c.name ASC`).all(s, s, s, s, s);
+    return db.prepare(base + ` WHERE ('MDE-' || printf('%04d', c.id)) LIKE ? OR c.name LIKE ? OR c.phone LIKE ? OR c.genieacs_tag LIKE ? OR c.address LIKE ? ORDER BY ${orderClause}`).all(s, s, s, s, s);
   }
-  return db.prepare(base + ` ORDER BY c.name ASC`).all();
+  return db.prepare(base + ` ORDER BY ${orderClause}`).all();
 }
 
 function resetPromoCyclesUsed(customerId) {

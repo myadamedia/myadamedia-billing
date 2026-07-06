@@ -1604,8 +1604,8 @@ router.get('/bulk', requireAdminSession, (req, res) => {
 
 // ─── CUSTOMERS ─────────────────────────────────────────────────────────────
 router.get('/customers', requireAdminSession, requireSidebarMenuAccess('customers'), (req, res) => {
-  const { search = '', status: filterStatus = '' } = req.query;
-  const customers = customerSvc.getAllCustomers(search);
+  const { search = '', status: filterStatus = '', sort = 'name_asc' } = req.query;
+  const customers = customerSvc.getAllCustomers(search, sort);
   const stats = customerSvc.getCustomerStats();
   const packages = customerSvc.getAllPackages();
   const routers = mikrotikService.getAllRouters();
@@ -1620,7 +1620,7 @@ router.get('/customers', requireAdminSession, requireSidebarMenuAccess('customer
 
   res.render('admin/customers', {
     title: 'Data Pelanggan', company: company(), activePage: 'customers',
-    customers: filteredCustomers, stats, packages, routers, olts, odps, collectors, search, filterStatus, msg: flashMsg(req),
+    customers: filteredCustomers, stats, packages, routers, olts, odps, collectors, search, filterStatus, sort, msg: flashMsg(req),
     settings: getSettings()
   });
 });
@@ -2212,12 +2212,12 @@ router.post('/api/vouchers/packages/:id/delete', requireAdminSession, (req, res)
 // ─── BILLING ───────────────────────────────────────────────────────────────
 router.get('/billing', requireAdminSession, requireSidebarMenuAccess('billing'), (req, res) => {
   const timeInfo = getCurrentTimeInfo();
-  const { month: filterMonth, year: filterYear = timeInfo.year, status: filterStatus = 'all', search = '' } = req.query;
+  const { month: filterMonth, year: filterYear = timeInfo.year, status: filterStatus = 'all', search = '', sort = 'period_desc' } = req.query;
   const summary = billingSvc.getInvoiceSummary(filterMonth || timeInfo.month, filterYear);
-  const invoices = billingSvc.getAllInvoices({ month: filterMonth, year: filterYear, status: filterStatus, search });
+  const invoices = billingSvc.getAllInvoices({ month: filterMonth, year: filterYear, status: filterStatus, search, sortBy: sort });
   res.render('admin/billing', {
     title: 'Tagihan', company: company(), activePage: 'billing',
-    invoices, summary, filterMonth, filterYear: parseInt(filterYear), filterStatus, search,
+    invoices, summary, filterMonth, filterYear: parseInt(filterYear), filterStatus, search, sort,
     currentMonth: timeInfo.month, currentYear: timeInfo.year,
     msg: flashMsg(req)
   });

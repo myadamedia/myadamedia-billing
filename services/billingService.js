@@ -261,7 +261,7 @@ function getCustomerBillingYearSummary(customerId, year) {
   };
 }
 
-function getAllInvoices({ month, year, status, search, limit = 300 } = {}) {
+function getAllInvoices({ month, year, status, search, sortBy = 'period_desc', limit = 300 } = {}) {
   let q = `
     SELECT i.*, c.name as customer_name, c.phone as customer_phone, c.genieacs_tag, c.isolate_day, p.name as package_name
     FROM invoices i
@@ -278,7 +278,22 @@ function getAllInvoices({ month, year, status, search, limit = 300 } = {}) {
     const s = `%${search}%`;
     params.push(s, s, s);
   }
-  q += ` ORDER BY i.period_year DESC, i.period_month DESC, c.name ASC LIMIT ${parseInt(limit)}`;
+
+  // Safe mapping for invoice sorting options to prevent SQL injection
+  const sortingClauses = {
+    'period_desc': 'i.period_year DESC, i.period_month DESC, c.name ASC',
+    'period_asc': 'i.period_year ASC, i.period_month ASC, c.name ASC',
+    'name_asc': 'c.name ASC, i.period_year DESC, i.period_month DESC',
+    'name_desc': 'c.name DESC, i.period_year DESC, i.period_month DESC',
+    'amount_desc': 'i.amount DESC, c.name ASC',
+    'amount_asc': 'i.amount ASC, c.name ASC',
+    'cust_id_desc': 'i.customer_id DESC, i.period_year DESC',
+    'cust_id_asc': 'i.customer_id ASC, i.period_year DESC'
+  };
+
+  const orderClause = sortingClauses[sortBy] || 'i.period_year DESC, i.period_month DESC, c.name ASC';
+
+  q += ` ORDER BY ${orderClause} LIMIT ${parseInt(limit)}`;
   return db.prepare(q).all(...params);
 }
 

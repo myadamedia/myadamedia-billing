@@ -746,6 +746,27 @@ app.get('/manifest.webmanifest', (req, res) => {
   res.type('application/manifest+json');
   res.sendFile(path.join(__dirname, 'public', 'manifest.webmanifest'));
 });
+app.get('/sso.webmanifest', (req, res) => {
+  const settings = getSettingsWithCache();
+  const companyName = settings.company_header || 'MyAdamedia';
+  res.type('application/manifest+json');
+  res.send({
+    name: `${companyName} SSO Portal`,
+    short_name: `${companyName} SSO`,
+    start_url: '/?source=pwa',
+    scope: '/',
+    display: 'standalone',
+    orientation: 'portrait',
+    background_color: '#0f172a',
+    theme_color: '#0f172a',
+    icons: [
+      { src: '/img/pwa-icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: '/img/pwa-icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+      { src: '/img/pwa-icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
+      { src: '/img/logo.png', sizes: '2000x545', type: 'image/png', purpose: 'any' }
+    ]
+  });
+});
 app.get('/admin/manifest.webmanifest', (req, res) => {
   res.type('application/manifest+json');
   res.send({

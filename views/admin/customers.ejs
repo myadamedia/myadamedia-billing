@@ -63,8 +63,18 @@
             <option value="suspended" <%= filterStatus==='suspended' ? 'selected':'' %>><%= t('admin.customers.filter.suspended', 'Suspend') %></option>
             <option value="inactive" <%= filterStatus==='inactive' ? 'selected':'' %>><%= t('admin.customers.filter.inactive', 'Nonaktif') %></option>
           </select>
+          <select class="fs" name="sort" style="width:165px" onchange="this.form.submit()">
+            <option value="name_asc" <%= typeof sort !== 'undefined' && sort==='name_asc' ? 'selected':'' %>><%= t('admin.customers.sort.name_asc', 'Nama (A-Z)') %></option>
+            <option value="name_desc" <%= typeof sort !== 'undefined' && sort==='name_desc' ? 'selected':'' %>><%= t('admin.customers.sort.name_desc', 'Nama (Z-A)') %></option>
+            <option value="id_desc" <%= typeof sort !== 'undefined' && sort==='id_desc' ? 'selected':'' %>><%= t('admin.customers.sort.id_desc', 'ID Baru') %></option>
+            <option value="id_asc" <%= typeof sort !== 'undefined' && sort==='id_asc' ? 'selected':'' %>><%= t('admin.customers.sort.id_asc', 'ID Lama') %></option>
+            <option value="due_asc" <%= typeof sort !== 'undefined' && sort==='due_asc' ? 'selected':'' %>><%= t('admin.customers.sort.due_asc', 'Jatuh Tempo Terdekat') %></option>
+            <option value="due_desc" <%= typeof sort !== 'undefined' && sort==='due_desc' ? 'selected':'' %>><%= t('admin.customers.sort.due_desc', 'Jatuh Tempo Terlama') %></option>
+            <option value="install_desc" <%= typeof sort !== 'undefined' && sort==='install_desc' ? 'selected':'' %>><%= t('admin.customers.sort.install_desc', 'Pasang Baru') %></option>
+            <option value="install_asc" <%= typeof sort !== 'undefined' && sort==='install_asc' ? 'selected':'' %>><%= t('admin.customers.sort.install_asc', 'Pasang Lama') %></option>
+          </select>
           <button class="btn btn-g btn-sm" type="submit"><i class="bi bi-search"></i> <%= t('common.search', 'Cari') %></button>
-          <% if (search || filterStatus) { %><a href="/admin/customers" class="btn btn-g btn-sm"><i class="bi bi-x"></i> <%= t('common.reset', 'Reset') %></a><% } %>
+          <% if (search || filterStatus || (typeof sort !== 'undefined' && sort !== 'name_asc')) { %><a href="/admin/customers" class="btn btn-g btn-sm"><i class="bi bi-x"></i> <%= t('common.reset', 'Reset') %></a><% } %>
           <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
             <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;user-select:none">
               <input type="checkbox" id="toggle-usage-col" checked style="width:14px;height:14px;cursor:pointer">
@@ -1111,6 +1121,120 @@ if (toggleUsageCol && table) {
     }
   });
 }
+
+// Client-side sorting function
+function initTableSort(tableSelector) {
+  const table = document.querySelector(tableSelector);
+  if (!table) return;
+  const headers = table.querySelectorAll('thead th');
+  const tbody = table.querySelector('tbody');
+  
+  headers.forEach((th, index) => {
+    let type = 'string';
+    const text = th.textContent.trim().toLowerCase();
+    
+    if (text.includes('id') || text.includes('jumlah') || th.classList.contains('num') || text.includes('tagihan')) {
+      type = 'number';
+    } else if (text.includes('tanggal') || text.includes('tempo') || text.includes('waktu') || text.includes('date') || text.includes('period')) {
+      type = 'date';
+    } else if (text.includes('usage') || text.includes('fup')) {
+      type = 'fup';
+    }
+    
+    // Don't sort checkbox column, action column, or sequence index column
+    if (th.querySelector('input[type="checkbox"]') || index === 0 || text.includes('aksi') || text.includes('action')) {
+      return;
+    }
+    
+    th.style.cursor = 'pointer';
+    th.style.userSelect = 'none';
+    
+    let icon = th.querySelector('i.bi-sort-indicator');
+    if (!icon) {
+      icon = document.createElement('i');
+      icon.className = 'bi bi-arrow-down-up text-muted ms-1 bi-sort-indicator';
+      icon.style.fontSize = '10px';
+      th.appendChild(icon);
+    }
+    
+    let isAsc = false;
+    th.addEventListener('click', () => {
+      isAsc = !isAsc;
+      
+      headers.forEach((otherTh) => {
+        if (otherTh !== th) {
+          const otherIcon = otherTh.querySelector('i.bi-sort-indicator');
+          if (otherIcon) {
+            otherIcon.className = 'bi bi-arrow-down-up text-muted ms-1 bi-sort-indicator';
+          }
+        }
+      });
+      
+      if (isAsc) {
+        icon.className = 'bi bi-sort-down text-primary ms-1 bi-sort-indicator';
+      } else {
+        icon.className = 'bi bi-sort-up-alt text-primary ms-1 bi-sort-indicator';
+      }
+      
+      const rows = Array.from(tbody.querySelectorAll('tr'));
+      const dataRows = rows.filter(row => row.cells.length > 1);
+      if (dataRows.length === 0) return;
+      
+      dataRows.sort((rowA, rowB) => {
+        let cellA = rowA.cells[index].textContent.trim();
+        let cellB = rowB.cells[index].textContent.trim();
+        
+        if (type === 'number') {
+          const cleanNum = (str) => {
+            const clean = str.replace(/MDE-/g, '').replace(/[^0-9,-]/g, '').replace(',', '.');
+            return parseFloat(clean) || 0;
+          };
+          return isAsc ? cleanNum(cellA) - cleanNum(cellB) : cleanNum(cellB) - cleanNum(cellA);
+        } else if (type === 'date') {
+          const parseDate = (str) => {
+            const parts = str.match(/(\d+)\/(\d+)\/(\d+)/);
+            if (parts) {
+              return new Date(parts[3], parts[2] - 1, parts[1]).getTime();
+            }
+            const monthsMap = {
+              jan: 0, feb: 1, mar: 2, apr: 3, mei: 4, jun: 5, jul: 6, agt: 7, sep: 8, okt: 9, nov: 10, des: 11,
+              january: 0, february: 1, march: 2, april: 3, may: 4, june: 5, july: 6, august: 7, september: 8, october: 9, november: 10, december: 11,
+              januari: 0, februari: 1, maret: 2, agustus: 7, desember: 11
+            };
+            const words = str.toLowerCase().trim().split(/\s+/);
+            if (words.length === 2) {
+              const mStr = words[0].substring(0, 3);
+              const m = monthsMap[mStr] !== undefined ? monthsMap[mStr] : 0;
+              const y = parseInt(words[1]) || 0;
+              return new Date(y, m, 1).getTime();
+            }
+            return 0;
+          };
+          return isAsc ? parseDate(cellA) - parseDate(cellB) : parseDate(cellB) - parseDate(cellA);
+        } else if (type === 'fup') {
+          const getGB = (str) => {
+            const match = str.match(/([\d.]+)\s*GB/i);
+            return match ? parseFloat(match[1]) : 0;
+          };
+          return isAsc ? getGB(cellA) - getGB(cellB) : getGB(cellB) - getGB(cellA);
+        } else {
+          return isAsc ? cellA.localeCompare(cellB) : cellB.localeCompare(cellA);
+        }
+      });
+      
+      dataRows.forEach(row => tbody.appendChild(row));
+      
+      const numColIndex = tableSelector.includes('billing') ? 1 : 0;
+      dataRows.forEach((row, i) => {
+        if (row.cells[numColIndex]) {
+          row.cells[numColIndex].textContent = i + 1;
+        }
+      });
+    });
+  });
+}
+
+initTableSort('.dtbl');
 
 setTimeout(()=>document.querySelectorAll('.alert').forEach(a=>a.style.display='none'),4000);
 </script>

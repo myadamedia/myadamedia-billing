@@ -436,6 +436,17 @@
       "generate": "Generate Invoices",
       "search_placeholder": "Search ID, name / phone...",
       "all_months": "All Months",
+      "sort": {
+        "label": "Sort By",
+        "period_desc": "Newest Period",
+        "period_asc": "Oldest Period",
+        "name_asc": "Customer Name (A-Z)",
+        "name_desc": "Customer Name (Z-A)",
+        "amount_desc": "Highest Amount",
+        "amount_asc": "Lowest Amount",
+        "cust_id_desc": "Highest Customer ID",
+        "cust_id_asc": "Lowest Customer ID"
+      },
       "all_status": "All Status",
       "unpaid": "Unpaid",
       "paid": "Paid",
@@ -545,6 +556,17 @@
         "active": "Active",
         "suspended": "Suspended",
         "inactive": "Inactive"
+      },
+      "sort": {
+        "label": "Sort By",
+        "name_asc": "Name (A-Z)",
+        "name_desc": "Name (Z-A)",
+        "id_desc": "Newest ID",
+        "id_asc": "Oldest ID",
+        "due_asc": "Nearest Due Date",
+        "due_desc": "Farthest Due Date",
+        "install_desc": "Newest Install",
+        "install_asc": "Oldest Install"
       },
       "table": {
         "id": "Customer ID",

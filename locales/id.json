@@ -436,6 +436,17 @@
       "generate": "Generate Tagihan",
       "search_placeholder": "Cari ID, nama / telepon...",
       "all_months": "Semua Bulan",
+      "sort": {
+        "label": "Urutan",
+        "period_desc": "Periode Terbaru",
+        "period_asc": "Periode Terlama",
+        "name_asc": "Nama Pelanggan (A-Z)",
+        "name_desc": "Nama Pelanggan (Z-A)",
+        "amount_desc": "Nominal Terbesar",
+        "amount_asc": "Nominal Terkecil",
+        "cust_id_desc": "ID Pelanggan Baru",
+        "cust_id_asc": "ID Pelanggan Lama"
+      },
       "all_status": "Semua Status",
       "unpaid": "Belum Bayar",
       "paid": "Sudah Bayar",
@@ -545,6 +556,17 @@
         "active": "Aktif",
         "suspended": "Suspend",
         "inactive": "Nonaktif"
+      },
+      "sort": {
+        "label": "Urutan",
+        "name_asc": "Nama (A-Z)",
+        "name_desc": "Nama (Z-A)",
+        "id_desc": "ID Baru",
+        "id_asc": "ID Lama",
+        "due_asc": "Jatuh Tempo Terdekat",
+        "due_desc": "Jatuh Tempo Terlama",
+        "install_desc": "Pasang Baru",
+        "install_asc": "Pasang Lama"
       },
       "table": {
         "id": "ID Pelanggan",
