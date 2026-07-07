@@ -308,7 +308,7 @@ async function createDuitkuTransaction(invoice, customer, method = 'duitku', app
 
   const baseUrl = isLive 
     ? 'https://passport.duitku.com/webapi/api/merchant/v2/inquiry'
-    : 'https://passport-sandbox.duitku.com/webapi/api/merchant/v2/inquiry';
+    : 'https://sandbox.duitku.com/webapi/api/merchant/v2/inquiry';
 
   const prefix = String(opts.orderPrefix || 'INV').toUpperCase();
   const orderId = `${prefix}-${invoice.id}-${Date.now()}`;
