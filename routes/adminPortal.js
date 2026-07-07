@@ -1605,13 +1605,16 @@ router.get('/bulk', requireAdminSession, (req, res) => {
 // ─── CUSTOMERS ─────────────────────────────────────────────────────────────
 router.get('/customers', requireAdminSession, requireSidebarMenuAccess('customers'), (req, res) => {
   const { search = '', status: filterStatus = '', sort = 'name_asc' } = req.query;
-  const customers = customerSvc.getAllCustomers(search, sort);
+  const allCustomers = customerSvc.getAllCustomers(search, sort);
   const stats = customerSvc.getCustomerStats();
   const packages = customerSvc.getAllPackages();
   const routers = mikrotikService.getAllRouters();
   const olts = oltSvc.getAllOlts();
   const odps = odpSvc.getAllOdps();
   const collectors = adminSvc.getAllCollectors();
+
+  // Filter out inactive (registered candidate) customers from the main customer list
+  const customers = allCustomers.filter(c => c.status !== 'inactive');
 
   // Apply status filter in JS if provided
   const filteredCustomers = filterStatus
@@ -1621,6 +1624,25 @@ router.get('/customers', requireAdminSession, requireSidebarMenuAccess('customer
   res.render('admin/customers', {
     title: 'Data Pelanggan', company: company(), activePage: 'customers',
     customers: filteredCustomers, stats, packages, routers, olts, odps, collectors, search, filterStatus, sort, msg: flashMsg(req),
+    settings: getSettings()
+  });
+});
+
+// ─── PSB (PENDAFTARAN SAMBUNGAN BARU) ─────────────────────────────────────────
+router.get('/psb', requireAdminSession, requireSidebarMenuAccess('psb'), (req, res) => {
+  const { search = '', sort = 'name_asc' } = req.query;
+  const allCustomers = customerSvc.getAllCustomers(search, sort);
+  const inactiveCustomers = allCustomers.filter(c => c.status === 'inactive');
+  const stats = customerSvc.getCustomerStats();
+  const packages = customerSvc.getAllPackages();
+  const routers = mikrotikService.getAllRouters();
+  const olts = oltSvc.getAllOlts();
+  const odps = odpSvc.getAllOdps();
+  const collectors = adminSvc.getAllCollectors();
+
+  res.render('admin/psb', {
+    title: 'Pendaftaran Sambungan Baru (PSB)', company: company(), activePage: 'psb',
+    customers: inactiveCustomers, stats, packages, routers, olts, odps, collectors, search, sort, msg: flashMsg(req),
     settings: getSettings()
   });
 });
@@ -1859,7 +1881,12 @@ router.post('/customers/:id/update', requireAdminSession, express.urlencoded({ e
   } catch (e) {
     req.session._msg = { type: 'error', text: 'Gagal memperbarui: ' + e.message };
   }
-  res.redirect('/admin/customers');
+  const referer = req.headers.referer || '';
+  if (referer.includes('/psb')) {
+    res.redirect('/admin/psb');
+  } else {
+    res.redirect('/admin/customers');
+  }
 });
 
 router.post('/customers/:id/delete', requireAdminSession, async (req, res) => {
@@ -1869,7 +1896,12 @@ router.post('/customers/:id/delete', requireAdminSession, async (req, res) => {
   } catch (e) {
     req.session._msg = { type: 'error', text: 'Gagal: ' + e.message };
   }
-  res.redirect('/admin/customers');
+  const referer = req.headers.referer || '';
+  if (referer.includes('/psb')) {
+    res.redirect('/admin/psb');
+  } else {
+    res.redirect('/admin/customers');
+  }
 });
 
 // ─── EXPORT/IMPORT CUSTOMERS ──────────────────────────────────────

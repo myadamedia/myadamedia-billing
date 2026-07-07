@@ -30,6 +30,7 @@ const MENU_DEFINITIONS = [
   { key: 'broadcast', section: 'main', href: '/admin/whatsapp/broadcast', icon: 'bi bi-megaphone', labelKey: 'admin.broadcast.title', labelDefault: 'Broadcast WhatsApp', roles: ['superadmin', 'finance'], activePages: ['broadcast'] },
   { key: 'whatsapp_monitoring', section: 'main', href: '/admin/whatsapp/monitoring', icon: 'bi bi-bell-fill', labelKey: 'admin.nav.whatsapp_monitoring', labelDefault: 'Alert Monitoring WA', roles: ['superadmin', 'noc'], activePages: ['whatsapp_monitoring'] },
 
+  { key: 'psb', section: 'billing', href: '/admin/psb', icon: 'bi bi-person-plus', labelKey: 'admin.nav.psb', labelDefault: 'PSB', roles: ['superadmin', 'finance', 'teknisi', 'noc'], activePages: ['psb'] },
   { key: 'customers', section: 'billing', href: '/admin/customers', icon: 'bi bi-people', labelKey: 'admin.nav.customers', labelDefault: 'Pelanggan', roles: ['superadmin', 'finance', 'teknisi', 'kolektor', 'noc'], bottomNav: true, activePages: ['customers'] },
   { key: 'packages', section: 'billing', href: '/admin/packages', icon: 'bi bi-box-seam', labelKey: 'admin.nav.internet_packages', labelDefault: 'Paket Internet', roles: ['superadmin', 'finance'], activePages: ['packages'] },
   { key: 'voucher_packages', section: 'billing', href: '/admin/vouchers/packages', icon: 'bi bi-ticket-detailed', labelKey: 'admin.nav.voucher_packages', labelDefault: 'Paket Voucher', roles: ['superadmin', 'finance'], activePages: ['voucher_packages'] },
@@ -74,6 +75,7 @@ const DEFAULT_MENU_STATES = {
   whatsapp: STATE_VISIBLE,
   broadcast: STATE_VISIBLE,
   whatsapp_monitoring: STATE_VISIBLE,
+  psb: STATE_VISIBLE,
   customers: STATE_VISIBLE,
   packages: STATE_VISIBLE,
   voucher_packages: STATE_VISIBLE,

@@ -2,7 +2,7 @@
 <html lang="<%= lang || 'id' %>">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title><%= t('admin.customers.title', 'Pelanggan') %> | <%= company %></title>
+  <title>PSB | <%= company %></title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
@@ -16,10 +16,10 @@
   </style>
 </head>
 <body>
-<%- include('partials/sidebar', { activePage: 'customers', company }) %>
+<%- include('partials/sidebar', { activePage: 'psb', company }) %>
 <div class="mw">
   <div class="topbar">
-    <div class="tb-title"><button class="hb-menu" onclick="toggleSidebar()"><i class="bi bi-list"></i></button><i class="bi bi-people"></i> <%= t('admin.customers.manage_title', 'Manajemen Pelanggan') %></div>
+    <div class="tb-title"><button class="hb-menu" onclick="toggleSidebar()"><i class="bi bi-list"></i></button><i class="bi bi-person-plus"></i> Pendaftaran Sambungan Baru (PSB)</div>
     <div class="tb-right">
       <span class="adm-badge"><i class="bi bi-person-fill"></i> <%= (typeof session !== 'undefined' && session.isCashier) ? t('admin.role.cashier', 'Kasir') : t('admin.role.admin', 'Admin') %></span>
       <a href="/admin/logout" class="btn btn-g btn-sm"><i class="bi bi-box-arrow-left"></i></a>
@@ -34,51 +34,31 @@
     <% } %>
 
     <!-- Stats -->
-    <div class="stat-grid" style="grid-template-columns:repeat(3,1fr)">
-      <div class="sc p"><i class="bi bi-people sc-icon"></i><div class="sc-label"><%= t('admin.customers.stats.total', 'Total') %></div><div class="sc-val"><%= stats.active + stats.suspended %></div></div>
-      <div class="sc s"><i class="bi bi-check-circle sc-icon"></i><div class="sc-label"><%= t('admin.customers.stats.active', 'Aktif') %></div><div class="sc-val"><%= stats.active %></div></div>
-      <div class="sc w"><i class="bi bi-pause-circle sc-icon"></i><div class="sc-label"><%= t('admin.customers.stats.suspended', 'Disuspend') %></div><div class="sc-val"><%= stats.suspended %></div></div>
+    <div class="stat-grid" style="grid-template-columns:1fr">
+      <div class="sc d"><i class="bi bi-person-plus sc-icon"></i><div class="sc-label">Total Calon Pelanggan (PSB)</div><div class="sc-val"><%= customers.length %></div></div>
     </div>
 
-    <!-- Search & Add -->
+    <!-- Search & List -->
     <div class="card">
       <div class="card-hd">
-        <h6><i class="bi bi-people"></i> <%= t('admin.customers.list', 'Daftar Pelanggan') %> (<%= customers.length %>)</h6>
-        <div style="display:flex;gap:8px">
-          <a href="/admin/customers/export" class="btn btn-g btn-sm"><i class="bi bi-file-earmark-excel"></i> <%= t('admin.customers.export_excel', 'Export Excel') %></a>
-          <button class="btn btn-g btn-sm" onclick="openModal('importModal')"><i class="bi bi-file-earmark-arrow-up"></i> <%= t('admin.customers.import_excel', 'Import Excel') %></button>
-          <button class="btn btn-p btn-sm" onclick="openModal('addModal')"><i class="bi bi-plus-lg"></i> <%= t('admin.customers.add', 'Tambah Pelanggan') %></button>
-        </div>
+        <h6><i class="bi bi-person-plus"></i> Calon Pelanggan Baru (<%= customers.length %>)</h6>
       </div>
       <div class="card-bd" style="padding-bottom:0">
-        <form method="GET" action="/admin/customers" class="srow">
+        <form method="GET" action="/admin/psb" class="srow">
           <div class="sinput" style="max-width:340px">
             <i class="bi bi-search"></i>
             <input class="fc" name="search" placeholder="<%= t('admin.customers.search_placeholder', 'Cari nama, telepon, tag...') %>" value="<%= search %>">
           </div>
-          <select class="fs" name="status" style="width:140px" onchange="this.form.submit()">
-            <option value=""><%= t('admin.customers.filter.all_status', 'Semua Status') %></option>
-            <option value="active" <%= filterStatus==='active' ? 'selected':'' %>><%= t('admin.customers.filter.active', 'Aktif') %></option>
-            <option value="suspended" <%= filterStatus==='suspended' ? 'selected':'' %>><%= t('admin.customers.filter.suspended', 'Suspend') %></option>
-          </select>
           <select class="fs" name="sort" style="width:165px" onchange="this.form.submit()">
             <option value="name_asc" <%= typeof sort !== 'undefined' && sort==='name_asc' ? 'selected':'' %>><%= t('admin.customers.sort.name_asc', 'Nama (A-Z)') %></option>
             <option value="name_desc" <%= typeof sort !== 'undefined' && sort==='name_desc' ? 'selected':'' %>><%= t('admin.customers.sort.name_desc', 'Nama (Z-A)') %></option>
             <option value="id_desc" <%= typeof sort !== 'undefined' && sort==='id_desc' ? 'selected':'' %>><%= t('admin.customers.sort.id_desc', 'ID Baru') %></option>
             <option value="id_asc" <%= typeof sort !== 'undefined' && sort==='id_asc' ? 'selected':'' %>><%= t('admin.customers.sort.id_asc', 'ID Lama') %></option>
-            <option value="due_asc" <%= typeof sort !== 'undefined' && sort==='due_asc' ? 'selected':'' %>><%= t('admin.customers.sort.due_asc', 'Jatuh Tempo Terdekat') %></option>
-            <option value="due_desc" <%= typeof sort !== 'undefined' && sort==='due_desc' ? 'selected':'' %>><%= t('admin.customers.sort.due_desc', 'Jatuh Tempo Terlama') %></option>
             <option value="install_desc" <%= typeof sort !== 'undefined' && sort==='install_desc' ? 'selected':'' %>><%= t('admin.customers.sort.install_desc', 'Pasang Baru') %></option>
             <option value="install_asc" <%= typeof sort !== 'undefined' && sort==='install_asc' ? 'selected':'' %>><%= t('admin.customers.sort.install_asc', 'Pasang Lama') %></option>
           </select>
           <button class="btn btn-g btn-sm" type="submit"><i class="bi bi-search"></i> <%= t('common.search', 'Cari') %></button>
-          <% if (search || filterStatus || (typeof sort !== 'undefined' && sort !== 'name_asc')) { %><a href="/admin/customers" class="btn btn-g btn-sm"><i class="bi bi-x"></i> <%= t('common.reset', 'Reset') %></a><% } %>
-          <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
-            <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;user-select:none">
-              <input type="checkbox" id="toggle-usage-col" checked style="width:14px;height:14px;cursor:pointer">
-              <span><%= lang === 'en' ? 'Show Usage (FUP)' : 'Tampilkan Usage (FUP)' %></span>
-            </label>
-          </div>
+          <% if (search || (typeof sort !== 'undefined' && sort !== 'name_asc')) { %><a href="/admin/psb" class="btn btn-g btn-sm"><i class="bi bi-x"></i> <%= t('common.reset', 'Reset') %></a><% } %>
         </form>
       </div>
       <div class="tbl-wrap">
@@ -86,100 +66,57 @@
           <thead>
             <tr>
               <th>#</th>
-              <th><%= t('admin.customers.table.id', 'ID Pelanggan') %></th>
+              <th>ID Pendaftar</th>
               <th><%= t('admin.customers.table.name', 'Nama') %></th>
-              <th><%= t('admin.customers.table.phone_tag', 'Telepon / Tag ONU') %></th>
+              <th><%= t('admin.customers.table.phone_tag', 'Telepon') %></th>
               <th><%= t('admin.customers.table.package', 'Paket') %></th>
-              <th class="col-usage">Usage (FUP)</th>
               <th><%= t('admin.customers.table.address', 'Alamat') %></th>
-              <th><%= t('admin.customers.table.status', 'Status') %></th>
-              <th>Tanggal Jatuh Tempo</th>
-              <th><%= t('admin.customers.table.unpaid', 'Tagihan Belum Bayar') %></th>
+              <th>Tanggal Daftar</th>
               <th><%= t('admin.customers.table.actions', 'Aksi') %></th>
             </tr>
           </thead>
           <tbody>
           <% if (customers.length === 0) { %>
-            <tr><td colspan="11" class="text-center text-muted" style="padding:32px"><%= t('admin.customers.empty', 'Belum ada pelanggan') %></td></tr>
+            <tr><td colspan="8" class="text-center text-muted" style="padding:32px">Belum ada calon pelanggan baru (PSB)</td></tr>
           <% } %>
           <% customers.forEach((c, i) => { %>
             <tr>
               <td class="text-muted"><%= i+1 %></td>
               <td><span class="mono fw6">MDE-<%= String(c.id).padStart(4, '0') %></span></td>
               <td class="fw6"><%= c.name %></td>
-              <td>
-                <div><%= c.phone || '-' %></div>
-                <% if (c.genieacs_tag) { %><div style="font-size:11px;color:var(--primary)"><i class="bi bi-wifi"></i> <%= c.genieacs_tag %></div><% } %>
-              </td>
+              <td><%= c.phone || '-' %></td>
               <td>
                 <% if (c.package_name) { %>
                   <div><%= c.package_name %></div>
-                  <div style="font-size:11px;color:var(--muted)"><%= (c.speed_down/1000).toFixed(0) %>/<%= (c.speed_up/1000).toFixed(0) %> Mbps &bull; Rp <%= c.package_price ? c.package_price.toLocaleString('id-ID') : '-' %></div>
+                  <div style="font-size:11px;color:var(--muted)">Rp <%= c.package_price ? c.package_price.toLocaleString('id-ID') : '-' %></div>
+                  <% if (c.installation_fee > 0) { %>
+                    <div style="font-size:11px;color:#f59e0b"><i class="bi bi-tools"></i> Inst: Rp <%= c.installation_fee.toLocaleString('id-ID') %></div>
+                  <% } %>
                 <% } else { %><span class="text-muted">-</span><% } %>
               </td>
-              <td class="col-usage">
-                <% 
-                  const usedGB = ((c.bytes_in || 0) + (c.bytes_out || 0)) / (1024 * 1024 * 1024);
-                  const limitGB = c.fup_limit_gb || 0;
-                  const useFup = c.use_fup === 1;
-                %>
-                <div class="fw6" style="font-size:12px"><%= usedGB.toFixed(2) %> GB</div>
-                <% if (useFup && limitGB > 0) { 
-                   const percent = Math.min(100, (usedGB / limitGB) * 100);
-                   const barColor = percent > 90 ? 'var(--danger)' : percent > 70 ? 'var(--warning)' : 'var(--success)';
-                %>
-                  <div class="usage-bar">
-                    <div class="usage-fill" style="--p: <%= percent %>%; --b: <%= barColor %>;"></div>
-                  </div>
-                  <div style="font-size:10px; color:var(--muted)">Limit: <%= limitGB %> GB</div>
-                <% } else { %>
-                  <div style="font-size:10px; color:var(--muted)">Unlimited</div>
-                <% } %>
-              </td>
-              <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><%= c.address || '-' %></td>
+              <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><%= c.address || '-' %></td>
               <td>
-                <% if (c.status==='active') { %><span class="badge bs"><i class="bi bi-circle-fill" style="font-size:7px"></i><%= t('admin.customers.filter.active', 'Aktif') %></span>
-                <% } else if (c.status==='suspended') { %><span class="badge bw"><%= t('admin.customers.filter.suspended', 'Suspend') %></span>
-                <% } else { %><span class="badge bm"><%= t('admin.customers.filter.inactive', 'Nonaktif') %></span><% } %>
-                <div style="font-size:10px;margin-top:4px">
-                  <i class="bi bi-clock-history"></i> <%= t('admin.customers.auto_isolate.label', 'Auto Isolir') %>:
-                  <span class="<%= c.auto_isolate === 0 ? 'text-danger' : 'text-success' %>">
-                    <%= c.auto_isolate === 0 ? t('admin.customers.auto_isolate.off', 'OFF') : t('admin.customers.auto_isolate.date_prefix', 'Tgl ') + (c.isolate_day || 10) %>
-                  </span>
-                </div>
-              </td>
-              <td>
-                <% 
-                  const now = new Date();
-                  const currentMonthStr = String(now.getMonth() + 1).padStart(2, '0');
-                  const currentYear = now.getFullYear();
-                  const dueDateStr = `${String(c.isolate_day || 10).padStart(2, '0')}/${currentMonthStr}/${currentYear}`;
-                %>
-                <span class="badge bm"><i class="bi bi-calendar-event"></i> <%= dueDateStr %></span>
-              </td>
-              <td class="text-center">
-                <% if (c.unpaid_count > 0) { %>
-                  <span class="badge bd"><%= c.unpaid_count %> <%= t('admin.customers.unpaid_suffix', 'tagihan') %></span>
-                <% } else { %><span class="text-muted" style="font-size:12px"><%= t('admin.customers.paid_label', 'Lunas') %></span><% } %>
+                <% if (c.created_at) { %>
+                  <%= c.created_at %>
+                <% } else { %>-<% } %>
               </td>
               <td>
                 <div style="display:flex;gap:4px;align-items:center;flex-wrap:nowrap">
-                  <button class="btn btn-s btn-icon btn-sm" title="<%= t('admin.customers.actions.generate_invoice', 'Generate Tagihan') %>" data-idx="<%= i %>" onclick="openGenInvoice(+this.dataset.idx)"><i class="bi bi-lightning-charge"></i></button>
-                  <button class="btn btn-p btn-icon btn-sm" title="<%= t('admin.customers.actions.pay_invoice', 'Bayar Tagihan') %>" data-idx="<%= i %>" onclick="openPayInvoice(+this.dataset.idx)"><i class="bi bi-cash-coin"></i></button>
-                  <% if (typeof session !== 'undefined' && !session.isCashier) { %>
-                  <% if (c.package_id && (c.package_promo_cycles || 0) > 0) { %>
-                  <form method="POST" action="/admin/customers/<%= c.id %>/billing/reset-promo-cycles" style="display:inline" onsubmit="return confirm('Reset counter siklus promo untuk pelanggan ini? Tagihan berikutnya akan memakai harga promo lagi sesuai pengaturan paket.')">
-                    <button type="submit" class="btn btn-g btn-icon btn-sm" title="Reset siklus promo"><i class="bi bi-arrow-counterclockwise"></i></button>
-                  </form>
+                  <% 
+                    let waPhone = String(c.phone || '').replace(/\D/g, '');
+                    if (waPhone.startsWith('0')) {
+                      waPhone = '62' + waPhone.slice(1);
+                    }
+                    const waMsg = `Halo ${c.name}, terima kasih telah melakukan registrasi. Kami ingin mengonfirmasi terkait jadwal survei dan pemasangan baru internet Anda di alamat ${c.address || '-'}.`;
+                  %>
+                  <% if (waPhone) { %>
+                    <a href="https://wa.me/<%= waPhone %>?text=<%= encodeURIComponent(waMsg) %>" target="_blank" rel="noopener" class="btn btn-g btn-icon btn-sm" title="Hubungi via WhatsApp" style="background:#25d366;color:#fff;border-color:#25d366">
+                      <i class="bi bi-whatsapp"></i>
+                    </a>
                   <% } %>
-                  <% if (c.package_id && c.install_date && c.package_prorate_first_invoice) { %>
-                  <form method="POST" action="/admin/customers/<%= c.id %>/billing/install-prorata" style="display:inline" onsubmit="return confirm('Buat tagihan SUSULAN prorata untuk bulan tanggal pasang? Hanya jika belum ada tagihan periode itu. Dasar harga: reguler (bukan promo).')">
-                    <button type="submit" class="btn btn-g btn-icon btn-sm" title="Susulan prorata bulan pasang"><i class="bi bi-calendar2-check"></i></button>
-                  </form>
-                  <% } %>
-                  <% } %>
+                  <button class="btn btn-s btn-icon btn-sm" title="Aktivasi Pelanggan" data-idx="<%= i %>" onclick="activateCust(+this.dataset.idx)"><i class="bi bi-check-circle"></i></button>
                   <button class="btn btn-g btn-icon btn-sm" title="<%= t('common.edit', 'Edit') %>" data-idx="<%= i %>" onclick="editCust(+this.dataset.idx)"><i class="bi bi-pencil"></i></button>
-                  <form method="POST" action="/admin/customers/<%= c.id %>/delete" style="display:inline" data-confirm-msg=<%- JSON.stringify(t('admin.customers.confirm_delete', 'Hapus pelanggan ini?')) %> onsubmit="return confirm(this.dataset.confirmMsg)">
+                  <form method="POST" action="/admin/customers/<%= c.id %>/delete" style="display:inline" onsubmit="return confirm('Hapus pendaftaran calon pelanggan ini?')">
                     <button class="btn btn-d btn-icon btn-sm" title="<%= t('common.delete', 'Hapus') %>"><i class="bi bi-trash"></i></button>
                   </form>
                 </div>
@@ -190,230 +127,6 @@
         </table>
       </div>
     </div>
-  </div>
-</div>
-
-<!-- Modal Tambah -->
-<div class="mo" id="addModal">
-  <div class="mb">
-    <div class="mh"><span class="mt"><i class="bi bi-person-plus"></i> Tambah Pelanggan</span><button class="mc" onclick="closeModal('addModal')">&times;</button></div>
-    <form method="POST" action="/admin/customers">
-      <div class="mbody">
-        <div class="form-row">
-          <div class="fg"><label class="fl">Nama Lengkap *</label><input class="fc" name="name" required placeholder="John Doe"></div>
-          <div class="fg"><label class="fl">No. Telepon / WA</label><input class="fc" name="phone" placeholder="08xxx"></div>
-        </div>
-        <div class="fg"><label class="fl">Email (Untuk Notifikasi Payment)</label><input class="fc" name="email" type="email" placeholder="customer@example.com"></div>
-        <div class="fg"><label class="fl">Alamat</label><textarea class="fc" name="address" placeholder="Jl. Example..."></textarea></div>
-        <div class="form-row">
-          <div class="fg">
-            <label class="fl">Paket Internet</label>
-            <select class="fs" name="package_id">
-              <option value="">-- Pilih Paket --</option>
-              <% packages.forEach(p => { %>
-              <option value="<%= p.id %>"><%= p.name %> — Rp <%= p.price.toLocaleString('id-ID') %></option>
-              <% }) %>
-            </select>
-          </div>
-          <div class="fg"><label class="fl">Tag ONU (GenieACS)</label><input class="fc" name="genieacs_tag" placeholder="Sama dengan ID pelanggan"></div>
-        </div>
-        <div class="form-row">
-          <div class="fg">
-            <label class="fl">Router MikroTik</label>
-            <select class="fs" name="router_id" id="add_router_select" onchange="loadRouterLists('add', this.value)">
-              <option value="">-- Default (Pengaturan) --</option>
-              <% if (typeof routers !== 'undefined') { %>
-                <% routers.forEach(r => { %>
-                  <option value="<%= r.id %>"><%= r.name %> (<%= r.host %>)</option>
-                <% }) %>
-              <% } %>
-            </select>
-          </div>
-          <div class="fg">
-            <label class="fl">Metode Koneksi</label>
-            <select class="fs" name="connection_type" id="add_connection_type" onchange="toggleConnectionFields('add')">
-              <option value="pppoe">PPPoE (MikroTik)</option>
-              <option value="static">Static IP (MikroTik)</option>
-              <option value="hotspot">Hotspot (MikroTik)</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="fg" id="add_pppoe_field">
-            <label class="fl">PPPoE Username</label>
-            <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-              <label style="margin:0;display:flex;align-items:center;gap:4px;cursor:pointer">
-                <input type="radio" name="pppoe_input_mode" value="mikrotik" checked onchange="togglePppoeInputMode('add')">
-                <span>Pilih dari MikroTik</span>
-              </label>
-              <label style="margin:0;display:flex;align-items:center;gap:4px;cursor:pointer">
-                <input type="radio" name="pppoe_input_mode" value="manual" onchange="togglePppoeInputMode('add')">
-                <span>Input Manual</span>
-              </label>
-            </div>
-            <div id="add_pppoe_mikrotik_input">
-              <input class="fc" name="pppoe_username" list="add_pppoe_list" placeholder="Pilih / cari dari MikroTik">
-              <datalist id="add_pppoe_list"></datalist>
-              <div class="hint" id="add_pppoe_hint"></div>
-            </div>
-            <div id="add_pppoe_manual_input" style="display:none">
-              <input class="fc" id="add_pppoe_username_manual" placeholder="Masukkan username PPPoE">
-              <div style="margin-top:8px">
-                <label class="fl">PPPoE Password</label>
-                <input class="fc" name="pppoe_password" placeholder="Masukkan password PPPoE">
-              </div>
-              <div style="margin-top:8px">
-                <label class="fl">Remote Address (Optional)</label>
-                <input class="fc" name="pppoe_remote_address" placeholder="Contoh: 10.10.10.1">
-              </div>
-            </div>
-          </div>
-          <div class="fg" id="add_static_field" style="display:none">
-            <label class="fl">IP Address Pelanggan</label>
-            <input class="fc" name="static_ip" placeholder="Contoh: 192.168.10.10">
-          </div>
-        </div>
-        <div id="add_hotspot_field" style="display:none">
-          <div class="form-row">
-            <div class="fg">
-              <label class="fl">Hotspot Username</label>
-              <input class="fc" name="hotspot_username" placeholder="Contoh: user01">
-            </div>
-            <div class="fg">
-              <label class="fl">Hotspot Password</label>
-              <input class="fc" name="hotspot_password" placeholder="Kosong = sama dengan username">
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="fg">
-              <label class="fl">Hotspot User Profile</label>
-              <input class="fc" name="hotspot_profile" list="add_hotspot_profile_list" placeholder="Pilih profile hotspot">
-              <datalist id="add_hotspot_profile_list"></datalist>
-              <div class="hint" id="add_hotspot_profile_hint"></div>
-            </div>
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="fg" id="add_mac_field" style="display:none">
-            <label class="fl">MAC Address (Optional)</label>
-            <input class="fc" name="mac_address" placeholder="Contoh: AA:BB:CC:DD:EE:FF">
-          </div>
-          <div class="fg" style="max-width:200px">
-            <label class="fl">Profile Isolir / Address List</label>
-            <select class="fs" name="isolir_profile" id="add_isolir_select">
-              <option value="isolir">isolir</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="fg">
-            <label class="fl">Status</label>
-            <select class="fs" name="status">
-              <option value="active">Aktif</option>
-              <option value="suspended">Suspend</option>
-              <option value="inactive">Nonaktif</option>
-            </select>
-          </div>
-          <div class="fg"><label class="fl">Tanggal Pasang</label><input class="fc" type="date" name="install_date"></div>
-          <div class="fg"><label class="fl">Biaya Instalasi (Rp)</label><input class="fc" type="number" name="installation_fee" placeholder="0" min="0"></div>
-        </div>
-        <div class="form-row">
-          <div class="fg">
-            <label class="fl">Isolir Otomatis</label>
-            <select class="fs" name="auto_isolate">
-              <option value="1">Aktif</option>
-              <option value="0">Tidak Aktif</option>
-            </select>
-          </div>
-          <div class="fg">
-            <label class="fl">Tanggal Isolir (1-31)</label>
-            <input class="fc" type="number" name="isolate_day" value="10" min="1" max="31">
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="fg">
-            <label class="fl">
-              <i class="bi bi-person-badge"></i> Kolektor Penagihan
-            </label>
-            <select class="fs" name="collector_id">
-              <option value="">-- Tanpa Kolektor --</option>
-              <% if (typeof collectors !== 'undefined') { %>
-                <% collectors.forEach(col => { %>
-                  <option value="<%= col.id %>"><%= col.name %> (<%= col.username %>)</option>
-                <% }) %>
-              <% } %>
-            </select>
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="fg">
-            <label class="fl">Perangkat OLT</label>
-            <select class="fs" name="olt_id">
-              <option value="">-- Tanpa OLT --</option>
-              <% if (typeof olts !== 'undefined') { %>
-                <% olts.forEach(o => { %>
-                  <option value="<%= o.id %>"><%= o.name %> (<%= o.brand %>)</option>
-                <% }) %>
-              <% } %>
-            </select>
-          </div>
-          <div class="fg">
-            <label class="fl">ODP</label>
-            <select class="fs" name="odp_id">
-              <option value="">-- Tanpa ODP --</option>
-              <% if (typeof odps !== 'undefined') { %>
-                <% odps.forEach(o => { %>
-                  <option value="<%= o.id %>"><%= o.name %></option>
-                <% }) %>
-              <% } %>
-            </select>
-          </div>
-        </div>
-        <div class="fg"><label class="fl">Port PON / ODP</label><input class="fc" name="pon_port" placeholder="Contoh: PON 1/1, ODP-01"></div>
-        <div class="form-row">
-          <div class="fg">
-            <label class="fl">Latitude</label>
-            <input class="fc" name="lat" id="add_lat" placeholder="-6.xxx">
-          </div>
-          <div class="fg">
-            <label class="fl">Longitude</label>
-            <div style="display:flex;gap:4px">
-              <input class="fc" name="lng" id="add_lng" placeholder="106.xxx">
-              <button type="button" class="btn btn-g btn-sm" onclick="openPicker('add')" title="Pilih di Peta"><i class="bi bi-geo-alt"></i></button>
-            </div>
-          </div>
-        </div>
-        <div class="fg"><label class="fl">Catatan</label><textarea class="fc" name="notes" placeholder="Opsional..."></textarea></div>
-      </div>
-      <div class="mf">
-        <button type="button" class="btn btn-g" onclick="closeModal('addModal')">Batal</button>
-        <button type="submit" class="btn btn-p"><i class="bi bi-check-lg"></i> Simpan Pelanggan</button>
-      </div>
-    </form>
-  </div>
-</div>
-
-<!-- Modal Import -->
-<div class="mo" id="importModal">
-  <div class="mb" style="max-width:400px">
-    <div class="mh"><span class="mt"><i class="bi bi-file-earmark-arrow-up"></i> Import Pelanggan</span><button class="mc" onclick="closeModal('importModal')">&times;</button></div>
-    <form method="POST" action="/admin/customers/import" enctype="multipart/form-data">
-      <div class="mbody">
-        <p style="font-size:13px;color:var(--muted);margin-bottom:16px">
-          Unggah file Excel (.xlsx). Pastikan format kolom sesuai dengan hasil Export.
-          <br><br>
-          <a href="/admin/customers/export" style="color:var(--primary);text-decoration:none"><i class="bi bi-download"></i> Unduh format excel</a>
-        </p>
-        <div class="fg">
-          <label class="fl">Pilih File Excel</label>
-          <input type="file" name="file" class="fc" accept=".xlsx" required>
-        </div>
-      </div>
-      <div class="mf">
-        <button type="button" class="btn btn-g" onclick="closeModal('importModal')">Batal</button>
-        <button type="submit" class="btn btn-p"><i class="bi bi-upload"></i> Mulai Impor</button>
-      </div>
-    </form>
   </div>
 </div>
 
@@ -847,7 +560,7 @@ function editCust(idx) {
   const c = customersData[idx];
   if (!c) return;
   currentEditCustomerId = c.id || '';
-  document.getElementById('editModalCustomerId').textContent = c.id ? `(MDE-${String(c.id).padStart(4, '0')})` : '';
+  document.querySelector('#editModal .mt').innerHTML = '<i class="bi bi-pencil"></i> Edit Pelanggan <span id="editModalCustomerId" style="font-size: 13px; color: var(--muted); font-weight: normal; margin-left: 8px;">(MDE-' + String(c.id).padStart(4, '0') + ')</span>';
   document.getElementById('editForm').action='/admin/customers/'+c.id+'/update';
   document.getElementById('e_name').value=c.name||'';
   document.getElementById('e_phone').value=c.phone||'';
@@ -879,6 +592,14 @@ function editCust(idx) {
   toggleConnectionFields('edit');
   openModal('editModal');
   loadRouterLists('edit', c.router_id || '', c.id || '');
+}
+
+function activateCust(idx) {
+  const c = customersData[idx];
+  if (!c) return;
+  editCust(idx);
+  document.getElementById('e_status').value = 'active';
+  document.querySelector('#editModal .mt').innerHTML = '<i class="bi bi-check-circle"></i> Aktivasi Pelanggan <span id="editModalCustomerId" style="font-size: 13px; color: var(--muted); font-weight: normal; margin-left: 8px;">(MDE-' + String(c.id).padStart(4, '0') + ')</span>';
 }
 
 function openGenInvoice(idx) {

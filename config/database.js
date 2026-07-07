@@ -111,6 +111,7 @@ db.exec(`
     status TEXT DEFAULT 'active',
     install_date DATE,
     notes TEXT DEFAULT '',
+    installation_fee INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT (NOW_LOCAL())
   );
 
@@ -1050,6 +1051,16 @@ try {
   }
 } catch(e) {
   console.error('Failed to migrate odps parent_odp_id:', e);
+}
+
+// Safe migration: tambah kolom installation_fee ke tabel customers
+try {
+  const custCols = db.prepare("PRAGMA table_info(customers)").all();
+  if (!custCols.find(c => c.name === 'installation_fee')) {
+    db.exec("ALTER TABLE customers ADD COLUMN installation_fee INTEGER NOT NULL DEFAULT 0");
+  }
+} catch(e) {
+  console.error('Failed to migrate customers installation_fee:', e);
 }
 
 // Inisialisasi tabel admins

@@ -69,6 +69,14 @@ function computeInvoiceAmountAndMeta(customer, pkg, periodMonth, periodYear) {
     metaParts.push(`Prorata ${billableDays}/${dim} hari`);
   }
 
+  // Installation Fee
+  const installFee = Number(customer.installation_fee) || 0;
+  let hasInstallFee = false;
+  if (isFirstEverInvoice && installFee > 0) {
+    hasInstallFee = true;
+    metaParts.push(`Biaya Inst: Rp ${installFee.toLocaleString('id-ID')}`);
+  }
+
   // PPN Calculation
   if (pkg.use_ppn === 1) {
     const ppnPct = Number(pkg.ppn_percentage) || 11.0;
@@ -85,7 +93,7 @@ function computeInvoiceAmountAndMeta(customer, pkg, periodMonth, periodYear) {
     metaParts.push(`USO ${usoPct}% (Rp ${usoVal.toLocaleString('id-ID')})`);
   }
 
-  const finalAmount = baseAmount + taxAmount;
+  const finalAmount = baseAmount + taxAmount + (hasInstallFee ? installFee : 0);
   const notesAuto = metaParts.length ? `AUTO: ${metaParts.join(' | ')}` : '';
 
   return {
