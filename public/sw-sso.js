@@ -1,6 +1,6 @@
 const CACHE_NAME = 'sso-pwa-v1';
 const PRECACHE_URLS = [
-  '/',
+  '/sso',
   '/img/logo.png',
   '/img/pwa-icon-192.png',
   '/img/pwa-icon-512.png',
@@ -72,8 +72,8 @@ self.addEventListener('fetch', (event) => {
   const path = url.pathname;
 
   // Handle navigate request for the root SSO page
-  if (req.mode === 'navigate' && (path === '/' || path === '/sso')) {
-    event.respondWith(networkFirst(req, '/'));
+  if (req.mode === 'navigate' && path === '/sso') {
+    event.respondWith(networkFirst(req, '/sso'));
     return;
   }
 

@@ -708,14 +708,9 @@ app.get('/health', (req, res) => {
     });
 });
 
-// Halaman Utama SSO (Single Sign-On / Portal Gateway)
+// Redirect halaman utama ke Portal Pelanggan
 app.get('/', (req, res) => {
-  const settings = getSettingsWithCache();
-  res.render('sso', {
-    title: 'Portal Single Sign-On',
-    company: settings.company_header || 'ISP App',
-    version: VERSION
-  });
+  res.redirect('/customer/login');
 });
 
 // Alias singkat: /login → /customer/login
@@ -723,9 +718,14 @@ app.get('/login', (req, res) => {
   res.redirect('/customer/login');
 });
 
-// Redirect /sso ke halaman utama
+// Halaman Utama SSO (Single Sign-On / Portal Gateway)
 app.get('/sso', (req, res) => {
-  res.redirect('/');
+  const settings = getSettingsWithCache();
+  res.render('sso', {
+    title: 'Portal Single Sign-On',
+    company: settings.company_header || 'ISP App',
+    version: VERSION
+  });
 });
 
 // Halaman Isolir (Akses langsung dari redirect MikroTik)
@@ -753,7 +753,7 @@ app.get('/sso.webmanifest', (req, res) => {
   res.send({
     name: `${companyName} SSO Portal`,
     short_name: `${companyName} SSO`,
-    start_url: '/?source=pwa',
+    start_url: '/sso?source=pwa',
     scope: '/',
     display: 'standalone',
     orientation: 'portrait',
