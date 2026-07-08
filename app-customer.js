@@ -14,6 +14,8 @@ const billingSvc = require('./services/billingService');
 const mikrotikService = require('./services/mikrotikService');
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 const { scheduleAutoBackup } = require('./services/backupService');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 
 // Prefer IPv4 to avoid AggregateError (IPv6 timeouts) on some servers
 if (dns.setDefaultResultOrder) {
@@ -41,6 +43,58 @@ const { SUPPORTED_LANGS, FALLBACK_LANG, normalizeLang, t } = require('./config/i
 
 // Inisialisasi aplikasi Express
 const app = express();
+
+app.disable('x-powered-by');
+
+// Security headers with Helmet (exclude CSP to avoid breaking UI layout assets)
+app.use(helmet({
+  contentSecurityPolicy: false
+}));
+
+// Rate limiter for authentication pages
+const loginRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 15, // limit each IP to 15 login requests per 15 minutes
+  handler: (req, res, next, options) => {
+    logger.warn(`[RateLimit] Blocked login attempts from IP: ${req.ip} to ${req.originalUrl}`);
+    const wantsJson = req.xhr || req.headers.accept?.includes('json');
+    if (wantsJson) {
+      return res.status(options.statusCode).json({ error: options.message.error });
+    }
+    
+    const path = req.originalUrl || req.path || '';
+    const { getSettingsWithCache } = require('./config/settingsManager');
+    const settings = getSettingsWithCache();
+    const errorMsg = options.message.error || 'Terlalu banyak percobaan login. Silakan coba lagi nanti.';
+    
+    if (path.includes('/admin')) {
+      return res.status(options.statusCode).render('admin/login', { title: 'Admin Login', company: settings.company_header || 'ISP App', error: errorMsg });
+    } else if (path.includes('/tech')) {
+      return res.status(options.statusCode).render('tech/login', { title: 'Teknisi Login', company: settings.company_header || 'ISP App', error: errorMsg });
+    } else if (path.includes('/agent')) {
+      return res.status(options.statusCode).render('agent/login', { title: 'Login Agent', company: settings.company_header || 'ISP App', error: errorMsg });
+    } else if (path.includes('/collector')) {
+      return res.status(options.statusCode).render('collector/login', { title: 'Login Kolektor', company: settings.company_header || 'ISP App', error: errorMsg });
+    } else {
+      const customerSvc = require('./services/customerService');
+      const packages = customerSvc.getAllPackages().filter(p => p.is_active !== 0);
+      return res.status(options.statusCode).render('login', { error: errorMsg, settings, packages });
+    }
+  },
+  message: {
+    error: 'Terlalu banyak percobaan login dari IP Anda. Silakan coba lagi setelah 15 menit.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+// Apply rate limiter to all login POST routes
+app.post('/customer/login', loginRateLimiter);
+app.post('/customer/login-otp', loginRateLimiter);
+app.post('/admin/login', loginRateLimiter);
+app.post('/tech/login', loginRateLimiter);
+app.post('/agent/login', loginRateLimiter);
+app.post('/collector/login', loginRateLimiter);
 
 const isProduction = process.env.NODE_ENV === 'production';
 const cookieSecure = getSetting('cookie_secure', isProduction);
@@ -96,7 +150,6 @@ app.use((req, res, next) => {
   if (['POST', 'PUT', 'DELETE'].includes(method)) {
     const origin = req.headers.origin;
     const referer = req.headers.referer;
-    const host = req.headers.host;
 
     // Kecualikan webhook eksternal, ACS server TR-069, atau payment gateway callback
     const isWebhook = req.path.startsWith('/api/webhook') || req.path.startsWith('/webhook') || req.path === '/customer/payment/callback';
@@ -105,17 +158,59 @@ app.use((req, res, next) => {
       return next();
     }
 
+    const getPublicHostname = () => {
+      const forwarded = req.headers['x-forwarded-host'];
+      if (forwarded) {
+        const cleanForwarded = forwarded.split(',')[0].trim();
+        return cleanForwarded.split(':')[0];
+      }
+      return req.hostname;
+    };
+
+    const host = getPublicHostname();
+
+    const getHostnameSafe = (urlStr) => {
+      if (!urlStr) return null;
+      const trimmed = String(urlStr).trim();
+      if (!trimmed) return null;
+      // If it starts with '/' it is a relative local URL, which is safe
+      if (trimmed.startsWith('/')) return host;
+      try {
+        return new URL(trimmed).hostname;
+      } catch (e) {
+        try {
+          if (!trimmed.includes('://')) {
+            return new URL(`http://${trimmed}`).hostname;
+          }
+        } catch (err) {}
+      }
+      return null;
+    };
+
+    const isMatchingHost = (h1, h2) => {
+      if (!h1 || !h2) return false;
+      const norm1 = h1.toLowerCase().trim();
+      const norm2 = h2.toLowerCase().trim();
+      if (norm1 === norm2) return true;
+      
+      const localHosts = new Set(['localhost', '127.0.0.1', '::1']);
+      if (localHosts.has(norm1) && localHosts.has(norm2)) return true;
+      
+      return false;
+    };
+
     try {
-      if (origin) {
-        const originHost = new URL(origin).host;
-        if (originHost !== host) {
-          logger.warn(`[CSRF] Blocked request from unauthorized origin: ${origin} (host: ${host})`);
+      if (origin && origin !== 'null') {
+        const originHost = getHostnameSafe(origin);
+        if (originHost && !isMatchingHost(originHost, host)) {
+          logger.warn(`[CSRF] Blocked request from unauthorized origin: ${origin} (public hostname: ${host})`);
           return res.status(403).json({ error: 'Forbidden - Invalid Origin (CSRF Protection)' });
         }
-      } else if (referer) {
-        const refererHost = new URL(referer).host;
-        if (refererHost !== host) {
-          logger.warn(`[CSRF] Blocked request from unauthorized referer: ${referer} (host: ${host})`);
+      }
+      if (referer) {
+        const refererHost = getHostnameSafe(referer);
+        if (refererHost && !isMatchingHost(refererHost, host)) {
+          logger.warn(`[CSRF] Blocked request from unauthorized referer: ${referer} (public hostname: ${host})`);
           return res.status(403).json({ error: 'Forbidden - Invalid Referer (CSRF Protection)' });
         }
       }

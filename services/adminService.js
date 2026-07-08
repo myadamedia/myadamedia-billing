@@ -8,13 +8,17 @@ function getAllTechnicians() {
 }
 
 function createTechnician(data) {
+  const { hashPassword, isHash } = require('../utils/securityHelper');
+  const hashed = isHash(data.password) ? data.password : hashPassword(data.password);
   const stmt = db.prepare('INSERT INTO technicians (username, password, name, phone, area) VALUES (?, ?, ?, ?, ?)');
-  return stmt.run(data.username, data.password, data.name, data.phone || '', data.area || '');
+  return stmt.run(data.username, hashed, data.name, data.phone || '', data.area || '');
 }
 
 function updateTechnician(id, data) {
+  const { hashPassword, isHash } = require('../utils/securityHelper');
+  const hashed = isHash(data.password) ? data.password : hashPassword(data.password);
   const stmt = db.prepare('UPDATE technicians SET username = ?, password = ?, name = ?, phone = ?, area = ?, is_active = ? WHERE id = ?');
-  return stmt.run(data.username, data.password, data.name, data.phone || '', data.area || '', data.is_active ? 1 : 0, id);
+  return stmt.run(data.username, hashed, data.name, data.phone || '', data.area || '', data.is_active ? 1 : 0, id);
 }
 
 function deleteTechnician(id) {
@@ -29,13 +33,17 @@ function getAllCashiers() {
 }
 
 function createCashier(data) {
+  const { hashPassword, isHash } = require('../utils/securityHelper');
+  const hashed = isHash(data.password) ? data.password : hashPassword(data.password);
   const stmt = db.prepare('INSERT INTO cashiers (username, password, name, phone) VALUES (?, ?, ?, ?)');
-  return stmt.run(data.username, data.password, data.name, data.phone || '');
+  return stmt.run(data.username, hashed, data.name, data.phone || '');
 }
 
 function updateCashier(id, data) {
+  const { hashPassword, isHash } = require('../utils/securityHelper');
+  const hashed = isHash(data.password) ? data.password : hashPassword(data.password);
   const stmt = db.prepare('UPDATE cashiers SET username = ?, password = ?, name = ?, phone = ?, is_active = ? WHERE id = ?');
-  return stmt.run(data.username, data.password, data.name, data.phone || '', data.is_active ? 1 : 0, id);
+  return stmt.run(data.username, hashed, data.name, data.phone || '', data.is_active ? 1 : 0, id);
 }
 
 function deleteCashier(id) {
@@ -43,7 +51,19 @@ function deleteCashier(id) {
 }
 
 function authenticateCashier(username, password) {
-  return db.prepare('SELECT * FROM cashiers WHERE username = ? AND password = ? AND is_active = 1').get(username, password);
+  const cashier = db.prepare('SELECT * FROM cashiers WHERE username = ? AND is_active = 1').get(username);
+  if (!cashier) return null;
+  
+  const { verifyPassword, hashPassword, isHash } = require('../utils/securityHelper');
+  if (verifyPassword(password, cashier.password)) {
+    if (!isHash(cashier.password)) {
+      const newHash = hashPassword(password);
+      db.prepare('UPDATE cashiers SET password = ? WHERE id = ?').run(newHash, cashier.id);
+      cashier.password = newHash;
+    }
+    return cashier;
+  }
+  return null;
 }
 
 function getAllCollectors() {
@@ -51,13 +71,15 @@ function getAllCollectors() {
 }
 
 function createCollector(data) {
+  const { hashPassword, isHash } = require('../utils/securityHelper');
+  const hashed = isHash(data.password) ? data.password : hashPassword(data.password);
   return db
     .prepare(
       'INSERT INTO collectors (username, password, name, phone, is_active, auto_approve) VALUES (?, ?, ?, ?, 1, ?)'
     )
     .run(
       String(data.username || '').trim(),
-      String(data.password || ''),
+      hashed,
       String(data.name || '').trim(),
       String(data.phone || '').trim(),
       data.auto_approve ? 1 : 0
@@ -65,8 +87,10 @@ function createCollector(data) {
 }
 
 function updateCollector(id, data) {
+  const { hashPassword, isHash } = require('../utils/securityHelper');
+  const hashed = isHash(data.password) ? data.password : hashPassword(data.password);
   const stmt = db.prepare('UPDATE collectors SET username = ?, password = ?, name = ?, phone = ?, is_active = ?, auto_approve = ? WHERE id = ?');
-  return stmt.run(data.username, data.password, data.name, data.phone || '', data.is_active ? 1 : 0, data.auto_approve ? 1 : 0, id);
+  return stmt.run(data.username, hashed, data.name, data.phone || '', data.is_active ? 1 : 0, data.auto_approve ? 1 : 0, id);
 }
 
 function deleteCollector(id) {
@@ -74,7 +98,19 @@ function deleteCollector(id) {
 }
 
 function authenticateCollector(username, password) {
-  return db.prepare('SELECT * FROM collectors WHERE username = ? AND password = ? AND is_active = 1').get(username, password);
+  const collector = db.prepare('SELECT * FROM collectors WHERE username = ? AND is_active = 1').get(username);
+  if (!collector) return null;
+  
+  const { verifyPassword, hashPassword, isHash } = require('../utils/securityHelper');
+  if (verifyPassword(password, collector.password)) {
+    if (!isHash(collector.password)) {
+      const newHash = hashPassword(password);
+      db.prepare('UPDATE collectors SET password = ? WHERE id = ?').run(newHash, collector.id);
+      collector.password = newHash;
+    }
+    return collector;
+  }
+  return null;
 }
 
 /**
@@ -85,10 +121,12 @@ function getAllAdmins() {
 }
 
 function createAdmin(data) {
+  const { hashPassword, isHash } = require('../utils/securityHelper');
+  const hashed = isHash(data.password) ? data.password : hashPassword(data.password);
   const stmt = db.prepare('INSERT INTO admins (username, password, name, phone, role, is_active) VALUES (?, ?, ?, ?, ?, ?)');
   return stmt.run(
     String(data.username || '').trim(),
-    String(data.password || ''),
+    hashed,
     String(data.name || '').trim(),
     String(data.phone || '').trim(),
     String(data.role || 'noc').trim(),
@@ -97,10 +135,12 @@ function createAdmin(data) {
 }
 
 function updateAdmin(id, data) {
+  const { hashPassword, isHash } = require('../utils/securityHelper');
+  const hashed = isHash(data.password) ? data.password : hashPassword(data.password);
   const stmt = db.prepare('UPDATE admins SET username = ?, password = ?, name = ?, phone = ?, role = ?, is_active = ? WHERE id = ?');
   return stmt.run(
     String(data.username || '').trim(),
-    String(data.password || ''),
+    hashed,
     String(data.name || '').trim(),
     String(data.phone || '').trim(),
     String(data.role || 'noc').trim(),
@@ -114,7 +154,19 @@ function deleteAdmin(id) {
 }
 
 function authenticateAdmin(username, password) {
-  return db.prepare('SELECT * FROM admins WHERE username = ? AND password = ? AND is_active = 1').get(username, password);
+  const admin = db.prepare('SELECT * FROM admins WHERE username = ? AND is_active = 1').get(username);
+  if (!admin) return null;
+  
+  const { verifyPassword, hashPassword, isHash } = require('../utils/securityHelper');
+  if (verifyPassword(password, admin.password)) {
+    if (!isHash(admin.password)) {
+      const newHash = hashPassword(password);
+      db.prepare('UPDATE admins SET password = ? WHERE id = ?').run(newHash, admin.id);
+      admin.password = newHash;
+    }
+    return admin;
+  }
+  return null;
 }
 
 module.exports = {

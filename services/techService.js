@@ -1,8 +1,19 @@
 const db = require('../config/database');
 
 function authenticate(username, password) {
-  const tech = db.prepare('SELECT * FROM technicians WHERE username = ? AND password = ? AND is_active = 1').get(username, password);
-  return tech;
+  const tech = db.prepare('SELECT * FROM technicians WHERE username = ? AND is_active = 1').get(username);
+  if (!tech) return null;
+  
+  const { verifyPassword, hashPassword, isHash } = require('../utils/securityHelper');
+  if (verifyPassword(password, tech.password)) {
+    if (!isHash(tech.password)) {
+      const newHash = hashPassword(password);
+      db.prepare('UPDATE technicians SET password = ? WHERE id = ?').run(newHash, tech.id);
+      tech.password = newHash;
+    }
+    return tech;
+  }
+  return null;
 }
 
 function getTechById(id) {
@@ -90,8 +101,10 @@ function getAllTechnicians() {
 }
 
 function createTechnician(data) {
+  const { hashPassword, isHash } = require('../utils/securityHelper');
+  const hashed = isHash(data.password) ? data.password : hashPassword(data.password);
   const stmt = db.prepare('INSERT INTO technicians (username, password, name, phone, area) VALUES (?, ?, ?, ?, ?)');
-  return stmt.run(data.username, data.password, data.name, data.phone || '', data.area || '');
+  return stmt.run(data.username, hashed, data.name, data.phone || '', data.area || '');
 }
 
 module.exports = {
