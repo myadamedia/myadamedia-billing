@@ -563,8 +563,6 @@ ${sep}
 ${sep}
 
 
-👥 *Agent:*
-💸 \`topup\` _nama/username/id/nohp nominal_ — Transfer saldo ke agent
 
 📡 *MikroTik:*
 🟢 \`mtactive\` — User active saat ini
