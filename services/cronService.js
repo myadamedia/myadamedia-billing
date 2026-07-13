@@ -290,6 +290,188 @@ function startCronJobs() {
     logger.info(`[CRON] Pengingat tagihan otomatis selesai: target=${targetCount}, terkirim=${sent}, gagal=${failed}`);
   });
 
+  // 3b. Pengingat Sebelum Isolir Harian - Jam 09:05
+  cron.schedule('5 9 * * *', async () => {
+    const enabled = getSetting('whatsapp_auto_isolir_enabled', false);
+    const waEnabled = getSetting('whatsapp_enabled', false);
+    const billingEnabled = getSetting('whatsapp_billing_to_customer_enabled', true);
+    if (!enabled || !waEnabled || !billingEnabled) return;
+
+    let sendWA, whatsappStatus;
+    try {
+      const mod = await import('./whatsappBot.mjs');
+      sendWA = mod.sendWA;
+      whatsappStatus = mod.whatsappStatus;
+    } catch (e) {
+      logger.error(`[CRON] Gagal load WhatsApp bot: ${e.message || e}`);
+      return;
+    }
+
+    if (!whatsappStatus || whatsappStatus.connection !== 'open') {
+      logger.warn('[CRON] WhatsApp bot belum terhubung, pengingat sebelum isolir otomatis dilewati.');
+      return;
+    }
+
+    const resolveBaseUrl = () => {
+      const explicit = String(getSetting('public_base_url', '') || '').trim();
+      if (explicit) return explicit.replace(/\/+$/, '');
+
+      const hostRaw = String(getSetting('server_host', 'localhost') || 'localhost').trim();
+      const port = Number(getSetting('server_port', 3001) || 3001);
+      const hasProto = /^https?:\/\//i.test(hostRaw);
+      const proto = port === 443 ? 'https' : 'http';
+      const host = hasProto ? hostRaw.replace(/\/+$/, '') : `${proto}://${hostRaw}`;
+      const withPort = (port === 80 || port === 443) ? host : `${host}:${port}`;
+      return withPort.replace(/\/+$/, '');
+    };
+
+    const loginLink = `${resolveBaseUrl()}/customer/login`;
+    const baseDelayMs = (Number(getSetting('whatsapp_broadcast_delay', 5) || 5) * 1000);
+    const batchSize = 15;
+    const batchPauseMs = 120000;
+
+    function getDaysUntilIsolation(today, dueDay) {
+      let isolateDate = new Date(today.getFullYear(), today.getMonth(), dueDay, 0, 0, 0, 0);
+      if (isolateDate < today) {
+        isolateDate = new Date(today.getFullYear(), today.getMonth() + 1, dueDay, 0, 0, 0, 0);
+      }
+      const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
+      const diffTime = isolateDate.getTime() - startOfToday.getTime();
+      return Math.round(diffTime / (1000 * 60 * 60 * 24));
+    }
+
+    const today = getCurrentDateInTimezone();
+    const activeDaysSetting = String(getSetting('whatsapp_auto_isolir_days', '1') || '1');
+    const activeDays = activeDaysSetting.split(',').map(s => parseInt(s.trim())).filter(Number.isFinite);
+
+    const customers = customerSvc.getAllCustomers();
+    let targetCount = 0;
+    let sent = 0;
+    let failed = 0;
+    let batchCount = 0;
+
+    const defaultTemplate =
+      `Yth. Pelanggan {{nama}},\n\n` +
+      `Ini adalah pengingat penting bahwa layanan internet Anda (Paket {{paket}}) akan terisolir otomatis dalam {{hari_h}} hari jika tidak ada pembayaran.\n\n` +
+      `💰 *Total Tagihan:* Rp {{tagihan}}\n` +
+      `📅 *Jatuh Tempo:* {{jatuh_tempo}}\n\n` +
+      `Mohon lakukan pembayaran segera melalui portal pelanggan: {{link}} untuk menghindari pemutusan layanan.\n\n` +
+      `Terima kasih.\n` +
+      `Salam,\nAdmin ${getSetting('company_header', 'ISP')}`;
+    const template = String(db.getAppSetting('whatsapp_auto_isolir_message', defaultTemplate) || defaultTemplate);
+
+    const targetCustomers = [];
+    const seenPhones = new Set();
+    for (const c of customers) {
+      const phone = c.phone ? String(c.phone).trim() : '';
+      if (!phone || phone.length < 9) continue;
+      let digits = phone.replace(/\D/g, '');
+      if (!digits) continue;
+      if (digits.startsWith('0')) digits = '62' + digits.slice(1);
+      if (seenPhones.has(digits)) continue;
+      const unpaidCount = Number(c.unpaid_count || 0) || 0;
+      if (unpaidCount <= 0) continue;
+
+      // HANYA kirim jika pelanggan berstatus ACTIVE (belum di-isolir)
+      if (c.status !== 'active') continue;
+
+      const dueDay = Number(c.isolate_day || 0) || Number(getSetting('isolir_day', 10) || 10) || 10;
+      const daysUntilIsolir = getDaysUntilIsolation(today, dueDay);
+      const shouldSend = activeDays.includes(daysUntilIsolir);
+      if (!shouldSend) continue;
+
+      seenPhones.add(digits);
+      targetCustomers.push({ customer: c, daysLeft: daysUntilIsolir });
+    }
+
+    if (targetCustomers.length === 0) {
+      logger.info('[CRON] Tidak ada pelanggan yang perlu diingatkan sebelum isolir hari ini.');
+      return;
+    }
+
+    logger.info(`[CRON] Memulai pengingat sebelum isolir otomatis untuk ${targetCustomers.length} pelanggan dengan smart rate limit.`);
+
+    for (let i = 0; i < targetCustomers.length; i++) {
+      const item = targetCustomers[i];
+      const c = item.customer;
+      const daysLeft = item.daysLeft;
+      let attemptCount = 0;
+      const maxAttempts = 3;
+
+      while (attemptCount < maxAttempts) {
+        try {
+          const randomDelay = getRandomDelay(baseDelayMs, 2000);
+          await new Promise(r => setTimeout(r, randomDelay));
+
+          const unpaidInvoices = billingSvc.getUnpaidInvoicesByCustomerId(c.id);
+          const totalTagihan = unpaidInvoices.reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
+          const rincianBulan = unpaidInvoices.map(inv => `${inv.period_month}/${inv.period_year}`).join(', ');
+
+          const now = new Date();
+          const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
+          const currentYear = now.getFullYear();
+          const jatuhTempo = `${String(c.isolate_day || 10).padStart(2, '0')}/${currentMonth}/${currentYear}`;
+
+          const customerFormattedId = 'MDE-' + String(c.id).padStart(4, '0');
+          let formattedMsg = template
+            .replace(/{{id_pelanggan}}/gi, customerFormattedId)
+            .replace(/{{nama}}/gi, c.name || 'Pelanggan')
+            .replace(/{{tagihan}}/gi, totalTagihan.toLocaleString('id-ID'))
+            .replace(/{{rincian}}/gi, rincianBulan || '-')
+            .replace(/{{paket}}/gi, c.package_name || '-')
+            .replace(/{{link}}/gi, loginLink)
+            .replace(/{{hari_h}}/gi, String(daysLeft))
+            .replace(/{{jatuh_tempo}}/gi, jatuhTempo);
+
+          if (!formattedMsg.includes(jatuhTempo)) {
+            formattedMsg = formattedMsg.replace(/(Mohon lakukan|Terima kasih)/, `📅 *Jatuh Tempo:* ${jatuhTempo}\n\n$1`);
+          }
+
+          formattedMsg = addMessageVariation(formattedMsg, i);
+
+          const ok = await sendWA(c.phone, formattedMsg);
+          if (ok) {
+            sent++;
+            targetCount++;
+            batchCount++;
+          } else {
+            throw new Error('Gagal kirim pesan');
+          }
+
+          if (batchCount >= batchSize && i < targetCustomers.length - 1) {
+            logger.info(`[CRON] Selesai batch ${Math.floor(i / batchSize) + 1} (${batchSize} pesan). Pause ${Math.floor(batchPauseMs / 1000)} detik...`);
+            await new Promise(r => setTimeout(r, batchPauseMs));
+            batchCount = 0;
+          }
+
+          break;
+        } catch (e) {
+          attemptCount++;
+          const errorMsg = e.message || e.toString();
+
+          if (isPermanentError(errorMsg)) {
+            logger.warn(`[CRON] SKIP: Error permanent untuk ${c.phone} - ${errorMsg}`);
+            failed++;
+            break;
+          }
+
+          logger.error(`[CRON] Gagal kirim ke ${c.phone} (attempt ${attemptCount}/${maxAttempts}): ${errorMsg}`);
+
+          if (attemptCount >= maxAttempts) {
+            logger.warn(`[CRON] Max attempts tercapai untuk ${c.phone}`);
+            failed++;
+          } else {
+            const backoffDelay = getBackoffDelay(attemptCount);
+            logger.info(`[CRON] Retry ke ${c.phone} dalam ${Math.floor(backoffDelay / 1000)} detik...`);
+            await new Promise(r => setTimeout(r, backoffDelay));
+          }
+        }
+      }
+    }
+
+    logger.info(`[CRON] Pengingat sebelum isolir otomatis selesai: target=${targetCount}, terkirim=${sent}, gagal=${failed}`);
+  });
+
   // 4. Jam Kalong (Night Speed) Start - Jam 00:00
   cron.schedule('0 0 * * *', async () => {
     logger.info('[CRON] Memulai Jam Kalong (Night Speed) - Ganti Profile...');

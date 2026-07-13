@@ -31,22 +31,61 @@
     <% } %>
 
     <% 
-      const totalThisMonth = expenses.filter(e => e.date.startsWith(getNowLocal().substring(0,7))).reduce((a,b)=>a+Number(b.amount), 0);
-      const totalAll = expenses.reduce((a,b)=>a+Number(b.amount), 0);
+      const currentMonthStr = getNowLocal().substring(0,7);
+      
+      // Hitung total pengeluaran untuk bulan terpilih (jika ada filter) atau bulan berjalan (jika tidak ada filter)
+      const displayMonthLabel = selectedMonth 
+        ? (() => {
+            const [yr, mn] = selectedMonth.split('-');
+            const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+            return 'Bulan ' + monthNames[parseInt(mn, 10) - 1] + ' ' + yr;
+          })()
+        : 'Bulan Ini';
+        
+      const totalToShow = selectedMonth
+        ? expenses.reduce((a,b)=>a+Number(b.amount), 0)
+        : expenses.filter(e => e.date.startsWith(currentMonthStr)).reduce((a,b)=>a+Number(b.amount), 0);
     %>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+      <form method="GET" action="/admin/finance/expenses" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; width: 100%;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <i class="bi bi-filter" style="font-size: 18px; color: var(--muted);"></i>
+          <span style="font-size: 14px; font-weight: 600; color: var(--text);">Filter Bulan:</span>
+        </div>
+        <select class="fc" name="month" onchange="this.form.submit()" style="max-width: 200px; padding: 6px 12px; height: auto; font-size: 14px;">
+          <option value="">-- Semua Bulan --</option>
+          <% availableMonths.forEach(m => { %>
+            <% 
+              const [yr, mn] = m.split('-');
+              const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+              const monthLabel = monthNames[parseInt(mn, 10) - 1] + ' ' + yr;
+            %>
+            <option value="<%= m %>" <%= selectedMonth === m ? 'selected' : '' %>><%= monthLabel %></option>
+          <% }) %>
+        </select>
+        <% if (selectedMonth) { %>
+          <a href="/admin/finance/expenses" class="btn btn-g btn-sm" style="display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; font-size: 13px; text-decoration: none;">
+            <i class="bi bi-x-lg"></i> Bersihkan Filter
+          </a>
+        <% } %>
+      </form>
+    </div>
+
     <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px,1fr));gap:16px;margin-bottom:20px">
       <div class="val-box">
         <div class="val-icon" style="background:rgba(239, 68, 68, 0.1);color:#ef4444"><i class="bi bi-graph-down-arrow"></i></div>
         <div>
-          <div class="val-text">Pengeluaran Bulan Ini</div>
-          <div class="val-num">Rp <%= totalThisMonth.toLocaleString('id-ID') %></div>
+          <div class="val-text">Pengeluaran <%= displayMonthLabel %></div>
+          <div class="val-num">Rp <%= totalToShow.toLocaleString('id-ID') %></div>
         </div>
       </div>
       <div class="val-box">
         <div class="val-icon" style="background:rgba(99, 102, 241, 0.1);color:#6366f1"><i class="bi bi-wallet-fill"></i></div>
         <div>
           <div class="val-text">Total Pengeluaran Dicatat</div>
-          <div class="val-num">Rp <%= totalAll.toLocaleString('id-ID') %></div>
+          <div class="val-num">Rp <%= grandTotal.toLocaleString('id-ID') %></div>
         </div>
       </div>
     </div>
@@ -91,6 +130,17 @@
               <td class="num fw6" style="color:#ef4444">- Rp <%= Number(item.amount).toLocaleString('id-ID') %></td>
               <td style="font-size:12px"><%= item.recorded_by_name || 'Admin' %></td>
               <td>
+                <button class="btn btn-g btn-icon btn-sm btn-edit" title="Edit"
+                  data-id="<%= item.id %>"
+                  data-date="<%= item.date %>"
+                  data-category="<%= item.category %>"
+                  data-amount="<%= item.amount %>"
+                  data-description="<%= item.description %>"
+                  data-vendor="<%= item.vendor || '' %>"
+                  data-receipt="<%= item.receipt_number || '' %>"
+                  data-method="<%= item.payment_method %>">
+                  <i class="bi bi-pencil"></i>
+                </button>
                 <form method="POST" action="/admin/finance/expenses/<%= item.id %>/delete" style="display:inline" onsubmit="return confirm('Hapus data pengeluaran ini?')">
                   <button class="btn btn-d btn-icon btn-sm" title="Hapus"><i class="bi bi-trash"></i></button>
                 </form>
@@ -161,6 +211,63 @@
   </div>
 </div>
 
+<!-- Modal Edit -->
+<div class="mo" id="editModal">
+  <div class="mb">
+    <div class="mh"><span class="mt"><i class="bi bi-pencil-square"></i> Edit Catatan Pengeluaran</span><button type="button" class="mc" onclick="closeModal('editModal')">&times;</button></div>
+    <form method="POST" id="editForm" action="/admin/finance/expenses/update">
+      <div class="mbody">
+        <div class="form-row">
+          <div class="fg">
+            <label class="fl">Tanggal Pengeluaran <span class="text-danger">*</span></label>
+            <input type="date" class="fc" name="date" id="edit_date" required max="<%= getNowLocal().substring(0,10) %>">
+          </div>
+          <div class="fg">
+            <label class="fl">Kategori <span class="text-danger">*</span></label>
+            <select class="fc" name="category" id="edit_category" required>
+              <option value="">-- Pilih Kategori --</option>
+              <% categories.forEach(c => { %>
+                <option value="<%= c.name %>"><%= c.name %></option>
+              <% }) %>
+            </select>
+          </div>
+        </div>
+        <div class="fg">
+          <label class="fl">Jumlah / Nominal (Rp) <span class="text-danger">*</span></label>
+          <input type="text" class="fc" name="amount" id="edit_amount" required placeholder="Contoh: 150.000" style="font-size:16px;font-weight:bold" autocomplete="off">
+        </div>
+        <div class="fg">
+          <label class="fl">Deskripsi / Keterangan <span class="text-danger">*</span></label>
+          <textarea class="fc" name="description" id="edit_description" required placeholder="Beli Router Mikrotik RB750Gr3..."></textarea>
+        </div>
+        <div class="form-row">
+          <div class="fg">
+            <label class="fl">Nama Toko/Vendor (Opsional)</label>
+            <input type="text" class="fc" name="vendor" id="edit_vendor" placeholder="Misal: Tokopedia / Toko Komputer X">
+          </div>
+          <div class="fg">
+            <label class="fl">No. Nota / Kwitansi (Opsional)</label>
+            <input type="text" class="fc" name="receipt_number" id="edit_receipt" placeholder="INV-123456">
+          </div>
+        </div>
+        <div class="fg">
+          <label class="fl">Metode Pembayaran</label>
+          <select class="fc" name="payment_method" id="edit_method">
+            <option value="cash">Tunai (Cash)</option>
+            <option value="transfer">Transfer Bank</option>
+            <option value="ewallet">E-Wallet (OVO/Dana/Gopay)</option>
+            <option value="credit">Kredit / Paylater</option>
+          </select>
+        </div>
+      </div>
+      <div class="mf">
+        <button type="button" class="btn btn-g" onclick="closeModal('editModal')">Batal</button>
+        <button type="submit" class="btn btn-p"><i class="bi bi-save"></i> Simpan Perubahan</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
 function openModal(id){document.getElementById(id).classList.add('show')}
 function closeModal(id){document.getElementById(id).classList.remove('show')}
@@ -171,6 +278,51 @@ setTimeout(()=>document.querySelectorAll('.alert').forEach(a=>a.style.display='n
 const amtInput = document.getElementById('amountInput');
 if(amtInput){
   amtInput.addEventListener('keyup', function(e) {
+    let val = this.value.replace(/[^0-9]/g, '');
+    if(val){
+      this.value = parseInt(val, 10).toLocaleString('id-ID');
+    } else {
+      this.value = '';
+    }
+  });
+}
+
+// Edit Modal Handler
+document.querySelectorAll('.btn-edit').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const id = this.getAttribute('data-id');
+    const date = this.getAttribute('data-date');
+    const category = this.getAttribute('data-category');
+    const amount = this.getAttribute('data-amount');
+    const description = this.getAttribute('data-description');
+    const vendor = this.getAttribute('data-vendor');
+    const receipt = this.getAttribute('data-receipt');
+    const method = this.getAttribute('data-method');
+
+    // Set form action dynamically
+    document.getElementById('editForm').setAttribute('action', '/admin/finance/expenses/' + id + '/update');
+
+    // Fill form fields
+    document.getElementById('edit_date').value = date;
+    document.getElementById('edit_category').value = category;
+    
+    // Format amount into Rupiah representation
+    const numericAmount = parseInt(amount, 10);
+    document.getElementById('edit_amount').value = isNaN(numericAmount) ? '' : numericAmount.toLocaleString('id-ID');
+    
+    document.getElementById('edit_description').value = description;
+    document.getElementById('edit_vendor').value = vendor;
+    document.getElementById('edit_receipt').value = receipt;
+    document.getElementById('edit_method').value = method;
+
+    openModal('editModal');
+  });
+});
+
+// Format Rupiah Input for Edit Modal
+const editAmtInput = document.getElementById('edit_amount');
+if(editAmtInput){
+  editAmtInput.addEventListener('keyup', function(e) {
     let val = this.value.replace(/[^0-9]/g, '');
     if(val){
       this.value = parseInt(val, 10).toLocaleString('id-ID');

@@ -5140,9 +5140,19 @@ router.get('/whatsapp/broadcast', requireAdminSession, requireSidebarMenuAccess(
     `Salam,\nAdmin ${comp}`;
   const autoBillingMsg = db.getAppSetting('whatsapp_auto_billing_message', defaultAutoBillingMsg);
 
+  const defaultAutoIsolirMsg =
+    `Yth. Pelanggan {{nama}},\n\n` +
+    `Ini adalah pengingat penting bahwa layanan internet Anda (Paket {{paket}}) akan terisolir otomatis dalam {{hari_h}} hari jika tidak ada pembayaran.\n\n` +
+    `💰 *Total Tagihan:* Rp {{tagihan}}\n` +
+    `📅 *Jatuh Tempo:* {{jatuh_tempo}}\n\n` +
+    `Mohon lakukan pembayaran segera melalui portal pelanggan: {{link}} untuk menghindari pemutusan layanan.\n\n` +
+    `Terima kasih.\n` +
+    `Salam,\nAdmin ${comp}`;
+  const autoIsolirMsg = db.getAppSetting('whatsapp_auto_isolir_message', defaultAutoIsolirMsg);
+
   res.render('admin/broadcast', {
     title: 'Broadcast WhatsApp', company: comp, activePage: 'broadcast', msg: flashMsg(req),
-    broadcastStatus: global.broadcastStatus, getSetting, autoBillingMsg
+    broadcastStatus: global.broadcastStatus, getSetting, autoBillingMsg, autoIsolirMsg
   });
 });
 
@@ -5398,6 +5408,37 @@ router.post('/whatsapp/auto-billing', requireAdminSession, express.urlencoded({ 
     }
     saveSettings(next);
     req.session._msg = { type: 'success', text: `Pengingat tagihan otomatis ${enabled ? 'diaktifkan' : 'dimatikan'}. Notifikasi tagihan ke pelanggan ${billingEnabled ? 'diaktifkan' : 'dimatikan'}.` };
+  } catch (e) {
+    req.session._msg = { type: 'error', text: 'Gagal menyimpan pengaturan: ' + e.message };
+  }
+  res.redirect('/admin/whatsapp/broadcast');
+});
+
+router.post('/whatsapp/auto-isolir', requireAdminSession, express.urlencoded({ extended: true }), (req, res) => {
+  try {
+    const enabled = req.body && req.body.enabled ? true : false;
+    
+    let autoIsolirDays = '1';
+    if (req.body && req.body.auto_isolir_days) {
+      if (Array.isArray(req.body.auto_isolir_days)) {
+        autoIsolirDays = req.body.auto_isolir_days.join(',');
+      } else {
+        autoIsolirDays = String(req.body.auto_isolir_days);
+      }
+    } else {
+      autoIsolirDays = '';
+    }
+
+    const next = { 
+      whatsapp_auto_isolir_enabled: enabled, 
+      whatsapp_auto_isolir_days: autoIsolirDays
+    };
+    const msg = req.body && typeof req.body.message === 'string' ? req.body.message.trim() : '';
+    if (msg) {
+      db.saveAppSetting('whatsapp_auto_isolir_message', msg);
+    }
+    saveSettings(next);
+    req.session._msg = { type: 'success', text: `Pengingat sebelum isolir otomatis ${enabled ? 'diaktifkan' : 'dimatikan'}.` };
   } catch (e) {
     req.session._msg = { type: 'error', text: 'Gagal menyimpan pengaturan: ' + e.message };
   }

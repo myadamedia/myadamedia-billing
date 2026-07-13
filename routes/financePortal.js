@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../config/database');
+const { getNowLocal } = require('../config/settingsManager');
 
 // Helper untuk menampilkan notifikasi sukses/error
 function flashMsg(req) {
@@ -50,19 +51,50 @@ router.post('/expense-categories/:id/delete', (req, res) => {
 
 // ─── PENGELUARAN (CASH OUT) ────────────────────────────────────────────
 router.get('/expenses', (req, res) => {
-  const expenses = db.prepare(`
+  const selectedMonth = typeof req.query.month === 'string' && req.query.month ? req.query.month.trim() : '';
+  
+  let expensesQuery = `
     SELECT e.*, c.color as category_color, c.icon as category_icon 
     FROM expenses e 
     LEFT JOIN expense_categories c ON c.name = e.category 
-    ORDER BY e.date DESC, e.id DESC LIMIT 500
-  `).all();
-  
+  `;
+  let queryParams = [];
+
+  if (selectedMonth) {
+    expensesQuery += ` WHERE e.date LIKE ? `;
+    queryParams.push(`${selectedMonth}%`);
+  }
+
+  expensesQuery += ` ORDER BY e.date DESC, e.id DESC LIMIT 500 `;
+
+  const expenses = db.prepare(expensesQuery).all(...queryParams);
   const categories = db.prepare('SELECT * FROM expense_categories ORDER BY name ASC').all();
   
+  // Ambil daftar semua bulan unik yang ada di riwayat pengeluaran
+  const availableMonths = db.prepare(`
+    SELECT DISTINCT SUBSTR(date, 1, 7) as month 
+    FROM expenses 
+    WHERE date IS NOT NULL AND date != ''
+    ORDER BY month DESC
+  `).all().map(r => r.month);
+
+  // Dapatkan bulan berjalan untuk ditambahkan jika tidak terdaftar
+  const currentMonth = getNowLocal().substring(0, 7);
+  if (!availableMonths.includes(currentMonth)) {
+    availableMonths.unshift(currentMonth);
+  }
+
+  // Hitung total pengeluaran keseluruhan (grand total) dari database
+  const grandTotalRow = db.prepare('SELECT SUM(amount) as grand_total FROM expenses').get();
+  const grandTotal = grandTotalRow ? (Number(grandTotalRow.grand_total) || 0) : 0;
+
   res.render('admin/finance/expenses', {
     activePage: 'expenses',
     expenses,
     categories,
+    availableMonths,
+    selectedMonth,
+    grandTotal,
     msg: flashMsg(req)
   });
 });
@@ -91,6 +123,24 @@ router.post('/expenses/:id/delete', (req, res) => {
     req.session._msg = { type: 'success', text: 'Data berhasil dihapus' };
   } catch(e) {
     req.session._msg = { type: 'error', text: 'Gagal dihapus' };
+  }
+  res.redirect('/admin/finance/expenses');
+});
+
+router.post('/expenses/:id/update', express.urlencoded({ extended: true }), (req, res) => {
+  try {
+    const { date, category, amount, description, payment_method, receipt_number, vendor } = req.body;
+    const cleanAmount = String(amount).replace(/[^0-9]/g, ''); // bersihkan format rupiah
+    
+    db.prepare(`
+      UPDATE expenses 
+      SET date = ?, category = ?, amount = ?, description = ?, payment_method = ?, receipt_number = ?, vendor = ?
+      WHERE id = ?
+    `).run(date, category, cleanAmount, description, payment_method, receipt_number, vendor, req.params.id);
+    
+    req.session._msg = { type: 'success', text: 'Pengeluaran berhasil diperbarui' };
+  } catch(e) {
+    req.session._msg = { type: 'error', text: 'Gagal memperbarui pengeluaran: ' + e.message };
   }
   res.redirect('/admin/finance/expenses');
 });

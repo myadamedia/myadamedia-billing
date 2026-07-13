@@ -175,6 +175,62 @@
       </form>
     </div>
 
+    <div class="card" style="margin-top: 20px;">
+      <div class="card-hd">
+        <h6><i class="bi bi-shield-exclamation"></i> Pengingat Sebelum Isolir</h6>
+      </div>
+      <form method="POST" action="/admin/whatsapp/auto-isolir" onsubmit="return confirm('Simpan pengaturan pengingat sebelum isolir?');">
+        <div class="card-bd">
+          <div class="form-row" style="margin-bottom: 12px;">
+            <div class="fg" style="width: 100%;">
+              <label class="fl">Pengingat Sebelum Isolir (Jadwal)</label>
+              <label style="display:flex; align-items:center; gap:10px; font-weight:800; color: var(--text);">
+                <input type="checkbox" name="enabled" value="1" <%= getSetting('whatsapp_auto_isolir_enabled', false) ? 'checked' : '' %>>
+                Jalankan pengingat sebelum isolir otomatis (CRON)
+              </label>
+              <div style="font-size: 11px; color: var(--muted); margin-top: 6px;">
+                Sistem akan mengirim notifikasi pengingat sebelum di-isolir ke pelanggan yang memiliki tunggakan secara otomatis.
+              </div>
+            </div>
+          </div>
+
+          <div class="form-row" style="margin-bottom: 12px;">
+            <div class="fg" style="width: 100%;">
+              <label class="fl">Hari Pengiriman Pengingat (Sebelum Tanggal Isolir)</label>
+              <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-top: 8px;">
+                <% 
+                  const selectedIsolirDays = String(getSetting('whatsapp_auto_isolir_days', '1')).split(',').map(s => s.trim());
+                  for (let i = 1; i <= 7; i++) { 
+                    const isChecked = selectedIsolirDays.includes(String(i)) ? 'checked' : '';
+                %>
+                  <label style="display: flex; align-items: center; gap: 6px; font-weight: 600; color: var(--text); cursor: pointer;">
+                    <input type="checkbox" name="auto_isolir_days" value="<%= i %>" <%= isChecked %> style="width: 16px; height: 16px;">
+                    H-<%= i %>
+                  </label>
+                <% } %>
+              </div>
+              <div style="font-size: 11px; color: var(--muted); margin-top: 6px;">
+                Pilih hari-hari (H-1 s/d H-7 sebelum isolir) untuk mengirimkan notifikasi pengingat sebelum isolir otomatis ke WhatsApp pelanggan.
+              </div>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="fg" style="width: 100%;">
+              <label class="fl">Isi Pesan WhatsApp</label>
+              <textarea class="fc" name="message" rows="8" required style="width: 100%;"><%= autoIsolirMsg %></textarea>
+              <div style="font-size: 11px; color: var(--muted); margin-top: 6px;">
+                <i class="bi bi-info-circle"></i> Variabel: <b>{{nama}}</b>, <b>{{tagihan}}</b>, <b>{{rincian}}</b>, <b>{{paket}}</b>, <b>{{link}}</b> (link login otomatis), <b>{{jatuh_tempo}}</b>, <b>{{hari_h}}</b> (sisa hari sebelum isolir).
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card-bd" style="border-top: 1px solid var(--border); background: var(--bg2); display: flex; justify-content: flex-end;">
+          <button type="submit" class="btn btn-p"><i class="bi bi-save"></i> Simpan</button>
+        </div>
+      </form>
+    </div>
+
   </div>
 </div>
 
