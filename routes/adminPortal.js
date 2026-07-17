@@ -185,6 +185,14 @@ function requireAdminSession(req, res, next) {
   return res.redirect('/admin/login');
 }
 
+function safeRedirectBack(req, res, fallbackUrl) {
+  const referer = req.get('referrer');
+  if (referer) {
+    return res.redirect(referer);
+  }
+  return res.redirect(fallbackUrl);
+}
+
 function resolvePaidByName(req, fallback) {
   const fb = String(fallback || '').trim();
   if (req.session?.isCashier) {
@@ -1145,7 +1153,7 @@ router.post('/collector-payments/:id/approve', requireAdminSession, express.urle
         WHERE id=?
       `).run(req.session.isCashier ? 'cashier' : 'admin', resolvePaidByName(req, 'Admin'), 'Invoice sudah lunas', id);
       req.session._msg = { type: 'error', text: 'Invoice sudah lunas, request ditolak.' };
-      return res.redirect('back');
+      return safeRedirectBack(req, res, '/admin/collector-payments');
     }
 
     const collectorLabel =
@@ -1191,7 +1199,7 @@ router.post('/collector-payments/:id/approve', requireAdminSession, express.urle
   } catch (e) {
     req.session._msg = { type: 'error', text: 'Gagal: ' + (e.message || String(e)) };
   }
-  res.redirect('back');
+  safeRedirectBack(req, res, '/admin/collector-payments');
 });
 
 router.post('/collector-payments/:id/reject', requireAdminSession, express.urlencoded({ extended: true }), (req, res) => {
@@ -1212,7 +1220,7 @@ router.post('/collector-payments/:id/reject', requireAdminSession, express.urlen
   } catch (e) {
     req.session._msg = { type: 'error', text: 'Gagal: ' + (e.message || String(e)) };
   }
-  res.redirect('back');
+  safeRedirectBack(req, res, '/admin/collector-payments');
 });
 // ─── CASHIER ATTENDANCE ──────────────────────────────────────────────────────
 router.get('/cashiers/attendance', requireAdminSession, requireSidebarMenuAccess('cashier_attendance'), (req, res) => {
@@ -2020,7 +2028,7 @@ router.post('/customers/:id/isolate', requireAdminSession, async (req, res) => {
   } catch (e) {
     req.session._msg = { type: 'error', text: 'Gagal isolir: ' + e.message };
   }
-  res.redirect('back');
+  safeRedirectBack(req, res, '/admin/customers');
 });
 
 router.post('/customers/:id/unisolate', requireAdminSession, async (req, res) => {
@@ -2031,7 +2039,7 @@ router.post('/customers/:id/unisolate', requireAdminSession, async (req, res) =>
   } catch (e) {
     req.session._msg = { type: 'error', text: 'Gagal aktivasi: ' + e.message };
   }
-  res.redirect('back');
+  safeRedirectBack(req, res, '/admin/customers');
 });
 
 router.post('/customers/:id/billing/generate', requireAdminSession, express.urlencoded({ extended: true }), (req, res) => {
@@ -2046,7 +2054,7 @@ router.post('/customers/:id/billing/generate', requireAdminSession, express.urle
   } catch (e) {
     req.session._msg = { type: 'error', text: 'Gagal generate tagihan: ' + e.message };
   }
-  res.redirect('back');
+  safeRedirectBack(req, res, '/admin/customers');
 });
 
 router.post('/customers/:id/billing/reset-promo-cycles', requireAdminSession, restrictToRoles(['finance']), (req, res) => {
@@ -2061,7 +2069,7 @@ router.post('/customers/:id/billing/reset-promo-cycles', requireAdminSession, re
   } catch (e) {
     req.session._msg = { type: 'error', text: e.message || String(e) };
   }
-  res.redirect('back');
+  safeRedirectBack(req, res, '/admin/customers');
 });
 
 router.post('/customers/:id/billing/install-prorata', requireAdminSession, restrictToRoles(['finance']), (req, res) => {
@@ -2074,7 +2082,7 @@ router.post('/customers/:id/billing/install-prorata', requireAdminSession, restr
   } catch (e) {
     req.session._msg = { type: 'error', text: e.message || String(e) };
   }
-  res.redirect('back');
+  safeRedirectBack(req, res, '/admin/customers');
 });
 
 router.post('/customers/:id/billing/pay', requireAdminSession, express.urlencoded({ extended: true }), async (req, res) => {
@@ -2135,7 +2143,7 @@ router.post('/customers/:id/billing/pay', requireAdminSession, express.urlencode
   } catch (e) {
     req.session._msg = { type: 'error', text: 'Gagal bayar: ' + e.message };
   }
-  res.redirect('back');
+  safeRedirectBack(req, res, '/admin/customers');
 });
 
 // ─── PACKAGES ──────────────────────────────────────────────────────────────
@@ -2374,7 +2382,7 @@ router.post('/billing/pay-bulk', requireAdminSession, express.urlencoded({ exten
   } catch (e) {
     req.session._msg = { type: 'error', text: 'Gagal bayar massal: ' + e.message };
   }
-  res.redirect('back');
+  safeRedirectBack(req, res, '/admin/billing');
 });
 
 router.post('/billing/delete-bulk', requireAdminSession, express.urlencoded({ extended: true }), (req, res) => {
@@ -2398,7 +2406,7 @@ router.post('/billing/delete-bulk', requireAdminSession, express.urlencoded({ ex
   } catch (e) {
     req.session._msg = { type: 'error', text: 'Gagal hapus massal: ' + e.message };
   }
-  res.redirect('back');
+  safeRedirectBack(req, res, '/admin/billing');
 });
 
 router.post('/billing/:id/pay', requireAdminSession, express.urlencoded({ extended: true }), async (req, res) => {
@@ -2433,7 +2441,7 @@ router.post('/billing/:id/pay', requireAdminSession, express.urlencoded({ extend
   } catch (e) {
     req.session._msg = { type: 'error', text: 'Gagal: ' + e.message };
   }
-  res.redirect('back');
+  safeRedirectBack(req, res, '/admin/billing');
 });
 
 router.post('/billing/:id/unpay', requireAdminSession, (req, res) => {
@@ -2443,7 +2451,7 @@ router.post('/billing/:id/unpay', requireAdminSession, (req, res) => {
   } catch (e) {
     req.session._msg = { type: 'error', text: 'Gagal: ' + e.message };
   }
-  res.redirect('back');
+  safeRedirectBack(req, res, '/admin/billing');
 });
 
 router.post('/billing/:id/qris-assign', requireAdminSession, (req, res) => {
@@ -2458,7 +2466,7 @@ router.post('/billing/:id/qris-assign', requireAdminSession, (req, res) => {
 
     if (!force && inv.qris_amount_unique) {
       req.session._msg = { type: 'success', text: 'Kode QRIS sudah ada untuk tagihan ini.' };
-      return res.redirect('back');
+      return safeRedirectBack(req, res, '/admin/billing');
     }
 
     const baseAmount = Number(inv.amount || 0);
@@ -2502,7 +2510,7 @@ router.post('/billing/:id/qris-assign', requireAdminSession, (req, res) => {
   } catch (e) {
     req.session._msg = { type: 'error', text: 'Gagal membuat kode QRIS: ' + e.message };
   }
-  res.redirect('back');
+  safeRedirectBack(req, res, '/admin/billing');
 });
 
 router.post('/billing/:id/qris-clear', requireAdminSession, (req, res) => {
@@ -2518,7 +2526,7 @@ router.post('/billing/:id/qris-clear', requireAdminSession, (req, res) => {
   } catch (e) {
     req.session._msg = { type: 'error', text: 'Gagal menghapus kode QRIS: ' + e.message };
   }
-  res.redirect('back');
+  safeRedirectBack(req, res, '/admin/billing');
 });
 
 router.post('/billing/:id/whatsapp', requireAdminSession, async (req, res) => {
@@ -2813,7 +2821,7 @@ router.post('/billing/:id/whatsapp', requireAdminSession, async (req, res) => {
   } catch (e) {
     req.session._msg = { type: 'error', text: 'Gagal kirim WA: ' + e.message };
   }
-  res.redirect('back');
+  safeRedirectBack(req, res, '/admin/billing');
 });
 
 router.post('/billing/:id/delete', requireAdminSession, (req, res) => {
@@ -2823,7 +2831,7 @@ router.post('/billing/:id/delete', requireAdminSession, (req, res) => {
   } catch (e) {
     req.session._msg = { type: 'error', text: 'Gagal: ' + e.message };
   }
-  res.redirect('back');
+  safeRedirectBack(req, res, '/admin/billing');
 });
 
 // ─── TICKETS ───────────────────────────────────────────────────────────────
@@ -3064,7 +3072,7 @@ router.post('/tickets/:id/update', requireAdminSession, express.urlencoded({ ext
   } catch (e) {
     req.session._msg = { type: 'error', text: 'Gagal update keluhan: ' + e.message };
   }
-  res.redirect('back');
+  safeRedirectBack(req, res, '/admin/tickets');
 });
 
 router.post('/tickets/:id/delete', requireAdminSession, (req, res) => {
@@ -3074,7 +3082,7 @@ router.post('/tickets/:id/delete', requireAdminSession, (req, res) => {
   } catch (e) {
     req.session._msg = { type: 'error', text: 'Gagal hapus keluhan: ' + e.message };
   }
-  res.redirect('back');
+  safeRedirectBack(req, res, '/admin/tickets');
 });
 
 // ─── REPORTS ───────────────────────────────────────────────────────────────
@@ -5947,7 +5955,7 @@ router.post('/payroll/slip/:id/approve', requireAdmin, (req, res) => {
   } catch (e) {
     req.session._msg = { type: 'error', text: e.message };
   }
-  res.redirect('back');
+  safeRedirectBack(req, res, '/admin/payroll');
 });
 
 router.post('/payroll/slip/:id/paid', requireAdmin, (req, res) => {
@@ -5957,7 +5965,7 @@ router.post('/payroll/slip/:id/paid', requireAdmin, (req, res) => {
   } catch (e) {
     req.session._msg = { type: 'error', text: e.message };
   }
-  res.redirect('back');
+  safeRedirectBack(req, res, '/admin/payroll');
 });
 
 router.post('/payroll/slip/:id/delete', requireAdmin, (req, res) => {
@@ -5967,7 +5975,7 @@ router.post('/payroll/slip/:id/delete', requireAdmin, (req, res) => {
   } catch (e) {
     req.session._msg = { type: 'error', text: e.message };
   }
-  res.redirect('back');
+  safeRedirectBack(req, res, '/admin/payroll');
 });
 
 router.post('/payroll/bulk-approve', requireAdmin, (req, res) => {
@@ -5977,7 +5985,7 @@ router.post('/payroll/bulk-approve', requireAdmin, (req, res) => {
   } catch (e) {
     req.session._msg = { type: 'error', text: e.message };
   }
-  res.redirect('back');
+  safeRedirectBack(req, res, '/admin/payroll');
 });
 
 router.post('/payroll/bulk-paid', requireAdmin, (req, res) => {
@@ -5987,7 +5995,7 @@ router.post('/payroll/bulk-paid', requireAdmin, (req, res) => {
   } catch (e) {
     req.session._msg = { type: 'error', text: e.message };
   }
-  res.redirect('back');
+  safeRedirectBack(req, res, '/admin/payroll');
 });
 
 router.post('/payroll/delete-drafts', requireAdmin, (req, res) => {
@@ -5997,7 +6005,7 @@ router.post('/payroll/delete-drafts', requireAdmin, (req, res) => {
   } catch (e) {
     req.session._msg = { type: 'error', text: e.message };
   }
-  res.redirect('back');
+  safeRedirectBack(req, res, '/admin/payroll');
 });
 
 router.get('/payroll/slip/:id/print', requireAdmin, (req, res) => {
