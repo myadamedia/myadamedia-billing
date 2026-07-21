@@ -179,6 +179,9 @@ function startCronJobs() {
     const targetCustomers = [];
     const seenPhones = new Set();
     for (const c of customers) {
+      // Cek fitur opt-in / toggle pengingat tagihan per pelanggan
+      if (c.send_billing_reminder === 0) continue;
+
       const phone = c.phone ? String(c.phone).trim() : '';
       if (!phone || phone.length < 9) continue;
       let digits = phone.replace(/\D/g, '');
@@ -363,6 +366,9 @@ function startCronJobs() {
     const targetCustomers = [];
     const seenPhones = new Set();
     for (const c of customers) {
+      // Cek fitur opt-in / toggle pengingat sebelum isolir per pelanggan
+      if (c.send_isolir_reminder === 0) continue;
+
       const phone = c.phone ? String(c.phone).trim() : '';
       if (!phone || phone.length < 9) continue;
       let digits = phone.replace(/\D/g, '');

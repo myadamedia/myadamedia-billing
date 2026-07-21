@@ -610,6 +610,12 @@ try {
   db.exec("ALTER TABLE customers ADD COLUMN collector_id INTEGER REFERENCES collectors(id) ON DELETE SET NULL");
 } catch (e) { /* ignore if already exists */ }
 try {
+  db.exec("ALTER TABLE customers ADD COLUMN send_billing_reminder INTEGER DEFAULT 1");
+} catch (e) { /* ignore if already exists */ }
+try {
+  db.exec("ALTER TABLE customers ADD COLUMN send_isolir_reminder INTEGER DEFAULT 1");
+} catch (e) { /* ignore if already exists */ }
+try {
   db.exec("ALTER TABLE collectors ADD COLUMN auto_approve INTEGER DEFAULT 0");
 } catch (e) { /* ignore if already exists */ }
 try { db.exec("ALTER TABLE odps ADD COLUMN port_capacity INTEGER NOT NULL DEFAULT 16"); } catch (e) { /* ignore if already exists */ }

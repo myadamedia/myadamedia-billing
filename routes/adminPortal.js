@@ -1944,6 +1944,8 @@ router.get('/customers/export', requireAdminSession, (req, res) => {
       'Tanggal Pasang': c.install_date,
       'Auto Isolir': c.auto_isolate === 1 ? 'YA' : 'TIDAK',
       'Tgl Isolir': c.isolate_day,
+      'Pengingat Tagihan WA': c.send_billing_reminder !== 0 ? 'YA' : 'TIDAK',
+      'Pengingat Isolir WA': c.send_isolir_reminder !== 0 ? 'YA' : 'TIDAK',
       'ODP': c.odp_name || '-',
       'Latitude': c.lat || '',
       'Longitude': c.lng || '',
@@ -2011,6 +2013,8 @@ router.post('/customers/import', requireAdminSession, upload.single('file'), asy
         install_date: cleanRow['Tanggal Pasang'] || cleanRow['install_date'],
         auto_isolate: (cleanRow['Auto Isolir'] === 'TIDAK' || cleanRow['auto_isolate'] === 0) ? 0 : 1,
         isolate_day: parseInt(cleanRow['Tgl Isolir'] || cleanRow['isolate_day']) || 10,
+        send_billing_reminder: (cleanRow['Pengingat Tagihan WA'] === 'TIDAK' || cleanRow['send_billing_reminder'] === 0) ? 0 : 1,
+        send_isolir_reminder: (cleanRow['Pengingat Isolir WA'] === 'TIDAK' || cleanRow['send_isolir_reminder'] === 0) ? 0 : 1,
         notes: cleanRow['Catatan'] || cleanRow['notes']
       };
       
