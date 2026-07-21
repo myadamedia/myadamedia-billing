@@ -179,6 +179,121 @@ pm2 start app-customer.js --name billing-rtrw
 
 ---
 
+## Menjalankan Pengujian (Testing)
+
+Untuk menjamin keandalan fungsionalitas kritis (utilitas enkripsi, validator konfigurasi, parser script MikroTik, dan helper keamanan), proyek ini dilengkapi dengan unit test berbasis **Jest** yang memiliki coverage 100% untuk modul-modul kritis tersebut.
+
+Menjalankan seluruh test suite:
+```bash
+npm test
+```
+
+Menjalankan pengujian ketat dengan ambang batas coverage 100% (branches, functions, lines, statements):
+```bash
+npm run test:cov
+```
+
+---
+
+## Panduan Deployment Produksi
+
+Berikut adalah langkah-langkah terperinci untuk mendesain dan men-deploy aplikasi ini pada server produksi berbasis Linux (seperti Ubuntu, Debian, atau Armbian):
+
+### 1. Pemasangan Node.js LTS
+Pastikan runtime Node.js versi LTS terbaru sudah terinstal pada sistem:
+```bash
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs build-essential
+```
+
+### 2. Konfigurasi Lingkungan Produksi
+- Pastikan Anda mengatur file `.env` di root proyek untuk mengamankan enkripsi:
+  ```env
+  NODE_ENV=production
+  SETTINGS_MASTER_KEY=kunci-master-enkripsi-anda-yang-sangat-rahasia-dan-panjang
+  ```
+- Perbarui file `settings.json` dan ubah nilai default `admin_password`, `session_secret`, serta `admin_api_key` dengan kombinasi string acak yang kuat.
+
+### 3. Konfigurasi Proses Latar Belakang (Daemon) dengan PM2
+PM2 digunakan untuk menjaga proses aplikasi agar tetap berjalan di latar belakang dan melakukan restart secara otomatis apabila terjadi crash.
+
+1. Install PM2 secara global:
+   ```bash
+   sudo npm install pm2 -g
+   ```
+2. Jalankan aplikasi menggunakan PM2:
+   ```bash
+   pm2 start app-customer.js --name billing-rtrw --time
+   ```
+3. Simpan daftar proses aktif dan atur script startup agar PM2 otomatis berjalan setelah sistem reboot/booting:
+   ```bash
+   pm2 save
+   pm2 startup
+   ```
+   *Salin dan jalankan perintah terminal (sudo env PATH...) yang dihasilkan dari command startup tersebut.*
+
+### 4. Konfigurasi Nginx sebagai Reverse Proxy & SSL (HTTPS)
+Direkomendasikan menggunakan Nginx untuk melayani trafik dari port standard HTTP/HTTPS (80/443) ke port internal aplikasi (default: 3001) dan memasang SSL Certificate gratis dari Let's Encrypt.
+
+1. Pasang Nginx dan Certbot:
+   ```bash
+   sudo apt update
+   sudo apt install nginx certbot python3-certbot-nginx -y
+   ```
+2. Buat file konfigurasi server block baru, misalnya `/etc/nginx/sites-available/billing.myadamedia.com`:
+   ```nginx
+   server {
+       listen 80;
+       server_name billing.myadamedia.com; # Sesuaikan dengan domain/subdomain Anda
+
+       location / {
+           proxy_pass http://localhost:3001; # Port internal settings.json
+           proxy_http_version 1.1;
+           proxy_set_header Upgrade $http_upgrade;
+           proxy_set_header Connection 'upgrade';
+           proxy_set_header Host $host;
+           proxy_cache_bypass $http_upgrade;
+           proxy_set_header X-Real-IP $remote_addr;
+           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+           proxy_set_header X-Forwarded-Proto $scheme;
+       }
+
+       # Khusus untuk ACS TR-069 Server (mengizinkan koneksi ONU/CPE secara real-time)
+       location /acs {
+           proxy_pass http://localhost:3001/acs;
+           proxy_http_version 1.1;
+           proxy_set_header Host $host;
+           proxy_set_header X-Real-IP $remote_addr;
+           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+           proxy_read_timeout 600s;
+       }
+   }
+   ```
+3. Aktifkan konfigurasi virtual host dan restart service Nginx:
+   ```bash
+   sudo ln -s /etc/nginx/sites-available/billing.myadamedia.com /etc/nginx/sites-enabled/
+   sudo nginx -t
+   sudo systemctl restart nginx
+   ```
+4. Dapatkan sertifikat SSL Let's Encrypt secara gratis dan otomatis melalui Certbot:
+   ```bash
+   sudo certbot --nginx -d billing.myadamedia.com
+   ```
+
+### 5. Pengaturan Tugas Cadangan Database (Auto-Backup)
+SQLite menyederhanakan backup data karena semua data tersimpan di satu file. Anda dapat menggunakan cron job bawaan sistem Linux untuk mem-backup berkas database secara berkala.
+
+1. Buka konfigurasi crontab:
+   ```bash
+   crontab -e
+   ```
+2. Tambahkan perintah berikut di bagian bawah untuk menduplikasi database setiap pukul 02:00 pagi ke folder cadangan:
+   ```cron
+   0 2 * * * cp /path/to/myadamedia-billing/database/billing.db /path/to/backups/billing_$(date +\%F).db
+   ```
+
+---
+
 ## Built-in ACS (TR-069)
 
 Aplikasi ini dilengkapi dengan **Built-in ACS (Auto Configuration Server)** internal berbasis protokol TR-069/CWMP. Fitur ini memungkinkan aplikasi mengelola perangkat ONU/CPE secara langsung tanpa memerlukan server GenieACS eksternal (sangat menghemat resource server/VPS Anda).

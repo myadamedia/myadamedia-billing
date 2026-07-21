@@ -11,7 +11,7 @@ const MASTER_KEY = process.env.SETTINGS_MASTER_KEY || 'default-master-key-change
 
 function getMasterKeyForString(keyStr) {
   const hash = crypto.createHash('sha256');
-  hash.update(keyStr || '');
+  hash.update(keyStr);
   return hash.digest();
 }
 

@@ -22,6 +22,7 @@
 
   .marker-odp { color: #f59e0b; font-size: 16px; text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff; }
   .marker-cust-active { color: #3b82f6; font-size: 18px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff; }
+  .marker-cust-free { color: #10b981; font-size: 18px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff; }
   .marker-cust-suspended { color: #ef4444; font-size: 18px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff; }
   .popup-dark { color: #1e293b; }
   .popup-dark h6 { margin: 0 0 5px 0; border-bottom: 1px solid #ddd; padding-bottom: 5px; font-weight: bold; }
@@ -37,22 +38,33 @@
   }
 </style>
 
-<div class="tech-stats">
+<%
+  const isFreeCust = (c) => (c.status && String(c.status).toLowerCase() === 'free') || (c.package_name && String(c.package_name).toLowerCase().includes('free')) || (c.package_price !== undefined && c.package_price !== null && Number(c.package_price) === 0 && c.package_name);
+  const freeCount = customers.filter(isFreeCust).length;
+  const activeCount = customers.filter(c => c.status === 'active' && !isFreeCust(c)).length;
+  const suspendedCount = customers.filter(c => c.status !== 'active' && !isFreeCust(c)).length;
+%>
+
+<div class="tech-stats" style="grid-template-columns: repeat(4, 1fr);">
   <div class="tsc tsc-w">
     <span class="val"><%= odps.length %></span>
-    <span class="lbl">Total ODP</span>
+    <span class="lbl">ODP</span>
+  </div>
+  <div class="tsc" style="border-bottom: 3px solid #3b82f6;">
+    <span class="val"><%= activeCount %></span>
+    <span class="lbl">Berbayar</span>
   </div>
   <div class="tsc tsc-s">
-    <span class="val"><%= customers.filter(c => c.status === 'active').length %></span>
-    <span class="lbl">Aktif</span>
+    <span class="val"><%= freeCount %></span>
+    <span class="lbl">Free</span>
   </div>
   <div class="tsc tsc-d">
-    <span class="val"><%= customers.filter(c => c.status !== 'active').length %></span>
+    <span class="val"><%= suspendedCount %></span>
     <span class="lbl">Isolir</span>
   </div>
 </div>
 
-<div class="legend-grid">
+<div class="legend-grid" style="grid-template-columns: repeat(5, 1fr);">
   <label class="lc" style="cursor:pointer; user-select:none; margin-bottom:0; padding: 6px;">
     <input type="checkbox" id="toggle-odp" checked onchange="toggleLayers()" style="width:14px;height:14px;cursor:pointer">
     <i style="background: #f59e0b;"></i>
@@ -62,6 +74,11 @@
     <input type="checkbox" id="toggle-active" checked onchange="toggleLayers()" style="width:14px;height:14px;cursor:pointer">
     <i style="background: #3b82f6;"></i>
     <span>Aktif</span>
+  </label>
+  <label class="lc" style="cursor:pointer; user-select:none; margin-bottom:0; padding: 6px;">
+    <input type="checkbox" id="toggle-free" checked onchange="toggleLayers()" style="width:14px;height:14px;cursor:pointer">
+    <i style="background: #10b981;"></i>
+    <span>Free</span>
   </label>
   <label class="lc" style="cursor:pointer; user-select:none; margin-bottom:0; padding: 6px;">
     <input type="checkbox" id="toggle-suspended" checked onchange="toggleLayers()" style="width:14px;height:14px;cursor:pointer">
@@ -121,6 +138,7 @@
   // Layer Groups for ODP and Customers
   const odpGroup = L.layerGroup().addTo(map);
   const activeCustGroup = L.layerGroup().addTo(map);
+  const freeCustGroup = L.layerGroup().addTo(map);
   const suspendedCustGroup = L.layerGroup().addTo(map);
   const ticketGroup = L.layerGroup().addTo(map);
 
@@ -283,8 +301,25 @@
   // Add Customer Markers
   customers.forEach(cust => {
     if (cust.lat && cust.lng) {
-      const is_active = cust.status === 'active';
-      const iconClass = is_active ? 'marker-cust-active' : 'marker-cust-suspended';
+      const is_free = (cust.status && String(cust.status).toLowerCase() === 'free') ||
+                      (cust.package_name && String(cust.package_name).toLowerCase().includes('free')) ||
+                      (cust.package_price !== undefined && cust.package_price !== null && Number(cust.package_price) === 0 && cust.package_name);
+      const is_active = cust.status === 'active' || is_free;
+
+      let iconClass = 'marker-cust-suspended';
+      let cableColor = '#ef4444';
+      let targetGroup = suspendedCustGroup;
+
+      if (is_free) {
+        iconClass = 'marker-cust-free';
+        cableColor = '#10b981';
+        targetGroup = freeCustGroup;
+      } else if (is_active) {
+        iconClass = 'marker-cust-active';
+        cableColor = '#3b82f6';
+        targetGroup = activeCustGroup;
+      }
+
       const custLat = parseFloat(cust.lat);
       const custLng = parseFloat(cust.lng);
       
@@ -309,13 +344,13 @@
         }
 
         L.polyline(pathCoords, {
-          color: is_active ? '#3b82f6' : '#ef4444',
+          color: cableColor,
           weight: 3,
           opacity: 0.8,
           dashArray: '10, 10',
           className: 'flowing-line',
           interactive: false
-        }).addTo(is_active ? activeCustGroup : suspendedCustGroup);
+        }).addTo(targetGroup);
       }
 
       const marker = L.marker([custLat, custLng], {
@@ -325,7 +360,7 @@
           iconSize: [18, 18],
           iconAnchor: [9, 9]
         })
-      }).addTo(is_active ? activeCustGroup : suspendedCustGroup);
+      }).addTo(targetGroup);
 
       function normalizePhone(phone) {
         const raw = String(phone || '').trim();
@@ -386,6 +421,7 @@
   window.toggleLayers = function() {
     const showOdp = document.getElementById('toggle-odp').checked;
     const showActive = document.getElementById('toggle-active').checked;
+    const showFree = document.getElementById('toggle-free') ? document.getElementById('toggle-free').checked : true;
     const showSuspended = document.getElementById('toggle-suspended').checked;
     const showTickets = document.getElementById('toggle-tickets').checked;
 
@@ -403,6 +439,14 @@
     } else {
       if (map.hasLayer(activeCustGroup)) map.removeLayer(activeCustGroup);
       localStorage.setItem('map_show_active', 'false');
+    }
+
+    if (showFree) {
+      if (!map.hasLayer(freeCustGroup)) map.addLayer(freeCustGroup);
+      localStorage.setItem('map_show_free', 'true');
+    } else {
+      if (map.hasLayer(freeCustGroup)) map.removeLayer(freeCustGroup);
+      localStorage.setItem('map_show_free', 'false');
     }
 
     if (showSuspended) {
@@ -425,16 +469,19 @@
   // Load preferences
   const prefOdp = localStorage.getItem('map_show_odp') !== 'false';
   const prefActive = localStorage.getItem('map_show_active') !== 'false';
+  const prefFree = localStorage.getItem('map_show_free') !== 'false';
   const prefSuspended = localStorage.getItem('map_show_suspended') !== 'false';
   const prefTickets = localStorage.getItem('map_show_tickets') !== 'false';
 
-  document.getElementById('toggle-odp').checked = prefOdp;
-  document.getElementById('toggle-active').checked = prefActive;
-  document.getElementById('toggle-suspended').checked = prefSuspended;
-  document.getElementById('toggle-tickets').checked = prefTickets;
+  if (document.getElementById('toggle-odp')) document.getElementById('toggle-odp').checked = prefOdp;
+  if (document.getElementById('toggle-active')) document.getElementById('toggle-active').checked = prefActive;
+  if (document.getElementById('toggle-free')) document.getElementById('toggle-free').checked = prefFree;
+  if (document.getElementById('toggle-suspended')) document.getElementById('toggle-suspended').checked = prefSuspended;
+  if (document.getElementById('toggle-tickets')) document.getElementById('toggle-tickets').checked = prefTickets;
 
   if (!prefOdp) map.removeLayer(odpGroup);
   if (!prefActive) map.removeLayer(activeCustGroup);
+  if (!prefFree) map.removeLayer(freeCustGroup);
   if (!prefSuspended) map.removeLayer(suspendedCustGroup);
   if (!prefTickets) map.removeLayer(ticketGroup);
 

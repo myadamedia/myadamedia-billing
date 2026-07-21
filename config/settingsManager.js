@@ -246,6 +246,13 @@ function formatDateLocal(date) {
   return d.toLocaleString('id-ID', { timeZone: tz });
 }
 
+function stopSettingsWatcher() {
+  if (watcher) {
+    watcher.close();
+    watcher = null;
+  }
+}
+
 module.exports = {
   getSettings,
   getSettingsWithCache,
@@ -258,5 +265,6 @@ module.exports = {
   getCurrentTimeInfo,
   getNowLocalISO,
   parseDateInTimezone,
-  startSettingsWatcher
-}; 
+  startSettingsWatcher,
+  stopSettingsWatcher
+};

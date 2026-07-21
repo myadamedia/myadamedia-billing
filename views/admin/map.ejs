@@ -26,7 +26,7 @@
     .msc-info .lbl { font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; }
 
     /* Legend Cards */
-    .legend-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 15px; }
+    .legend-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 15px; }
     .lc { background: white; border: 1px solid #e2e8f0; padding: 10px; border-radius: 10px; display: flex; align-items: center; gap: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
     .lc i { width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.2); }
     .lc span { font-size: 12px; font-weight: 700; color: #334155; }
@@ -89,7 +89,9 @@
 
     .marker-odp { color: #f59e0b; font-size: 18px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); text-shadow: -1.5px -1.5px 0 #fff, 1.5px -1.5px 0 #fff, -1.5px 1.5px 0 #fff, 1.5px 1.5px 0 #fff; }
     .marker-cust-active { color: #3b82f6; font-size: 20px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); text-shadow: -1.5px -1.5px 0 #fff, 1.5px -1.5px 0 #fff, -1.5px 1.5px 0 #fff, 1.5px 1.5px 0 #fff; }
+    .marker-cust-free { color: #10b981; font-size: 20px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); text-shadow: -1.5px -1.5px 0 #fff, 1.5px -1.5px 0 #fff, -1.5px 1.5px 0 #fff, 1.5px 1.5px 0 #fff; }
     .marker-cust-suspended { color: #ef4444; font-size: 20px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); text-shadow: -1.5px -1.5px 0 #fff, 1.5px -1.5px 0 #fff, -1.5px 1.5px 0 #fff, 1.5px 1.5px 0 #fff; }
+    .cp-chip-free { background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
     .popup-content { font-size: 13px; }
     .popup-content h6 { margin: 0 0 5px 0; font-size: 14px; border-bottom: 1px solid #eee; padding-bottom: 5px; }
     .popup-actions { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
@@ -149,6 +151,12 @@
       <div class="alert alert-<%= msg.type==='error'?'d':'s' %>"><%= msg.text %></div>
     <% } %>
 
+    <%
+      const isFreeCust = (c) => (c.status && String(c.status).toLowerCase() === 'free') || (c.package_name && String(c.package_name).toLowerCase().includes('free')) || (c.package_price !== undefined && c.package_price !== null && Number(c.package_price) === 0 && c.package_name);
+      const freeCount = customers.filter(isFreeCust).length;
+      const activeCount = customers.filter(c => c.status === 'active' && !isFreeCust(c)).length;
+      const suspendedCount = customers.filter(c => c.status !== 'active' && !isFreeCust(c)).length;
+    %>
     <div class="map-stats">
         <div class="msc">
             <div class="msc-icon msc-w"><i class="bi bi-box-seam-fill"></i></div>
@@ -158,16 +166,23 @@
             </div>
         </div>
         <div class="msc">
-            <div class="msc-icon msc-s"><i class="bi bi-person-check-fill"></i></div>
+            <div class="msc-icon msc-p"><i class="bi bi-person-check-fill"></i></div>
             <div class="msc-info">
-                <div class="val"><%= customers.filter(c => c.status === 'active').length %></div>
-                <div class="lbl"><%= t('admin.map.stats.active_customers', 'Pelanggan Aktif') %></div>
+                <div class="val"><%= activeCount %></div>
+                <div class="lbl"><%= t('admin.map.stats.active_customers', 'Berbayar') %></div>
+            </div>
+        </div>
+        <div class="msc">
+            <div class="msc-icon msc-s"><i class="bi bi-gift-fill"></i></div>
+            <div class="msc-info">
+                <div class="val"><%= freeCount %></div>
+                <div class="lbl">Paket Free</div>
             </div>
         </div>
         <div class="msc">
             <div class="msc-icon msc-d"><i class="bi bi-person-x-fill"></i></div>
             <div class="msc-info">
-                <div class="val"><%= customers.filter(c => c.status !== 'active').length %></div>
+                <div class="val"><%= suspendedCount %></div>
                 <div class="lbl"><%= t('admin.map.stats.suspended_customers', 'Isolir / Nonaktif') %></div>
             </div>
         </div>
@@ -182,7 +197,12 @@
         <label class="lc" style="cursor:pointer; user-select:none; margin-bottom:0">
             <input type="checkbox" id="toggle-active" checked onchange="toggleLayers()" style="width:16px;height:16px;cursor:pointer">
             <i style="background: #3b82f6;"></i>
-            <span>Pelanggan <%= t('admin.map.legend.active', 'Aktif') %></span>
+            <span>Pelanggan <%= t('admin.map.legend.active', 'Berbayar') %></span>
+        </label>
+        <label class="lc" style="cursor:pointer; user-select:none; margin-bottom:0">
+            <input type="checkbox" id="toggle-free" checked onchange="toggleLayers()" style="width:16px;height:16px;cursor:pointer">
+            <i style="background: #10b981;"></i>
+            <span>Pelanggan Free</span>
         </label>
         <label class="lc" style="cursor:pointer; user-select:none; margin-bottom:0">
             <input type="checkbox" id="toggle-suspended" checked onchange="toggleLayers()" style="width:16px;height:16px;cursor:pointer">
@@ -422,6 +442,7 @@
   // Layer Groups for ODP and Customers
   const odpGroup = L.layerGroup().addTo(map);
   const activeCustGroup = L.layerGroup().addTo(map);
+  const freeCustGroup = L.layerGroup().addTo(map);
   const suspendedCustGroup = L.layerGroup().addTo(map);
   const odpMarkerObjects = {};
 
@@ -548,8 +569,25 @@
   // Add Customer Markers
   customers.forEach(cust => {
     if (cust.lat && cust.lng) {
-      const is_active = cust.status === 'active';
-      const iconClass = is_active ? 'marker-cust-active' : 'marker-cust-suspended';
+      const is_free = (cust.status && String(cust.status).toLowerCase() === 'free') ||
+                      (cust.package_name && String(cust.package_name).toLowerCase().includes('free')) ||
+                      (cust.package_price !== undefined && cust.package_price !== null && Number(cust.package_price) === 0 && cust.package_name);
+      const is_active = cust.status === 'active' || is_free;
+
+      let iconClass = 'marker-cust-suspended';
+      let cableColor = '#ef4444';
+      let targetGroup = suspendedCustGroup;
+
+      if (is_free) {
+        iconClass = 'marker-cust-free';
+        cableColor = '#10b981';
+        targetGroup = freeCustGroup;
+      } else if (is_active) {
+        iconClass = 'marker-cust-active';
+        cableColor = '#3b82f6';
+        targetGroup = activeCustGroup;
+      }
+
       const downMaxMbps = (cust.speed_down && Number(cust.speed_down) > 0) ? Math.max(1, Math.round(Number(cust.speed_down) / 1000)) : 10;
       const upMaxMbps = (cust.speed_up && Number(cust.speed_up) > 0) ? Math.max(1, Math.round(Number(cust.speed_up) / 1000)) : 10;
       const waLink = buildWaLink(cust.phone, cust.name);
@@ -566,12 +604,12 @@
         }
 
         const polyline = L.polyline(pathCoords, {
-          color: is_active ? '#3b82f6' : '#ef4444',
+          color: cableColor,
           weight: 3,
           opacity: 0.8,
           dashArray: '10, 10',
           className: 'flowing-line'
-        }).addTo(is_active ? activeCustGroup : suspendedCustGroup);
+        }).addTo(targetGroup);
 
         polyline.on('click', (e) => {
           if (currentEditingPolyline === polyline) {
@@ -587,7 +625,10 @@
           iconSize: [20, 20],
           iconAnchor: [10, 10]
         })
-      }).addTo(is_active ? activeCustGroup : suspendedCustGroup);
+      }).addTo(targetGroup);
+
+      const statusBadgeClass = is_free ? 'cp-chip-free' : (is_active ? 'cp-chip-active' : 'cp-chip-suspended');
+      const statusText = is_free ? 'Free' : (is_active ? I18N.statusActive : I18N.statusSuspended);
 
       marker.bindPopup(`
         <div class="cust-popup">
@@ -596,7 +637,7 @@
             <div class="cp-title">
               <div class="cp-name">${cust.name}</div>
               <div class="cp-badges">
-                <span class="cp-chip ${is_active ? 'cp-chip-active' : 'cp-chip-suspended'}"><i class="bi bi-shield-check"></i>${is_active ? I18N.statusActive : I18N.statusSuspended}</span>
+                <span class="cp-chip ${statusBadgeClass}"><i class="bi bi-${is_free ? 'gift-fill' : 'shield-check'}"></i>${statusText}</span>
                 <span class="cp-chip"><i class="bi bi-box-seam"></i>${cust.package_name || '-'}</span>
               </div>
             </div>
@@ -938,6 +979,7 @@
   window.toggleLayers = function() {
     const showOdp = document.getElementById('toggle-odp').checked;
     const showActive = document.getElementById('toggle-active').checked;
+    const showFree = document.getElementById('toggle-free') ? document.getElementById('toggle-free').checked : true;
     const showSuspended = document.getElementById('toggle-suspended').checked;
 
     if (showOdp) {
@@ -956,6 +998,14 @@
       localStorage.setItem('map_show_active', 'false');
     }
 
+    if (showFree) {
+      if (!map.hasLayer(freeCustGroup)) map.addLayer(freeCustGroup);
+      localStorage.setItem('map_show_free', 'true');
+    } else {
+      if (map.hasLayer(freeCustGroup)) map.removeLayer(freeCustGroup);
+      localStorage.setItem('map_show_free', 'false');
+    }
+
     if (showSuspended) {
       if (!map.hasLayer(suspendedCustGroup)) map.addLayer(suspendedCustGroup);
       localStorage.setItem('map_show_suspended', 'true');
@@ -968,14 +1018,17 @@
   // Load preferences
   const prefOdp = localStorage.getItem('map_show_odp') !== 'false';
   const prefActive = localStorage.getItem('map_show_active') !== 'false';
+  const prefFree = localStorage.getItem('map_show_free') !== 'false';
   const prefSuspended = localStorage.getItem('map_show_suspended') !== 'false';
 
-  document.getElementById('toggle-odp').checked = prefOdp;
-  document.getElementById('toggle-active').checked = prefActive;
-  document.getElementById('toggle-suspended').checked = prefSuspended;
+  if (document.getElementById('toggle-odp')) document.getElementById('toggle-odp').checked = prefOdp;
+  if (document.getElementById('toggle-active')) document.getElementById('toggle-active').checked = prefActive;
+  if (document.getElementById('toggle-free')) document.getElementById('toggle-free').checked = prefFree;
+  if (document.getElementById('toggle-suspended')) document.getElementById('toggle-suspended').checked = prefSuspended;
 
   if (!prefOdp) map.removeLayer(odpGroup);
   if (!prefActive) map.removeLayer(activeCustGroup);
+  if (!prefFree) map.removeLayer(freeCustGroup);
   if (!prefSuspended) map.removeLayer(suspendedCustGroup);
 
   // Fix for blank map on load

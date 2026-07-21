@@ -22,6 +22,7 @@ const XLSX = require('xlsx');
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage() });
 const qrisUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
+const logoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 const backupSvc = require('../services/backupService');
 const monitoringSvc = require('../services/monitoringService');
 const inventorySvc = require('../services/inventoryService');
@@ -3500,6 +3501,65 @@ router.post('/settings/qris-upload', requireAdminSession, qrisUpload.single('qri
     }
   } catch (e) {
     req.session._msg = { type: 'error', text: 'Gagal upload QRIS: ' + (e?.message || e) };
+  }
+  res.redirect('/admin/settings');
+});
+
+router.post('/settings/logo-upload', requireAdminSession, logoUpload.single('logo_file'), (req, res) => {
+  try {
+    const f = req.file;
+    if (!f || !f.buffer || !f.originalname) throw new Error('File logo tidak ditemukan. Silakan pilih file terlebih dahulu.');
+
+    const ext = String(path.extname(f.originalname || '') || '').toLowerCase();
+    const allowedExt = new Set(['.png', '.jpg', '.jpeg', '.webp', '.svg']);
+    const allowedMime = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml']);
+    if (!allowedExt.has(ext) || !allowedMime.has(String(f.mimetype || '').toLowerCase())) {
+      throw new Error('Format file tidak didukung. Gunakan PNG, JPG, WebP, atau SVG.');
+    }
+
+    const dir = path.join(__dirname, '../public/uploads/logo');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+    // Hapus logo lama jika ada
+    const currentSettings = getSettings();
+    if (currentSettings && currentSettings.company_logo) {
+      const oldPath = path.join(__dirname, '../public', currentSettings.company_logo);
+      if (fs.existsSync(oldPath)) {
+        try { fs.unlinkSync(oldPath); } catch (e) {}
+      }
+    }
+
+    const name = `company-logo-${Date.now()}${ext}`;
+    const fullPath = path.join(dir, name);
+    fs.writeFileSync(fullPath, f.buffer);
+
+    const logoUrl = `/uploads/logo/${name}`;
+    const ok = saveSettings({ company_logo: logoUrl });
+    if (!ok) throw new Error('Gagal menyimpan pengaturan logo.');
+
+    req.session._msg = { type: 'success', text: 'Logo perusahaan berhasil di-upload dan diterapkan pada sidebar.' };
+  } catch (e) {
+    req.session._msg = { type: 'error', text: 'Gagal upload logo: ' + (e?.message || e) };
+  }
+  res.redirect('/admin/settings');
+});
+
+router.post('/settings/logo-delete', requireAdminSession, (req, res) => {
+  try {
+    const currentSettings = getSettings();
+    if (currentSettings && currentSettings.company_logo) {
+      const oldPath = path.join(__dirname, '../public', currentSettings.company_logo);
+      if (fs.existsSync(oldPath)) {
+        try { fs.unlinkSync(oldPath); } catch (e) {}
+      }
+    }
+
+    const ok = saveSettings({ company_logo: '' });
+    if (!ok) throw new Error('Gagal mengosongkan pengaturan logo.');
+
+    req.session._msg = { type: 'success', text: 'Logo berhasil dihapus. Sidebar kembali menggunakan teks nama perusahaan.' };
+  } catch (e) {
+    req.session._msg = { type: 'error', text: 'Gagal menghapus logo: ' + (e?.message || e) };
   }
   res.redirect('/admin/settings');
 });

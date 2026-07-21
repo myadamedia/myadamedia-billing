@@ -136,6 +136,44 @@
             <label class="fl"><%= t('admin.settings.company_name', 'Nama Aplikasi / Perusahaan') %></label>
             <input class="fc" name="company_header" value="<%= settings.company_header || '' %>">
           </div>
+
+          <!-- Logo Upload Component -->
+          <div class="fg mb16" style="background:var(--bg2, rgba(255,255,255,0.03)); border:1px solid var(--border, #334155); border-radius:10px; padding:14px;">
+            <label class="fl" style="font-weight:600; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+              <i class="bi bi-image" style="color:#6366f1"></i> Logo Aplikasi / Perusahaan (Sidebar)
+            </label>
+            
+            <% if (settings.company_logo) { %>
+              <div style="display:flex; align-items:center; gap:16px; margin-bottom:12px; padding:10px; background:var(--bg, #0f172a); border-radius:8px; border:1px dashed var(--border, #475569);">
+                <div style="padding:6px; background:rgba(0,0,0,0.3); border-radius:6px; display:flex; align-items:center; justify-content:center;">
+                  <img src="<%= settings.company_logo %>" alt="Logo" style="max-height:60px; max-width:220px; object-fit:contain;">
+                </div>
+                <div style="flex:1">
+                  <div style="font-size:12px; font-weight:600; color:#10b981; display:flex; align-items:center; gap:4px;">
+                    <i class="bi bi-check-circle-fill"></i> Logo Aktif
+                  </div>
+                  <div style="font-size:11px; color:var(--muted); margin-top:2px;">Teks Nama Perusahaan disembunyikan dari sidebar.</div>
+                </div>
+                <button type="button" class="btn btn-d btn-sm" onclick="if(confirm('Hapus logo perusahaan? Sidebar akan kembali menggunakan teks nama perusahaan.')) document.getElementById('deleteLogoForm').submit();" title="Hapus Logo">
+                  <i class="bi bi-trash"></i> Hapus
+                </button>
+              </div>
+            <% } else { %>
+              <div style="font-size:11px; color:var(--muted); margin-bottom:10px; display:flex; align-items:center; gap:6px;">
+                <i class="bi bi-info-circle"></i> Saat ini menggunakan mode teks (<%= settings.company_header || 'Default' %>). Upload logo untuk menggantikan teks di sidebar.
+              </div>
+            <% } %>
+
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <input type="file" form="logoUploadForm" name="logo_file" accept="image/png,image/jpeg,image/webp,image/svg+xml" class="fc" style="padding:6px 10px; font-size:12px; flex:1;">
+              <button type="submit" form="logoUploadForm" class="btn btn-p btn-sm" style="white-space:nowrap;">
+                <i class="bi bi-cloud-arrow-up-fill"></i> Upload Logo
+              </button>
+            </div>
+            <div style="font-size:10px; color:var(--muted); margin-top:6px;">
+              Format didukung: PNG, JPG, WebP, SVG (Maks. 2MB). Rekomendasi tinggi 40-80px berlatar transparan.
+            </div>
+          </div>
           <div class="fg">
             <label class="fl">URL Publik Aplikasi (Public Base URL)</label>
             <input class="fc" name="public_base_url" value="<%= settings.public_base_url || '' %>" placeholder="https://billing.myadamedia.net">
@@ -851,5 +889,7 @@ setTimeout(loadEwalletLogs, 200);
 setTimeout(updateNotifHint, 250);
 setTimeout(()=>document.querySelectorAll('.alert').forEach(a=>a.style.display='none'),5000);
 </script>
+<form id="logoUploadForm" method="POST" action="/admin/settings/logo-upload" enctype="multipart/form-data" style="display:none;"></form>
+<form id="deleteLogoForm" method="POST" action="/admin/settings/logo-delete" style="display:none;"></form>
 </body>
 </html>

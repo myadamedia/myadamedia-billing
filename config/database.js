@@ -18,28 +18,8 @@ try {
 
   // Menambahkan fungsi waktu lokal untuk SQLite sesuai setting timezone
   db.function('NOW_LOCAL', () => {
-    const { getSetting } = require('./settingsManager');
-    const tz = getSetting('timezone', 'Asia/Jakarta');
-    const now = new Date();
-    
-    // Format: YYYY-MM-DD HH:mm:ss
-    const options = {
-      timeZone: tz,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false
-    };
-    
-    const formatter = new Intl.DateTimeFormat('en-US', options);
-    const parts = formatter.formatToParts(now);
-    const p = {};
-    parts.forEach(part => p[part.type] = part.value);
-    
-    return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`;
+    const { getNowLocal } = require('./settingsManager');
+    return getNowLocal();
   });
 } catch (err) {
   console.error('[DB] Gagal membuka database:', err.message);

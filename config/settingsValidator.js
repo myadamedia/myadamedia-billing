@@ -33,6 +33,11 @@ const VALIDATION_RULES = {
     required: true,
     description: 'Nama perusahaan'
   },
+  company_logo: {
+    type: 'string',
+    maxLength: 255,
+    description: 'Path/URL logo perusahaan'
+  },
   public_base_url: {
     type: 'string',
     pattern: /^https?:\/\/.+/,

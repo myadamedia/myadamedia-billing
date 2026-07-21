@@ -24,33 +24,63 @@
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 <aside class="sidebar" id="sidebar">
   <div class="sb-brand">
-    <div class="sb-icon"><i class="bi bi-wifi"></i></div>
-    <div style="flex:1">
-      <div class="sb-name">
-        <%= company %>
-      </div>
-      <div class="sb-sub"><%= t('admin.panel', 'Admin Panel') %></div>
-      <div style="margin-top:8px;display:flex;gap:6px;align-items:center;position:relative">
-        <a href="/lang/id" class="btn btn-g btn-sm" style="padding:4px 8px">ID</a>
-        <a href="/lang/en" class="btn btn-g btn-sm" style="padding:4px 8px">EN</a>
-        
-        <!-- Money Blur Toggle -->
-        <button class="btn btn-g btn-sm" id="moneyToggleBtn" onclick="toggleMoneyVisibility(event)" style="padding:4px 8px;margin-left:auto" title="Sembunyikan/Tampilkan Nilai Uang">
-          <i class="bi bi-eye-slash" id="moneyToggleIcon" style="margin:0"></i>
-        </button>
-        
-        <!-- Theme Selection Dropdown -->
-        <button class="btn btn-g btn-sm" id="themeBtn" onclick="toggleThemeMenu(event)" style="padding:4px 8px" title="Ubah Tema">
-          <i class="bi bi-palette" style="margin:0"></i>
-        </button>
-        <div id="themeMenu" style="display:none;position:absolute;right:0;top:32px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.5);z-index:999;width:120px;padding:4px 0">
-          <button onclick="setTheme('dark')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 12px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-moon-fill" style="color:#6366f1"></i> Dark</button>
-          <button onclick="setTheme('light')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 12px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-sun-fill" style="color:#f59e0b"></i> Light</button>
-          <button onclick="setTheme('ocean')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 12px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-water" style="color:#00b4d8"></i> Ocean</button>
-          <button onclick="setTheme('forest')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 12px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-tree-fill" style="color:#a7c957"></i> Forest</button>
+    <% const hasLogo = typeof settings !== 'undefined' && settings && settings.company_logo; %>
+    <% if (hasLogo) { %>
+      <div style="flex:1">
+        <div class="sb-logo-wrap" style="display:flex;align-items:center;width:100%;margin-bottom:6px">
+          <img src="<%= settings.company_logo %>" alt="<%= company %>" class="sb-logo-img" style="max-height:60px;width:100%;max-width:100%;object-fit:contain;display:block">
+        </div>
+        <div class="sb-sub"><%= t('admin.panel', 'Admin Panel') %></div>
+        <div style="margin-top:8px;display:flex;gap:6px;align-items:center;position:relative">
+          <a href="/lang/id" class="btn btn-g btn-sm" style="padding:4px 8px">ID</a>
+          <a href="/lang/en" class="btn btn-g btn-sm" style="padding:4px 8px">EN</a>
+          
+          <!-- Money Blur Toggle -->
+          <button class="btn btn-g btn-sm" id="moneyToggleBtn" onclick="toggleMoneyVisibility(event)" style="padding:4px 8px;margin-left:auto" title="Sembunyikan/Tampilkan Nilai Uang">
+            <i class="bi bi-eye-slash" id="moneyToggleIcon" style="margin:0"></i>
+          </button>
+          
+          <!-- Theme Selection Dropdown -->
+          <button class="btn btn-g btn-sm" id="themeBtn" onclick="toggleThemeMenu(event)" style="padding:4px 8px" title="Ubah Tema">
+            <i class="bi bi-palette" style="margin:0"></i>
+          </button>
+          <div id="themeMenu" style="display:none;position:absolute;right:0;top:32px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.5);z-index:999;width:120px;padding:4px 0">
+            <button onclick="setTheme('dark')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 12px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-moon-fill" style="color:#6366f1"></i> Dark</button>
+            <button onclick="setTheme('light')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 12px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-sun-fill" style="color:#f59e0b"></i> Light</button>
+            <button onclick="setTheme('ocean')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 12px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-water" style="color:#00b4d8"></i> Ocean</button>
+            <button onclick="setTheme('forest')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 12px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-tree-fill" style="color:#a7c957"></i> Forest</button>
+          </div>
         </div>
       </div>
-    </div>
+    <% } else { %>
+      <div class="sb-icon"><i class="bi bi-wifi"></i></div>
+      <div style="flex:1">
+        <div class="sb-name">
+          <%= company %>
+        </div>
+        <div class="sb-sub"><%= t('admin.panel', 'Admin Panel') %></div>
+        <div style="margin-top:8px;display:flex;gap:6px;align-items:center;position:relative">
+          <a href="/lang/id" class="btn btn-g btn-sm" style="padding:4px 8px">ID</a>
+          <a href="/lang/en" class="btn btn-g btn-sm" style="padding:4px 8px">EN</a>
+          
+          <!-- Money Blur Toggle -->
+          <button class="btn btn-g btn-sm" id="moneyToggleBtn" onclick="toggleMoneyVisibility(event)" style="padding:4px 8px;margin-left:auto" title="Sembunyikan/Tampilkan Nilai Uang">
+            <i class="bi bi-eye-slash" id="moneyToggleIcon" style="margin:0"></i>
+          </button>
+          
+          <!-- Theme Selection Dropdown -->
+          <button class="btn btn-g btn-sm" id="themeBtn" onclick="toggleThemeMenu(event)" style="padding:4px 8px" title="Ubah Tema">
+            <i class="bi bi-palette" style="margin:0"></i>
+          </button>
+          <div id="themeMenu" style="display:none;position:absolute;right:0;top:32px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.5);z-index:999;width:120px;padding:4px 0">
+            <button onclick="setTheme('dark')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 12px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-moon-fill" style="color:#6366f1"></i> Dark</button>
+            <button onclick="setTheme('light')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 12px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-sun-fill" style="color:#f59e0b"></i> Light</button>
+            <button onclick="setTheme('ocean')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 12px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-water" style="color:#00b4d8"></i> Ocean</button>
+            <button onclick="setTheme('forest')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 12px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-tree-fill" style="color:#a7c957"></i> Forest</button>
+          </div>
+        </div>
+      </div>
+    <% } %>
     <button class="sb-close btn-g btn-sm" onclick="toggleSidebar()"><i class="bi bi-x-lg"></i></button>
   </div>
   <nav class="sb-nav">
