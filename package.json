@@ -12,7 +12,7 @@
     "test:cov": "jest --coverage --coverageThreshold=\"{\\\"global\\\": {\\\"branches\\\": 100, \\\"functions\\\": 100, \\\"lines\\\": 100, \\\"statements\\\": 100}}\""
   },
   "dependencies": {
-    "@whiskeysockets/baileys": "^6.7.21",
+    "@whiskeysockets/baileys": "^7.0.0-rc13",
     "@zxing/library": "^0.21.3",
     "axios": "^1.6.7",
     "better-sqlite3": "^11.3.0",
