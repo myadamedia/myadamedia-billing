@@ -937,6 +937,19 @@ router.post('/api/customers/:id/cable-path', requireAdminSession, (req, res) => 
   }
 });
 
+router.post('/api/odps/:id/cable-path', requireAdminSession, (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { path } = req.body;
+    if (!id) throw new Error('ID ODP tidak valid');
+    odpSvc.updateOdpCablePath(id, path);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[API] Save ODP Cable Path Error:', e);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 router.post('/odps', requireAdminSession, restrictToRoles(['noc', 'teknisi']), express.urlencoded({ extended: true }), (req, res) => {
   try {
     odpSvc.createOdp(req.body);

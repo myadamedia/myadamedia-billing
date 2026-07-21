@@ -289,6 +289,19 @@
         ponColor = ponColorMap[key] || '#94a3b8';
       }
 
+      if (odp.cable_path) {
+        try {
+          const parsed = JSON.parse(odp.cable_path);
+          if (Array.isArray(parsed) && parsed.length >= 2) {
+            const cleaned = parsed
+              .filter(p => Array.isArray(p) && p.length >= 2)
+              .map(p => [parseFloat(p[0]), parseFloat(p[1])])
+              .filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]));
+            if (cleaned.length >= 2) pathCoords = cleaned;
+          }
+        } catch (e) {}
+      }
+
       L.polyline(pathCoords, {
         color: ponColor,
         weight: 4,

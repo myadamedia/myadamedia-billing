@@ -70,11 +70,16 @@ function getOdpPortUsage(odpId) {
   return { odpId: Number(odpId), capacity, usedCount, remaining, usedPorts };
 }
 
+function updateOdpCablePath(id, path) {
+  return db.prepare('UPDATE odps SET cable_path = ? WHERE id = ?').run(path, id);
+}
+
 module.exports = {
   getAllOdps,
   getOdpById,
   createOdp,
   updateOdp,
   deleteOdp,
-  getOdpPortUsage
+  getOdpPortUsage,
+  updateOdpCablePath
 };

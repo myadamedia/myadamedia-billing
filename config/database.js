@@ -1029,8 +1029,11 @@ try {
   if (!odpCols.find(c => c.name === 'parent_odp_id')) {
     db.exec("ALTER TABLE odps ADD COLUMN parent_odp_id INTEGER REFERENCES odps(id) ON DELETE SET NULL");
   }
+  if (!odpCols.find(c => c.name === 'cable_path')) {
+    db.exec("ALTER TABLE odps ADD COLUMN cable_path TEXT");
+  }
 } catch(e) {
-  console.error('Failed to migrate odps parent_odp_id:', e);
+  console.error('Failed to migrate odps parent_odp_id / cable_path:', e);
 }
 
 // Safe migration: tambah kolom installation_fee ke tabel customers
