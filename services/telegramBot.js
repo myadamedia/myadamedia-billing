@@ -2,13 +2,15 @@ let TelegramBot = require('node-telegram-bot-api');
 if (TelegramBot && typeof TelegramBot !== 'function') {
   TelegramBot = TelegramBot.TelegramBot || TelegramBot.default;
 }
-const { getSetting, getNowLocal } = require('../config/settingsManager');
+const db = require('../config/database');
+const { getSetting, getNowLocal, getCurrentTimeInfo } = require('../config/settingsManager');
 const { logger } = require('../config/logger');
 const customerSvc = require('./customerService');
 const billingSvc = require('./billingService');
 const mikrotikSvc = require('./mikrotikService');
 
 let bot = null;
+const userStates = {};
 
 function initTelegram() {
   const enabled = getSetting('telegram_enabled', false);
@@ -258,13 +260,160 @@ function initTelegram() {
     return lines.join('\n');
   };
 
+  const parseNominal = (raw) => {
+    if (!raw) return 0;
+    let s = String(raw).trim().toLowerCase().replace(/rp\.?\s*/g, '');
+    if (s.endsWith('k')) {
+      const num = parseFloat(s.replace('k', '').replace(',', '.'));
+      return Math.round(num * 1000);
+    }
+    if (s.endsWith('rb') || s.endsWith('ribu')) {
+      const num = parseFloat(s.replace(/rb|ribu/g, '').replace(',', '.'));
+      return Math.round(num * 1000);
+    }
+    if (s.endsWith('jt') || s.endsWith('juta')) {
+      const num = parseFloat(s.replace(/jt|juta/g, '').replace(',', '.'));
+      return Math.round(num * 1000000);
+    }
+    const cleaned = s.replace(/[^\d]/g, '');
+    return parseInt(cleaned, 10) || 0;
+  };
+
+  const saveExpenseFromTelegram = (msg, inputStr, preselectedCategory = null) => {
+    try {
+      const trimmed = String(inputStr || '').trim();
+      if (!trimmed) {
+        return { ok: false, error: 'Nominal & keterangan wajib diisi. Contoh: `50000 Beli bensin` atau `50k Utilitas Bayar listrik`' };
+      }
+
+      const parts = trimmed.split(/\s+/);
+      const nominalRaw = parts[0];
+      const amount = parseNominal(nominalRaw);
+
+      if (!amount || amount <= 0) {
+        return { ok: false, error: 'Nominal pengeluaran tidak valid. Contoh: `50000` atau `50k`' };
+      }
+
+      let category = preselectedCategory;
+      let description = '';
+
+      const categoriesInDb = db.prepare('SELECT name FROM expense_categories WHERE is_active = 1').all();
+      const catNames = categoriesInDb.map(c => c.name);
+
+      if (preselectedCategory) {
+        description = parts.slice(1).join(' ').trim();
+        if (!description) {
+          description = parts[0];
+        }
+      } else {
+        const secondToken = parts[1] || '';
+        const matchedCat = catNames.find(c => c.toLowerCase() === secondToken.toLowerCase());
+
+        if (matchedCat) {
+          category = matchedCat;
+          description = parts.slice(2).join(' ').trim();
+        } else {
+          category = 'Operasional';
+          description = parts.slice(1).join(' ').trim();
+        }
+      }
+
+      if (!description) {
+        description = `Pengeluaran ${category}`;
+      }
+
+      const info = getCurrentTimeInfo();
+      const pad = (n) => String(n).padStart(2, '0');
+      const dateStr = `${info.year}-${pad(info.month)}-${pad(info.day)}`;
+      const recordedBy = msg.from ? (msg.from.first_name || msg.from.username || 'Admin') : 'Admin';
+      const recordedByName = `Telegram (${recordedBy})`;
+
+      const stmt = db.prepare(`
+        INSERT INTO expenses (date, category, amount, description, payment_method, recorded_by_role, recorded_by_name)
+        VALUES (?, ?, ?, ?, 'cash', 'telegram', ?)
+      `);
+      const result = stmt.run(dateStr, category, amount, description, recordedByName);
+
+      const formattedAmount = amount.toLocaleString('id-ID');
+      const displayDate = `${pad(info.day)}/${pad(info.month)}/${info.year}`;
+
+      let text = `✅ *PENGELUARAN BERHASIL DICATAT*\n\n`;
+      text += `🆔 ID Catatan : \`#${result.lastInsertRowid}\`\n`;
+      text += `📅 Tanggal    : ${displayDate}\n`;
+      text += `💰 Nominal    : *Rp ${formattedAmount}*\n`;
+      text += `🏷️ Kategori   : ${category}\n`;
+      text += `📝 Keterangan : ${description}\n`;
+      text += `👤 Dicatat    : ${recordedByName}`;
+
+      return { ok: true, message: text };
+    } catch (e) {
+      logger.error('Error saving expense from Telegram:', e.message);
+      return { ok: false, error: 'Gagal menyimpan pengeluaran: ' + e.message };
+    }
+  };
+
+  const buildExpenseSummaryText = () => {
+    const info = getCurrentTimeInfo();
+    const pad = (n) => String(n).padStart(2, '0');
+    const monthStr = `${info.year}-${pad(info.month)}`;
+
+    const totalRow = db.prepare('SELECT SUM(amount) as total, COUNT(*) as count FROM expenses WHERE date LIKE ?').get(`${monthStr}%`);
+    const monthTotal = totalRow ? (Number(totalRow.total) || 0) : 0;
+    const monthCount = totalRow ? (Number(totalRow.count) || 0) : 0;
+
+    const catRows = db.prepare(`
+      SELECT category, SUM(amount) as total, COUNT(*) as count 
+      FROM expenses 
+      WHERE date LIKE ? 
+      GROUP BY category 
+      ORDER BY total DESC
+    `).all(`${monthStr}%`);
+
+    let txt = `*💸 REKAP PENGELUARAN BULAN INI (${pad(info.month)}/${info.year})*\n`;
+    txt += `============================\n`;
+    txt += `💰 Total Pengeluaran : *Rp ${monthTotal.toLocaleString('id-ID')}*\n`;
+    txt += `🧾 Total Transaksi   : ${monthCount} transaksi\n`;
+    txt += `============================\n\n`;
+    txt += `*RINCIAN PER KATEGORI:*\n`;
+
+    if (catRows.length === 0) {
+      txt += `_Belum ada pengeluaran dicatat bulan ini._\n`;
+    } else {
+      catRows.forEach(c => {
+        const amt = Number(c.total || 0).toLocaleString('id-ID');
+        txt += `• *${c.category}*: Rp ${amt} (${c.count}x)\n`;
+      });
+    }
+
+    return txt;
+  };
+
+  const buildRecentExpensesText = (limit = 10) => {
+    const rows = db.prepare(`
+      SELECT * FROM expenses ORDER BY date DESC, id DESC LIMIT ?
+    `).all(limit);
+
+    if (rows.length === 0) {
+      return `💸 *RIWAYAT PENGELUARAN*\n\nBelum ada pengeluaran dicatat.`;
+    }
+
+    let txt = `*📜 ${rows.length} PENGELUARAN TERAKHIR*\n\n`;
+    rows.forEach(r => {
+      const amt = Number(r.amount || 0).toLocaleString('id-ID');
+      txt += `• *#${r.id}* [${r.date}] - *Rp ${amt}*\n`;
+      txt += `  └ 🏷️ ${r.category} | 📝 ${r.description}\n`;
+    });
+
+    return txt;
+  };
+
   // Main Menu (Inline Keyboard for better visibility)
   const mainMenu = {
     reply_markup: {
       inline_keyboard: [
         [{ text: '📊 Statistik', callback_data: 'menu_stats' }, { text: '👥 Pelanggan', callback_data: 'menu_cust' }],
         [{ text: '🎫 Voucher', callback_data: 'menu_vouch' }, { text: '💰 Tagihan', callback_data: 'menu_bill' }],
-        [{ text: '⚙️ MikroTik Status', callback_data: 'menu_mt' }],
+        [{ text: '💸 Pengeluaran', callback_data: 'menu_expense' }, { text: '⚙️ MikroTik Status', callback_data: 'menu_mt' }],
         [{ text: '🔄 Refresh', callback_data: 'menu_main' }]
       ]
     }
@@ -277,10 +426,28 @@ function initTelegram() {
 
   bot.on('message', async (msg) => {
     if (!isAdmin(msg)) return;
-    const text = msg.text;
+    const text = msg.text ? msg.text.trim() : '';
+    if (!text) return;
     if (text === '/start' || text === '/menu') return; // Handled by onText
     
-    // Logika handle text manual jika diperlukan (misal untuk perintah kick/edit)
+    // Handle user state if waiting for expense input
+    const chatId = msg.chat.id;
+    if (userStates[chatId] && userStates[chatId].action === 'awaiting_expense_input') {
+      if (text.toLowerCase() === '/batal' || text.toLowerCase() === '/cancel') {
+        delete userStates[chatId];
+        return bot.sendMessage(chatId, '❌ Pencatatan pengeluaran dibatalkan.');
+      }
+
+      const category = userStates[chatId].category;
+      delete userStates[chatId];
+
+      const result = saveExpenseFromTelegram(msg, text, category);
+      if (result.ok) {
+        return bot.sendMessage(chatId, result.message, { parse_mode: 'Markdown' });
+      } else {
+        return bot.sendMessage(chatId, `❌ ${result.error}`, { parse_mode: 'Markdown' });
+      }
+    }
   });
 
   // Callback Query Handling
@@ -558,11 +725,119 @@ function initTelegram() {
         bot.sendMessage(chatId, 'Gagal: ' + e.message);
       }
     }
+
+    else if (data === 'menu_expense') {
+      bot.sendMessage(chatId, '💸 *MANAJEMEN PENGELUARAN (CASH OUT)*\nPilih aksi di bawah ini:', {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '➕ Catat Pengeluaran Baru', callback_data: 'exp_create' }],
+            [{ text: '📊 Rekap Pengeluaran Bulan Ini', callback_data: 'exp_summary' }],
+            [{ text: '📜 10 Pengeluaran Terakhir', callback_data: 'exp_recent' }],
+            [{ text: '🏷️ Daftar Kategori', callback_data: 'exp_categories' }],
+            [{ text: '⬅️ Kembali', callback_data: 'menu_main' }]
+          ]
+        }
+      });
+    }
+
+    else if (data === 'exp_create') {
+      const categories = db.prepare('SELECT name FROM expense_categories WHERE is_active = 1 ORDER BY name ASC').all();
+      const buttons = [];
+      categories.forEach((cat, idx) => {
+        if (idx % 2 === 0) buttons.push([]);
+        buttons[buttons.length - 1].push({ text: `🏷️ ${cat.name}`, callback_data: `exp_cat:${cat.name}` });
+      });
+      buttons.push([{ text: '⬅️ Batal', callback_data: 'menu_expense' }]);
+
+      bot.sendMessage(chatId, '➕ *CATAT PENGELUARAN BARU*\n\nPilih kategori pengeluaran:', {
+        parse_mode: 'Markdown',
+        reply_markup: { inline_keyboard: buttons }
+      });
+    }
+
+    else if (data.startsWith('exp_cat:')) {
+      const categoryName = data.split(':')[1];
+      userStates[chatId] = { action: 'awaiting_expense_input', category: categoryName };
+
+      bot.sendMessage(chatId, `🏷️ *KATEGORI: ${categoryName}*\n\nSilakan ketik *Nominal* dan *Keterangan* pengeluaran.\n\n*Format Contoh:*\n• \`50000 Beli bensin motor\`\n• \`150k Bayar listrik NOC\`\n• \`1.5jt Pembelian kabel LAN\`\n\n_Ketik /batal untuk membatalkan._`, {
+        parse_mode: 'Markdown'
+      });
+    }
+
+    else if (data === 'exp_summary') {
+      try {
+        const txt = buildExpenseSummaryText();
+        bot.sendMessage(chatId, txt, { parse_mode: 'Markdown' });
+      } catch (e) {
+        bot.sendMessage(chatId, 'Error: ' + e.message);
+      }
+    }
+
+    else if (data === 'exp_recent') {
+      try {
+        const txt = buildRecentExpensesText(10);
+        bot.sendMessage(chatId, txt, { parse_mode: 'Markdown' });
+      } catch (e) {
+        bot.sendMessage(chatId, 'Error: ' + e.message);
+      }
+    }
+
+    else if (data === 'exp_categories') {
+      try {
+        const categories = db.prepare('SELECT name, description FROM expense_categories WHERE is_active = 1 ORDER BY name ASC').all();
+        let txt = `*🏷️ KATEGORI PENGELUARAN (${categories.length})*\n\n`;
+        categories.forEach(c => {
+          txt += `• *${c.name}*: ${c.description || '-'}\n`;
+        });
+        bot.sendMessage(chatId, txt, { parse_mode: 'Markdown' });
+      } catch (e) {
+        bot.sendMessage(chatId, 'Error: ' + e.message);
+      }
+    }
     
     bot.answerCallbackQuery(query.id);
   });
 
   // Custom Commands
+  bot.onText(/\/(?:pengeluaran|keluar|catatkeluar)(?:\s+(.+))?/i, async (msg, match) => {
+    if (!isAdmin(msg)) return;
+    const input = match[1] ? match[1].trim() : '';
+
+    if (!input) {
+      const categories = db.prepare('SELECT name FROM expense_categories WHERE is_active = 1 ORDER BY name ASC').all();
+      const buttons = [];
+      categories.forEach((cat, idx) => {
+        if (idx % 2 === 0) buttons.push([]);
+        buttons[buttons.length - 1].push({ text: `🏷️ ${cat.name}`, callback_data: `exp_cat:${cat.name}` });
+      });
+      buttons.push([{ text: '⬅️ Kembali', callback_data: 'menu_main' }]);
+
+      return bot.sendMessage(msg.chat.id, '➕ *CATAT PENGELUARAN BARU*\n\nPilih kategori pengeluaran:', {
+        parse_mode: 'Markdown',
+        reply_markup: { inline_keyboard: buttons }
+      });
+    }
+
+    const result = saveExpenseFromTelegram(msg, input);
+    if (result.ok) {
+      bot.sendMessage(msg.chat.id, result.message, { parse_mode: 'Markdown' });
+    } else {
+      bot.sendMessage(msg.chat.id, `❌ ${result.error}`, { parse_mode: 'Markdown' });
+    }
+  });
+
+  bot.onText(/\/(?:rekapkeluar|listpengeluaran)/i, async (msg) => {
+    if (!isAdmin(msg)) return;
+    try {
+      const summary = buildExpenseSummaryText();
+      const recent = buildRecentExpensesText(5);
+      bot.sendMessage(msg.chat.id, `${summary}\n\n${recent}`, { parse_mode: 'Markdown' });
+    } catch (e) {
+      bot.sendMessage(msg.chat.id, 'Error: ' + e.message);
+    }
+  });
+
   bot.onText(/\/vouch (\S+) (\S+) (.+)/, async (msg, match) => {
     if (!isAdmin(msg)) return;
     const [_, profile, limit, comment] = match;
