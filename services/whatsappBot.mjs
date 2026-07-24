@@ -605,6 +605,7 @@ export const whatsappStatus = {
 let currentSock = null;
 let qrShownSinceStart = false;
 let notifiedAdminForQr = false;
+let reconnectTimeout = null;
 
 function loadWhatsappAdminSendList() {
   const list = getWhatsappAdminNumbers();
@@ -628,7 +629,12 @@ function loadWhatsappAdminSendList() {
  * @param {string} priority - Priority level: 'high', 'medium', 'low'
  */
 export async function sendMonitoringAlert(message, priority = 'medium') {
-  if (!currentSock || whatsappStatus.connection !== 'open') {
+  const type = getSetting('whatsapp_gateway_type', 'local');
+  const isReady = type === 'external'
+    ? whatsappStatus.connection === 'open'
+    : (currentSock && whatsappStatus.connection === 'open');
+
+  if (!isReady) {
     logger.warn('[WhatsApp] Bot belum siap (koneksi belum terbuka), tidak dapat mengirim alert monitoring');
     return { success: false, message: 'Bot belum siap' };
   }
@@ -680,9 +686,13 @@ export async function sendMonitoringAlert(message, priority = 'medium') {
     const results = [];
     for (const jid of recipients) {
       try {
-        await currentSock.sendMessage(jid, { text: formattedMessage });
-        results.push({ jid, success: true });
-        logger.info(`[WhatsApp] Alert monitoring terkirim ke ${jid}`);
+        const success = await sendWA(jid, formattedMessage);
+        results.push({ jid, success });
+        if (success) {
+          logger.info(`[WhatsApp] Alert monitoring terkirim ke ${jid}`);
+        } else {
+          logger.error(`[WhatsApp] Gagal mengirim alert ke ${jid}`);
+        }
       } catch (error) {
         results.push({ jid, success: false, error: error.message });
         logger.error(`[WhatsApp] Gagal mengirim alert ke ${jid}: ${error.message}`);
@@ -702,6 +712,12 @@ export async function sendMonitoringAlert(message, priority = 'medium') {
 }
 
 export async function sendWA(to, text) {
+  const type = getSetting('whatsapp_gateway_type', 'local');
+  if (type === 'external') {
+    const WhatsAppGatewayClient = require('./whatsappGatewayClient.js');
+    return WhatsAppGatewayClient.sendText(to, text);
+  }
+
   if (!currentSock || whatsappStatus.connection !== 'open') {
     logger.warn('WhatsApp: Gagal kirim pesan, bot belum terhubung.');
     return false;
@@ -721,6 +737,12 @@ export async function sendWA(to, text) {
 }
 
 export async function sendWAImage(to, imageBuffer, caption = '') {
+  const type = getSetting('whatsapp_gateway_type', 'local');
+  if (type === 'external') {
+    const WhatsAppGatewayClient = require('./whatsappGatewayClient.js');
+    return WhatsAppGatewayClient.sendImage(to, imageBuffer, caption);
+  }
+
   if (!currentSock || whatsappStatus.connection !== 'open') {
     logger.warn('WhatsApp: Gagal kirim pesan, bot belum terhubung.');
     return false;
@@ -743,12 +765,33 @@ export async function sendWAImage(to, imageBuffer, caption = '') {
 
 export async function restartWhatsAppBot() {
   logger.info('WhatsApp: Memulai ulang bot...');
+  
+  // Hentikan runner jika berjalan
+  try {
+    const WhatsAppGatewayRunner = require('./whatsappGatewayRunner.js');
+    WhatsAppGatewayRunner.stop();
+  } catch (e) {
+    // Abaikan jika ada error
+  }
+
+  if (global.waGatewayInterval) {
+    clearInterval(global.waGatewayInterval);
+    global.waGatewayInterval = null;
+  }
+
+  if (reconnectTimeout) {
+    clearTimeout(reconnectTimeout);
+    reconnectTimeout = null;
+  }
+
   if (currentSock) {
     try {
+      currentSock.ev.removeAllListeners();
       currentSock.end();
     } catch (e) {
       logger.error('WhatsApp: Gagal menghentikan socket lama:', e.message);
     }
+    currentSock = null;
   }
   // Beri jeda sedikit agar socket lama benar-benar tertutup
   setTimeout(() => {
@@ -757,6 +800,63 @@ export async function restartWhatsAppBot() {
 }
 
 export async function startWhatsAppBot() {
+  if (reconnectTimeout) {
+    clearTimeout(reconnectTimeout);
+    reconnectTimeout = null;
+  }
+
+  const type = getSetting('whatsapp_gateway_type', 'local');
+  if (type === 'external') {
+    logger.info('WhatsApp: Menjalankan mode WhatsApp Gateway Eksternal. Socket lokal dinonaktifkan.');
+    whatsappStatus.connection = 'connecting';
+    whatsappStatus.qr = null;
+    whatsappStatus.user = { id: getSetting('whatsapp_gateway_instance', 'external-session') };
+
+    // Lakukan check status awal
+    const WhatsAppGatewayClient = require('./whatsappGatewayClient.js');
+    const config = WhatsAppGatewayClient.getConfig();
+
+    // Auto-start Evolution API jika dijalankan di localhost
+    const isLocalhost = config.url && (config.url.includes('localhost') || config.url.includes('127.0.0.1'));
+    if (isLocalhost) {
+      try {
+        const WhatsAppGatewayRunner = require('./whatsappGatewayRunner.js');
+        WhatsAppGatewayRunner.start(config);
+      } catch (e) {
+        logger.error('[WA Bot] Gagal menjalankan Evolution API:', e.message);
+      }
+    }
+
+    const isOnline = await WhatsAppGatewayClient.checkStatus();
+    whatsappStatus.connection = isOnline ? 'open' : 'connecting';
+    whatsappStatus.lastUpdate = getCurrentDateInTimezone();
+
+    // Jalankan interval health check setiap 30 detik
+    if (global.waGatewayInterval) {
+      clearInterval(global.waGatewayInterval);
+    }
+    global.waGatewayInterval = setInterval(async () => {
+      try {
+        const online = await WhatsAppGatewayClient.checkStatus();
+        whatsappStatus.connection = online ? 'open' : 'connecting';
+        whatsappStatus.lastUpdate = getCurrentDateInTimezone();
+      } catch (e) {
+        whatsappStatus.connection = 'connecting';
+      }
+    }, 30000);
+    return;
+  }
+
+  if (currentSock) {
+    try {
+      currentSock.ev.removeAllListeners();
+      currentSock.end();
+    } catch (e) {
+      logger.error('WhatsApp: Gagal menghentikan socket lama:', e.message);
+    }
+    currentSock = null;
+  }
+
   const authFolder = path.resolve(projectRoot, getSetting('whatsapp_auth_folder', 'auth_info_baileys'));
   const lidMapPath = path.resolve(projectRoot, getSetting('whatsapp_lid_map_file', 'data/wa-lid-map.json'));
   const lidStore = new WaLidStore(lidMapPath);
@@ -773,14 +873,21 @@ export async function startWhatsAppBot() {
     markOnlineOnConnect: false,
     generateHighQualityLinkPreview: false,
     getMessage: true,
+    connectTimeoutMs: 60000,
+    keepAliveIntervalMs: 30000,
+    defaultQueryTimeoutMs: 60000,
     logger: pino({ level: 'silent' })
   });
 
   currentSock = sock;
 
-  sock.ev.on('creds.update', saveCreds);
+  sock.ev.on('creds.update', (...args) => {
+    if (sock !== currentSock) return;
+    saveCreds(...args);
+  });
 
   sock.ev.on('connection.update', (update) => {
+    if (sock !== currentSock) return;
     const { connection, lastDisconnect, qr } = update;
     whatsappStatus.lastUpdate = getCurrentDateInTimezone();
 
@@ -800,6 +907,17 @@ export async function startWhatsAppBot() {
     if (connection === 'close') {
       whatsappStatus.qr = null;
       whatsappStatus.user = null;
+
+      // Hapus listeners dari socket yang baru saja putus agar tidak memicu event penutup tambahan
+      try {
+        sock.ev.removeAllListeners();
+        sock.end();
+      } catch (e) {}
+
+      if (currentSock === sock) {
+        currentSock = null;
+      }
+
       const code = lastDisconnect?.error?.output?.statusCode;
       const shouldReconnect = code !== DisconnectReason.loggedOut;
       whatsappStatus.connection = code === DisconnectReason.loggedOut ? 'loggedOut' : 'connecting';
@@ -808,10 +926,11 @@ export async function startWhatsAppBot() {
         `WhatsApp terputus (kode ${code}). ` +
         (code === DisconnectReason.loggedOut
           ? 'Sesi logout — hapus folder auth dan pindai QR lagi.'
-          : 'Mencoba reconnect dalam 3 detik...')
+          : 'Mencoba reconnect dalam 5 detik...')
       );
       if (shouldReconnect) {
-        setTimeout(() => startWhatsAppBot(), 3000);
+        if (reconnectTimeout) clearTimeout(reconnectTimeout);
+        reconnectTimeout = setTimeout(() => startWhatsAppBot(), 5000);
       }
     } else if (connection === 'open') {
       whatsappStatus.qr = null;
@@ -842,6 +961,7 @@ export async function startWhatsAppBot() {
   });
 
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
+    if (sock !== currentSock) return;
     if (type !== 'notify') return;
     for (const m of messages) {
       try {

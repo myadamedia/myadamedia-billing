@@ -153,6 +153,24 @@ const VALIDATION_RULES = {
     max: 5000,
     description: 'Delay broadcast WhatsApp (ms)'
   },
+  whatsapp_gateway_type: {
+    type: 'string',
+    enum: ['local', 'external'],
+    description: 'Tipe WhatsApp Gateway (local/external)'
+  },
+  whatsapp_gateway_url: {
+    type: 'string',
+    pattern: /^https?:\/\/.+/,
+    description: 'URL API WhatsApp Gateway Eksternal'
+  },
+  whatsapp_gateway_apikey: {
+    type: 'string',
+    description: 'API Key WhatsApp Gateway Eksternal'
+  },
+  whatsapp_gateway_instance: {
+    type: 'string',
+    description: 'Nama Instance/Session WhatsApp Gateway Eksternal'
+  },
 
   // Telegram Configuration
   telegram_enabled: {

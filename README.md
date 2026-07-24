@@ -411,6 +411,104 @@ Jika masih lambat:
 
 ---
 
+## Integrasi WhatsApp Gateway Eksternal (Gratis & Stabil)
+
+Aplikasi ini mendukung dua tipe modul WhatsApp Gateway:
+1. **Lokal (Baileys In-App):** Bot WhatsApp berjalan di dalam proses Node.js aplikasi billing utama. Cocok untuk pengujian cepat.
+2. **Eksternal (Evolution API / WAHA / Wuzapi):** Logika koneksi WhatsApp didecouple (dipisahkan) ke layanan terpisah berbasis Docker/API. **Sangat direkomendasikan untuk lingkungan produksi** karena menghindari memory leaks, mencegah disorientasi sesi akibat restart aplikasi billing, dan lebih aman dari resiko nomor WhatsApp diblokir.
+
+### 1. Panduan Deployment WAHA (Rekomendasi Utama - Anti-Banned)
+WAHA (WhatsApp HTTP API) menjalankan browser Chromium tersembunyi (*headless*) untuk mengoperasikan WhatsApp Web resmi. Metode ini meniru perilaku browser asli sehingga sangat meminimalisir risiko banned oleh Meta.
+
+Buat berkas `docker-compose.yml` pada server Anda:
+```yaml
+version: '3.8'
+
+services:
+  waha:
+    image: devlikeapro/waha:latest
+    container_name: waha
+    ports:
+      - "3000:3000"
+    environment:
+      # Kunci API kustom Anda untuk keamanan
+      - WHATSAPP_API_KEY=KunciApiKustomAndaYangSangatAman123
+      # Menggunakan engine WEBJS (browser Chromium)
+      - WHATSAPP_DEFAULT_ENGINE=WEBJS
+    restart: always
+```
+
+Jalankan container tersebut:
+```bash
+docker compose up -d
+```
+
+### 2. Panduan Deployment Evolution API (Alternatif)
+Evolution API adalah gateway multi-instance berbasis Baileys protobuf (socket-based) yang sangat hemat memori (RAM).
+
+Buat berkas `docker-compose.yml` pada server Anda:
+```yaml
+version: '3.8'
+
+services:
+  evolution-api:
+    image: atendareceitas/evolution-api:latest
+    container_name: evolution-api
+    ports:
+      - "8080:8080"
+    environment:
+      - SERVER_PORT=8080
+      - SERVER_URL=http://localhost:8080
+      - AUTH_API_KEY=KunciApiKustomAndaYangSangatAman123
+    volumes:
+      - evolution_store:/evolution/store
+    restart: always
+
+volumes:
+  evolution_store:
+```
+
+Jalankan container:
+```bash
+docker compose up -d
+```
+
+### 3. Mengkonfigurasi Billing System
+Edit berkas `settings.json` atau gunakan UI panel pengaturan admin untuk memperbarui parameter berikut:
+
+```json
+  "whatsapp_gateway_type": "external",
+  "whatsapp_gateway_url": "http://localhost:3000", // Isi port 3000 untuk WAHA, atau 8080 untuk Evolution
+  "whatsapp_gateway_apikey": "KunciApiKustomAndaYangSangatAman123",
+  "whatsapp_gateway_instance": "default" // Gunakan 'default' untuk WAHA, atau nama instance Anda untuk Evolution
+```
+
+*Catatan: Klien gateway system secara otomatis mendeteksi format payload untuk **Evolution API** dan **WAHA** berdasarkan URL dan nama instance.*
+
+### 4. Fitur Auto-Start Gateway Latar Belakang (Tanpa Docker)
+Jika Anda men-deploy sistem secara lokal tanpa Docker, Anda dapat mengaktifkan fitur **Auto-Start** agar WAHA atau Evolution API otomatis menyala di latar belakang saat aplikasi penagihan utama dijalankan.
+
+**Langkah-langkah:**
+1. Unduh salah satu repositori gateway pilihan Anda dan letakkan di dalam folder root billing dengan nama folder `waha` atau `evolution-api`:
+   ```text
+   d:\BILLING FIX\myadamedia-billing\
+   ├── app-customer.js
+   ├── package.json
+   ├── waha\           <-- Jika menggunakan WAHA (Otomatis dideteksi pertama)
+   └── evolution-api\   <-- Jika menggunakan Evolution API
+   ```
+2. Buka terminal/command prompt, masuk ke subfolder gateway yang Anda pilih, pasang dependensi, dan lakukan build:
+   ```bash
+   # Contoh jika menggunakan WAHA:
+   cd waha
+   npm install
+   npm run build
+   ```
+3. Setel pengaturan di `settings.json` penagihan agar `whatsapp_gateway_url` mengarah ke `localhost` atau `127.0.0.1` dengan port yang sesuai (`http://localhost:3000` untuk WAHA, atau `http://localhost:8080` untuk Evolution).
+4. Saat Anda menjalankan aplikasi penagihan (`npm start` atau `npm run dev`), sistem akan mendeteksi folder tersebut dan otomatis men-spawn gateway Anda di latar belakang. Bila sistem penagihan dimatikan (SIGINT/SIGTERM/exit), proses gateway juga akan otomatis dihentikan secara bersih.
+
+---
+
 ## Kontribusi
 
 Fork, buat branch fitur, lalu kirim Pull Request.
