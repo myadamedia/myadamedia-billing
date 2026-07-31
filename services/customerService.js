@@ -281,7 +281,7 @@ function createPackage(data) {
     data.use_fup ? 1 : 0, data.fup_profile_name || null, f_limit, f_down,
     data.description || '',
     usePpn, ppnPercentage, useUso, usoPercentage,
-    data.is_hidden ? 1 : 0
+    (data.is_hidden == '1' || data.is_hidden === 1) ? 1 : 0
   );
 }
 
@@ -322,7 +322,7 @@ function updatePackage(id, data) {
     data.use_fup ? 1 : 0, data.fup_profile_name || null, f_limit, f_down,
     data.description || '', data.is_active == '1' ? 1 : 0,
     usePpn, ppnPercentage, useUso, usoPercentage,
-    data.is_hidden ? 1 : 0,
+    (data.is_hidden == '1' || data.is_hidden === 1) ? 1 : 0,
     id
   );
 }

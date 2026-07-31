@@ -198,3 +198,23 @@ WHERE c.status = 'active'
 Perhitungan MRR kini 100% presisi dan akurat mencerminkan kondisi lapangan ketika terdapat pelanggan baru yang menikmati harga diskon/promo.
 
 ---
+
+## [2026-07-31] - Bug Fix: Perbaikan Fitur Menampilkan Kembali (Unhide) Paket Internet Registrasi
+
+### 1. Permasalahan yang Ditemukan
+Saat Admin mencoba mengubah opsi paket dari **Sembunyikan (Hide)** menjadi **Tampilkan (Unhide)** pada menu Manajemen Paket (`/admin/packages`), paket tetap berstatus tersembunyi (`is_hidden = 1`) dan tidak muncul di form registrasi pelanggan.
+
+### 2. Penyebab Utama
+Pada file [`services/customerService.js`](file:///d:/WEBAPP/myadamedia-billing/services/customerService.js) fungsi `createPackage` dan `updatePackage`, penentuan status `is_hidden` menggunakan ekspresi ternary `data.is_hidden ? 1 : 0`.
+Ketika form mengirimkan `value="0"` (Tampilkan / Unhide), JavaScript menganggap string `"0"` sebagai nilai *truthy* (`Boolean("0") === true`), sehingga `is_hidden` selalu bernilai `1` dan paket tidak pernah bisa ditampilkan kembali.
+
+### 3. Solusi yang Diterapkan
+- Mengubah evaluasi string `"0"` dan `"1"` di [`services/customerService.js`](file:///d:/WEBAPP/myadamedia-billing/services/customerService.js):
+  ```javascript
+  (data.is_hidden == '1' || data.is_hidden === 1) ? 1 : 0
+  ```
+
+### 4. Dampak Perubahan
+Admin kini dapat dengan bebas mengubah status visibilitas paket internet (*Sembunyikan / Tampilkan*). Paket yang di-set ke **Tampilkan (Unhide)** akan langsung muncul pada form registrasi pelanggan (`/register`).
+
+---
