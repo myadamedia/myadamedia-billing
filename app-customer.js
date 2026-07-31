@@ -955,6 +955,16 @@ app.post('/acs', express.raw({ type: ['text/xml', 'application/soap+xml', 'appli
 const customerPortal = require('./routes/customerPortal');
 app.use('/customer', customerPortal);
 
+// Mount RADIUS Admin Router
+const radiusRouter = require('./routes/admin/radius');
+app.use('/admin/radius', radiusRouter);
+
+// Mount Investor Standalone Portal & Admin Investor Management
+const investorPortal = require('./investor/routes/investorPortal');
+const adminInvestors = require('./investor/routes/adminInvestors');
+app.use('/investor', investorPortal);
+app.use('/admin/investors', adminInvestors);
+
 // Mount admin portal
 const adminPortal = require('./routes/adminPortal');
 app.use('/admin', adminPortal);

@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="<%= lang || 'id' %>">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Manajemen RADIUS NAS | <%= company %></title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="/css/admin.css?v=2">
+  <style>
+    .code-box {
+      background: #0f172a; color: #38bdf8; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 13px;
+      border: 1px solid rgba(148, 163, 184, 0.2); white-space: pre-wrap; word-break: break-all; margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+<%- include('../partials/sidebar', { activePage: 'radius_nas' }) %>
+
+<div class="mw">
+  <div class="topbar">
+    <div class="tb-title">
+      <button class="hb-menu" onclick="toggleSidebar()"><i class="bi bi-list"></i></button>
+      <i class="bi bi-shield-check"></i>
+      <span>Manajemen Router NAS (RADIUS Client)</span>
+    </div>
+  </div>
+
+  <div class="page">
+
+    <% if (msg) { %>
+      <div class="alert <%= msg.type === 'error' ? 'd' : 's' %>"><%= msg.text %></div>
+    <% } %>
+
+    <!-- STAT CARDS -->
+    <div class="stat-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
+      <div class="sc">
+        <i class="bi bi-router sc-icon" style="color: var(--primary);"></i>
+        <div class="sc-label">Total NAS Router</div>
+        <div class="sc-val"><%= nasList.length %></div>
+      </div>
+      <div class="sc">
+        <i class="bi bi-check-circle-fill sc-icon" style="color: #10b981;"></i>
+        <div class="sc-label">NAS Aktif</div>
+        <div class="sc-val"><%= nasList.filter(n => n.is_active).length %></div>
+      </div>
+      <div class="sc">
+        <i class="bi bi-shield-lock sc-icon" style="color: #6366f1;"></i>
+        <div class="sc-label">Port Authentication</div>
+        <div class="sc-val" style="font-size: 16px;">UDP 1812</div>
+      </div>
+      <div class="sc">
+        <i class="bi bi-activity sc-icon" style="color: #f59e0b;"></i>
+        <div class="sc-label">Port Accounting</div>
+        <div class="sc-val" style="font-size: 16px;">UDP 1813</div>
+      </div>
+    </div>
+
+    <!-- MAIN CARD & TABLE -->
+    <div class="card">
+      <div class="card-hd" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+        <h6><i class="bi bi-hdd-network"></i> Daftar NAS Router Terdaftar</h6>
+        <button class="btn btn-p btn-sm" onclick="openAddModal()">
+          <i class="bi bi-plus-lg"></i> Tambah NAS Router
+        </button>
+      </div>
+
+      <div class="tbl-wrap">
+        <table class="dtbl">
+          <thead>
+            <tr>
+              <th>Nama / Shortname</th>
+              <th>IP NAS (Host)</th>
+              <th>Shared Secret</th>
+              <th>Port RADIUS</th>
+              <th>Router MikroTik</th>
+              <th>Status</th>
+              <th style="text-align: right;">Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (!nasList || nasList.length === 0) { %>
+              <tr>
+                <td colspan="7" class="text-center text-muted" style="padding: 24px;">
+                  <i class="bi bi-info-circle me-1"></i> Belum ada Router NAS yang terdaftar. Klik <strong>Tambah NAS Router</strong> untuk mendaftarkan MikroTik.
+                </td>
+              </tr>
+            <% } else { %>
+              <% nasList.forEach(nas => { %>
+                <tr>
+                  <td>
+                    <strong><%= nas.shortname %></strong>
+                    <% if (nas.description) { %>
+                      <br><small class="text-muted"><%= nas.description %></small>
+                    <% } %>
+                  </td>
+                  <td><code><%= nas.nasname %></code></td>
+                  <td>
+                    <span class="text-muted" style="letter-spacing: 2px;">••••••••</span>
+                    <button class="btn btn-g btn-sm p-1 ms-1" onclick="alert('Secret: <%= nas.secret %>')"><i class="bi bi-eye"></i></button>
+                  </td>
+                  <td><%= nas.ports %></td>
+                  <td>
+                    <% if (nas.router_name) { %>
+                      <span class="badge bs"><i class="bi bi-router"></i> <%= nas.router_name %></span>
+                    <% } else { %>
+                      <span class="text-muted">-</span>
+                    <% } %>
+                  </td>
+                  <td>
+                    <span class="badge <%= nas.is_active ? 'bs' : 'bd' %>">
+                      <%= nas.is_active ? 'Aktif' : 'Non-Aktif' %>
+                    </span>
+                  </td>
+                  <td>
+                    <div style="display:flex; justify-content:flex-end; gap:6px;">
+                      <button class="btn btn-g btn-sm" onclick="showScriptModal('<%= nas.shortname %>', '<%= nas.nasname %>', '<%= nas.secret %>')">
+                        <i class="bi bi-terminal"></i> Script
+                      </button>
+                      <button class="btn btn-g btn-sm" onclick="openEditModal(<%= JSON.stringify(nas) %>)">
+                        <i class="bi bi-pencil"></i> Edit
+                      </button>
+                      <form action="/admin/radius/nas/<%= nas.id %>/delete" method="POST" style="display:inline;" onsubmit="return confirm('Yakin hapus NAS ini?')">
+                        <button type="submit" class="btn btn-d btn-sm"><i class="bi bi-trash"></i></button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              <% }) %>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- MODAL TAMBAH / EDIT NAS -->
+<div class="mo" id="nasModal">
+  <div class="mb" style="max-width: 550px;">
+    <form id="nasForm" action="/admin/radius/nas" method="POST">
+      <div class="mh">
+        <span class="mt" id="modalTitle"><i class="bi bi-plus-circle"></i> Tambah Router NAS</span>
+        <button type="button" class="mc" onclick="closeModal('nasModal')">&times;</button>
+      </div>
+      <div class="mbody">
+        <div class="fg">
+          <label class="fl">IP Address NAS Router *</label>
+          <input type="text" name="nasname" id="f-nasname" class="fc" placeholder="Contoh: 192.168.88.1 atau 0.0.0.0 (Wildcard)" required>
+          <div class="fh">Masukkan IP MikroTik yang akan berkomunikasi dengan RADIUS Billing.</div>
+        </div>
+        <div class="fg">
+          <label class="fl">Nama Alias / Shortname *</label>
+          <input type="text" name="shortname" id="f-shortname" class="fc" placeholder="Contoh: Router-Utama-Mikrotik" required>
+        </div>
+        <div class="fg">
+          <label class="fl">Shared Secret Key *</label>
+          <input type="text" name="secret" id="f-secret" class="fc" placeholder="Sandi rahasia RADIUS" required>
+          <div class="fh">Diisi manual dan harus sama persis dengan yang dikonfigurasi di RouterOS RADIUS Client.</div>
+        </div>
+        <div class="fg">
+          <label class="fl">Hubungkan ke Router MikroTik</label>
+          <select name="router_id" id="f-router_id" class="fs">
+            <option value="">-- Pilih Router MikroTik (Opsional) --</option>
+            <% (routers || []).forEach(r => { %>
+              <option value="<%= r.id %>"><%= r.name %> (<%= r.host %>)</option>
+            <% }) %>
+          </select>
+        </div>
+        <div class="fg">
+          <label class="fl">Keterangan</label>
+          <input type="text" name="description" id="f-description" class="fc" placeholder="Lokasi / Catatan tambahan">
+        </div>
+        <div class="fg" id="statusFieldGroup" style="display: none;">
+          <label class="fl">Status NAS</label>
+          <select name="is_active" id="f-is_active" class="fs">
+            <option value="1">Aktif</option>
+            <option value="0">Non-Aktif</option>
+          </select>
+        </div>
+      </div>
+      <div class="mf">
+        <button type="button" class="btn btn-g" onclick="closeModal('nasModal')">Batal</button>
+        <button type="submit" class="btn btn-p"><i class="bi bi-save"></i> Simpan NAS</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL SCRIPT TERMINAL MIKROTIK -->
+<div class="mo" id="scriptModal">
+  <div class="mb" style="max-width: 650px;">
+    <div class="mh">
+      <span class="mt"><i class="bi bi-terminal-fill"></i> Script Setup RouterOS RADIUS Client</span>
+      <button type="button" class="mc" onclick="closeModal('scriptModal')">&times;</button>
+    </div>
+    <div class="mbody">
+      <p style="font-size: 13px; color: var(--muted); margin-bottom: 8px;">
+        Buka <strong>New Terminal</strong> di MikroTik Winbox/SSH, lalu salin dan tempel perintah berikut:
+      </p>
+      
+      <div class="code-box" id="scriptCodeText">
+/radius add service=ppp,hotspot address=127.0.0.1 secret="secret" authentication-port=1812 accounting-port=1813 timeout=3s;
+/ppp aaa set use-radius=yes;
+/ip hotspot profile set [find] use-radius=yes;
+      </div>
+    </div>
+    <div class="mf">
+      <button type="button" class="btn btn-p" onclick="copyScriptCode()"><i class="bi bi-clipboard"></i> Salin Script</button>
+      <button type="button" class="btn btn-g" onclick="closeModal('scriptModal')">Tutup</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function openModal(id) { document.getElementById(id)?.classList.add('show'); }
+function closeModal(id) { document.getElementById(id)?.classList.remove('show'); }
+
+function openAddModal() {
+  document.getElementById('modalTitle').innerHTML = '<i class="bi bi-plus-circle"></i> Tambah Router NAS';
+  document.getElementById('nasForm').action = '/admin/radius/nas';
+  document.getElementById('f-nasname').value = '';
+  document.getElementById('f-shortname').value = '';
+  document.getElementById('f-secret').value = '';
+  document.getElementById('f-router_id').value = '';
+  document.getElementById('f-description').value = '';
+  document.getElementById('statusFieldGroup').style.display = 'none';
+  openModal('nasModal');
+}
+
+function openEditModal(nas) {
+  document.getElementById('modalTitle').innerHTML = '<i class="bi bi-pencil"></i> Edit Router NAS';
+  document.getElementById('nasForm').action = '/admin/radius/nas/' + nas.id + '/update';
+  document.getElementById('f-nasname').value = nas.nasname || '';
+  document.getElementById('f-shortname').value = nas.shortname || '';
+  document.getElementById('f-secret').value = nas.secret || '';
+  document.getElementById('f-router_id').value = nas.router_id || '';
+  document.getElementById('f-description').value = nas.description || '';
+  document.getElementById('f-is_active').value = nas.is_active ? '1' : '0';
+  document.getElementById('statusFieldGroup').style.display = 'block';
+  openModal('nasModal');
+}
+
+function showScriptModal(shortname, nasname, secret) {
+  const host = window.location.hostname || 'IP_SERVER_BILLING';
+  const script = `/radius add service=ppp,hotspot address=${host} secret="${secret}" authentication-port=1812 accounting-port=1813 timeout=3s comment="MyAdamedia RADIUS Server";\n/ppp aaa set use-radius=yes;\n/ip hotspot profile set [find] use-radius=yes;`;
+  document.getElementById('scriptCodeText').innerText = script;
+  openModal('scriptModal');
+}
+
+function copyScriptCode() {
+  const text = document.getElementById('scriptCodeText').innerText;
+  navigator.clipboard.writeText(text).then(() => {
+    alert('Script berhasil disalin ke clipboard!');
+  });
+}
+</script>
+
+</body>
+</html>

@@ -1,112 +1,79 @@
-# Rencana Implementasi: Pengujian 100% Coverage, Perbaikan DRY, dan Dokumentasi Deployment
+# Rencana Kustomisasi GenieACS (Implementation Plan)
 
-Rencana ini dibuat untuk meningkatkan kualitas kode, keamanan, dan keandalan sistem penagihan dengan menambahkan pengujian unit 100% coverage untuk modul kritis, melakukan refaktorisasi pada kode yang duplikat (prinsip DRY), serta memperbarui dokumentasi instalasi dan deployment pada `README.md`.
-
-## Modul Kritis yang Diidentifikasi
-Untuk pengujian dengan coverage 100%, kita memilih modul utility dan konfigurasi murni (pure logic/utility) yang tidak memiliki ketergantungan langsung ke hardware OLT, RouterOS, atau chat bot eksternal:
-1. `utils/securityHelper.js` - Mengatur hashing password dan verifikasi scrypt.
-2. `utils/mikhmonParser.js` - Mengurai on-login script hotspot MikroTik dengan regex kompleks.
-3. `config/settingsEncryption.js` - Melakukan enkripsi/dekripsi field sensitif di `settings.json`.
-4. `config/settingsValidator.js` - Memvalidasi seluruh field konfigurasi berdasarkan skema tipe, batas, regex, dan enum.
-5. `config/settingsManager.js` - Mengelola pembacaan/penulisan file settings, cache, dan modul konversi zona waktu lokal.
-6. `config/settingsAudit.js` - Mencatat log audit perubahan konfigurasi, mengekspor riwayat ke CSV/JSON, dan pembersihan retensi log.
+Dokumen ini berisi pemetaan struktur folder, rencana pengorganisasian kode untuk kustomisasi GenieACS v1.2.12, dan opsi kustomisasi yang siap diimplementasikan sesuai standar Senior Full-Stack Developer & Network Engineer (fokus pada Clean Code, Keamanan, Performa Tinggi, 100% Test Coverage, dan DRY).
 
 ---
 
-## User Review Required
+## 📂 Peta Struktur Folder & File Saat Ini
+
+Berikut adalah struktur folder dan komponen utama di dalam repositori `genieacs-main` beserta fungsinya:
+
+```
+genieacs-main/
+├── db/                       # Dump database default (BSON)
+│   ├── config.bson           # Konfigurasi parameter & sistem
+│   ├── devices.bson          # Data perangkat (dibersihkan)
+│   ├── presets.bson          # Pengaturan trigger/preset TR-069
+│   ├── provisions.bson       # Script provisioning (JavaScript TR-069)
+│   ├── users.bson            # User admin (alijayanet dihapus, admin dipromosikan)
+│   └── virtualParameters.bson# Parameter virtual untuk mapping CPE
+├── ext/                      # Script ekstensi eksternal GenieACS
+│   └── telegram.js           # Ekstensi notifikasi status & redaman Rx Power ke Telegram
+├── genieacs/                 # Source Code utama GenieACS v1.2.12
+│   ├── bin/                  # Executable commands (cwmp, nbi, fs, ui)
+│   ├── node_modules/         # Dependensi Node.js
+│   ├── public/               # Asset statis untuk UI dashboard
+│   └── package.json          # Manifest dependensi & script Node.js
+├── clean_db.py               # Script pembersihan & manipulasi file BSON
+├── test_bson_cleaner.py      # Unit test 100% coverage untuk clean_db.py
+├── start-genieacs.bat        # Windows launcher (menjalankan 4 mikroservis secara bersamaan)
+├── install.ps1               # Installer otomatis untuk lingkungan Windows (PowerShell)
+├── install.sh / darkmode.sh  # Installer otomatis untuk lingkungan Linux / Armbian
+└── menambahkan_wan.txt       # Catatan/referensi teknis konfigurasi WAN & Binding ONT
+```
+
+---
+
+## 🛠️ Opsi Kustomisasi yang Tersedia
+
+Sebagai Senior Network Engineer dan Full-Stack Developer, saya dapat membantu Anda mengkustomisasi GenieACS untuk kebutuhan produksi. Beberapa kustomisasi yang direkomendasikan dan siap diimplementasikan:
+
+### Opsi A: Kustomisasi Provisioning Presets & WAN Configuration (Sesuai `menambahkan_wan.txt`)
+Mengotomatiskan konfigurasi modem/ONT saat pertama kali terhubung (Bootstrap) atau saat ada perubahan.
+- **Implementasi**: Membuat script provisi JavaScript di `db/provisions.bson` yang dikonfigurasi melalui GUI / BSON.
+- **Target**: Konfigurasi otomatis PPPoE, Bridge, binding port LAN/WLAN (SSID 2.4G & 5G), dan konfigurasi spesifik ONT (seperti ZTE F670L atau FiberHome).
+- **Fitur Performa**: Penggunaan eksekusi paralel pada TR-069 RPC commands untuk meminimalisir waktu koneksi CPE.
+
+### Opsi B: Peningkatan Keamanan & Keandalan Notifikasi Telegram (`ext/telegram.js`)
+Meningkatkan fungsionalitas monitoring status modem.
+- **Implementasi**: Optimasi `ext/telegram.js`.
+- **Fitur**:
+  - Validasi input IP, PPPoE Username, dan Rx Power untuk menghindari injeksi data berbahaya (Security).
+  - Skema rate limiting agar bot tidak terkena blokir Telegram API saat terjadi mati lampu massal (Performa & Resiliensi).
+  - Integrasi logging audit ke MongoDB lokal untuk analisis pasca-kejadian.
+
+### Opsi C: Kustomisasi UI Dashboard (Dark Mode / Custom Brand)
+Mengubah antarmuka default GenieACS agar terlihat modern dan sesuai dengan branding ISP Anda.
+- **Implementasi**: Modifikasi CSS/JS di folder `genieacs/public` atau integrasi stylesheet baru (`app-*.css`).
+- **Fitur**: Peningkatan estetika visual, transisi halus, mode gelap yang dioptimalkan, dan penambahan logo kustom.
+
+### Opsi D: Integrasi REST API (Northbound Interface - NBI)
+Membuat API kustom atau mengintegrasikan GenieACS dengan sistem billing eksternal Anda.
+- **Implementasi**: Script Node.js eksternal yang berkomunikasi dengan API Port 7557 (NBI).
+- **Fitur**: Sinkronisasi data pelanggan dari billing ke database perangkat GenieACS secara real-time.
+
+---
+
+## 🧪 Rencana Pengujian (Verification Plan & 100% Coverage)
+
+1. **Unit Testing**: Setiap kode kustomisasi logic (seperti validasi data di `ext/telegram.js` atau script integrasi billing) akan dilengkapi dengan file unit test menggunakan kerangka kerja pengujian yang sesuai (misal: Mocha/Jest untuk JS atau PyTest/Unittest untuk Python).
+2. **Kepatuhan DRY & Clean Code**: Menghindari redundansi penulisan helper database client atau logger dengan cara membungkusnya ke modul utilitas bersama.
+3. **Analisis Coverage**: Menjalankan analisis coverage untuk memastikan fungsi-fungsi pemrosesan data kritis terlindungi 100%.
+
+---
+
+## 💬 Pertanyaan untuk Pengguna
 
 > [!IMPORTANT]
-> **Pemasangan Library Pengujian (Jest)**
-> Kami akan menginstal `jest` sebagai `devDependencies` di `package.json` untuk menjalankan unit test dan mengukur coverage secara otomatis. Hal ini memerlukan eksekusi perintah `npm install --save-dev jest` di terminal.
->
-> **Pemisahan Pengujian & Lingkungan Riil**
-> Semua test suite untuk `settingsManager` dan `settingsAudit` akan menggunakan mock file system (`fs`) agar pengujian tidak memodifikasi file konfigurasi riil (`settings.json`) atau file audit log riil milik pengguna.
-
----
-
-## Open Questions
-*Tidak ada pertanyaan terbuka saat ini.* Jika Anda menyetujui detail implementasi di bawah ini, silakan tekan tombol **Proceed** untuk mulai mengeksekusi rencana.
-
----
-
-## Proposed Changes
-
-### Konfigurasi & Dependensi
-
-#### [MODIFY] [package.json](file:///d:/BILLING%20FIX/myadamedia-billing/package.json)
-- Menambahkan `jest` ke dalam `devDependencies`.
-- Menambahkan script `"test": "jest --coverage"` dan `"test:cov": "jest --coverage --coverageThreshold='{\\\"global\\\": {\\\"branches\\\": 100, \\\"functions\\\": 100, \\\"lines\\\": 100, \\\"statements\\\": 100}}'\"` untuk memastikan coverage selalu 100%.
-- Menambahkan konfigurasi Jest di package.json untuk menentukan file mana saja yang dihitung coverage-nya (`collectCoverageFrom`).
-
-### Refaktorisasi DRY & Penyesuaian Pengujian
-
-#### [MODIFY] [database.js](file:///d:/BILLING%20FIX/myadamedia-billing/config/database.js)
-- Menghapus duplikasi kode penentuan zona waktu dan format string tanggal dari fungsi SQLite `NOW_LOCAL`.
-- Mengimpor fungsi `getNowLocal` secara langsung dari `./settingsManager.js` untuk menggantikan logika duplikat tersebut.
-
-#### [MODIFY] [settingsManager.js](file:///d:/BILLING%20FIX/myadamedia-billing/config/settingsManager.js)
-- Menambahkan fungsi `stopSettingsWatcher()` dan mengekspornya. Ini diperlukan agar thread file watcher (`fs.watch`) bisa dihentikan di akhir pengujian, sehingga pengujian Jest dapat keluar (exit) secara bersih tanpa menggantung (hanging processes).
-
-### Unit Test Baru (100% Coverage Target)
-
-#### [NEW] [securityHelper.test.js](file:///d:/BILLING%20FIX/myadamedia-billing/tests/securityHelper.test.js)
-- Menguji `hashPassword` dengan string biasa dan password kosong.
-- Menguji `verifyPassword` untuk kecocokan hash scrypt valid, format hash tidak valid, fallback plaintext, dan password kosong.
-- Menguji fungsi check `isHash`.
-
-#### [NEW] [mikhmonParser.test.js](file:///d:/BILLING%20FIX/myadamedia-billing/tests/mikhmonParser.test.js)
-- Menguji Format 1 (Mikhmon :put standar) dengan berbagai variasi format spasi, tanda petik, dan format ROS6/ROS7.
-- Menguji Format 2 (Shorthand `$HARGA^VALIDITAS`).
-- Menguji Format 3 (Bare `HARGA^VALIDITAS` tanpa dollar).
-- Menguji Format 4 (Comma-split fallback untuk script lama).
-- Menguji kasus input kosong (`null`, `undefined`, string kosong) dan input tanpa kecocokan format.
-
-#### [NEW] [settingsEncryption.test.js](file:///d:/BILLING%20FIX/myadamedia-billing/tests/settingsEncryption.test.js)
-- Menguji enkripsi dan dekripsi nilai tunggal menggunakan `MASTER_KEY` kustom maupun default.
-- Menguji skenario kegagalan dekripsi dengan format yang salah.
-- Menguji penanganan fallback ketika `MASTER_KEY` berubah, memastikan ia mencoba mendekripsi dengan key default lama.
-- Menguji fungsi `encryptSettings`, `decryptSettings`, `maskValue`, `getMaskedSettings`, dan pengecekan `isSensitiveField`.
-
-#### [NEW] [settingsValidator.test.js](file:///d:/BILLING%20FIX/myadamedia-billing/tests/settingsValidator.test.js)
-- Menguji validasi masing-masing tipe data: `number`, `string`, `boolean`.
-- Menguji validasi batas nilai (`min`/`max` untuk number, `minLength`/`maxLength` untuk string).
-- Menguji kecocokan regex (`pattern`) untuk IP, email, phone, public URL, office coordinates, dan Telegram admin ID.
-- Menguji validasi enum (contoh: `tripay_mode`, `default_gateway`, `midtrans_mode`).
-- Menguji validasi required field kosong vs opsional field kosong.
-- Memastikan `validateSettings` mengembalikan objek status valid beserta daftar error yang tepat.
-
-#### [NEW] [settingsManager.test.js](file:///d:/BILLING%20FIX/myadamedia-billing/tests/settingsManager.test.js)
-- Melakukan mock penuh terhadap library `fs` untuk menguji:
-  - Pembacaan konfigurasi dengan cache dan fallback session secret.
-  - Penyimpanan konfigurasi baru.
-  - Penanganan timezone tidak valid atau kosong (kembali ke `Asia/Jakarta`).
-  - Fungsi utility tanggal lokal: `getNowLocal`, `getCurrentDateInTimezone`, `getCurrentTimeInfo`, `getNowLocalISO`, `parseDateInTimezone`, dan `formatDateLocal`.
-  - Inisialisasi watcher dan penutupan watcher via `stopSettingsWatcher()`.
-
-#### [NEW] [settingsAudit.test.js](file:///d:/BILLING%20FIX/myadamedia-billing/tests/settingsAudit.test.js)
-- Menguji logging perubahan settings dengan masking otomatis untuk field sensitif.
-- Menguji filter pencarian riwayat berdasarkan actor, field, dan range tanggal.
-- Menguji ekspor riwayat perubahan ke format JSON maupun CSV.
-- Menguji kebijakan retensi log via `clearOldLogs`.
-- Menguji agregasi statistik log audit via `getAuditStats`.
-
-### Dokumentasi
-
-#### [MODIFY] [README.md](file:///d:/BILLING%20FIX/myadamedia-billing/README.md)
-- Melengkapi panduan instalasi dengan detail dependency untuk pengujian.
-- Menjelaskan cara menjalankan unit test dan mengecek coverage.
-- Memberikan panduan deployment terperinci menggunakan PM2 di Linux (Ubuntu/Armbian), optimasi produksi, pembuatan systemd service untuk PM2, auto-restart on boot, konfigurasi SSL dengan Nginx reverse proxy, dan penjadwalan backup database secara otomatis.
-
----
-
-## Verification Plan
-
-### Automated Tests
-- Menjalankan testing dengan command:
-  ```bash
-  npm run test:cov
-  ```
-  Perintah ini akan menjalankan Jest dengan pengaturan strict coverage threshold 100% untuk semua file kritis yang disebutkan. Jika ada line, branch, function, atau statement yang terlewat, test runner akan memunculkan error dan gagal.
-
-### Manual Verification
-- Menjalankan server menggunakan `npm start` atau `npm run dev` untuk memastikan bahwa refaktorisasi timezone di `config/database.js` tidak merusak inisialisasi SQLite dan aplikasi dapat berjalan dengan normal.
+> Mohon pilih jenis kustomisasi mana yang ingin Anda terapkan dari opsi di atas (atau jelaskan jika Anda memiliki kebutuhan kustomisasi lain yang lebih spesifik). 
+> Setelah Anda menentukan kebutuhan kustomisasi, saya akan memperbarui file rencana implementasi ini dengan detail file yang akan diubah/dibuat sebelum kita mulai menulis kode.

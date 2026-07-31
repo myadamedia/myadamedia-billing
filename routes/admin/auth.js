@@ -14,8 +14,18 @@ function requireAdmin(req, res, next) {
   return res.status(401).json({ error: 'Unauthorized - Admin/Staff access required' });
 }
 
+const sidebarMenuSvc = require('../../services/sidebarMenuService');
+const { getSettings } = require('../../config/settingsManager');
+
 function requireAdminSession(req, res, next) {
-  if (req.session?.isAdmin || req.session?.isCashier) return next();
+  if (req.session?.isAdmin || req.session?.isCashier) {
+    res.locals.session = req.session;
+    res.locals.sidebarSections = sidebarMenuSvc.getSidebarSections(req.session);
+    res.locals.sidebarBottomNavItems = sidebarMenuSvc.getBottomNavItems(req.session);
+    res.locals.settings = getSettings();
+    res.locals.company = company();
+    return next();
+  }
   return res.redirect('/admin/login');
 }
 

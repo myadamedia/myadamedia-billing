@@ -497,6 +497,68 @@ db.exec(`
   );
 `);
 
+// Inisialisasi tabel RADIUS NAS & RADIUS Accounting
+db.exec(`
+  CREATE TABLE IF NOT EXISTS radius_nas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nasname TEXT NOT NULL UNIQUE,      -- IP Address Router MikroTik (atau domain/hostname)
+    shortname TEXT NOT NULL,           -- Nama Router / Alias
+    secret TEXT NOT NULL,              -- Secret Key RADIUS (Shared Secret)
+    ports INTEGER DEFAULT 1812,
+    type TEXT DEFAULT 'mikrotik',      -- mikrotik, cisco, chillispot, etc.
+    description TEXT DEFAULT '',
+    router_id INTEGER REFERENCES routers(id) ON DELETE SET NULL,
+    is_active INTEGER DEFAULT 1,
+    created_at DATETIME DEFAULT (NOW_LOCAL()),
+    updated_at DATETIME DEFAULT (NOW_LOCAL())
+  );
+
+  CREATE TABLE IF NOT EXISTS radius_acct (
+    radacctid INTEGER PRIMARY KEY AUTOINCREMENT,
+    acctsessionid TEXT NOT NULL,
+    acctuniqueid TEXT,
+    username TEXT NOT NULL,
+    realm TEXT DEFAULT '',
+    nasipaddress TEXT NOT NULL,
+    nasportid TEXT,
+    nasporttype TEXT,
+    acctstarttime DATETIME,
+    acctupdatetime DATETIME,
+    acctstoptime DATETIME,
+    acctinterval INTEGER DEFAULT 0,
+    acctsessiontime INTEGER DEFAULT 0,
+    acctauthentic TEXT,
+    connectinfo_start TEXT,
+    connectinfo_stop TEXT,
+    acctinputoctets BIGINT DEFAULT 0,
+    acctoutputoctets BIGINT DEFAULT 0,
+    calledstationid TEXT DEFAULT '',
+    callingstationid TEXT DEFAULT '',
+    acctterminatecause TEXT DEFAULT '',
+    servicetype TEXT DEFAULT '',
+    framedprotocol TEXT DEFAULT '',
+    framedipaddress TEXT DEFAULT '',
+    created_at DATETIME DEFAULT (NOW_LOCAL())
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_radius_acct_username ON radius_acct(username);
+  CREATE INDEX IF NOT EXISTS idx_radius_acct_session ON radius_acct(acctsessionid);
+  CREATE INDEX IF NOT EXISTS idx_radius_acct_nasip ON radius_acct(nasipaddress);
+  CREATE INDEX IF NOT EXISTS idx_radius_acct_stop ON radius_acct(acctstoptime);
+
+  CREATE TABLE IF NOT EXISTS investors (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    username TEXT NOT NULL UNIQUE,
+    password TEXT NOT NULL,
+    share_percentage REAL DEFAULT 0.0,
+    is_active INTEGER DEFAULT 1,
+    created_at DATETIME DEFAULT (NOW_LOCAL()),
+    updated_at DATETIME DEFAULT (NOW_LOCAL())
+  );
+`);
+
+
 
 /**
  * Memastikan menu-menu utama (WA, Settings, dll) selalu terbuka (Visible)
@@ -514,7 +576,7 @@ function forceUnlockCoreMenus() {
     let states = rowStates ? JSON.parse(rowStates.value) : {};
     let keys = rowKeys ? JSON.parse(rowKeys.value) : {};
     
-    const coreMenus = ['mikrotik', 'whatsapp', 'broadcast', 'update', 'settings', 'backup', 'monitoring', 'audit_logs'];
+    const coreMenus = ['mikrotik', 'whatsapp', 'broadcast', 'update', 'settings', 'backup', 'monitoring', 'audit_logs', 'investors', 'radius_nas', 'radius_sessions'];
     const passwordHash = '45d841d9f79ebadb8db21b0068b6b6d10a49ff66865e9fbf88267cceccd3c784'; // Hash dari 'donasidulu'
     
     const crypto = require('crypto');
@@ -625,6 +687,7 @@ try { db.exec("ALTER TABLE packages ADD COLUMN use_ppn INTEGER DEFAULT 0"); } ca
 try { db.exec("ALTER TABLE packages ADD COLUMN ppn_percentage REAL DEFAULT 11.0"); } catch (e) {}
 try { db.exec("ALTER TABLE packages ADD COLUMN use_uso INTEGER DEFAULT 0"); } catch (e) {}
 try { db.exec("ALTER TABLE packages ADD COLUMN uso_percentage REAL DEFAULT 1.75"); } catch (e) {}
+try { db.exec("ALTER TABLE packages ADD COLUMN mikrotik_rate_limit TEXT DEFAULT ''"); } catch (e) {}
 
 // Kolom untuk Tiket Bantuan (Foto & Catatan Teknisi)
 try { db.exec("ALTER TABLE tickets ADD COLUMN technician_notes TEXT DEFAULT ''"); } catch (e) {}

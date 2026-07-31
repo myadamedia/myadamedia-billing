@@ -22,6 +22,8 @@ const VALID_STATES = new Set([STATE_VISIBLE, STATE_HIDDEN, STATE_LOCKED]);
 const MENU_DEFINITIONS = [
   { key: 'dashboard', section: 'main', href: '/admin', icon: 'bi bi-speedometer2', labelKey: 'admin.nav.dashboard', labelDefault: 'Dashboard', roles: ['superadmin', 'finance', 'teknisi', 'kolektor', 'noc'], bottomNav: true, activePages: ['dashboard'] },
   { key: 'mikrotik', section: 'main', href: '/admin/mikrotik', icon: 'bi bi-router', labelKey: 'admin.nav.mikrotik', labelDefault: 'MikroTik', roles: ['superadmin', 'teknisi', 'noc'], bottomNav: true, activePages: ['mikrotik'] },
+  { key: 'radius_nas', section: 'main', href: '/admin/radius', icon: 'bi bi-shield-check', labelKey: 'admin.nav.radius_nas', labelDefault: 'RADIUS NAS', roles: ['superadmin', 'noc'], activePages: ['radius_nas'] },
+  { key: 'radius_sessions', section: 'main', href: '/admin/radius/sessions', icon: 'bi bi-person-check-fill', labelKey: 'admin.nav.radius_sessions', labelDefault: 'Sesi RADIUS', roles: ['superadmin', 'noc'], activePages: ['radius_sessions'] },
   { key: 'map', section: 'main', href: '/admin/map', icon: 'bi bi-map', labelKey: 'admin.nav.network_map', labelDefault: 'Peta Jaringan', roles: ['superadmin', 'teknisi', 'noc'], activePages: ['map'] },
   { key: 'acs_pro', section: 'main', href: '/admin/acs', icon: 'bi bi-hdd-network', labelKey: 'admin.nav.acs_pro', labelDefault: 'GenieACS Pro', roles: ['superadmin', 'noc'], activePages: ['acs_pro'] },
   { key: 'onu_provision', section: 'main', href: '/admin/onu-provision', icon: 'bi bi-hdd-network-fill', labelKey: 'admin.nav.onu_provision', labelDefault: 'ONU Provision', roles: ['superadmin', 'teknisi', 'noc'], activePages: ['onu_provision'] },
@@ -38,6 +40,7 @@ const MENU_DEFINITIONS = [
   { key: 'collector_payments', section: 'billing', href: '/admin/collector-payments', icon: 'bi bi-check2-square', labelKey: 'admin.nav.collector_payments', labelDefault: 'Approval Kolektor', roles: ['superadmin', 'finance'], activePages: ['collector_payments'] },
 
   { key: 'reports', section: 'finance', href: '/admin/reports', icon: 'bi bi-bar-chart-line', labelKey: 'admin.nav.finance_report', labelDefault: 'Laporan Keuangan', roles: ['superadmin', 'finance'], activePages: ['reports'] },
+  { key: 'investors', section: 'finance', href: '/admin/investors', icon: 'bi bi-graph-up-arrow', labelKey: 'admin.nav.investors', labelDefault: 'Akun Investor', roles: ['superadmin', 'finance'], activePages: ['investors'] },
   { key: 'cashiers_reports', section: 'finance', href: '/admin/cashiers/reports', icon: 'bi bi-journal-text', labelKey: 'admin.nav.cashiers_reports', labelDefault: 'Laporan Kasir', roles: ['superadmin', 'finance'], activePages: ['cashiers_reports'] },
   { key: 'payroll', section: 'finance', href: '/admin/payroll', icon: 'bi bi-wallet2', labelKey: 'admin.nav.payroll', labelDefault: 'Gaji & Payroll', roles: ['superadmin', 'finance'], activePages: ['payroll'] },
 
@@ -81,6 +84,9 @@ const DEFAULT_MENU_STATES = {
   voucher_packages: STATE_VISIBLE,
   billing: STATE_VISIBLE,
   reports: STATE_VISIBLE,
+  investors: STATE_VISIBLE,
+  radius_nas: STATE_VISIBLE,
+  radius_sessions: STATE_VISIBLE,
   cashiers_reports: STATE_VISIBLE,
   collector_payments: STATE_VISIBLE,
   tickets: STATE_VISIBLE,
