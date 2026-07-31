@@ -166,3 +166,35 @@ Ownership folder repositori di Windows terdeteksi berbeda antara SID pengguna la
 Peringatan kepemilikan repositori Git kini sepenuhnya hilang, dan proses `autopush.bat` maupun sinkronisasi ke GitHub berjalan lancar tanpa terhambat.
 
 ---
+
+## [2026-07-31] - Feature Enhancement: Dukungan Harga Promo pada Perhitungan MRR & ARPU
+
+### 1. Ringkasan Perubahan
+Modul agregasi keuangan Investor pada [`investor/services/investorService.js`](file:///d:/WEBAPP/myadamedia-billing/investor/services/investorService.js) telah ditingkatkan untuk **memperhitungkan Harga Promo (`promo_price`) secara dinamis** pada perhitungan MRR (Monthly Recurring Revenue) dan ARPU (Average Revenue Per User).
+
+### 2. Logika Penentuan Harga Efektif
+Sistem memeriksa apakah pelanggan sedang berada di dalam siklus promo:
+- **Jika** `promo_price` terisi **DAN** `promo_cycles > 0` **DAN** jumlah siklus yang sudah terpakai (`promo_cycles_used`) masih kurang dari `promo_cycles`, **maka** harga yang digunakan untuk perhitungan MRR adalah **`promo_price`**.
+- **Jika** promo telah selesai atau paket tidak memiliki promo, **maka** harga yang digunakan adalah harga reguler paket **`price`**.
+
+### 3. Query SQL Terbaru
+```sql
+SELECT COALESCE(SUM(
+  CASE
+    WHEN p.promo_price IS NOT NULL 
+     AND p.promo_price != '' 
+     AND CAST(p.promo_cycles AS INTEGER) > 0 
+     AND COALESCE(c.promo_cycles_used, 0) < CAST(p.promo_cycles AS INTEGER) 
+    THEN CAST(p.promo_price AS INTEGER)
+    ELSE p.price
+  END
+), 0) as mrr
+FROM customers c
+JOIN packages p ON c.package_id = p.id
+WHERE c.status = 'active'
+```
+
+### 4. Dampak Perubahan
+Perhitungan MRR kini 100% presisi dan akurat mencerminkan kondisi lapangan ketika terdapat pelanggan baru yang menikmati harga diskon/promo.
+
+---

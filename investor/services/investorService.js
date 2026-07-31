@@ -86,9 +86,18 @@ function getExecutiveSummary(period = 'this_month') {
     const netProfit = grossRevenue - totalExpenses;
     const profitMargin = grossRevenue > 0 ? ((netProfit / grossRevenue) * 100).toFixed(1) : 0;
 
-    // 5. Monthly Recurring Revenue (MRR) - Proyeksi tagihan bulanan dari paket aktif
+    // 5. Monthly Recurring Revenue (MRR) - Proyeksi tagihan bulanan dari paket aktif (Memperhitungkan Harga Promo)
     const mrrRow = db.prepare(`
-      SELECT COALESCE(SUM(p.price), 0) as mrr
+      SELECT COALESCE(SUM(
+        CASE
+          WHEN p.promo_price IS NOT NULL 
+           AND p.promo_price != '' 
+           AND CAST(p.promo_cycles AS INTEGER) > 0 
+           AND COALESCE(c.promo_cycles_used, 0) < CAST(p.promo_cycles AS INTEGER) 
+          THEN CAST(p.promo_price AS INTEGER)
+          ELSE p.price
+        END
+      ), 0) as mrr
       FROM customers c
       JOIN packages p ON c.package_id = p.id
       WHERE c.status = 'active'
@@ -226,7 +235,16 @@ function getPackageDistribution() {
   try {
     const rows = db.prepare(`
       SELECT p.name as package_name, p.price, COUNT(c.id) as customer_count,
-             (COUNT(c.id) * p.price) as total_potential
+             COALESCE(SUM(
+               CASE
+                 WHEN p.promo_price IS NOT NULL 
+                  AND p.promo_price != '' 
+                  AND CAST(p.promo_cycles AS INTEGER) > 0 
+                  AND COALESCE(c.promo_cycles_used, 0) < CAST(p.promo_cycles AS INTEGER) 
+                 THEN CAST(p.promo_price AS INTEGER)
+                 ELSE p.price
+               END
+             ), 0) as total_potential
       FROM packages p
       LEFT JOIN customers c ON c.package_id = p.id AND c.status = 'active'
       GROUP BY p.id
