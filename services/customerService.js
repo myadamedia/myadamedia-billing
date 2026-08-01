@@ -399,13 +399,22 @@ async function suspendCustomer(id) {
       isolate: true
     }, customer.router_id);
   } else if (customer.pppoe_username) {
-    const isolirProfile = customer.isolir_profile || 'isolir';
-    await mikrotikSvc.setPppoeProfile(customer.pppoe_username, isolirProfile, customer.router_id);
-    if (customer.router_id) {
-      try {
-        await mikrotikSvc.ensurePppProfileIsolirAddressListHook(isolirProfile, customer.router_id);
-      } catch (e) {
-        logger.warn(`[suspendCustomer] Hook profil isolir "${isolirProfile}" di router ${customer.router_id}: ${e.message}`);
+    try {
+      const radiusCoaService = require('./radiusCoaService');
+      await radiusCoaService.disconnectUserByUsername(customer.pppoe_username);
+    } catch (cErr) {
+      logger.warn(`[suspendCustomer] RADIUS CoA Disconnect user ${customer.pppoe_username}: ${cErr.message}`);
+    }
+    const { getSetting } = require('../config/settingsManager');
+    if (getSetting('pppoe_sync_to_mikrotik_api', false)) {
+      const isolirProfile = customer.isolir_profile || 'isolir';
+      await mikrotikSvc.setPppoeProfile(customer.pppoe_username, isolirProfile, customer.router_id);
+      if (customer.router_id) {
+        try {
+          await mikrotikSvc.ensurePppProfileIsolirAddressListHook(isolirProfile, customer.router_id);
+        } catch (e) {
+          logger.warn(`[suspendCustomer] Hook profil isolir "${isolirProfile}" di router ${customer.router_id}: ${e.message}`);
+        }
       }
     }
   } else if (customer.connection_type === 'hotspot' && customer.hotspot_username) {
@@ -482,9 +491,18 @@ async function activateCustomer(id) {
       isolate: false
     }, customer.router_id);
   } else if (customer.pppoe_username) {
-    const pkg = getPackageById(customer.package_id);
-    const targetProfile = pkg ? pkg.name : 'default';
-    await mikrotikSvc.setPppoeProfile(customer.pppoe_username, targetProfile, customer.router_id);
+    try {
+      const radiusCoaService = require('./radiusCoaService');
+      await radiusCoaService.disconnectUserByUsername(customer.pppoe_username);
+    } catch (cErr) {
+      logger.warn(`[activateCustomer] RADIUS CoA Disconnect user ${customer.pppoe_username}: ${cErr.message}`);
+    }
+    const { getSetting } = require('../config/settingsManager');
+    if (getSetting('pppoe_sync_to_mikrotik_api', false)) {
+      const pkg = getPackageById(customer.package_id);
+      const targetProfile = pkg ? pkg.name : 'default';
+      await mikrotikSvc.setPppoeProfile(customer.pppoe_username, targetProfile, customer.router_id);
+    }
   } else if (customer.connection_type === 'hotspot' && customer.hotspot_username) {
     const pkg = getPackageById(customer.package_id);
     const targetProfile = String(customer.hotspot_profile || '').trim() || (pkg ? pkg.name : '');

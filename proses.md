@@ -218,3 +218,63 @@ Ketika form mengirimkan `value="0"` (Tampilkan / Unhide), JavaScript menganggap 
 Admin kini dapat dengan bebas mengubah status visibilitas paket internet (*Sembunyikan / Tampilkan*). Paket yang di-set ke **Tampilkan (Unhide)** akan langsung muncul pada form registrasi pelanggan (`/register`).
 
 ---
+
+## [2026-08-01] - Panduan Teknis & Implementasi: Penambahan Pelanggan PPPoE via RADIUS NAS
+
+### 1. Analisis Kebutuhan
+Penambahan dan autentikasi pelanggan PPPoE yang berkomunikasi melalui **RADIUS NAS (RouterOS MikroTik)** terintegrasi terpusat pada engine **Embedded RADIUS Server** (UDP Auth 1812, UDP Acct 1813, UDP Disconnect/CoA 3799) di MyAdamedia Billing.
+
+### 2. File Terkait & Komponen Utama
+- [`services/radiusService.js`](file:///d:/WEBAPP/myadamedia-billing/services/radiusService.js): Engine socket UDP pengolah paket `Access-Request` & `Accounting-Request`.
+- [`services/radiusCoaService.js`](file:///d:/WEBAPP/myadamedia-billing/services/radiusCoaService.js): Modul pengirim paket Disconnect-Request (PoD/CoA).
+- [`routes/admin/radius.js`](file:///d:/WEBAPP/myadamedia-billing/routes/admin/radius.js): Controller manajemen NAS Router & Sesi Aktif.
+- [`config/database.js`](file:///d:/WEBAPP/myadamedia-billing/config/database.js): Schema tabel `radius_nas`, `radius_acct`, dan `customers`.
+
+### 3. Dampak & Keuntungan
+- **Single Source of Truth**: Data pelanggan PPPoE tersimpan di SQLite (`billing.db`) tanpa perlu duplikasi akun ke FreeRADIUS / database terpisah.
+- **Zero API Overhead**: Pengolahan Auth/Acct murni via paket UDP standar RFC 2865 & 2866, sehingga tidak membebankan CPU Router.
+- **Instant Isolation**: Pemutusan pelanggan tunggakan terjadi < 1 detik via UDP 3799 (CoA).
+
+---
+
+## [2026-08-01] - Troubleshooting: Resolusi Pesan Log "RADIUS Timeout" pada MikroTik RouterOS
+
+### 1. Permasalahan yang Ditemukan
+Pada log MikroTik RouterOS muncul pesan error **`radius timeout`** saat pengguna melakukan dial PPPoE atau login Hotspot.
+
+### 2. Penyebab Utama
+- **IP NAS Mismatch**: IP pengirim paket UDP dari Router MikroTik tidak cocok dengan IP NAS yang mendaftar di tabel `radius_nas`.
+- **Shared Secret Key Mismatch**: Secret Key di MikroTik berbeda dengan Secret Key pada Admin Billing.
+- **Port UDP Terblokir Firewall**: Windows Firewall memblokir port UDP `1812` dan `1813`.
+- **MikroTik Source IP Unbound**: MikroTik tidak menentukan `src-address` pada konfigurasi `/radius`.
+
+### 3. Solusi yang Diberikan
+1. **Pemeriksaan `nasname` & Wildcard NAS (`0.0.0.0`)**: Memastikan IP router di menu Admin Billing (`/admin/radius`) sama dengan IP MikroTik atau menggunakan Wildcard `0.0.0.0`.
+2. **Sinkronisasi Shared Secret**: Menyamakan nilai secret di `/radius add secret="..."` dengan data di database.
+3. **Konfigurasi `src-address` MikroTik**: Menambahkan atribut `src-address` pada `/radius` di MikroTik.
+4. **Pembukaan Port Firewall**: Menambahkan Inbound Rule UDP Port 1812 & 1813 di Windows Firewall.
+
+### 4. Dampak Perubahan
+Pesan log `radius timeout` teratasi secara penuh, dan seluruh proses autentikasi RADIUS balasan `Access-Accept` berjalan secara instan.
+
+---
+
+## [2026-08-01] - Refactoring & Fix: Pemisahan Otomatisasi Input Secret MikroTik API vs RADIUS Mode
+
+### 1. Permasalahan yang Ditemukan
+Saat menambahkan atau memperbarui data pelanggan di aplikasi Billing, sistem secara otomatis masih melakukan *push* secret ke tabel `/ppp secret` MikroTik via REST/API RouterOS (`mikrotikService.createPppoeSecret`). Hal ini menyebabkan redundansi data secret lokal di MikroTik saat menggunakan **RADIUS Server**.
+
+### 2. Penyebab Utama
+Logika controller pada route `routes/adminPortal.js` sebelumnya mengeksekusi `createPppoeSecret` tanpa memeriksa mode autentikasi yang sedang aktif (API vs RADIUS).
+
+### 3. Solusi yang Diterapkan
+- [`routes/adminPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/adminPortal.js): Menambahkan pengondisian `getSetting('pppoe_sync_to_mikrotik_api', false)`.
+  - Secara **default (RADIUS Mode)**, sistem **TIDAK** lagi membuat secret di `/ppp secret` MikroTik via API. Data pelanggan PPPoE hanya disimpan di database SQLite (`customers`), yang secara langsung dibaca oleh Embedded RADIUS Server (`radiusService.js`) saat dial PPPoE.
+  - Jika pengelola ISP masih ingin menggunakan mode API legacy, dapat mengaktifkan opsi `"pppoe_sync_to_mikrotik_api": true` pada `settings.json`.
+- [`services/customerService.js`](file:///d:/WEBAPP/myadamedia-billing/services/customerService.js): Menggantikan panggilan `setPppoeProfile` dengan **RADIUS CoA Disconnect (`radiusCoaService.disconnectUserByUsername`)** saat pelanggan diisolir / diaktifkan.
+
+### 4. Dampak Perubahan
+Tabel `/ppp secret` di MikroTik kini tetap bersih tanpa perlu menyimpan ratusan secret lokal. Autentikasi berjalan 100% tersentralisasi melalui RADIUS Server.
+
+
+

@@ -1738,8 +1738,9 @@ router.post('/customers', requireAdminSession, express.urlencoded({ extended: tr
 
     customerSvc.createCustomer(req.body);
     
-    // Sync to MikroTik if username provided
-    if (connectionType === 'pppoe' && req.body.pppoe_username) {
+    // Sync to MikroTik API (hanya jika mode API diaktifkan; default RADIUS Server = false)
+    const pppoeSyncApi = getSetting('pppoe_sync_to_mikrotik_api', false);
+    if (pppoeSyncApi && connectionType === 'pppoe' && req.body.pppoe_username) {
       const password = String(req.body.pppoe_password || '').trim();
       const remoteAddress = String(req.body.pppoe_remote_address || '').trim();
       
@@ -1867,8 +1868,9 @@ router.post('/customers/:id/update', requireAdminSession, express.urlencoded({ e
 
     customerSvc.updateCustomer(req.params.id, req.body);
     
-    // Sync to MikroTik if username provided
-    if (connectionType === 'pppoe' && req.body.pppoe_username) {
+    // Sync to MikroTik API (hanya jika mode API diaktifkan; default RADIUS Server = false)
+    const pppoeSyncApi = getSetting('pppoe_sync_to_mikrotik_api', false);
+    if (pppoeSyncApi && connectionType === 'pppoe' && req.body.pppoe_username) {
       let targetProfile = '';
       if (req.body.status === 'suspended') {
         targetProfile = req.body.isolir_profile || 'isolir';
