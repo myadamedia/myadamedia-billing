@@ -5,10 +5,46 @@
  */
 
 const dgram = require('dgram');
+const crypto = require('crypto');
 const radiusCodec = require('./radiusCodec');
 const db = require('../config/database');
 const { logger } = require('../config/logger');
 const { createMikrotikVSA } = require('./radiusDictionary');
+
+/**
+ * Validasi password mendukung PAP (User-Password) dan CHAP (CHAP-Password & CHAP-Challenge)
+ */
+function validatePassword(packet, expectedPassword) {
+  const exp = String(expectedPassword || '').trim();
+  if (!exp) return true;
+
+  const userPassword = String(packet.attributes['User-Password'] || '').trim();
+  if (userPassword && userPassword === exp) {
+    return true;
+  }
+
+  const chapPassword = packet.attributes['CHAP-Password'];
+  if (chapPassword && Buffer.isBuffer(chapPassword) && chapPassword.length >= 17) {
+    const chapIdent = chapPassword.readUInt8(0);
+    const chapResponse = chapPassword.slice(1, 17);
+    const chapChallenge = packet.attributes['CHAP-Challenge'];
+    const challenge = (chapChallenge && Buffer.isBuffer(chapChallenge) && chapChallenge.length > 0)
+      ? chapChallenge
+      : packet.authenticator;
+
+    const hash = crypto.createHash('md5')
+      .update(Buffer.from([chapIdent]))
+      .update(Buffer.from(exp, 'utf8'))
+      .update(challenge)
+      .digest();
+
+    if (hash.equals(chapResponse)) {
+      return true;
+    }
+  }
+
+  return false;
+}
 
 const AUTH_PORT = Number(process.env.RADIUS_AUTH_PORT) || 1812;
 const ACCT_PORT = Number(process.env.RADIUS_ACCT_PORT) || 1813;
@@ -104,10 +140,10 @@ function handleAuthPacket(msg, rinfo) {
 
     if (customer) {
       const expectedPassword = String(customer.pppoe_password || '').trim();
-      const isPasswordValid = !expectedPassword || userPassword === expectedPassword;
+      const isPasswordValid = validatePassword(packet, expectedPassword);
 
       if (!isPasswordValid) {
-        logger.warn(`[RADIUS Auth] Password salah untuk user PPPoE: ${username}`);
+        logger.warn(`[RADIUS Auth] Password salah untuk user PPPoE: "${username}"`);
         sendAuthResponse('Access-Reject', packet, secret, [], rinfo);
         return;
       }
@@ -158,10 +194,10 @@ function handleAuthPacket(msg, rinfo) {
 
     if (voucher) {
       const expectedPassword = String(voucher.password || '').trim();
-      const isPasswordValid = !expectedPassword || userPassword === expectedPassword || userPassword === username;
+      const isPasswordValid = validatePassword(packet, expectedPassword) || (userPassword && userPassword === username);
 
       if (!isPasswordValid) {
-        logger.warn(`[RADIUS Auth] Password salah untuk Voucher Hotspot: ${username}`);
+        logger.warn(`[RADIUS Auth] Password salah untuk Voucher Hotspot: "${username}"`);
         sendAuthResponse('Access-Reject', packet, secret, [], rinfo);
         return;
       }

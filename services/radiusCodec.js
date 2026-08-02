@@ -48,6 +48,7 @@ const ATTR_TYPES = {
   47: { name: 'Acct-Input-Octets', type: 'integer' },
   48: { name: 'Acct-Output-Octets', type: 'integer' },
   49: { name: 'Acct-Terminate-Cause', type: 'integer' },
+  60: { name: 'CHAP-Challenge', type: 'octets' },
   85: { name: 'Acct-Interim-Interval', type: 'integer' }
 };
 
@@ -143,6 +144,8 @@ function decodePacket(buffer, secret = '') {
         val = valBuf.length === 4 ? Array.from(valBuf).join('.') : '';
       } else if (attrMeta.type === 'password' && secret) {
         val = decryptPapPassword(valBuf, secret, authenticator);
+      } else if (attrMeta.type === 'octets') {
+        val = valBuf;
       }
     }
 
