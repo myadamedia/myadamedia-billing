@@ -1050,6 +1050,14 @@ if (getSetting('telegram_enabled', false)) {
 const { startCronJobs } = require('./services/cronService');
 startCronJobs();
 
+// Mulai Embedded RADIUS Server (UDP Port 1812 Auth & 1813 Acct)
+try {
+  const { startRadiusServer } = require('./services/radiusService');
+  startRadiusServer();
+} catch (err) {
+  logger.error('Gagal menyalakan RADIUS Server:', err.message);
+}
+
 // Mulai auto backup
 scheduleAutoBackup();
 

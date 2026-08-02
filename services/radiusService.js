@@ -25,10 +25,11 @@ let acctSocket = null;
  */
 function findNasRecord(remoteIp, nasIpAttr) {
   try {
-    const ip = String(remoteIp || '').trim();
+    const ip = String(remoteIp || '').replace(/^::ffff:/, '').trim();
+    const nasIp = nasIpAttr ? String(nasIpAttr).replace(/^::ffff:/, '').trim() : '';
     let record = db.prepare('SELECT * FROM radius_nas WHERE nasname = ? AND is_active = 1').get(ip);
-    if (!record && nasIpAttr) {
-      record = db.prepare('SELECT * FROM radius_nas WHERE nasname = ? AND is_active = 1').get(String(nasIpAttr).trim());
+    if (!record && nasIp) {
+      record = db.prepare('SELECT * FROM radius_nas WHERE nasname = ? AND is_active = 1').get(nasIp);
     }
     // Jika tidak ditemukan dan hanya ada 1 NAS terdaftar, atau nasname = '0.0.0.0' (Wildcard/Any NAS)
     if (!record) {
