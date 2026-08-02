@@ -301,9 +301,9 @@ function handleAcctPacket(msg, rinfo) {
     }
 
     const username = String(packet.attributes['User-Name'] || '').trim();
-    const acctStatusType = String(packet.attributes['Acct-Status-Type'] || ''); // Start, Interim-Update, Stop
+    const acctStatusType = String(packet.attributes['Acct-Status-Type'] || ''); // Start, Interim-Update, Stop, Accounting-On, etc.
     const sessionId = String(packet.attributes['Acct-Session-Id'] || '');
-    const nasIp = String(packet.attributes['NAS-IP-Address'] || rinfo.address);
+    const nasIp = String(packet.attributes['NAS-IP-Address'] || rinfo.address).replace(/^::ffff:/, '');
     const framedIp = String(packet.attributes['Framed-IP-Address'] || '');
     const callingStationId = String(packet.attributes['Calling-Station-Id'] || ''); // MAC Address
     const sessionTime = Number(packet.attributes['Acct-Session-Time']) || 0;
@@ -312,19 +312,33 @@ function handleAcctPacket(msg, rinfo) {
     const terminateCause = String(packet.attributes['Acct-Terminate-Cause'] || '');
     const serviceType = String(packet.attributes['Service-Type'] || '');
 
+    logger.info(`[RADIUS Acct] Paket Accounting Diterima | NAS=${nasIp} | User="${username}" | Status=${acctStatusType} | Session="${sessionId}"`);
+
     const nowStr = new Date().toISOString();
 
-    if (acctStatusType === 'Start') {
-      logger.info(`[RADIUS Acct] START Session: Username="${username}" | IP=${framedIp} | NAS=${nasIp}`);
-      db.prepare(`
-        INSERT INTO radius_acct (
-          acctsessionid, username, nasipaddress, acctstarttime, acctupdatetime,
-          framedipaddress, callingstationid, servicetype
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(sessionId, username, nasIp, nowStr, nowStr, framedIp, callingStationId, serviceType);
+    const isStart = acctStatusType === 'Start' || acctStatusType === '1';
+    const isInterim = acctStatusType === 'Interim-Update' || acctStatusType === '3';
+    const isStop = acctStatusType === 'Stop' || acctStatusType === '2';
 
-    } else if (acctStatusType === 'Interim-Update') {
-      db.prepare(`
+    if (isStart) {
+      logger.info(`[RADIUS Acct] START Session: Username="${username}" | IP=${framedIp} | NAS=${nasIp} | SessionId=${sessionId}`);
+      const existing = db.prepare("SELECT radacctid FROM radius_acct WHERE acctsessionid = ? AND username = ? AND acctstoptime IS NULL").get(sessionId, username);
+      if (!existing) {
+        db.prepare(`
+          INSERT INTO radius_acct (
+            acctsessionid, username, nasipaddress, acctstarttime, acctupdatetime,
+            framedipaddress, callingstationid, servicetype
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(sessionId, username, nasIp, nowStr, nowStr, framedIp, callingStationId, serviceType);
+      } else {
+        db.prepare(`
+          UPDATE radius_acct SET acctupdatetime = ?, framedipaddress = COALESCE(NULLIF(?, ''), framedipaddress)
+          WHERE radacctid = ?
+        `).run(nowStr, framedIp, existing.radacctid);
+      }
+
+    } else if (isInterim) {
+      const res = db.prepare(`
         UPDATE radius_acct SET
           acctupdatetime = ?,
           acctsessiontime = ?,
@@ -335,7 +349,19 @@ function handleAcctPacket(msg, rinfo) {
         WHERE acctsessionid = ? AND username = ? AND acctstoptime IS NULL
       `).run(nowStr, sessionTime, inputOctets, outputOctets, framedIp, callingStationId, sessionId, username);
 
-    } else if (acctStatusType === 'Stop') {
+      // Jika belum ada record (karena paket Start terlewat / user konek sebelum RADIUS restart) -> auto UPSERT
+      if (res.changes === 0) {
+        logger.info(`[RADIUS Acct] Auto-UPSERT Interim Session baru: Username="${username}" | SessionId=${sessionId}`);
+        db.prepare(`
+          INSERT INTO radius_acct (
+            acctsessionid, username, nasipaddress, acctstarttime, acctupdatetime,
+            acctsessiontime, acctinputoctets, acctoutputoctets,
+            framedipaddress, callingstationid, servicetype
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(sessionId, username, nasIp, nowStr, nowStr, sessionTime, inputOctets, outputOctets, framedIp, callingStationId, serviceType);
+      }
+
+    } else if (isStop) {
       logger.info(`[RADIUS Acct] STOP Session: Username="${username}" | Uptime=${sessionTime}s | Cause=${terminateCause || 'Normal'}`);
       db.prepare(`
         UPDATE radius_acct SET
