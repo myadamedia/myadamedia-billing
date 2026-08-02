@@ -552,11 +552,29 @@ db.exec(`
     username TEXT NOT NULL UNIQUE,
     password TEXT NOT NULL,
     share_percentage REAL DEFAULT 0.0,
+    share_type TEXT DEFAULT 'percentage',
+    fixed_dividend_amount REAL DEFAULT 0,
     is_active INTEGER DEFAULT 1,
     created_at DATETIME DEFAULT (NOW_LOCAL()),
     updated_at DATETIME DEFAULT (NOW_LOCAL())
   );
 `);
+
+// Migrasi otomatis kolom share_type dan fixed_dividend_amount pada tabel investors
+try {
+  const invCols = db.prepare("PRAGMA table_info(investors)").all();
+  const hasShareType = invCols.some(c => c.name === 'share_type');
+  const hasFixedAmount = invCols.some(c => c.name === 'fixed_dividend_amount');
+  if (!hasShareType) {
+    db.prepare("ALTER TABLE investors ADD COLUMN share_type TEXT DEFAULT 'percentage'").run();
+  }
+  if (!hasFixedAmount) {
+    db.prepare("ALTER TABLE investors ADD COLUMN fixed_dividend_amount REAL DEFAULT 0").run();
+  }
+} catch (err) {
+  console.error('[DB Migration] Error migrating investors table:', err.message);
+}
+
 
 
 

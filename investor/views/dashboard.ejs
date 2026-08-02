@@ -480,9 +480,15 @@
           <%= dividendInfo ? dividendInfo.formattedDividend : 'Rp 0' %>
         </div>
         <div class="kpi-footer">
-          <span class="badge-tag green">Saham: <%= investor.share_percentage %>%</span>
-          <span>Berdasarkan <%= investor.share_percentage %>% dari Net Profit</span>
+          <% if (dividendInfo && dividendInfo.shareType === 'fixed') { %>
+            <span class="badge-tag green"><i class="bi bi-cash-stack"></i> Nominal Fix</span>
+            <span>Nilai Tetap <%= dividendInfo.formattedFixedAmount %> / Bulan</span>
+          <% } else { %>
+            <span class="badge-tag green"><i class="bi bi-pie-chart-fill"></i> Saham: <%= investor.share_percentage %>%</span>
+            <span>Berdasarkan <%= investor.share_percentage %>% dari Net Profit</span>
+          <% } %>
         </div>
+
       </div>
 
       <!-- MRR & ARPU -->

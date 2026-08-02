@@ -46,12 +46,23 @@ router.get('/', (req, res) => {
   }
 });
 
+function parseCleanNumber(val) {
+  if (val === undefined || val === null || val === '') return 0;
+  let str = String(val).trim();
+  if ((str.match(/\./g) || []).length > 1) {
+    str = str.replace(/\./g, '');
+  }
+  str = str.replace(/[^0-9.-]/g, '');
+  const num = parseFloat(str);
+  return isNaN(num) ? 0 : num;
+}
+
 /**
  * POST /admin/investors - Menambah Akun Investor Baru
  */
 router.post('/', (req, res) => {
   try {
-    const { name, username, password, share_percentage } = req.body;
+    const { name, username, password, share_percentage, share_type, fixed_dividend_amount } = req.body;
 
     if (!name || !username || !password) {
       return res.redirect('/admin/investors?error=' + encodeURIComponent('Nama, Username, dan Password wajib diisi.'));
@@ -63,13 +74,15 @@ router.post('/', (req, res) => {
       return res.redirect('/admin/investors?error=' + encodeURIComponent('Username sudah digunakan oleh investor lain.'));
     }
 
-    const shareVal = parseFloat(share_percentage) || 0;
+    const shareVal = parseCleanNumber(share_percentage);
+    const typeVal = share_type === 'fixed' ? 'fixed' : 'percentage';
+    const fixedVal = parseCleanNumber(fixed_dividend_amount);
     const hashedPassword = hashPassword(password.trim());
 
     db.prepare(`
-      INSERT INTO investors (name, username, password, share_percentage, is_active)
-      VALUES (?, ?, ?, ?, 1)
-    `).run(name.trim(), username.trim(), hashedPassword, shareVal);
+      INSERT INTO investors (name, username, password, share_percentage, share_type, fixed_dividend_amount, is_active)
+      VALUES (?, ?, ?, ?, ?, ?, 1)
+    `).run(name.trim(), username.trim(), hashedPassword, shareVal, typeVal, fixedVal);
 
     return res.redirect('/admin/investors?success=' + encodeURIComponent('Berhasil menambahkan akun investor baru.'));
   } catch (err) {
@@ -84,7 +97,7 @@ router.post('/', (req, res) => {
 router.post('/:id/update', (req, res) => {
   try {
     const { id } = req.params;
-    const { name, username, password, share_percentage, is_active } = req.body;
+    const { name, username, password, share_percentage, share_type, fixed_dividend_amount, is_active } = req.body;
 
     const investor = db.prepare(`SELECT * FROM investors WHERE id = ?`).get(id);
     if (!investor) {
@@ -99,7 +112,9 @@ router.post('/:id/update', (req, res) => {
       }
     }
 
-    const shareVal = parseFloat(share_percentage) || 0;
+    const shareVal = parseCleanNumber(share_percentage);
+    const typeVal = share_type === 'fixed' ? 'fixed' : 'percentage';
+    const fixedVal = parseCleanNumber(fixed_dividend_amount);
     const activeVal = is_active === '1' || is_active === 1 || is_active === 'on' ? 1 : 0;
 
     let newPasswordHash = investor.password;
@@ -109,9 +124,9 @@ router.post('/:id/update', (req, res) => {
 
     db.prepare(`
       UPDATE investors
-      SET name = ?, username = ?, password = ?, share_percentage = ?, is_active = ?, updated_at = NOW_LOCAL()
+      SET name = ?, username = ?, password = ?, share_percentage = ?, share_type = ?, fixed_dividend_amount = ?, is_active = ?, updated_at = NOW_LOCAL()
       WHERE id = ?
-    `).run(name.trim(), username.trim(), newPasswordHash, shareVal, activeVal, id);
+    `).run(name.trim(), username.trim(), newPasswordHash, shareVal, typeVal, fixedVal, activeVal, id);
 
     return res.redirect('/admin/investors?success=' + encodeURIComponent('Data investor berhasil diperbarui.'));
   } catch (err) {
@@ -119,6 +134,8 @@ router.post('/:id/update', (req, res) => {
     return res.redirect('/admin/investors?error=' + encodeURIComponent('Gagal memperbarui investor: ' + err.message));
   }
 });
+
+
 
 /**
  * POST /admin/investors/:id/delete - Menghapus Akun Investor

@@ -65,7 +65,7 @@
               <th>ID</th>
               <th>Nama Investor</th>
               <th>Username</th>
-              <th>Bagi Hasil / Saham (%)</th>
+              <th>Skema Bagi Hasil</th>
               <th>Status</th>
               <th>Tgl Dibuat</th>
               <th style="text-align: right;">Aksi</th>
@@ -85,9 +85,15 @@
                   <td><strong><%= inv.name %></strong></td>
                   <td><code><%= inv.username %></code></td>
                   <td>
-                    <span class="badge bp">
-                      <i class="bi bi-pie-chart-fill"></i> <%= inv.share_percentage %>%
-                    </span>
+                    <% if (inv.share_type === 'fixed') { %>
+                      <span class="badge bs" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);">
+                        <i class="bi bi-cash-stack"></i> Rp <%= new Intl.NumberFormat('id-ID').format(inv.fixed_dividend_amount || 0) %> / Bulan (Fix)
+                      </span>
+                    <% } else { %>
+                      <span class="badge bp">
+                        <i class="bi bi-pie-chart-fill"></i> <%= inv.share_percentage %>% (Profit Share)
+                      </span>
+                    <% } %>
                   </td>
                   <td>
                     <% if (inv.is_active) { %>
@@ -98,7 +104,15 @@
                   </td>
                   <td><%= new Date(inv.created_at).toLocaleDateString('id-ID') %></td>
                   <td style="text-align: right; white-space: nowrap;">
-                    <button class="btn btn-g btn-sm" data-id="<%= inv.id %>" data-name="<%= inv.name %>" data-username="<%= inv.username %>" data-share="<%= inv.share_percentage %>" data-active="<%= inv.is_active %>" onclick="editInvBtn(this)">
+                    <button class="btn btn-g btn-sm" 
+                      data-id="<%= inv.id %>" 
+                      data-name="<%= inv.name %>" 
+                      data-username="<%= inv.username %>" 
+                      data-share="<%= inv.share_percentage %>" 
+                      data-type="<%= inv.share_type || 'percentage' %>"
+                      data-fixed="<%= inv.fixed_dividend_amount || 0 %>"
+                      data-active="<%= inv.is_active %>" 
+                      onclick="editInvBtn(this)">
                       <i class="bi bi-pencil"></i> Edit
                     </button>
                     <form action="/admin/investors/<%= inv.id %>/delete" method="POST" style="display:inline" onsubmit="return confirm('Hapus akun investor ini?')">
@@ -143,8 +157,23 @@
         </div>
 
         <div class="fg">
+          <label class="fl">Skema / Tipe Bagi Hasil</label>
+          <select name="share_type" id="add_share_type" class="fs" onchange="toggleAddShareType()">
+            <option value="percentage">Persentase Saham (%) dari Net Profit</option>
+            <option value="fixed">Nominal Fix / Tetap (Rp per Bulan)</option>
+          </select>
+        </div>
+
+        <div class="fg" id="add_perc_group">
           <label class="fl">Persentase Saham / Bagi Hasil (%)</label>
-          <input type="number" step="0.1" name="share_percentage" class="fc" placeholder="Contoh: 20.0" value="0.0" required>
+          <input type="number" step="0.1" name="share_percentage" class="fc" placeholder="Contoh: 15.0" value="0.0">
+          <small class="text-muted" style="font-size: 11px; margin-top: 4px; display: block;">Investor menerima hasil sebesar X% dari Laba Bersih (Net Profit) per bulan.</small>
+        </div>
+
+        <div class="fg" id="add_fixed_group" style="display: none;">
+          <label class="fl">Nominal Fix Bagi Hasil (Rp / Bulan)</label>
+          <input type="number" name="fixed_dividend_amount" class="fc" placeholder="Contoh: 1500000" value="0">
+          <small class="text-muted" style="font-size: 11px; margin-top: 4px; display: block;">Investor menerima jumlah dana tetap dalam Rupiah setiap bulan tanpa tergantung laba bersih.</small>
         </div>
       </div>
       <div class="mf">
@@ -180,8 +209,23 @@
         </div>
 
         <div class="fg">
+          <label class="fl">Skema / Tipe Bagi Hasil</label>
+          <select id="edit_share_type" name="share_type" class="fs" onchange="toggleEditShareType()">
+            <option value="percentage">Persentase Saham (%) dari Net Profit</option>
+            <option value="fixed">Nominal Fix / Tetap (Rp per Bulan)</option>
+          </select>
+        </div>
+
+        <div class="fg" id="edit_perc_group">
           <label class="fl">Persentase Saham / Bagi Hasil (%)</label>
-          <input type="number" step="0.1" id="edit_share" name="share_percentage" class="fc" required>
+          <input type="number" step="0.1" id="edit_share" name="share_percentage" class="fc">
+          <small class="text-muted" style="font-size: 11px; margin-top: 4px; display: block;">Investor menerima hasil sebesar X% dari Laba Bersih (Net Profit) per bulan.</small>
+        </div>
+
+        <div class="fg" id="edit_fixed_group" style="display: none;">
+          <label class="fl">Nominal Fix Bagi Hasil (Rp / Bulan)</label>
+          <input type="number" id="edit_fixed_amount" name="fixed_dividend_amount" class="fc" placeholder="Contoh: 1500000">
+          <small class="text-muted" style="font-size: 11px; margin-top: 4px; display: block;">Investor menerima jumlah dana tetap dalam Rupiah setiap bulan tanpa tergantung laba bersih.</small>
         </div>
 
         <div class="fg">
@@ -201,20 +245,48 @@
 </div>
 
 <script>
-  function openAddModal() { document.getElementById('addModal').classList.add('show'); }
+  function toggleAddShareType() {
+    const val = document.getElementById('add_share_type').value;
+    if (val === 'fixed') {
+      document.getElementById('add_perc_group').style.display = 'none';
+      document.getElementById('add_fixed_group').style.display = 'block';
+    } else {
+      document.getElementById('add_perc_group').style.display = 'block';
+      document.getElementById('add_fixed_group').style.display = 'none';
+    }
+  }
+
+  function toggleEditShareType() {
+    const val = document.getElementById('edit_share_type').value;
+    if (val === 'fixed') {
+      document.getElementById('edit_perc_group').style.display = 'none';
+      document.getElementById('edit_fixed_group').style.display = 'block';
+    } else {
+      document.getElementById('edit_perc_group').style.display = 'block';
+      document.getElementById('edit_fixed_group').style.display = 'none';
+    }
+  }
+
+  function openAddModal() { 
+    toggleAddShareType();
+    document.getElementById('addModal').classList.add('show'); 
+  }
   function closeAddModal() { document.getElementById('addModal').classList.remove('show'); }
 
   function editInvBtn(btn) {
     const d = btn.dataset;
-    openEditModal(d.id, d.name, d.username, d.share, d.active === '1' || d.active === 'true');
+    openEditModal(d.id, d.name, d.username, d.share, d.type, d.fixed, d.active === '1' || d.active === 'true');
   }
 
-  function openEditModal(id, name, username, share, active) {
+  function openEditModal(id, name, username, share, type, fixed, active) {
     document.getElementById('editForm').action = '/admin/investors/' + id + '/update';
     document.getElementById('edit_name').value = name;
     document.getElementById('edit_username').value = username;
-    document.getElementById('edit_share').value = share;
+    document.getElementById('edit_share').value = share || 0;
+    document.getElementById('edit_share_type').value = type || 'percentage';
+    document.getElementById('edit_fixed_amount').value = fixed || 0;
     document.getElementById('edit_active').value = active ? "1" : "0";
+    toggleEditShareType();
     document.getElementById('editModal').classList.add('show');
   }
   function closeEditModal() { document.getElementById('editModal').classList.remove('show'); }
@@ -222,3 +294,4 @@
 
 </body>
 </html>
+

@@ -144,8 +144,19 @@ function getExecutiveSummary(period = 'this_month') {
   }
 }
 
+function parseCleanNumber(val) {
+  if (val === undefined || val === null || val === '') return 0;
+  let str = String(val).trim();
+  if ((str.match(/\./g) || []).length > 1) {
+    str = str.replace(/\./g, '');
+  }
+  str = str.replace(/[^0-9.-]/g, '');
+  const num = parseFloat(str);
+  return isNaN(num) ? 0 : num;
+}
+
 /**
- * Menhitung Bagi Hasil / Dividen Khusus Investor berdasarkan persentase saham
+ * Menhitung Bagi Hasil / Dividen Khusus Investor berdasarkan persentase saham atau nominal fix
  */
 function getDividendBreakdown(investorId, period = 'this_month') {
   try {
@@ -153,16 +164,26 @@ function getDividendBreakdown(investorId, period = 'this_month') {
     if (!investor) return null;
 
     const summary = getExecutiveSummary(period);
-    const sharePercent = Number(investor.share_percentage) || 0;
+    const sharePercent = parseCleanNumber(investor.share_percentage);
+    const shareType = String(investor.share_type || '').toLowerCase().trim() === 'fixed' ? 'fixed' : 'percentage';
+    const fixedAmount = parseCleanNumber(investor.fixed_dividend_amount);
     
-    // Profit Bagi Hasil (hanya jika net profit positif)
-    const totalNetProfit = summary.netProfit > 0 ? summary.netProfit : 0;
-    const dividendAmount = Math.round(totalNetProfit * (sharePercent / 100));
+    let dividendAmount = 0;
+    if (shareType === 'fixed') {
+      dividendAmount = fixedAmount;
+    } else {
+      // Profit Bagi Hasil (hanya jika net profit positif)
+      const totalNetProfit = summary.netProfit > 0 ? summary.netProfit : 0;
+      dividendAmount = Math.round(totalNetProfit * (sharePercent / 100));
+    }
 
     return {
       investorId: investor.id,
       investorName: investor.name,
+      shareType,
       sharePercentage: sharePercent,
+      fixedDividendAmount: fixedAmount,
+      formattedFixedAmount: formatRp(fixedAmount),
       netProfit: summary.netProfit,
       dividendAmount,
       formattedDividend: formatRp(dividendAmount),
@@ -173,6 +194,8 @@ function getDividendBreakdown(investorId, period = 'this_month') {
     throw err;
   }
 }
+
+
 
 /**
  * Mengambil Data Tren Historis Bulanan (6/12 bulan terakhir) untuk Grafik Chart.js

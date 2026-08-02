@@ -4,6 +4,72 @@ Dokumen ini mencatat seluruh proses analisis, perancangan arsitektur, dan peruba
 
 ---
 
+## [2026-08-02] - Bug Fix: Perbaikan Penayangan Bagi Hasil Dividen Investor Skema Fix di Dashboard
+
+### 1. Permasalahan yang Ditemukan
+Saat investor dengan skema **Nominal Fix (Rp per Bulan)** login ke Dashboard Investor (`/investor/dashboard`), nilai Bagi Hasil Dividen tidak muncul atau bernilai Rp 0.
+
+### 2. Penyebab Utama
+1. **Pembersihan String Nominal:** Input nilai nominal fix yang diketik admin dengan format pemisah ribuan titik (misal `"1.500.000"`) terpotong oleh `parseFloat()`, menghasilkan nilai `1.5` yang mendekati 0.
+2. **Singkronisasi Session Data:** Objek `investor` pada session tidak secara otomatis memperbarui field `share_type` dan `fixed_dividend_amount` jika admin melakukan pengubahan data setelah investor membuat session login.
+
+### 3. Solusi yang Diterapkan
+- **Helper `parseCleanNumber()`**: Menambahkan helper pembersih format angka di `investor/services/investorService.js` dan `investor/routes/adminInvestors.js` yang secara pintar menghapus pemisah ribuan titik sehingga `"1.500.000"` terkonversi tepat menjadi `1500000`.
+- **Fresh Investor Sync (`investor/routes/investorPortal.js`)**: Pada handler `GET /investor/dashboard`, sistem selalu mengambil record investor terbaru dari database SQLite secara real-time untuk menjamin data `share_type` dan `fixed_dividend_amount` selalu tersinkronisasi presisi.
+
+### 4. Dampak Perubahan
+Investor dengan skema **Nominal Fix (Rp per Bulan)** kini dapat melihat nilai Bagi Hasil Dividen dan badge `Nominal Fix: Rp X.XXX.XXX / Bulan` dengan sempurna di dashboard mereka.
+
+---
+
+
+### 1. Permasalahan & Permintaan Fitur
+Sebelumnya, modul Manajemen Investor hanya mendukung skema bagi hasil berbasis **Persentase Saham (%)** dari Net Profit bulanan. Diperlukan opsi tambahan bagi admin untuk memilih antara **Persentase (%)** atau **Nominal Fix / Tetap (Rp per Bulan)** yang akan diterima investor setiap bulan.
+
+### 2. Solusi yang Diterapkan
+- **Database Migration (`config/database.js`)**: Menambahkan kolom `share_type` (`TEXT DEFAULT 'percentage'`) dan `fixed_dividend_amount` (`REAL DEFAULT 0`) pada tabel `investors` dengan migrasi otomatis.
+- **Service Engine (`investor/services/investorService.js`)**: Memperbarui fungsi `getDividendBreakdown()` agar mendukung perhitungan otomatis berdasarkan `share_type` (`percentage` vs `fixed`). Jika `fixed`, nominal dividen yang dihitung adalah `fixed_dividend_amount` (Fix Rp / Bulan).
+- **Admin Controller & UI View (`investor/routes/adminInvestors.js` & `investor/views/admin_investors.ejs`)**:
+  - Menambahkan dropdown pilihan **Skema Bagi Hasil** pada Modal Tambah & Edit Investor.
+  - Menambahkan input dinamis yang berganti otomatis (Input Persentase % vs Input Nominal Fix Rp).
+  - Memperbarui tabel daftar investor untuk menampilkan badge skema bagi hasil (`Rp X / Bulan (Fix)` atau `X% (Profit Share)`).
+- **Investor Dashboard (`investor/views/dashboard.ejs`)**: Memperbarui kartu dividen investor agar secara transparan menampilkan jenis skema dividen yang disepakati (Nominal Fix Rp / Bulan atau Persentase Net Profit %).
+
+### 3. File Terbuat / Diperbarui
+- [`config/database.js`](file:///d:/WEBAPP/myadamedia-billing/config/database.js): Migrasi kolom `share_type` & `fixed_dividend_amount`.
+- [`investor/services/investorService.js`](file:///d:/WEBAPP/myadamedia-billing/investor/services/investorService.js): Logika dividen dual-mode.
+- [`investor/routes/adminInvestors.js`](file:///d:/WEBAPP/myadamedia-billing/investor/routes/adminInvestors.js): Handling parameter `share_type` dan `fixed_dividend_amount`.
+- [`investor/views/admin_investors.ejs`](file:///d:/WEBAPP/myadamedia-billing/investor/views/admin_investors.ejs): Form & Tabel Admin Investor.
+- [`investor/views/dashboard.ejs`](file:///d:/WEBAPP/myadamedia-billing/investor/views/dashboard.ejs): Tampilan Dashboard Investor.
+
+---
+
+
+## [2026-08-02] - Business Proposal: Penyusunan Proposal Pendanaan Investor & Pitch Deck (Rp 20 Juta Target)
+
+### 1. Ringkasan Tugas
+Menyusun dokumen **Proposal Penawaran Investasi** dan **Presentation Pitch Deck (12 Slides)** resmi kelas institusional/investor berbasis audit data operasional dan keuangan aktual aplikasi **MyAdamedia Billing** dengan penyesuaian target pendanaan sebesar **Rp 20.000.000 (Dua Puluh Juta Rupiah)**.
+
+### 2. Audit Data Aktual Database
+- **Total Pelanggan Terdaftar:** 81 Pelanggan
+- **Pelanggan Aktif Membayar:** 80 Pelanggan (98,7% Active Rate)
+- **Monthly Recurring Revenue (MRR) Eksisting:** **Rp 12.895.000 / bulan**
+- **Annualized Recurring Revenue (ARR) Eksisting:** **Rp 154.740.000 / tahun**
+- **Breakdown Paket:**
+  - Paket LITE (Rp 150.000/bln): 68 Pelanggan (Rp 10.200.000 / bln)
+  - Paket BASIC (Rp 250.000/bln): 7 Pelanggan (Rp 1.750.000 / bln)
+  - Paket BASIC A (Rp 250.000/bln): 3 Pelanggan (Rp 750.000 / bln)
+  - Paket STARTER A & B (Rp 115.000/bln): 3 Pelanggan (Rp 345.000 / bln)
+
+### 3. File & Dokumen Terbuat / Diperbarui
+- [`investor/PROPOSAL_INVESTASI.md`](file:///d:/WEBAPP/myadamedia-billing/investor/PROPOSAL_INVESTASI.md): Dokumen Proposal Investasi Lengkap (Markdown Source).
+- 📕 [`investor/PROPOSAL_INVESTASI.pdf`](file:///d:/WEBAPP/myadamedia-billing/investor/PROPOSAL_INVESTASI.pdf): **Dokumen PDF Resmi Proposal Penawaran Investasi** (Siap Cetak / Kirim ke Investor).
+- [`investor/PITCH_DECK.md`](file:///d:/WEBAPP/myadamedia-billing/investor/PITCH_DECK.md): Slide deck presentasi investor 12 slide (Markdown Source).
+- 📊 [`investor/PITCH_DECK.pptx`](file:///d:/WEBAPP/myadamedia-billing/investor/PITCH_DECK.pptx) & 📊 [`investor/PITCH_DECK.ppt`](file:///d:/WEBAPP/myadamedia-billing/investor/PITCH_DECK.ppt): **File Presentasi PowerPoint 12 Slide (16:9 Widescreen Dark Theme)** siap dipresentasikan.
+
+---
+
+
 ## [2026-07-31] - UI Fix: Perbaikan Logo Perusahaan pada Sidebar Menu RADIUS
 
 ### 1. Permasalahan yang Ditemukan

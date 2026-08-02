@@ -51,23 +51,33 @@ router.post('/login', (req, res) => {
   }
 });
 
+const db = require('../../config/database');
+
 /**
  * GET /investor/dashboard - Main Executive Dashboard Investor
  */
 router.get('/dashboard', requireInvestor, (req, res) => {
   try {
     const period = req.query.period || 'this_month';
-    const investorSession = req.session.investor;
+    const sessionInv = req.session.investor;
+
+    // Ambil data investor TERBARU dari database
+    const currentInvestor = db.prepare(`SELECT * FROM investors WHERE id = ? AND is_active = 1`).get(sessionInv.id);
+    if (!currentInvestor) {
+      delete req.session.investor;
+      return res.redirect('/investor/login');
+    }
+    req.session.investor = currentInvestor; // Sync session
 
     // Agregasi Data
     const summary = investorService.getExecutiveSummary(period);
-    const dividendInfo = investorService.getDividendBreakdown(investorSession.id, period);
+    const dividendInfo = investorService.getDividendBreakdown(currentInvestor.id, period);
     const pkgDist = investorService.getPackageDistribution();
     const expBreakdown = investorService.getExpenseBreakdown(period);
     const recentTx = investorService.getRecentTransactions(8);
 
     res.render('../investor/views/dashboard', {
-      investor: investorSession,
+      investor: currentInvestor,
       summary,
       dividendInfo,
       pkgDist,
@@ -80,6 +90,7 @@ router.get('/dashboard', requireInvestor, (req, res) => {
     res.status(500).send('Terjadi kesalahan saat memuat Dashboard Investor.');
   }
 });
+
 
 /**
  * GET /investor/api/chart-data - REST API Data Grafik Keuangan & Tren
