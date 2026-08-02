@@ -46,6 +46,41 @@ function validatePassword(packet, expectedPassword) {
   return false;
 }
 
+/**
+ * Format angka speed (Kbps/bps) dari DB menjadi string rate limit MikroTik yang valid (misal '30M/30M' atau '512k/512k')
+ */
+function formatSpeedToMikrotik(kbps) {
+  const val = Number(kbps) || 0;
+  if (val <= 0) return '10M';
+
+  // Jika nilai >= 1,000,000 (diisi dalam bps, misal 30000000 = 30 Mbps)
+  if (val >= 1000000) {
+    const mbps = Math.round(val / 1000000);
+    return `${mbps}M`;
+  }
+  // Jika nilai >= 1000 dan kelipatan 1000 (diisi dalam Kbps, misal 30000 = 30 Mbps)
+  if (val >= 1000 && val % 1000 === 0) {
+    const mbps = Math.round(val / 1000);
+    return `${mbps}M`;
+  }
+  if (val >= 1000) {
+    return `${(val / 1000).toFixed(1)}M`;
+  }
+  // Di bawah 1000 Kbps (misal 512 = 512k)
+  return `${val}k`;
+}
+
+function getMikrotikRateLimit(customer) {
+  if (customer.mikrotik_rate_limit && String(customer.mikrotik_rate_limit).trim()) {
+    return String(customer.mikrotik_rate_limit).trim();
+  }
+
+  const upStr = formatSpeedToMikrotik(customer.speed_up || 10000);
+  const downStr = formatSpeedToMikrotik(customer.speed_down || 10000);
+
+  return `${upStr}/${downStr}`;
+}
+
 const AUTH_PORT = Number(process.env.RADIUS_AUTH_PORT) || 1812;
 const ACCT_PORT = Number(process.env.RADIUS_ACCT_PORT) || 1813;
 const DEFAULT_INTERIM_INTERVAL = 300; // 5 menit (300 detik)
@@ -179,18 +214,14 @@ function handleAuthPacket(msg, rinfo) {
         responseAttributes.push(createMikrotikVSA('Mikrotik-Address-List', 'LIST_ISOLIR'));
         responseAttributes.push(createMikrotikVSA('Mikrotik-Rate-Limit', '512k/512k'));
       } else {
-        let rateLimitStr = customer.mikrotik_rate_limit;
-        if (!rateLimitStr && (customer.speed_down || customer.speed_up)) {
-          const down = customer.speed_down ? `${customer.speed_down}M` : '10M';
-          const up = customer.speed_up ? `${customer.speed_up}M` : '10M';
-          rateLimitStr = `${up}/${down}`;
-        }
+        const rateLimitStr = getMikrotikRateLimit(customer);
         if (rateLimitStr) {
           responseAttributes.push(createMikrotikVSA('Mikrotik-Rate-Limit', rateLimitStr));
         }
       }
 
-      logger.info(`[RADIUS Auth] Access-Accept DIBERIKAN untuk PPPoE User: ${username} (Rate: ${customer.speed_down || 0}M)`);
+      const formattedRate = getMikrotikRateLimit(customer);
+      logger.info(`[RADIUS Auth] Access-Accept DIBERIKAN untuk PPPoE User: ${username} (Rate Limit: ${formattedRate})`);
       sendAuthResponse('Access-Accept', packet, secret, responseAttributes, rinfo);
       return;
     }
