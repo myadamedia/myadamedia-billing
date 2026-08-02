@@ -119,13 +119,25 @@ function handleAuthPacket(msg, rinfo) {
     const username = String(packet.attributes['User-Name'] || '').trim();
     const userPassword = String(packet.attributes['User-Password'] || '').trim();
     const serviceType = String(packet.attributes['Service-Type'] || '');
+    const isMsChap = !!(packet.attributes['MS-CHAP2-Response'] || packet.attributes['MS-CHAP-Response']);
+    const isChap = !!packet.attributes['CHAP-Password'];
+    const authTypeStr = isMsChap ? 'MS-CHAPv2' : (isChap ? 'CHAP' : (userPassword ? 'PAP' : 'UNKNOWN/NONE'));
 
-    logger.info(`[RADIUS Auth] Access-Request dari ${rinfo.address} | Username: "${username}" | Service: ${serviceType || 'Unknown'}`);
+    logger.info(`[RADIUS Auth] Access-Request dari ${rinfo.address} | User: "${username}" | Proto: ${authTypeStr} | Service: ${serviceType || 'Unknown'}`);
 
-    if (!username) {
+    if (isMsChap) {
+      logger.warn(`[RADIUS Auth] DITOLAK: Router NAS ${rinfo.address} mengirimkan MS-CHAPv2. Mohon AKTIFKAN PAP dan CHAP pada MikroTik PPP/Hotspot Profile (MS-CHAPv2 MD4 hashing diblokir oleh OpenSSL 3.0).`);
       sendAuthResponse('Access-Reject', packet, secret, [], rinfo);
       return;
     }
+
+    if (!username) {
+      logger.warn(`[RADIUS Auth] Ditolak: Username kosong dari ${rinfo.address}`);
+      sendAuthResponse('Access-Reject', packet, secret, [], rinfo);
+      return;
+    }
+
+    const cleanUsername = username.split('@')[0].trim();
 
     // 3. Cek Autentikasi Pengguna di Database
 
@@ -134,16 +146,17 @@ function handleAuthPacket(msg, rinfo) {
       SELECT c.*, p.name as package_name, p.speed_down, p.speed_up, p.mikrotik_rate_limit
       FROM customers c
       LEFT JOIN packages p ON c.package_id = p.id
-      WHERE c.pppoe_username = ? OR c.phone = ? OR c.name = ?
+      WHERE LOWER(c.pppoe_username) = LOWER(?) OR LOWER(c.pppoe_username) = LOWER(?)
+         OR c.phone = ? OR LOWER(c.name) = LOWER(?)
       LIMIT 1
-    `).get(username, username, username);
+    `).get(username, cleanUsername, username, username);
 
     if (customer) {
       const expectedPassword = String(customer.pppoe_password || '').trim();
       const isPasswordValid = validatePassword(packet, expectedPassword);
 
       if (!isPasswordValid) {
-        logger.warn(`[RADIUS Auth] Password salah untuk user PPPoE: "${username}"`);
+        logger.warn(`[RADIUS Auth] DITOLAK (Password Salah) untuk PPPoE User: "${username}" (Expected pass length: ${expectedPassword.length})`);
         sendAuthResponse('Access-Reject', packet, secret, [], rinfo);
         return;
       }
@@ -188,16 +201,16 @@ function handleAuthPacket(msg, rinfo) {
       FROM vouchers v
       LEFT JOIN voucher_batches vb ON v.batch_id = vb.id
       LEFT JOIN voucher_packages vp ON (vb.profile_name = vp.profile_name OR v.profile_name = vp.profile_name)
-      WHERE v.code = ?
+      WHERE LOWER(v.code) = LOWER(?) OR LOWER(v.code) = LOWER(?)
       LIMIT 1
-    `).get(username);
+    `).get(username, cleanUsername);
 
     if (voucher) {
       const expectedPassword = String(voucher.password || '').trim();
       const isPasswordValid = validatePassword(packet, expectedPassword) || (userPassword && userPassword === username);
 
       if (!isPasswordValid) {
-        logger.warn(`[RADIUS Auth] Password salah untuk Voucher Hotspot: "${username}"`);
+        logger.warn(`[RADIUS Auth] DITOLAK (Password Salah) untuk Voucher Hotspot: "${username}"`);
         sendAuthResponse('Access-Reject', packet, secret, [], rinfo);
         return;
       }
@@ -221,7 +234,7 @@ function handleAuthPacket(msg, rinfo) {
       return;
     }
 
-    logger.warn(`[RADIUS Auth] Username "${username}" tidak terdaftar di database.`);
+    logger.warn(`[RADIUS Auth] DITOLAK: Username "${username}" tidak terdaftar di database (PPPoE / Voucher).`);
     sendAuthResponse('Access-Reject', packet, secret, [], rinfo);
 
   } catch (err) {

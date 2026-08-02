@@ -149,6 +149,23 @@ function decodePacket(buffer, secret = '') {
       }
     }
 
+    if (attrType === 26 && valBuf.length >= 6) {
+      const vendorId = valBuf.readUInt32BE(0);
+      if (vendorId === 311) {
+        let vOffset = 4;
+        while (vOffset + 2 <= valBuf.length) {
+          const vType = valBuf.readUInt8(vOffset);
+          const vLen = valBuf.readUInt8(vOffset + 1);
+          if (vLen < 2 || vOffset + vLen > valBuf.length) break;
+          const vData = valBuf.slice(vOffset + 2, vOffset + vLen);
+          if (vType === 25) attributes['MS-CHAP2-Response'] = vData;
+          if (vType === 11) attributes['MS-CHAP-Challenge'] = vData;
+          if (vType === 1) attributes['MS-CHAP-Response'] = vData;
+          vOffset += vLen;
+        }
+      }
+    }
+
     attributes[attrName] = val;
     rawAttributes.push({ type: attrType, name: attrName, value: val, raw: valBuf });
     offset += attrLen;
