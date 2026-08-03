@@ -5770,6 +5770,42 @@ router.post('/api/routers/:id/setup-firewall', requireAdmin, async (req, res) =>
   }
 });
 
+router.get('/api/routers/:id/details', requireAdmin, async (req, res) => {
+  try {
+    const info = await mikrotikService.getRouterDetailedInfo(req.params.id);
+    res.json({ success: true, details: info });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+router.get('/api/routers/:id/interfaces', requireAdmin, async (req, res) => {
+  try {
+    const interfaces = await mikrotikService.getRouterInterfaces(req.params.id);
+    res.json({ success: true, interfaces });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+router.get('/api/routers/:id/interfaces/:name/traffic', requireAdmin, async (req, res) => {
+  try {
+    const traffic = await mikrotikService.getInterfaceTraffic(req.params.id, req.params.name);
+    res.json({ success: true, traffic });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+router.post('/api/routers/:id/interfaces/:ifaceId/toggle', requireAdmin, express.json(), async (req, res) => {
+  try {
+    const result = await mikrotikService.toggleInterfaceStatus(req.params.id, req.params.ifaceId, req.body.disabled);
+    res.json({ success: true, ...result });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 router.get('/api/isolir-portal-script', requireAdmin, async (req, res) => {
   try {
     const data = await mikrotikService.generateIsolirPortalScript();

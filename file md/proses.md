@@ -342,5 +342,47 @@ Logika controller pada route `routes/adminPortal.js` sebelumnya mengeksekusi `cr
 ### 4. Dampak Perubahan
 Tabel `/ppp secret` di MikroTik kini tetap bersih tanpa perlu menyimpan ratusan secret lokal. Autentikasi berjalan 100% tersentralisasi melalui RADIUS Server.
 
+---
+
+## [2026-08-03] - Feature Update: Peningkatan Detail Daftar Router MikroTik & Monitoring Interface Real-Time
+
+### 1. Permasalahan & Kebutuhan Fitur
+Pada tab Router menu MikroTik (`/admin/routers`), daftar router MikroTik yang terdaftar sebelumnya hanya menampilkan informasi dasar dalam tabel sederhana (Nama, Host/IP, Port, Username, Status, Edit/Hapus/Test Koneksi). Pengelola ISP memerlukan visualisasi yang lebih mendalam mengenai status kesehatan router, spesifikasi hardware, serta monitoring penggunaan bandwidth/traffic di setiap interface MikroTik secara real-time.
+
+### 2. Solusi yang Diterapkan
+- **Backend Service Layer ([`services/mikrotikService.js`](file:///d:/WEBAPP/myadamedia-billing/services/mikrotikService.js))**:
+  - `getRouterInterfaces(routerId)`: Mengambil daftar interface dari MikroTik (`/interface/print`) dan memformat byte rate, status link (`Running` / `Disabled` / `Link Down`), MAC Address, MTU, comment, serta total akumulasi Rx/Tx bytes.
+  - `getRouterDetailedInfo(routerId)`: Mengambil spesifikasi hardware dan statistik sistem (`/system/resource`, `/system/identity`, `/system/routerboard`) termasuk CPU Load %, RAM Free/Total, Free HDD Space %, Board Name, RouterOS Version, Architecture, dan Uptime.
+  - `getInterfaceTraffic(routerId, interfaceName)`: Monitoring penggunaan bandwidth real-time (`/interface/monitor-traffic`) untuk menghitung Rx/Tx bits-per-second (Mbps) dan packets-per-second.
+  - `toggleInterfaceStatus(routerId, interfaceId, disabled)`: Mengaktifkan atau menonaktifkan status interface via API RouterOS (`/interface/enable` & `/interface/disable`).
+- **REST API Layer ([`routes/adminPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/adminPortal.js))**:
+  - Menambahkan endpoint REST API terproteksi `requireAdmin`:
+    - `GET /admin/api/routers/:id/details`: Mengembalikan detail spesifikasi & resource hardware router.
+    - `GET /admin/api/routers/:id/interfaces`: Mengembalikan daftar interface router.
+    - `GET /admin/api/routers/:id/interfaces/:name/traffic`: Mengembalikan data trafik bandwidth real-time.
+    - `POST /admin/api/routers/:id/interfaces/:ifaceId/toggle`: Mengubah status aktif/nonaktif interface.
+- **Frontend UI View ([`views/admin/routers.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/routers.ejs))**:
+  - **Ringkasan Kartu Statistik**: Menampilkan kartu ringkasan Total Router, Router Status Aktif, dan Router Status Nonaktif di bagian atas halaman.
+  - **Tabel Router Informasi Detail**: Memperbarui tabel daftar router dengan styling badge modern, tombol aksi cepat, dan tombol khusus **`Detail`** (Monitoring Interface).
+  - **Modal Detail Router & Interface Monitoring (`#routerDetailModal`)**:
+    - **Hardware Specs Overview Cards**: CPU Load %, RAM Memory Usage, HDD Space %, Uptime, dan ROS Version.
+    - **Tab 1: Monitoring Interface Table**: Menampilkan daftar seluruh interface, filter berdasarkan tipe (Ethernet, Bridge, VLAN, Wireless, PPP/PPPoE), pencarian cepat, total Rx/Tx traffic, tombol sakelar toggle enable/disable, dan tombol pengecekan rate trafik live.
+    - **Sakelar Auto Refresh (3 Detik)**: Memungkinkan pemantauan trafik dan status interface secara otomatis tanpa perlu merefresh halaman web.
+    - **Tab 2: Spesifikasi & Resource**: Menampilkan rincian spesifikasi hardware (Identity, Model, Version, Architecture, CPU Cores, Serial Number, RAM, HDD, Build Time).
+  - **Modal Live Traffic Realtime Popup (`#interfaceTrafficModal`)**:
+    - **Interaktivitas Baris Interface**: Saat baris interface atau tombol **`Live Traffic`** diklik, sistem membuka popup khusus yang didesain modern.
+    - **Gauge Cards**: Menampilkan indikator real-time Download (Rx Mbps), Upload (Tx Mbps), Rx Packets/sec, Tx Packets/sec, dan Total Transfer Bytes.
+    - **Live Line Chart (Chart.js)**: Grafik garis dinamis dengan animasi smooth dan visualisasi gradient yang memperbarui throughput trafik secara kontinu setiap 1-3 detik (dapat diatur intervalnya).
+    - **Stream Controls**: Fitur Pause/Resume stream serta pembersihan interval otomatis saat modal ditutup untuk mencegah *memory leak* dan *overhead* koneksi socket.
+  - **Redesain Tombol & Lebar Modal (`views/admin/routers.ejs`)**:
+    - Memperluas lebar modal detail router (`max-width: 1150px`) agar 10 kolom tabel interface memiliki ruang yang lapang dan tidak terpotong.
+    - Menghadirkan tombol khusus **`.btn-live-traffic`** berdesain *pill badge* dengan warna hijau emerald gradient (`#10b981` -> `#059669`), efek shadow glow, icon grafik naik (`bi-graph-up-arrow`), serta teks yang jelas dan kontras.
+
+### 3. Dampak Perubahan
+Pengelola ISP kini dapat memantau kondisi seluruh router MikroTik, mendeteksi hambatan trafik interface (*link down / congestion*), dan mengamati grafik throughput bandwidth interface secara langsung dan *real-time* dari dashboard Billing tanpa ada teks yang terpotong.
+
+
+
+
 
 

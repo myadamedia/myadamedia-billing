@@ -1666,3 +1666,201 @@ module.exports = {
   manageStaticIp,
   removeStaticIp
 };
+
+function formatBytes(bytes) {
+  const b = Number(bytes) || 0;
+  if (b === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(b) / Math.log(k));
+  return parseFloat((b / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+async function getRouterInterfaces(routerId = null) {
+  let conn = null;
+  try {
+    conn = await getConnection(routerId);
+    const rows = await conn.client.menu('/interface').get();
+    return (Array.isArray(rows) ? rows : []).map(r => {
+      const rxBytes = Number(r['rx-byte'] || r.rxByte || 0);
+      const txBytes = Number(r['tx-byte'] || r.txByte || 0);
+      const rxPacket = Number(r['rx-packet'] || r.rxPacket || 0);
+      const txPacket = Number(r['tx-packet'] || r.txPacket || 0);
+      const running = r.running === 'true' || r.running === true;
+      const disabled = r.disabled === 'true' || r.disabled === true;
+      
+      return {
+        id: r['.id'] || r.id,
+        name: r.name || '-',
+        type: r.type || 'ether',
+        macAddress: r['mac-address'] || r.macAddress || '-',
+        mtu: r['actual-mtu'] || r.mtu || '-',
+        running: running,
+        disabled: disabled,
+        status: disabled ? 'Disabled' : (running ? 'Running' : 'Link Down'),
+        comment: r.comment || '',
+        rxBytesFormatted: formatBytes(rxBytes),
+        txBytesFormatted: formatBytes(txBytes),
+        rxBytes: rxBytes,
+        txBytes: txBytes,
+        rxPacket: rxPacket,
+        txPacket: txPacket,
+        lastLinkUpTime: r['last-link-up-time'] || r.lastLinkUpTime || '-'
+      };
+    });
+  } catch (e) {
+    logger.error(`Error getting Router interfaces (routerId=${routerId}):`, e);
+    throw e;
+  } finally {
+    if (conn && conn.api) conn.api.close();
+  }
+}
+
+async function getRouterDetailedInfo(routerId = null) {
+  let conn = null;
+  try {
+    conn = await getConnection(routerId);
+    const [resArr, idArr, rbArr] = await Promise.all([
+      conn.client.menu('/system/resource').get().catch(() => []),
+      conn.client.menu('/system/identity').get().catch(() => []),
+      conn.client.menu('/system/routerboard').get().catch(() => [])
+    ]);
+
+    const resource = resArr[0] || {};
+    const identity = idArr[0] || {};
+    const routerboard = rbArr[0] || {};
+
+    const freeMem = Number(resource['free-memory'] || 0);
+    const totalMem = Number(resource['total-memory'] || 0);
+    const freeHdd = Number(resource['free-hdd-space'] || 0);
+    const totalHdd = Number(resource['total-hdd-space'] || 0);
+
+    return {
+      identity: identity.name || 'MikroTik',
+      uptime: resource.uptime || '-',
+      version: resource.version || '-',
+      buildTime: resource['build-time'] || resource.buildTime || '-',
+      freeMemory: formatBytes(freeMem),
+      totalMemory: formatBytes(totalMem),
+      memoryUsagePercent: totalMem > 0 ? (((totalMem - freeMem) / totalMem) * 100).toFixed(1) : 0,
+      cpuLoad: resource['cpu-load'] !== undefined ? Number(resource['cpu-load']) : 0,
+      cpuCount: resource['cpu-count'] || 1,
+      cpuFrequency: resource['cpu-frequency'] ? `${resource['cpu-frequency']} MHz` : '-',
+      cpuModel: resource.cpu || '-',
+      freeHdd: formatBytes(freeHdd),
+      totalHdd: formatBytes(totalHdd),
+      hddUsagePercent: totalHdd > 0 ? (((totalHdd - freeHdd) / totalHdd) * 100).toFixed(1) : 0,
+      boardName: resource['board-name'] || routerboard.model || '-',
+      architectureName: resource['architecture-name'] || '-',
+      model: routerboard.model || resource['board-name'] || '-',
+      serialNumber: routerboard['serial-number'] || routerboard.serialNumber || '-'
+    };
+  } catch (e) {
+    logger.error(`Error getting detailed router info (routerId=${routerId}):`, e);
+    throw e;
+  } finally {
+    if (conn && conn.api) conn.api.close();
+  }
+}
+
+async function getInterfaceTraffic(routerId, interfaceName) {
+  if (!interfaceName) throw new Error('Nama interface harus diisi');
+  let conn = null;
+  try {
+    conn = await getConnection(routerId);
+    const words = [
+      '/interface/monitor-traffic',
+      `=interface=${interfaceName}`,
+      '=once='
+    ];
+    const res = await conn.api.send(words);
+    const data = Array.isArray(res) && res.length ? res[0] : {};
+    const rxBps = Number(data['rx-bits-per-second'] || 0);
+    const txBps = Number(data['tx-bits-per-second'] || 0);
+    
+    return {
+      name: interfaceName,
+      rxBitsPerSecond: rxBps,
+      txBitsPerSecond: txBps,
+      rxFormatted: (rxBps / 1000000).toFixed(2) + ' Mbps',
+      txFormatted: (txBps / 1000000).toFixed(2) + ' Mbps',
+      rxPacketsPerSecond: Number(data['rx-packets-per-second'] || 0),
+      txPacketsPerSecond: Number(data['tx-packets-per-second'] || 0)
+    };
+  } catch (e) {
+    logger.error(`Error monitoring traffic for ${interfaceName} (routerId=${routerId}):`, e);
+    throw e;
+  } finally {
+    if (conn && conn.api) conn.api.close();
+  }
+}
+
+async function toggleInterfaceStatus(routerId, interfaceId, disabled) {
+  if (!interfaceId) throw new Error('ID Interface harus diisi');
+  let conn = null;
+  try {
+    conn = await getConnection(routerId);
+    const isDisabled = disabled === true || String(disabled) === 'true';
+    const action = isDisabled ? '/interface/disable' : '/interface/enable';
+    const words = [action, `=.id=${interfaceId}`];
+    await conn.api.send(words);
+    return { success: true, message: `Interface ${isDisabled ? 'dinonaktifkan' : 'diaktifkan'}` };
+  } catch (e) {
+    logger.error(`Error toggling interface status (id=${interfaceId}, routerId=${routerId}):`, e);
+    throw e;
+  } finally {
+    if (conn && conn.api) conn.api.close();
+  }
+}
+
+module.exports = {
+  checkConnection,
+  getConnection,
+  getPppoeProfiles,
+  getPppoeUsers,
+  setPppoeProfile,
+  getPppoeSecrets,
+  addPppoeSecret,
+  createPppoeSecret,
+  updatePppoeSecret,
+  deletePppoeSecret,
+  getHotspotUsers,
+  addHotspotUser,
+  updateHotspotUser,
+  deleteHotspotUser,
+  getHotspotUserByName,
+  setHotspotUserDisabled,
+  upsertHotspotUser,
+  getHotspotProfiles,
+  getPppoeActive,
+  getHotspotActive,
+  getIpPools,
+  addPppoeProfile,
+  updatePppoeProfile,
+  deletePppoeProfile,
+  getHotspotUserProfiles,
+  getHotspotUserProfileById,
+  addHotspotUserProfile,
+  updateHotspotUserProfile,
+  deleteHotspotUserProfile,
+  getBackup,
+  kickPppoeUser,
+  kickHotspotUser,
+  getSystemResource,
+  getSystemScripts,
+  getAllRouters,
+  getRouterById,
+  createRouter,
+  updateRouter,
+  deleteRouter,
+  setupIsolirFirewall,
+  ensurePppProfileIsolirAddressListHook,
+  generateIsolirPortalScript,
+  manageStaticIp,
+  removeStaticIp,
+  getRouterInterfaces,
+  getRouterDetailedInfo,
+  getInterfaceTraffic,
+  toggleInterfaceStatus
+};
+

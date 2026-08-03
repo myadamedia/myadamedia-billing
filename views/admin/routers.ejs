@@ -5,11 +5,45 @@
   <title><%= t('admin.nav.router_management', 'Manajemen Router') %> | <%= company %></title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="/css/admin.css?v=2">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     .mtabs { display: flex; gap: 10px; margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
     .mtab { padding: 8px 14px; border-radius: 8px; cursor: pointer; color: var(--muted); transition: all 0.2s; font-weight: 700; text-decoration: none; }
     .mtab:hover { background: rgba(255,255,255,0.06); color: var(--text); }
     .mtab.active { background: var(--primary); color: white; }
+    .tabs { display: flex; gap: 10px; border-bottom: 1px solid var(--border); }
+    .tab { padding: 8px 16px; border-radius: 8px; cursor: pointer; color: var(--muted); transition: all 0.3s; font-weight: 500; border: none; background: transparent; }
+    .tab.active { background: var(--primary); color: white; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .spin { animation: spin 1s linear infinite; display: inline-block; }
+    .iface-row-hover:hover { background: rgba(255,255,255,0.04); cursor: pointer; }
+    
+    /* Prominent Live Traffic Button Styling */
+    .btn-live-traffic {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: #ffffff !important;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      box-shadow: 0 3px 10px rgba(16, 185, 129, 0.35);
+      transition: all 0.25s ease;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn-live-traffic:hover {
+      background: linear-gradient(135deg, #059669 0%, #047857 100%);
+      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.55);
+      transform: translateY(-1px) scale(1.03);
+    }
+    .btn-live-traffic i {
+      font-size: 13px;
+    }
   </style>
 </head>
 <body>
@@ -37,6 +71,26 @@
       <a href="/admin/routers" class="mtab <%= mTab==='routers' ? 'active' : '' %>"><i class="bi bi-hdd-network"></i> Router</a>
     </div>
 
+    <!-- Ringkasan Statistik Router -->
+    <div class="stat-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 20px;">
+      <div class="sc p">
+        <i class="bi bi-hdd-network sc-icon"></i>
+        <div class="sc-label">Total Router MikroTik</div>
+        <div class="sc-val"><%= routers.length %></div>
+      </div>
+      <div class="sc s">
+        <i class="bi bi-check-circle sc-icon"></i>
+        <div class="sc-label">Router Status Aktif</div>
+        <div class="sc-val"><%= routers.filter(r => r.is_active).length %></div>
+      </div>
+      <div class="sc w">
+        <i class="bi bi-dash-circle sc-icon"></i>
+        <div class="sc-label">Router Status Nonaktif</div>
+        <div class="sc-val"><%= routers.filter(r => !r.is_active).length %></div>
+      </div>
+    </div>
+
+    <!-- Tabel Daftar Router -->
     <div class="card">
       <div class="card-hd">
         <h6><i class="bi bi-hdd-network"></i> <%= t('admin.routers.list_title', 'Daftar Router MikroTik') %> (<%= routers.length %>)</h6>
@@ -51,9 +105,9 @@
             <tr>
               <th>#</th>
               <th><%= t('admin.routers.table.name', 'Nama Router') %></th>
-              <th><%= t('admin.routers.table.host', 'Host / IP') %></th>
-              <th><%= t('admin.routers.table.port', 'Port') %></th>
+              <th>Host / IP & Port</th>
               <th><%= t('admin.routers.table.username', 'Username') %></th>
+              <th>Deskripsi / Lokasi</th>
               <th><%= t('admin.routers.table.status', 'Status') %></th>
               <th><%= t('common.actions', 'Aksi') %></th>
             </tr>
@@ -65,26 +119,263 @@
           <% routers.forEach((r, i) => { %>
             <tr>
               <td class="text-muted"><%= i+1 %></td>
-              <td class="fw6"><%= r.name %></td>
-              <td><%= r.host %></td>
-              <td><%= r.port %></td>
-              <td><%= r.user %></td>
               <td>
-                <% if (r.is_active) { %><span class="badge bs"><%= t('common.active', 'Aktif') %></span><% } else { %><span class="badge bm"><%= t('common.inactive', 'Nonaktif') %></span><% } %>
+                <div class="fw6" style="display:flex;align-items:center;gap:6px">
+                  <i class="bi bi-router text-primary"></i> <%= r.name %>
+                </div>
               </td>
               <td>
-                <button class="btn btn-g btn-icon btn-sm" title="<%= t('admin.routers.actions.test', 'Test Koneksi') %>" onclick="testConn(<%= r.id %>)"><i class="bi bi-plug"></i></button>
-                <button class="btn btn-g btn-icon btn-sm" title="Setup Firewall Isolir" onclick="setupFirewall(<%= r.id %>)"><i class="bi bi-shield-lock"></i></button>
-                <button class="btn btn-g btn-icon btn-sm" title="<%= t('common.edit', 'Edit') %>" onclick="editRouter(<%= i %>)"><i class="bi bi-pencil"></i></button>
-                <form method="POST" action="/admin/routers/<%= r.id %>/delete" style="display:inline" onsubmit="return confirm('<%= t('admin.routers.confirm.delete', 'Hapus router ini?') %>')">
-                  <button class="btn btn-d btn-icon btn-sm" title="<%= t('common.delete', 'Hapus') %>"><i class="bi bi-trash"></i></button>
-                </form>
+                <span class="badge" style="background:rgba(255,255,255,0.06);color:var(--text);font-family:monospace">
+                  <%= r.host %>:<%= r.port %>
+                </span>
+              </td>
+              <td><i class="bi bi-person text-muted"></i> <%= r.user %></td>
+              <td class="text-muted small"><%= r.description || '-' %></td>
+              <td>
+                <% if (r.is_active) { %>
+                  <span class="badge bs"><i class="bi bi-check-circle-fill"></i> <%= t('common.active', 'Aktif') %></span>
+                <% } else { %>
+                  <span class="badge bm"><i class="bi bi-dash-circle-fill"></i> <%= t('common.inactive', 'Nonaktif') %></span>
+                <% } %>
+              </td>
+              <td>
+                <div style="display:flex;gap:4px;flex-wrap:nowrap">
+                  <button class="btn btn-p btn-icon btn-sm" title="Detail & Monitoring Interface" onclick="showRouterDetail(<%= r.id %>, '<%= r.name %>')">
+                    <i class="bi bi-activity"></i> Detail
+                  </button>
+                  <button class="btn btn-g btn-icon btn-sm" title="<%= t('admin.routers.actions.test', 'Test Koneksi') %>" onclick="testConn(<%= r.id %>)">
+                    <i class="bi bi-plug"></i>
+                  </button>
+                  <button class="btn btn-g btn-icon btn-sm" title="Setup Firewall Isolir" onclick="setupFirewall(<%= r.id %>)">
+                    <i class="bi bi-shield-lock"></i>
+                  </button>
+                  <button class="btn btn-g btn-icon btn-sm" title="<%= t('common.edit', 'Edit') %>" onclick="editRouter(<%= i %>)">
+                    <i class="bi bi-pencil"></i>
+                  </button>
+                  <form method="POST" action="/admin/routers/<%= r.id %>/delete" style="display:inline" onsubmit="return confirm('<%= t('admin.routers.confirm.delete', 'Hapus router ini?') %>')">
+                    <button class="btn btn-d btn-icon btn-sm" title="<%= t('common.delete', 'Hapus') %>"><i class="bi bi-trash"></i></button>
+                  </form>
+                </div>
               </td>
             </tr>
           <% }) %>
           </tbody>
         </table>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Detail Router & Interface Monitoring -->
+<div class="mo" id="routerDetailModal">
+  <div class="mb" style="max-width:1150px; width:96%">
+    <div class="mh" style="display:flex; justify-content:space-between; align-items:center;">
+      <span class="mt"><i class="bi bi-activity text-primary"></i> <span id="detail-router-title">Detail Router</span></span>
+      <button class="mc" onclick="closeRouterDetailModal()">&times;</button>
+    </div>
+    
+    <div class="mbody" style="max-height: calc(85vh - 100px); overflow-y: auto;">
+      <!-- System Specs Grid Cards -->
+      <div class="stat-grid" style="grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 15px;">
+        <div class="sc" style="background: var(--card-bg); border: 1px solid var(--border); padding: 10px 14px;">
+          <i class="bi bi-cpu sc-icon" style="color: var(--primary); font-size: 20px;"></i>
+          <div class="sc-label" style="font-size: 11px;">CPU Load</div>
+          <div class="sc-val" id="detail-cpu-load" style="font-size: 16px;">-</div>
+          <div style="font-size: 10px; color: var(--muted);" id="detail-cpu-freq">-</div>
+        </div>
+        <div class="sc" style="background: var(--card-bg); border: 1px solid var(--border); padding: 10px 14px;">
+          <i class="bi bi-memory sc-icon" style="color: var(--success); font-size: 20px;"></i>
+          <div class="sc-label" style="font-size: 11px;">RAM Memory</div>
+          <div class="sc-val" id="detail-memory" style="font-size: 13px;">-</div>
+          <div style="font-size: 10px; color: var(--muted);" id="detail-memory-percent">-</div>
+        </div>
+        <div class="sc" style="background: var(--card-bg); border: 1px solid var(--border); padding: 10px 14px;">
+          <i class="bi bi-hdd sc-icon" style="color: var(--warning); font-size: 20px;"></i>
+          <div class="sc-label" style="font-size: 11px;">Free HDD Space</div>
+          <div class="sc-val" id="detail-hdd" style="font-size: 13px;">-</div>
+          <div style="font-size: 10px; color: var(--muted);" id="detail-hdd-percent">-</div>
+        </div>
+        <div class="sc" style="background: var(--card-bg); border: 1px solid var(--border); padding: 10px 14px;">
+          <i class="bi bi-clock-history sc-icon" style="color: var(--info); font-size: 20px;"></i>
+          <div class="sc-label" style="font-size: 11px;">Router Uptime</div>
+          <div class="sc-val" id="detail-uptime" style="font-size: 13px; font-weight:700;">-</div>
+          <div style="font-size: 10px; color: var(--muted);" id="detail-board-name">-</div>
+        </div>
+      </div>
+
+      <!-- Navigation Sub-tabs inside Modal -->
+      <div style="display:flex; gap:10px; border-bottom: 1px solid var(--border); margin-bottom: 15px; padding-bottom: 8px; justify-content:space-between; align-items:center;">
+        <div style="display:flex; gap:10px;">
+          <button type="button" class="tab active" id="subtab-ifaces" onclick="switchDetailTab('interfaces')">
+            <i class="bi bi-ethernet"></i> Monitoring Interface (<span id="iface-count-badge">0</span>)
+          </button>
+          <button type="button" class="tab" id="subtab-specs" onclick="switchDetailTab('specs')">
+            <i class="bi bi-info-circle"></i> Spesifikasi & Resource
+          </button>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <button id="iface-refresh-btn" type="button" class="btn btn-sm" onclick="toggleIfaceAutoRefresh()" style="background:rgba(255,255,255,0.06);color:var(--text);border:1px solid var(--border)">
+            <i class="bi bi-arrow-clockwise"></i> <span id="iface-refresh-text">Auto Refresh (3s)</span>
+          </button>
+          <button type="button" class="btn btn-g btn-sm" onclick="reloadCurrentDetailTab()"><i class="bi bi-arrow-repeat"></i> Reload</button>
+        </div>
+      </div>
+
+      <!-- Content Tab 1: Interface Monitoring -->
+      <div id="detail-tab-interfaces">
+        <div style="display:flex; gap:10px; margin-bottom: 12px; align-items:center; flex-wrap:wrap;">
+          <div class="sinput" style="max-width: 280px; flex:1;">
+            <i class="bi bi-search"></i>
+            <input type="text" id="iface-search-input" class="fc" placeholder="Cari nama interface / comment..." onkeyup="filterInterfacesTable()">
+          </div>
+          <select id="iface-type-filter" class="fs" style="width: auto; padding: 6px 12px;" onchange="filterInterfacesTable()">
+            <option value="">Semua Tipe Interface</option>
+            <option value="ether">Ethernet</option>
+            <option value="bridge">Bridge</option>
+            <option value="vlan">VLAN</option>
+            <option value="wlan">Wireless</option>
+            <option value="pppoe">PPPoE / PPP</option>
+          </select>
+          <span style="font-size:11px; color:var(--muted); font-style:italic;"><i class="bi bi-info-circle"></i> Klik baris interface atau tombol hijau untuk membuka Live Traffic Popup</span>
+        </div>
+
+        <div class="tbl-wrap" style="max-height: 440px; overflow-y: auto;">
+          <table class="dtbl" id="iface-table" style="width: 100%; border-collapse: collapse;">
+            <thead style="position:sticky; top:0; background:var(--card-bg); z-index:2;">
+              <tr>
+                <th style="width:40px; text-align:center;">#</th>
+                <th style="min-width:150px;">Interface</th>
+                <th style="min-width:80px;">Tipe</th>
+                <th style="min-width:90px;">Status</th>
+                <th style="min-width:140px;">MAC Address</th>
+                <th style="min-width:60px;">MTU</th>
+                <th style="min-width:120px;">Rx Total</th>
+                <th style="min-width:120px;">Tx Total</th>
+                <th style="min-width:150px; text-align:center;"><i class="bi bi-activity text-success"></i> Trafik Realtime</th>
+                <th style="min-width:60px; text-align:center;">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="iface-table-body">
+              <tr><td colspan="10" class="text-center text-muted" style="padding:24px"><i class="bi bi-arrow-clockwise spin"></i> Memuat daftar interface MikroTik...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Content Tab 2: System Specs & Resources -->
+      <div id="detail-tab-specs" style="display:none;">
+        <div class="card" style="background: rgba(0,0,0,0.15); border: 1px solid var(--border); padding: 15px;">
+          <h6 style="margin-bottom: 12px; font-weight:700; color:var(--primary);"><i class="bi bi-cpu"></i> Informasi Perangkat Hardware & System</h6>
+          <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap: 12px; font-size: 13px;">
+            <div><strong>Nama Identity:</strong> <span id="spec-identity">-</span></div>
+            <div><strong>Board Model:</strong> <span id="spec-model">-</span></div>
+            <div><strong>RouterOS Version:</strong> <span id="spec-version">-</span></div>
+            <div><strong>Architecture:</strong> <span id="spec-arch">-</span></div>
+            <div><strong>CPU Model:</strong> <span id="spec-cpu-model">-</span></div>
+            <div><strong>CPU Cores / Freq:</strong> <span id="spec-cpu-count">-</span></div>
+            <div><strong>Total Memory RAM:</strong> <span id="spec-total-ram">-</span></div>
+            <div><strong>Free Memory RAM:</strong> <span id="spec-free-ram">-</span></div>
+            <div><strong>Total HDD Storage:</strong> <span id="spec-total-hdd">-</span></div>
+            <div><strong>Free HDD Storage:</strong> <span id="spec-free-hdd">-</span></div>
+            <div><strong>Serial Number:</strong> <span id="spec-serial">-</span></div>
+            <div><strong>System Build Time:</strong> <span id="spec-build-time">-</span></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    
+    <div class="mf">
+      <button type="button" class="btn btn-g" onclick="closeRouterDetailModal()"><%= t('common.close', 'Tutup') %></button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Live Traffic Realtime Interface Popup -->
+<div class="mo" id="interfaceTrafficModal">
+  <div class="mb" style="max-width:880px; width:95%">
+    <div class="mh" style="display:flex; justify-content:space-between; align-items:center;">
+      <span class="mt">
+        <i class="bi bi-activity text-success"></i> Live Traffic Realtime: <span id="traffic-iface-name" class="text-primary">-</span>
+      </span>
+      <button class="mc" onclick="closeInterfaceTrafficModal()">&times;</button>
+    </div>
+    
+    <div class="mbody">
+      <!-- Info Header Bar -->
+      <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.2); padding:10px 14px; border-radius:8px; border:1px solid var(--border); margin-bottom:15px; flex-wrap:wrap; gap:10px;">
+        <div style="display:flex; gap:15px; align-items:center; font-size:13px;">
+          <div><span class="text-muted">Tipe:</span> <strong id="traffic-iface-type">-</strong></div>
+          <div><span class="text-muted">MAC:</span> <code id="traffic-iface-mac">-</code></div>
+          <div><span class="text-muted">MTU:</span> <strong id="traffic-iface-mtu">-</strong></div>
+          <div><span class="text-muted">Status:</span> <span id="traffic-iface-status">-</span></div>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <label style="font-size:12px; color:var(--muted); margin:0;">Interval Polling:</label>
+          <select id="traffic-interval-select" class="fs" style="padding:2px 8px; font-size:12px; width:auto;" onchange="changeTrafficInterval()">
+            <option value="1000">1 Detik</option>
+            <option value="2000" selected>2 Detik</option>
+            <option value="3000">3 Detik</option>
+          </select>
+          <button id="traffic-play-pause-btn" type="button" class="btn btn-sm btn-p" onclick="toggleTrafficStream()" style="padding:4px 10px; font-size:12px;">
+            <i class="bi bi-pause-fill"></i> Pause
+          </button>
+        </div>
+      </div>
+
+      <!-- Realtime Gauge Cards Grid -->
+      <div class="stat-grid" style="grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 15px;">
+        <!-- Download (Rx Rate) -->
+        <div class="sc" style="background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.3); padding: 12px;">
+          <i class="bi bi-download sc-icon" style="color: #22c55e; font-size: 22px;"></i>
+          <div class="sc-label" style="color: #22c55e; font-size: 11px; font-weight:700;">Download (Rx Rate)</div>
+          <div class="sc-val" id="traffic-rx-rate" style="color: #22c55e; font-size: 18px; font-weight:800;">0.00 Mbps</div>
+          <div style="font-size: 10px; color: var(--muted);" id="traffic-rx-packets">0 pkts/s</div>
+        </div>
+
+        <!-- Upload (Tx Rate) -->
+        <div class="sc" style="background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.3); padding: 12px;">
+          <i class="bi bi-upload sc-icon" style="color: #3b82f6; font-size: 22px;"></i>
+          <div class="sc-label" style="color: #3b82f6; font-size: 11px; font-weight:700;">Upload (Tx Rate)</div>
+          <div class="sc-val" id="traffic-tx-rate" style="color: #3b82f6; font-size: 18px; font-weight:800;">0.00 Mbps</div>
+          <div style="font-size: 10px; color: var(--muted);" id="traffic-tx-packets">0 pkts/s</div>
+        </div>
+
+        <!-- Akumulasi Rx Bytes -->
+        <div class="sc" style="background: var(--card-bg); border: 1px solid var(--border); padding: 12px;">
+          <i class="bi bi-arrow-down-circle sc-icon" style="color: var(--primary); font-size: 22px;"></i>
+          <div class="sc-label" style="font-size: 11px;">Total Transfer Rx</div>
+          <div class="sc-val" id="traffic-rx-total" style="font-size: 13px; font-weight:700;">-</div>
+          <div style="font-size: 10px; color: var(--muted);">Akumulasi Byte Masuk</div>
+        </div>
+
+        <!-- Akumulasi Tx Bytes -->
+        <div class="sc" style="background: var(--card-bg); border: 1px solid var(--border); padding: 12px;">
+          <i class="bi bi-arrow-up-circle sc-icon" style="color: var(--warning); font-size: 22px;"></i>
+          <div class="sc-label" style="font-size: 11px;">Total Transfer Tx</div>
+          <div class="sc-val" id="traffic-tx-total" style="font-size: 13px; font-weight:700;">-</div>
+          <div style="font-size: 10px; color: var(--muted);">Akumulasi Byte Keluar</div>
+        </div>
+      </div>
+
+      <!-- Realtime Chart Container -->
+      <div style="background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 10px; padding: 15px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <h6 style="margin:0; font-size:13px; font-weight:700; color:var(--text);">
+            <i class="bi bi-graph-up-arrow text-success"></i> Realtime Traffic Bandwidth Chart (Mbps)
+          </h6>
+          <span style="font-size:11px; color:var(--muted);" id="traffic-chart-status">
+            <i class="bi bi-circle-fill text-success spin" style="font-size:8px;"></i> Streaming Live...
+          </span>
+        </div>
+        <div style="position: relative; height: 260px; width: 100%;">
+          <canvas id="liveTrafficChartCanvas"></canvas>
+        </div>
+      </div>
+    </div>
+    
+    <div class="mf">
+      <button type="button" class="btn btn-g" onclick="closeInterfaceTrafficModal()"><%= t('common.close', 'Tutup') %></button>
     </div>
   </div>
 </div>
@@ -180,6 +471,20 @@ const I18N = {
   testConfirm: "<%= t('admin.routers.confirm.test', 'Test koneksi ke router ini?') %>",
   systemError: "<%= t('admin.routers.js.system_error', 'Terjadi kesalahan sistem.') %>"
 };
+
+let activeRouterId = null;
+let activeRouterName = '';
+let currentInterfacesData = [];
+let ifaceAutoRefreshInterval = null;
+
+// Live Traffic Popup Chart state
+let liveChart = null;
+let trafficStreamTimer = null;
+let trafficStreamActive = false;
+let currentMonitoringIfaceName = '';
+let trafficPollingIntervalMs = 2000;
+const MAX_CHART_POINTS = 25;
+
 function openModal(id){document.getElementById(id).classList.add('show')}
 function closeModal(id){document.getElementById(id).classList.remove('show')}
 
@@ -237,6 +542,411 @@ function copyIsolirScript() {
   ta.select();
   document.execCommand('copy');
   alert('<%= t('admin.routers.isolir_script_copied', 'Script disalin ke clipboard.') %>');
+}
+
+// ─── ROUTER DETAIL & MONITORING INTERFACE LOGIC ───
+function showRouterDetail(id, name) {
+  activeRouterId = id;
+  activeRouterName = name;
+  document.getElementById('detail-router-title').textContent = 'Detail Router: ' + name;
+  
+  // Reset UI
+  document.getElementById('detail-cpu-load').textContent = '-';
+  document.getElementById('detail-cpu-freq').textContent = '-';
+  document.getElementById('detail-memory').textContent = '-';
+  document.getElementById('detail-memory-percent').textContent = '-';
+  document.getElementById('detail-hdd').textContent = '-';
+  document.getElementById('detail-hdd-percent').textContent = '-';
+  document.getElementById('detail-uptime').textContent = '-';
+  document.getElementById('detail-board-name').textContent = '-';
+
+  switchDetailTab('interfaces');
+  openModal('routerDetailModal');
+
+  loadRouterDetails(id);
+  loadRouterInterfaces(id);
+}
+
+function closeRouterDetailModal() {
+  stopIfaceAutoRefresh();
+  closeModal('routerDetailModal');
+}
+
+function switchDetailTab(tabName) {
+  const tabIfaces = document.getElementById('subtab-ifaces');
+  const tabSpecs = document.getElementById('subtab-specs');
+  const contentIfaces = document.getElementById('detail-tab-interfaces');
+  const contentSpecs = document.getElementById('detail-tab-specs');
+
+  if (tabName === 'interfaces') {
+    tabIfaces.classList.add('active');
+    tabSpecs.classList.remove('active');
+    contentIfaces.style.display = 'block';
+    contentSpecs.style.display = 'none';
+  } else {
+    tabSpecs.classList.add('active');
+    tabIfaces.classList.remove('active');
+    contentSpecs.style.display = 'block';
+    contentIfaces.style.display = 'none';
+  }
+}
+
+async function loadRouterDetails(routerId) {
+  try {
+    const res = await fetch('/admin/api/routers/' + routerId + '/details');
+    const data = await res.json();
+    if (data.success && data.details) {
+      const d = data.details;
+      document.getElementById('detail-cpu-load').textContent = (d.cpuLoad !== undefined ? d.cpuLoad + '%' : '-');
+      document.getElementById('detail-cpu-freq').textContent = d.cpuFrequency + (d.cpuCount ? ' (' + d.cpuCount + ' Cores)' : '');
+      document.getElementById('detail-memory').textContent = d.freeMemory + ' / ' + d.totalMemory;
+      document.getElementById('detail-memory-percent').textContent = (100 - parseFloat(d.memoryUsagePercent || 0)).toFixed(1) + '% Free (' + d.memoryUsagePercent + '% Used)';
+      document.getElementById('detail-hdd').textContent = d.freeHdd + ' / ' + d.totalHdd;
+      document.getElementById('detail-hdd-percent').textContent = d.hddUsagePercent + '% Used';
+      document.getElementById('detail-uptime').textContent = d.uptime || '-';
+      document.getElementById('detail-board-name').textContent = (d.boardName || d.model || '-') + ' (v' + (d.version || '-') + ')';
+
+      // Specs Tab Populating
+      document.getElementById('spec-identity').textContent = d.identity || '-';
+      document.getElementById('spec-model').textContent = d.model || d.boardName || '-';
+      document.getElementById('spec-version').textContent = d.version || '-';
+      document.getElementById('spec-arch').textContent = d.architectureName || '-';
+      document.getElementById('spec-cpu-model').textContent = d.cpuModel || '-';
+      document.getElementById('spec-cpu-count').textContent = d.cpuCount + ' Cores @ ' + d.cpuFrequency;
+      document.getElementById('spec-total-ram').textContent = d.totalMemory;
+      document.getElementById('spec-free-ram').textContent = d.freeMemory;
+      document.getElementById('spec-total-hdd').textContent = d.totalHdd;
+      document.getElementById('spec-free-hdd').textContent = d.freeHdd;
+      document.getElementById('spec-serial').textContent = d.serialNumber || '-';
+      document.getElementById('spec-build-time').textContent = d.buildTime || '-';
+    }
+  } catch (e) {
+    console.error('Error loading router details:', e);
+  }
+}
+
+async function loadRouterInterfaces(routerId, silent = false) {
+  const tbody = document.getElementById('iface-table-body');
+  if (!silent) {
+    tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted" style="padding:24px"><i class="bi bi-arrow-clockwise spin"></i> Memuat daftar interface...</td></tr>';
+  }
+  
+  try {
+    const res = await fetch('/admin/api/routers/' + routerId + '/interfaces');
+    const data = await res.json();
+    if (data.success && Array.isArray(data.interfaces)) {
+      currentInterfacesData = data.interfaces;
+      document.getElementById('iface-count-badge').textContent = currentInterfacesData.length;
+      renderInterfacesTable(currentInterfacesData);
+    } else {
+      tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted" style="padding:24px">Gagal memuat interface: ' + (data.error || 'Unknown error') + '</td></tr>';
+    }
+  } catch (e) {
+    console.error('Error loading interfaces:', e);
+    tbody.innerHTML = '<tr><td colspan="10" class="text-center text-danger" style="padding:24px">Gagal terhubung ke router. Pastikan service API MikroTik aktif.</td></tr>';
+  }
+}
+
+function renderInterfacesTable(list) {
+  const tbody = document.getElementById('iface-table-body');
+  if (!list || list.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted" style="padding:24px">Tidak ada interface ditemukan</td></tr>';
+    return;
+  }
+
+  let html = '';
+  list.forEach((iface, idx) => {
+    let statusBadge = '';
+    if (iface.disabled) {
+      statusBadge = '<span class="badge bm">Disabled</span>';
+    } else if (iface.running) {
+      statusBadge = '<span class="badge bs"><i class="bi bi-link-45deg"></i> Running</span>';
+    } else {
+      statusBadge = '<span class="badge bw">Link Down</span>';
+    }
+
+    let typeBadge = `<span class="badge" style="background:rgba(255,255,255,0.08);color:var(--text);">${iface.type}</span>`;
+    
+    html += `<tr class="iface-row-hover" onclick="openInterfaceTrafficModal('${iface.name}')" title="Klik untuk membuka Live Traffic Realtime Popup">
+      <td class="text-muted text-center" onclick="event.stopPropagation();">${idx + 1}</td>
+      <td>
+        <strong style="color:var(--text); display:flex; align-items:center; gap:6px;">
+          <i class="bi bi-ethernet text-primary"></i> ${iface.name}
+        </strong>
+        ${iface.comment ? `<div style="font-size:11px; color:var(--muted); font-style:italic;">${iface.comment}</div>` : ''}
+      </td>
+      <td>${typeBadge}</td>
+      <td>${statusBadge}</td>
+      <td><code style="font-size:11px; color:var(--text);">${iface.macAddress}</code></td>
+      <td style="font-size:12px;">${iface.mtu}</td>
+      <td style="font-size:12px;">${iface.rxBytesFormatted} <div style="font-size:10px; color:var(--muted);">${iface.rxPacket.toLocaleString()} pkts</div></td>
+      <td style="font-size:12px;">${iface.txBytesFormatted} <div style="font-size:10px; color:var(--muted);">${iface.txPacket.toLocaleString()} pkts</div></td>
+      <td style="text-align:center;">
+        <button type="button" class="btn-live-traffic" onclick="event.stopPropagation(); openInterfaceTrafficModal('${iface.name}');" title="Klik untuk Grafik Live Traffic Realtime">
+          <i class="bi bi-graph-up-arrow"></i> Live Trafik
+        </button>
+      </td>
+      <td style="text-align:center;" onclick="event.stopPropagation();">
+        <button type="button" class="btn btn-${iface.disabled ? 's' : 'd'} btn-icon btn-sm" title="${iface.disabled ? 'Aktifkan Interface' : 'Nonaktifkan Interface'}" onclick="toggleIface('${iface.id}', ${iface.disabled})">
+          <i class="bi bi-${iface.disabled ? 'check-circle' : 'power'}"></i>
+        </button>
+      </td>
+    </tr>`;
+  });
+  tbody.innerHTML = html;
+}
+
+function filterInterfacesTable() {
+  const searchVal = document.getElementById('iface-search-input').value.toLowerCase().trim();
+  const typeFilter = document.getElementById('iface-type-filter').value.toLowerCase().trim();
+
+  const filtered = currentInterfacesData.filter(iface => {
+    const matchSearch = iface.name.toLowerCase().includes(searchVal) || (iface.comment && iface.comment.toLowerCase().includes(searchVal)) || iface.macAddress.toLowerCase().includes(searchVal);
+    const matchType = !typeFilter || iface.type.toLowerCase().includes(typeFilter);
+    return matchSearch && matchType;
+  });
+
+  renderInterfacesTable(filtered);
+}
+
+function toggleIfaceAutoRefresh() {
+  if (ifaceAutoRefreshInterval) {
+    stopIfaceAutoRefresh();
+  } else {
+    startIfaceAutoRefresh();
+  }
+}
+
+function startIfaceAutoRefresh() {
+  stopIfaceAutoRefresh();
+  document.getElementById('iface-refresh-btn').style.background = 'rgba(34,197,94,0.3)';
+  document.getElementById('iface-refresh-text').textContent = 'Auto Refresh Active (3s)';
+  
+  ifaceAutoRefreshInterval = setInterval(() => {
+    if (activeRouterId) {
+      loadRouterInterfaces(activeRouterId, true);
+      loadRouterDetails(activeRouterId);
+    }
+  }, 3000);
+}
+
+function stopIfaceAutoRefresh() {
+  if (ifaceAutoRefreshInterval) {
+    clearInterval(ifaceAutoRefreshInterval);
+    ifaceAutoRefreshInterval = null;
+  }
+  const btn = document.getElementById('iface-refresh-btn');
+  if (btn) {
+    btn.style.background = 'rgba(255,255,255,0.06)';
+    document.getElementById('iface-refresh-text').textContent = 'Auto Refresh (3s)';
+  }
+}
+
+function reloadCurrentDetailTab() {
+  if (activeRouterId) {
+    loadRouterDetails(activeRouterId);
+    loadRouterInterfaces(activeRouterId);
+  }
+}
+
+async function toggleIface(ifaceId, currentDisabled) {
+  const actionText = currentDisabled ? 'mengaktifkan' : 'menonaktifkan';
+  if (!confirm(`Yakin ingin ${actionText} interface ini?`)) return;
+
+  try {
+    const res = await fetch(`/admin/api/routers/${activeRouterId}/interfaces/${encodeURIComponent(ifaceId)}/toggle`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ disabled: !currentDisabled })
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert(`✅ ${data.message || 'Berhasil'}`);
+      loadRouterInterfaces(activeRouterId);
+    } else {
+      alert(`❌ Gagal: ${data.error}`);
+    }
+  } catch (e) {
+    alert('❌ Terjadi kesalahan sistem');
+  }
+}
+
+// ─── LIVE TRAFFIC REALTIME POPUP LOGIC ───
+function openInterfaceTrafficModal(ifaceName) {
+  currentMonitoringIfaceName = ifaceName;
+  const iface = currentInterfacesData.find(i => i.name === ifaceName) || {};
+
+  document.getElementById('traffic-iface-name').textContent = ifaceName;
+  document.getElementById('traffic-iface-type').textContent = iface.type || '-';
+  document.getElementById('traffic-iface-mac').textContent = iface.macAddress || '-';
+  document.getElementById('traffic-iface-mtu').textContent = iface.mtu || '-';
+  document.getElementById('traffic-iface-status').innerHTML = iface.disabled ? '<span class="badge bm">Disabled</span>' : (iface.running ? '<span class="badge bs">Running</span>' : '<span class="badge bw">Link Down</span>');
+  document.getElementById('traffic-rx-total').textContent = iface.rxBytesFormatted || '-';
+  document.getElementById('traffic-tx-total').textContent = iface.txBytesFormatted || '-';
+
+  initLiveTrafficChart();
+  openModal('interfaceTrafficModal');
+  startTrafficStream();
+}
+
+function closeInterfaceTrafficModal() {
+  stopTrafficStream();
+  if (liveChart) {
+    liveChart.destroy();
+    liveChart = null;
+  }
+  closeModal('interfaceTrafficModal');
+}
+
+function initLiveTrafficChart() {
+  const ctx = document.getElementById('liveTrafficChartCanvas').getContext('2d');
+  if (liveChart) {
+    liveChart.destroy();
+  }
+
+  const initialLabels = Array(15).fill('');
+  const initialRxData = Array(15).fill(0);
+  const initialTxData = Array(15).fill(0);
+
+  liveChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: initialLabels,
+      datasets: [
+        {
+          label: 'Download (Rx Rate - Mbps)',
+          data: initialRxData,
+          borderColor: '#22c55e',
+          backgroundColor: 'rgba(34, 197, 94, 0.15)',
+          fill: true,
+          tension: 0.4,
+          borderWidth: 2,
+          pointRadius: 2,
+          pointHoverRadius: 5
+        },
+        {
+          label: 'Upload (Tx Rate - Mbps)',
+          data: initialTxData,
+          borderColor: '#3b82f6',
+          backgroundColor: 'rgba(59, 130, 246, 0.15)',
+          fill: true,
+          tension: 0.4,
+          borderWidth: 2,
+          pointRadius: 2,
+          pointHoverRadius: 5
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 300 },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          ticks: { color: 'rgba(255, 255, 255, 0.5)', font: { size: 10 } }
+        },
+        y: {
+          beginAtZero: true,
+          grid: { color: 'rgba(255, 255, 255, 0.08)' },
+          ticks: {
+            color: 'rgba(255, 255, 255, 0.7)',
+            font: { size: 11 },
+            callback: function(val) { return val + ' Mbps'; }
+          }
+        }
+      },
+      plugins: {
+        legend: {
+          labels: { color: '#ffffff', font: { size: 12, weight: 'bold' } }
+        },
+        tooltip: {
+          mode: 'index',
+          intersect: false,
+          callbacks: {
+            label: function(context) {
+              return context.dataset.label + ': ' + context.parsed.y.toFixed(2) + ' Mbps';
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+function startTrafficStream() {
+  stopTrafficStream();
+  trafficStreamActive = true;
+  document.getElementById('traffic-play-pause-btn').innerHTML = '<i class="bi bi-pause-fill"></i> Pause';
+  document.getElementById('traffic-chart-status').innerHTML = '<i class="bi bi-circle-fill text-success spin" style="font-size:8px;"></i> Streaming Live...';
+
+  fetchTrafficPoint();
+  trafficStreamTimer = setInterval(fetchTrafficPoint, trafficPollingIntervalMs);
+}
+
+function stopTrafficStream() {
+  trafficStreamActive = false;
+  if (trafficStreamTimer) {
+    clearInterval(trafficStreamTimer);
+    trafficStreamTimer = null;
+  }
+  const btn = document.getElementById('traffic-play-pause-btn');
+  if (btn) btn.innerHTML = '<i class="bi bi-play-fill"></i> Resume';
+  const status = document.getElementById('traffic-chart-status');
+  if (status) status.innerHTML = '<i class="bi bi-circle-fill text-warning" style="font-size:8px;"></i> Paused';
+}
+
+function toggleTrafficStream() {
+  if (trafficStreamActive) {
+    stopTrafficStream();
+  } else {
+    startTrafficStream();
+  }
+}
+
+function changeTrafficInterval() {
+  const val = Number(document.getElementById('traffic-interval-select').value) || 2000;
+  trafficPollingIntervalMs = val;
+  if (trafficStreamActive) {
+    startTrafficStream();
+  }
+}
+
+async function fetchTrafficPoint() {
+  if (!activeRouterId || !currentMonitoringIfaceName) return;
+
+  try {
+    const res = await fetch(`/admin/api/routers/${activeRouterId}/interfaces/${encodeURIComponent(currentMonitoringIfaceName)}/traffic`);
+    const data = await res.json();
+    if (data.success && data.traffic) {
+      const t = data.traffic;
+      const rxMbps = parseFloat((t.rxBitsPerSecond / 1000000).toFixed(2));
+      const txMbps = parseFloat((t.txBitsPerSecond / 1000000).toFixed(2));
+
+      document.getElementById('traffic-rx-rate').textContent = t.rxFormatted;
+      document.getElementById('traffic-tx-rate').textContent = t.txFormatted;
+      document.getElementById('traffic-rx-packets').textContent = t.rxPacketsPerSecond.toLocaleString() + ' pkts/s';
+      document.getElementById('traffic-tx-packets').textContent = t.txPacketsPerSecond.toLocaleString() + ' pkts/s';
+
+      if (liveChart) {
+        const timeLabel = new Date().toLocaleTimeString('id-ID', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        
+        liveChart.data.labels.push(timeLabel);
+        liveChart.data.datasets[0].data.push(rxMbps);
+        liveChart.data.datasets[1].data.push(txMbps);
+
+        if (liveChart.data.labels.length > MAX_CHART_POINTS) {
+          liveChart.data.labels.shift();
+          liveChart.data.datasets[0].data.shift();
+          liveChart.data.datasets[1].data.shift();
+        }
+
+        liveChart.update('none');
+      }
+    }
+  } catch (e) {
+    console.error('Error fetching traffic stream point:', e);
+  }
 }
 </script>
 </body>
