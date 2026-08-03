@@ -159,9 +159,42 @@ router.post('/nas/:id/auto-setup', requireAdminSession, restrictToAdmin, async (
 });
 
 
+function cleanupStaleRadiusSessions() {
+  try {
+    const nowStr = new Date().toISOString();
+    
+    // 1. Tutup sesi duplikat lama untuk username yang sama (hanya simpan 1 sesi terbaru)
+    db.prepare(`
+      UPDATE radius_acct 
+      SET acctstoptime = COALESCE(acctupdatetime, ?), 
+          acctterminatecause = 'Stale-Session-Closed'
+      WHERE acctstoptime IS NULL 
+        AND radacctid NOT IN (
+          SELECT MAX(radacctid) 
+          FROM radius_acct 
+          WHERE acctstoptime IS NULL 
+          GROUP BY username
+        )
+    `).run(nowStr);
+
+    // 2. Tutup sesi gantung yang tidak menerima update > 24 jam
+    db.prepare(`
+      UPDATE radius_acct 
+      SET acctstoptime = COALESCE(acctupdatetime, ?), 
+          acctterminatecause = 'Session-Timeout'
+      WHERE acctstoptime IS NULL 
+        AND datetime(COALESCE(acctupdatetime, acctstarttime)) < datetime('now', '-24 hours')
+    `).run(nowStr);
+  } catch (err) {
+    logger.error('Error auto-cleaning RADIUS stale sessions:', err);
+  }
+}
+
 // ─── 2. MONITORING ACTIVE SESSIONS & LIVE ACCOUNTING ───
 router.get('/sessions', requireAdminSession, async (req, res) => {
   try {
+    cleanupStaleRadiusSessions();
+
     const activeSessions = db.prepare(`
       SELECT * FROM radius_acct
       WHERE acctstoptime IS NULL
@@ -183,6 +216,8 @@ router.get('/sessions', requireAdminSession, async (req, res) => {
 // JSON API Active Sessions (Untuk Auto-Refresh Frontend)
 router.get('/api/sessions', requireAdminSession, (req, res) => {
   try {
+    cleanupStaleRadiusSessions();
+
     const sessions = db.prepare(`
       SELECT * FROM radius_acct
       WHERE acctstoptime IS NULL

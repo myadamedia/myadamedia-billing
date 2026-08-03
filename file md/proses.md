@@ -455,6 +455,28 @@ Pada menu **MikroTik > Router > Detail Router > Tab Monitoring Interface**, nama
 ### 3. Dampak Perubahan
 Nama seluruh interface PPPoE kini muncul dengan jelas 100% pada tabel Detail Router, dapat difilter dengan tepat, dan modal Live Traffic Realtime Popup dapat dibuka tanpa hambatan sintaks JavaScript.
 
+---
+
+## [2026-08-03] - Bugfix: Perbaikan Duplikasi Sesi Aktif RADIUS (1 Username Muncul Multiple)
+
+### 1. Permasalahan & Penyebab Utama
+Pada menu **Monitoring Sesi Aktif RADIUS** (`/admin/radius/sessions`), 1 username pelanggan PPPoE / Hotspot muncul 2 kali (atau lebih) secara bersamaan pada tabel pengguna online.
+- **Penyebab Utama**: Ketika pelanggan mengalami *reconnect / re-dial*, MikroTik RouterOS membuat `Acct-Session-Id` baru. Jika paket `Stop` untuk sesi lama tidak terkirim atau terlepas akibat jaringan terputus tiba-tiba, record sesi lama tetap tertinggal di tabel `radius_acct` dengan status `acctstoptime IS NULL`.
+- **Query Tanpa Penutupan Automatic Stale Session**: Logika `isStart` dan `isInterim` di `radiusService.js` sebelumnya hanya mencocokkan `acctsessionid` DAN `username`, sehingga sesi lama dengan ID berbeda milik username yang sama tidak otomatis ditutup.
+
+### 2. Solusi yang Diterapkan
+- **Backend Service Layer ([`services/radiusService.js`](file:///d:/WEBAPP/myadamedia-billing/services/radiusService.js))**:
+  - Menambahkan logika penutupan otomatis (*auto-close*) pada handler `isStart` dan `isInterim` untuk menandai `acctstoptime = nowStr` dan `acctterminatecause = 'Stale-Session-Closed'` pada sesi lama milik username yang sama jika `acctsessionid` berbeda.
+- **Backend Controller Layer ([`routes/admin/radius.js`](file:///d:/WEBAPP/myadamedia-billing/routes/admin/radius.js))**:
+  - Menambahkan fungsi helper `cleanupStaleRadiusSessions()` yang dipanggil sebelum query `SELECT * FROM radius_acct WHERE acctstoptime IS NULL`.
+  - Fungsi ini secara otomatis menutup record duplikat lama untuk username yang sama (hanya menyisakan 1 sesi paling baru `MAX(radacctid)` per username) serta menutup sesi yang tidak menerima update lebih dari 24 jam.
+- **Frontend View Layer ([`views/admin/radius/active_sessions.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/radius/active_sessions.ejs))**:
+  - Menambahkan helper `escapeHtml()` pada script auto-refresh JS untuk me-render username, IP address, MAC address, dan NAS IP secara aman.
+
+### 3. Dampak Perubahan
+Tabel Monitoring Sesi Aktif RADIUS kini menampilkan tepat 1 baris per username online secara presisi. Data sesi usang (*stale session*) dibersihkan secara otomatis tanpa mengganggu koneksi aktif pengguna.
+
+
 
 
 

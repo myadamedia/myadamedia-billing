@@ -381,6 +381,16 @@ function handleAcctPacket(msg, rinfo) {
 
     if (isStart) {
       logger.info(`[RADIUS Acct] START Session: Username="${username}" | IP=${framedIp} | NAS=${nasIp} | SessionId=${sessionId}`);
+      
+      // Auto-close sesi lama milik username ini yang acctsessionid-nya berbeda
+      if (username) {
+        db.prepare(`
+          UPDATE radius_acct 
+          SET acctstoptime = ?, acctupdatetime = ?, acctterminatecause = 'Stale-Session-Closed'
+          WHERE username = ? AND acctsessionid != ? AND acctstoptime IS NULL
+        `).run(nowStr, nowStr, username, sessionId);
+      }
+
       const existing = db.prepare("SELECT radacctid FROM radius_acct WHERE acctsessionid = ? AND username = ? AND acctstoptime IS NULL").get(sessionId, username);
       if (!existing) {
         db.prepare(`
@@ -397,6 +407,15 @@ function handleAcctPacket(msg, rinfo) {
       }
 
     } else if (isInterim) {
+      // Auto-close sesi lama milik username ini yang acctsessionid-nya berbeda
+      if (username) {
+        db.prepare(`
+          UPDATE radius_acct 
+          SET acctstoptime = ?, acctupdatetime = ?, acctterminatecause = 'Stale-Session-Closed'
+          WHERE username = ? AND acctsessionid != ? AND acctstoptime IS NULL
+        `).run(nowStr, nowStr, username, sessionId);
+      }
+
       const res = db.prepare(`
         UPDATE radius_acct SET
           acctupdatetime = ?,

@@ -92,6 +92,16 @@
 </div>
 
 <script>
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 async function fetchLiveSessions() {
   try {
     const res = await fetch('/admin/radius/api/sessions');
@@ -113,15 +123,19 @@ async function fetchLiveSessions() {
     }
 
     tbody.innerHTML = data.sessions.map(s => {
+      const safeUsername = escapeHtml(s.username);
+      const safeIp = escapeHtml(s.framedipaddress || '-');
+      const safeMac = escapeHtml(s.callingstationid || '-');
+      const safeNasIp = escapeHtml(s.nasipaddress || '-');
       const upMb = (s.acctinputoctets / 1048576).toFixed(2);
       const downMb = (s.acctoutputoctets / 1048576).toFixed(2);
       const startTime = new Date(s.acctstarttime).toLocaleString('id-ID');
       return `
         <tr>
-          <td><strong>${s.username}</strong> <span class="badge bs" style="margin-left: 4px;">Online</span></td>
-          <td><code>${s.framedipaddress || '-'}</code></td>
-          <td><small class="text-muted">${s.callingstationid || '-'}</small></td>
-          <td><code>${s.nasipaddress}</code></td>
+          <td><strong>${safeUsername}</strong> <span class="badge bs" style="margin-left: 4px;">Online</span></td>
+          <td><code>${safeIp}</code></td>
+          <td><small class="text-muted">${safeMac}</small></td>
+          <td><code>${safeNasIp}</code></td>
           <td><small>${startTime}</small></td>
           <td>
             <span style="color: #34d399;"><i class="bi bi-arrow-up"></i> ${upMb} MB</span> /
