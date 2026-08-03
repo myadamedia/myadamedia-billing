@@ -435,6 +435,27 @@ Pada menu Manajemen Pelanggan (`/admin/customers`), saat admin mengklik tombol *
 ### 3. Dampak Perubahan
 Admin Billing kini dapat mengelola dan memverifikasi password PPPoE pelanggan secara langsung dari modal Edit Pelanggan dengan tampilan yang aman, intuitif, dan tersinkronisasi 100% dengan database SQLite/RADIUS.
 
+---
+
+## [2026-08-03] - Bugfix: Perbaikan Tampilan Nama Interface PPPoE pada Detail Router MikroTik
+
+### 1. Permasalahan & Penyebab Utama
+Pada menu **MikroTik > Router > Detail Router > Tab Monitoring Interface**, nama dari interface PPPoE (seperti `<pppoe-username>`) tidak muncul (tampak kosong/blank) pada tabel monitoring.
+- **Penyebab Utama**: Nama interface dinamis PPPoE pada RouterOS MikroTik dibungkus dengan tanda kurung siku `<pppoe-nama>`. Ketika dimasukkan langsung ke `tbody.innerHTML` pada `views/admin/routers.ejs` tanpa di-escape, DOM parser HTML browser menganggapnya sebagai *unknown HTML tag* (`<pppoe-nama></pppoe-nama>`), sehingga menyembunyikan teks nama interface secara visual.
+- **Atribut Onclick Breakdown**: Inline JS `onclick="openInterfaceTrafficModal('${iface.name}')"` mengalami kecacatan sintaks ketika nama interface mengandung tanda kurung sudut `<>` atau karakter khusus.
+
+### 2. Solusi yang Diterapkan
+- **Frontend Layer ([`views/admin/routers.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/routers.ejs))**:
+  - Menambahkan fungsi helper `escapeHtml()` untuk menyanitasi karakter HTML (`&`, `<`, `>`, `"`, `'`) dan `escapeJs()` untuk menyanitasi string atribut JavaScript.
+  - Memperbarui `renderInterfacesTable()` agar merender nama interface, comment, tipe, macAddress, dan atribut event handler `onclick` menggunakan string yang telah di-escape secara aman.
+  - Memperbarui `filterInterfacesTable()` agar mendukung pengelompokan tipe filter PPPoE/PPP secara presisi (`pppoe`, `ppp`, `pppoe-server-binding`).
+- **Backend Service Layer ([`services/mikrotikService.js`](file:///d:/WEBAPP/myadamedia-billing/services/mikrotikService.js))**:
+  - Menambahkan fallback pembacaan nama interface `r.name || r['default-name'] || '-'` pada fungsi `getRouterInterfaces()`.
+
+### 3. Dampak Perubahan
+Nama seluruh interface PPPoE kini muncul dengan jelas 100% pada tabel Detail Router, dapat difilter dengan tepat, dan modal Live Traffic Realtime Popup dapat dibuka tanpa hambatan sintaks JavaScript.
+
+
 
 
 

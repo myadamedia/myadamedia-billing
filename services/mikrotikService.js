@@ -1691,7 +1691,7 @@ async function getRouterInterfaces(routerId = null) {
       
       return {
         id: r['.id'] || r.id,
-        name: r.name || '-',
+        name: r.name || r['default-name'] || '-',
         type: r.type || 'ether',
         macAddress: r['mac-address'] || r.macAddress || '-',
         mtu: r['actual-mtu'] || r.mtu || '-',

@@ -647,6 +647,24 @@ async function loadRouterInterfaces(routerId, silent = false) {
   }
 }
 
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function escapeJs(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '\\"');
+}
+
 function renderInterfacesTable(list) {
   const tbody = document.getElementById('iface-table-body');
   if (!list || list.length === 0) {
@@ -665,29 +683,36 @@ function renderInterfacesTable(list) {
       statusBadge = '<span class="badge bw">Link Down</span>';
     }
 
-    let typeBadge = `<span class="badge" style="background:rgba(255,255,255,0.08);color:var(--text);">${iface.type}</span>`;
+    const safeNameHtml = escapeHtml(iface.name);
+    const safeNameJs = escapeJs(iface.name);
+    const safeCommentHtml = escapeHtml(iface.comment);
+    const safeTypeHtml = escapeHtml(iface.type);
+    const safeMacHtml = escapeHtml(iface.macAddress);
+    const safeIdJs = escapeJs(iface.id);
+
+    let typeBadge = `<span class="badge" style="background:rgba(255,255,255,0.08);color:var(--text);">${safeTypeHtml}</span>`;
     
-    html += `<tr class="iface-row-hover" onclick="openInterfaceTrafficModal('${iface.name}')" title="Klik untuk membuka Live Traffic Realtime Popup">
+    html += `<tr class="iface-row-hover" onclick="openInterfaceTrafficModal('${safeNameJs}')" title="Klik untuk membuka Live Traffic Realtime Popup">
       <td class="text-muted text-center" onclick="event.stopPropagation();">${idx + 1}</td>
       <td>
         <strong style="color:var(--text); display:flex; align-items:center; gap:6px;">
-          <i class="bi bi-ethernet text-primary"></i> ${iface.name}
+          <i class="bi bi-ethernet text-primary"></i> ${safeNameHtml}
         </strong>
-        ${iface.comment ? `<div style="font-size:11px; color:var(--muted); font-style:italic;">${iface.comment}</div>` : ''}
+        ${iface.comment ? `<div style="font-size:11px; color:var(--muted); font-style:italic;">${safeCommentHtml}</div>` : ''}
       </td>
       <td>${typeBadge}</td>
       <td>${statusBadge}</td>
-      <td><code style="font-size:11px; color:var(--text);">${iface.macAddress}</code></td>
-      <td style="font-size:12px;">${iface.mtu}</td>
-      <td style="font-size:12px;">${iface.rxBytesFormatted} <div style="font-size:10px; color:var(--muted);">${iface.rxPacket.toLocaleString()} pkts</div></td>
-      <td style="font-size:12px;">${iface.txBytesFormatted} <div style="font-size:10px; color:var(--muted);">${iface.txPacket.toLocaleString()} pkts</div></td>
+      <td><code style="font-size:11px; color:var(--text);">${safeMacHtml}</code></td>
+      <td style="font-size:12px;">${escapeHtml(iface.mtu)}</td>
+      <td style="font-size:12px;">${escapeHtml(iface.rxBytesFormatted)} <div style="font-size:10px; color:var(--muted);">${(iface.rxPacket || 0).toLocaleString()} pkts</div></td>
+      <td style="font-size:12px;">${escapeHtml(iface.txBytesFormatted)} <div style="font-size:10px; color:var(--muted);">${(iface.txPacket || 0).toLocaleString()} pkts</div></td>
       <td style="text-align:center;">
-        <button type="button" class="btn-live-traffic" onclick="event.stopPropagation(); openInterfaceTrafficModal('${iface.name}');" title="Klik untuk Grafik Live Traffic Realtime">
+        <button type="button" class="btn-live-traffic" onclick="event.stopPropagation(); openInterfaceTrafficModal('${safeNameJs}');" title="Klik untuk Grafik Live Traffic Realtime">
           <i class="bi bi-graph-up-arrow"></i> Live Trafik
         </button>
       </td>
       <td style="text-align:center;" onclick="event.stopPropagation();">
-        <button type="button" class="btn btn-${iface.disabled ? 's' : 'd'} btn-icon btn-sm" title="${iface.disabled ? 'Aktifkan Interface' : 'Nonaktifkan Interface'}" onclick="toggleIface('${iface.id}', ${iface.disabled})">
+        <button type="button" class="btn btn-${iface.disabled ? 's' : 'd'} btn-icon btn-sm" title="${iface.disabled ? 'Aktifkan Interface' : 'Nonaktifkan Interface'}" onclick="toggleIface('${safeIdJs}', ${iface.disabled})">
           <i class="bi bi-${iface.disabled ? 'check-circle' : 'power'}"></i>
         </button>
       </td>
@@ -701,8 +726,19 @@ function filterInterfacesTable() {
   const typeFilter = document.getElementById('iface-type-filter').value.toLowerCase().trim();
 
   const filtered = currentInterfacesData.filter(iface => {
-    const matchSearch = iface.name.toLowerCase().includes(searchVal) || (iface.comment && iface.comment.toLowerCase().includes(searchVal)) || iface.macAddress.toLowerCase().includes(searchVal);
-    const matchType = !typeFilter || iface.type.toLowerCase().includes(typeFilter);
+    const matchSearch = (iface.name && iface.name.toLowerCase().includes(searchVal)) || 
+                        (iface.comment && iface.comment.toLowerCase().includes(searchVal)) || 
+                        (iface.macAddress && iface.macAddress.toLowerCase().includes(searchVal));
+    
+    let matchType = !typeFilter;
+    if (typeFilter) {
+      const ifaceType = (iface.type || '').toLowerCase();
+      if (typeFilter === 'pppoe') {
+        matchType = ifaceType.includes('pppoe') || ifaceType.includes('ppp');
+      } else {
+        matchType = ifaceType.includes(typeFilter);
+      }
+    }
     return matchSearch && matchType;
   });
 
