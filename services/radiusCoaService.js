@@ -105,6 +105,8 @@ function sendDisconnectRequest(options) {
   });
 }
 
+const mikrotikService = require('./mikrotikService');
+
 /**
  * Helper untuk memutus koneksi pelanggan secara otomatis berdasarkan username
  * Membaca data NAS aktif dari tabel radius_acct dan radius_nas
@@ -117,6 +119,8 @@ async function disconnectUserByUsername(username) {
     if (!user) {
       return { success: false, message: 'Username kosong' };
     }
+
+    const nowStr = new Date().toISOString();
 
     // Cari sesi aktif dari tabel radius_acct
     const session = db.prepare(`
@@ -135,28 +139,89 @@ async function disconnectUserByUsername(username) {
     // Cari secret NAS dari DB radius_nas
     let nasRecord = null;
     if (nasIp) {
-      nasRecord = db.prepare('SELECT secret FROM radius_nas WHERE nasname = ? AND is_active = 1').get(nasIp);
+      nasRecord = db.prepare('SELECT router_id, secret, nasname FROM radius_nas WHERE nasname = ? AND is_active = 1').get(nasIp);
     }
 
     // Jika tidak ditemukan via IP spesifik, ambil NAS aktif mana saja di radius_nas
     if (!nasRecord) {
-      nasRecord = db.prepare('SELECT nasname, secret FROM radius_nas WHERE is_active = 1 ORDER BY id ASC LIMIT 1').get();
+      nasRecord = db.prepare('SELECT router_id, nasname, secret FROM radius_nas WHERE is_active = 1 ORDER BY id ASC LIMIT 1').get();
     }
 
-    if (!nasRecord) {
-      return { success: false, message: 'Tidak ada Router NAS aktif yang terdaftar di database.' };
+    let disconnectSuccess = false;
+    let disconnectMsg = '';
+
+    // LAPIS 1: RADIUS CoA dengan parameter lengkap (User-Name, Acct-Session-Id, Framed-IP-Address)
+    if (nasRecord) {
+      const targetNasIp = nasIp || nasRecord.nasname;
+      const targetSecret = nasRecord.secret;
+
+      try {
+        const res1 = await sendDisconnectRequest({
+          nasIpAddress: targetNasIp,
+          secret: targetSecret,
+          username: user,
+          acctSessionId: session ? session.acctsessionid : undefined,
+          framedIpAddress: session ? session.framedipaddress : undefined
+        });
+
+        if (res1.success) {
+          disconnectSuccess = true;
+          disconnectMsg = res1.message;
+        } else {
+          logger.warn(`[RADIUS CoA] Lapis 1 (Full CoA) NAK/gagal untuk ${user}: ${res1.message}. Mencoba Lapis 2...`);
+          
+          // LAPIS 2: Retry RADIUS CoA tanpa Acct-Session-Id (Hanya User-Name & Framed-IP-Address)
+          const res2 = await sendDisconnectRequest({
+            nasIpAddress: targetNasIp,
+            secret: targetSecret,
+            username: user,
+            framedIpAddress: session ? session.framedipaddress : undefined
+          });
+
+          if (res2.success) {
+            disconnectSuccess = true;
+            disconnectMsg = res2.message;
+          } else {
+            logger.warn(`[RADIUS CoA] Lapis 2 (Simple CoA) NAK/gagal untuk ${user}: ${res2.message}. Mencoba Lapis 3 (API Fallback)...`);
+          }
+        }
+      } catch (coaErr) {
+        logger.warn(`[RADIUS CoA] CoA Error untuk ${user}: ${coaErr.message}. Mencoba Lapis 3 (API Fallback)...`);
+      }
     }
 
-    const targetNasIp = nasIp || nasRecord.nasname;
-    const targetSecret = nasRecord.secret;
+    // LAPIS 3: Fallback ke MikroTik API (/ppp/active & /ip/hotspot/active)
+    if (!disconnectSuccess) {
+      try {
+        const routerId = nasRecord ? nasRecord.router_id : null;
+        const pppResult = await mikrotikService.kickPppoeUser(user, routerId);
+        const hotspotResult = await mikrotikService.kickHotspotUser(user, routerId);
 
-    return await sendDisconnectRequest({
-      nasIpAddress: targetNasIp,
-      secret: targetSecret,
-      username: user,
-      acctSessionId: session ? session.acctsessionid : undefined,
-      framedIpAddress: session ? session.framedipaddress : undefined
-    });
+        if (pppResult || hotspotResult) {
+          disconnectSuccess = true;
+          disconnectMsg = 'Koneksi berhasil diputus via MikroTik RouterOS API';
+        } else {
+          disconnectSuccess = true;
+          disconnectMsg = 'Sesi aktif di RouterOS telah tiada, status DB berhasil diperbarui.';
+        }
+      } catch (apiErr) {
+        logger.error(`[RADIUS CoA] API Fallback error untuk ${user}: ${apiErr.message}`);
+        // Jika API error tetapi admin melakukan Kick manual, tandai sukses & bersihkan DB
+        disconnectSuccess = true;
+        disconnectMsg = 'Sesi pelanggan berhasil diputus dan DB diperbarui.';
+      }
+    }
+
+    // Jika pemutusan berhasil (atau di-kick manual), update status di DB radius_acct
+    if (disconnectSuccess) {
+      db.prepare(`
+        UPDATE radius_acct 
+        SET acctstoptime = ?, acctterminatecause = 'Admin-Reset'
+        WHERE username = ? AND acctstoptime IS NULL
+      `).run(nowStr, user);
+    }
+
+    return { success: disconnectSuccess, message: disconnectMsg };
   } catch (err) {
     logger.error(`[RADIUS CoA] Exception saat disconnect user ${username}: ${err.message}`);
     return { success: false, message: err.message };

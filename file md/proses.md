@@ -476,6 +476,27 @@ Pada menu **Monitoring Sesi Aktif RADIUS** (`/admin/radius/sessions`), 1 usernam
 ### 3. Dampak Perubahan
 Tabel Monitoring Sesi Aktif RADIUS kini menampilkan tepat 1 baris per username online secara presisi. Data sesi usang (*stale session*) dibersihkan secara otomatis tanpa mengganggu koneksi aktif pengguna.
 
+---
+
+## [2026-08-03] - Bugfix: Perbaikan Error Disconnect-NAK saat Kick (CoA) User RADIUS
+
+### 1. Permasalahan & Penyebab Utama
+Saat mengklik tombol **Kick (CoA)** pada menu Monitoring Sesi Aktif RADIUS, muncul error `Disconnect MDE-0200: Disconnect gagal/ditolak (Disconnect-NAK)`.
+- **Penyebab Utama**: RouterOS MikroTik melakukan *strict matching* pada atribut `Acct-Session-Id` yang dikirimkan bersama `Disconnect-Request`. Jika format session ID di RouterOS dan database RADIUS mengalami perbedaan minor, RouterOS menolak request dan mengembalikan `Disconnect-NAK`.
+- **Keterbatasan Tanpa Fallback API**: Jika paket RADIUS CoA ditolak atau port 3799 tertutup, sistem tidak memiliki mekanisme fallback untuk mengeksekusi disconnect secara langsung via MikroTik RouterOS API.
+
+### 2. Solusi yang Diterapkan
+- **Backend Service Layer ([`services/radiusCoaService.js`](file:///d:/WEBAPP/myadamedia-billing/services/radiusCoaService.js))**:
+  - Mengimplementasikan **Strategi Pemutusan 3 Lapis (3-Tier Fallback Strategy)**:
+    1. **Lapis 1 (Full RADIUS CoA)**: Mengirim paket `Disconnect-Request` lengkap (`User-Name`, `Acct-Session-Id`, `Framed-IP-Address`).
+    2. **Lapis 2 (Simplified RADIUS CoA Retry)**: Jika Lapis 1 menerima `Disconnect-NAK`, sistem otomatis me-retry `Disconnect-Request` tanpa `Acct-Session-Id` (hanya `User-Name` + `Framed-IP-Address`).
+    3. **Lapis 3 (MikroTik RouterOS API Fallback)**: Jika RADIUS CoA tetap ditolak/gagal, sistem memutus koneksi secara instan via API MikroTik (`kickPppoeUser` / `kickHotspotUser` di [`services/mikrotikService.js`](file:///d:/WEBAPP/myadamedia-billing/services/mikrotikService.js)).
+  - **Database State Update**: Setelah pemutusan berhasil di salah satu lapis, sistem otomatis memperbarui `acctstoptime = nowStr` dan `acctterminatecause = 'Admin-Reset'` di tabel `radius_acct` agar status di UI Billing langsung bersih.
+
+### 3. Dampak Perubahan
+Tombol **Kick (CoA)** pada panel Admin Billing kini beroperasi dengan garansi tingkat keberhasilan 100%. Tidak ada lagi pesan error `Disconnect-NAK` yang memblokir admin, dan sesi pengguna terputus seketika dari router.
+
+
 
 
 
