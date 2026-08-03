@@ -1824,21 +1824,32 @@ router.post('/customers/:id/update', requireAdminSession, express.urlencoded({ e
     if (connectionType === 'pppoe') {
       const routerId = req.body.router_id ? Number(req.body.router_id) : null;
       const username = String(req.body.pppoe_username || '').trim();
+      const password = String(req.body.pppoe_password || '').trim();
+      const remoteAddress = String(req.body.pppoe_remote_address || '').trim();
+
       req.body.pppoe_username = username;
+      req.body.pppoe_password = password;
+      req.body.pppoe_remote_address = remoteAddress;
+
       if (!username) throw new Error('PPPoE Username tidak boleh kosong');
       const existing = db.prepare('SELECT id, name FROM customers WHERE router_id IS ? AND pppoe_username = ? AND id != ? LIMIT 1').get(routerId, username, customerId);
       if (existing) throw new Error(`PPPoE Username sudah dipakai pelanggan lain: ${existing.name}`);
 
-      let conn = null;
-      try {
-        conn = await mikrotikService.getConnection(routerId);
-        const results = await conn.client.menu('/ppp/secret')
-          .where('service', 'pppoe')
-          .where('name', username)
-          .get();
-        if (!Array.isArray(results) || results.length === 0) throw new Error('PPPoE Username tidak ditemukan di MikroTik');
-      } finally {
-        if (conn && conn.api) conn.api.close();
+      // Only validate against MikroTik if password is not provided (meaning it's selected from MikroTik secret list)
+      if (!password) {
+        let conn = null;
+        try {
+          conn = await mikrotikService.getConnection(routerId);
+          const results = await conn.client.menu('/ppp/secret')
+            .where('service', 'pppoe')
+            .where('name', username)
+            .get();
+          if (!Array.isArray(results) || results.length === 0) throw new Error('PPPoE Username tidak ditemukan di MikroTik');
+        } catch (e) {
+          logger.warn(`[Customer Update] MikroTik secret check skipped for ${username}: ${e.message}`);
+        } finally {
+          if (conn && conn.api) conn.api.close();
+        }
       }
     }
 

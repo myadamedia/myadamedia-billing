@@ -381,6 +381,26 @@ Pada tab Router menu MikroTik (`/admin/routers`), daftar router MikroTik yang te
 ### 3. Dampak Perubahan
 Pengelola ISP kini dapat memantau kondisi seluruh router MikroTik, mendeteksi hambatan trafik interface (*link down / congestion*), dan mengamati grafik throughput bandwidth interface secara langsung dan *real-time* dari dashboard Billing tanpa ada teks yang terpotong.
 
+---
+
+## [2026-08-03] - Feature Update: Penambahan Input & Pre-fill Password PPPoE pada Form Edit Pelanggan
+
+### 1. Permasalahan & Kebutuhan Fitur
+Pada menu Manajemen Pelanggan (`/admin/customers`), saat admin mengklik tombol **Edit Pelanggan**, field input untuk `PPPoE Password` sebelumnya belum tersedia pada modal edit. Admin memerlukan kemampuan untuk melihat password PPPoE tersimpan, memperbaruinya jika ada perubahan, serta menampilkan/menyembunyikan password secara aman (*eye icon toggle*).
+
+### 2. Solusi yang Diterapkan
+- **Frontend View Layer ([`views/admin/customers.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/customers.ejs))**:
+  - **Penambahan Input Form Edit (`#editModal`)**: Menambahkan elemen `<input name="pppoe_password" id="e_pppoe_password" type="password">` dan `<input name="pppoe_remote_address" id="e_pppoe_remote_address">` pada bagian koneksi PPPoE.
+  - **Fitur Eye Icon Toggle**: Menambahkan tombol sakelar ikon mata (`togglePppoePasswordVisibility`) untuk menampilkan/menyembunyikan teks password secara instan baik pada modal Tambah maupun Edit Pelanggan.
+  - **Otomatisasi Pre-fill Data (`editCust(idx)`)**: Mengisi nilai `c.pppoe_password` dan `c.pppoe_remote_address` secara otomatis dari objek data pelanggan tersimpan ketika modal Edit dibuka.
+- **Backend Controller Layer ([`routes/adminPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/adminPortal.js))**:
+  - Memperbarui handler `POST /admin/customers/:id/update` untuk memproses dan menyimpan parameter `req.body.pppoe_password` serta `req.body.pppoe_remote_address` ke database SQLite (`customers`).
+  - Menyelaraskan validasi secret MikroTik agar tidak memblokir proses update ketika password PPPoE diinput secara manual atau dikelola via RADIUS Server.
+
+### 3. Dampak Perubahan
+Admin Billing kini dapat mengelola dan memverifikasi password PPPoE pelanggan secara langsung dari modal Edit Pelanggan dengan tampilan yang aman, intuitif, dan tersinkronisasi 100% dengan database SQLite/RADIUS.
+
+
 
 
 

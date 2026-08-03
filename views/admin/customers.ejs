@@ -269,7 +269,12 @@
               <input class="fc" id="add_pppoe_username_manual" placeholder="Masukkan username PPPoE">
               <div style="margin-top:8px">
                 <label class="fl">PPPoE Password</label>
-                <input class="fc" name="pppoe_password" placeholder="Masukkan password PPPoE">
+                <div style="position:relative;">
+                  <input class="fc" name="pppoe_password" type="password" placeholder="Masukkan password PPPoE" style="padding-right:38px;">
+                  <button type="button" onclick="togglePppoePasswordVisibility('add')" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--muted); cursor:pointer; padding:4px;" title="Tampilkan / Sembunyikan Password">
+                    <i class="bi bi-eye" id="add_pppoe_password_toggle_icon"></i>
+                  </button>
+                </div>
               </div>
               <div style="margin-top:8px">
                 <label class="fl">Remote Address (Optional)</label>
@@ -491,6 +496,19 @@
             <input class="fc" name="pppoe_username" id="e_pppoe" list="e_pppoe_list" placeholder="Pilih / cari dari MikroTik">
             <datalist id="e_pppoe_list"></datalist>
             <div class="hint" id="e_pppoe_hint"></div>
+            <div style="margin-top:8px">
+              <label class="fl">PPPoE Password</label>
+              <div style="position:relative;">
+                <input class="fc" name="pppoe_password" id="e_pppoe_password" type="password" placeholder="Masukkan password PPPoE" style="padding-right:38px;">
+                <button type="button" onclick="togglePppoePasswordVisibility('edit')" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--muted); cursor:pointer; padding:4px;" title="Tampilkan / Sembunyikan Password">
+                  <i class="bi bi-eye" id="e_pppoe_password_toggle_icon"></i>
+                </button>
+              </div>
+            </div>
+            <div style="margin-top:8px">
+              <label class="fl">Remote Address (Optional)</label>
+              <input class="fc" name="pppoe_remote_address" id="e_pppoe_remote_address" placeholder="Contoh: 10.10.10.1">
+            </div>
           </div>
           <div class="fg" id="e_static_field" style="display:none">
             <label class="fl">IP Address Pelanggan</label>
@@ -826,10 +844,17 @@ function openPicker(type) {
   }, 300);
 }
 
-function updateInputs(lat, lng) {
-  const prefix = activePickerType === 'add' ? 'add_' : 'e_';
-  document.getElementById(prefix + 'lat').value = lat.toFixed(8);
-  document.getElementById(prefix + 'lng').value = lng.toFixed(8);
+function togglePppoePasswordVisibility(type) {
+  const input = type === 'add' ? document.querySelector('#addModal input[name="pppoe_password"]') : document.getElementById('e_pppoe_password');
+  const icon = type === 'add' ? document.getElementById('add_pppoe_password_toggle_icon') : document.getElementById('e_pppoe_password_toggle_icon');
+  if (!input) return;
+  if (input.type === 'password') {
+    input.type = 'text';
+    if (icon) icon.className = 'bi bi-eye-slash';
+  } else {
+    input.type = 'password';
+    if (icon) icon.className = 'bi bi-eye';
+  }
 }
 
 function togglePppoeInputMode(type) {
@@ -898,6 +923,8 @@ function editCust(idx) {
   document.getElementById('e_router_id').value=c.router_id||'';
   document.getElementById('e_connection_type').value=c.connection_type||'pppoe';
   document.getElementById('e_pppoe').value=c.pppoe_username||'';
+  if (document.getElementById('e_pppoe_password')) document.getElementById('e_pppoe_password').value=c.pppoe_password||'';
+  if (document.getElementById('e_pppoe_remote_address')) document.getElementById('e_pppoe_remote_address').value=c.pppoe_remote_address||'';
   document.getElementById('e_static_ip').value=c.static_ip||'';
   document.getElementById('e_mac_address').value=c.mac_address||'';
   document.getElementById('e_hotspot_username').value=c.hotspot_username||'';
