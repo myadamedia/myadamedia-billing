@@ -861,6 +861,18 @@ try { db.exec("ALTER TABLE packages ADD COLUMN night_profile_name TEXT"); } catc
 try { db.exec("ALTER TABLE packages ADD COLUMN use_fup INTEGER DEFAULT 0"); } catch (e) {}
 try { db.exec("ALTER TABLE packages ADD COLUMN fup_profile_name TEXT"); } catch (e) {}
 
+// Kolom MikroTik Rate-Limit lengkap (Burst Limit, Threshold, Time, Priority, Limit At)
+try { db.exec("ALTER TABLE packages ADD COLUMN burst_limit_down INTEGER DEFAULT 0"); } catch (e) {}
+try { db.exec("ALTER TABLE packages ADD COLUMN burst_limit_up INTEGER DEFAULT 0"); } catch (e) {}
+try { db.exec("ALTER TABLE packages ADD COLUMN burst_threshold_down INTEGER DEFAULT 0"); } catch (e) {}
+try { db.exec("ALTER TABLE packages ADD COLUMN burst_threshold_up INTEGER DEFAULT 0"); } catch (e) {}
+try { db.exec("ALTER TABLE packages ADD COLUMN burst_time_down INTEGER DEFAULT 0"); } catch (e) {}
+try { db.exec("ALTER TABLE packages ADD COLUMN burst_time_up INTEGER DEFAULT 0"); } catch (e) {}
+try { db.exec("ALTER TABLE packages ADD COLUMN priority_down INTEGER DEFAULT 8"); } catch (e) {}
+try { db.exec("ALTER TABLE packages ADD COLUMN priority_up INTEGER DEFAULT 8"); } catch (e) {}
+try { db.exec("ALTER TABLE packages ADD COLUMN limit_at_down INTEGER DEFAULT 0"); } catch (e) {}
+try { db.exec("ALTER TABLE packages ADD COLUMN limit_at_up INTEGER DEFAULT 0"); } catch (e) {}
+
 // Promo harga & prorata tagihan pertama (per paket + counter per pelanggan)
 try { db.exec("ALTER TABLE packages ADD COLUMN promo_price INTEGER"); } catch (e) {}
 try { db.exec("ALTER TABLE packages ADD COLUMN promo_cycles INTEGER DEFAULT 0"); } catch (e) {}

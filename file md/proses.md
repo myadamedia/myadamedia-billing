@@ -4,6 +4,41 @@ Dokumen ini mencatat seluruh proses analisis, perancangan arsitektur, dan peruba
 
 ---
 
+## [2026-08-03] - Feature Refactoring: Restrukturisasi Form Kecepatan Paket Internet (MikroTik Rate-Limit Dual-Form Grid)
+
+### 1. Permasalahan & Kebutuhan Fitur
+Sebelumnya, form konfigurasi kecepatan pada Paket Internet (`views/admin/packages.ejs`) menggunakan dua field terpisah secara berdiri sendiri (`speed_down` & `speed_up`). Form ini belum dapat mengonfigurasi parameter *Queue / Rate-Limit* MikroTik yang kompleks seperti *Burst Limit, Burst Threshold, Burst Time, Priority, dan Limit At*.
+
+### 2. Solusi yang Diterapkan
+- **Database Migration ([config/database.js](file:///d:/WEBAPP/myadamedia-billing/config/database.js))**:
+  Menambahkan kolom migrasi otomatis pada tabel `packages` untuk menyimpan parameter MikroTik Rate-Limit:
+  - `burst_limit_down`, `burst_limit_up`
+  - `burst_threshold_down`, `burst_threshold_up`
+  - `burst_time_down`, `burst_time_up`
+  - `priority_down` (default 8), `priority_up` (default 8)
+  - `limit_at_down`, `limit_at_up`
+
+- **Service Layer ([services/customerService.js](file:///d:/WEBAPP/myadamedia-billing/services/customerService.js))**:
+  Memperbarui fungsi `createPackage()` dan `updatePackage()` untuk mengekstrak, memvalidasi, dan menyimpan 6 pasang parameter rate-limit ke database (Kecepatan dalam Kbps, waktu dalam Detik, priority 1-8).
+
+- **RADIUS Engine ([services/radiusService.js](file:///d:/WEBAPP/myadamedia-billing/services/radiusService.js))**:
+  Memperbarui fungsi `getMikrotikRateLimit()` agar memformat string Vendor-Specific Attribute (VSA) `Mikrotik-Rate-Limit` secara lengkap sesuai standar RFC 2865 / RouterOS:
+  `rx-rate/tx-rate [rx-burst-rate/tx-burst-rate] [rx-burst-threshold/tx-burst-threshold] [rx-burst-time/tx-burst-time] [rx-priority/tx-priority] [rx-rate-min/tx-rate-min]`
+
+- **UI Admin Portal ([views/admin/packages.ejs](file:///d:/WEBAPP/myadamedia-billing/views/admin/packages.ejs))**:
+  - Merestrukturisasi Modal Tambah & Modal Edit Paket dengan section **MikroTik Queue & Rate Limit Form Block**.
+  - Mengelompokkan input menjadi 2 kolom simetris berpasangan: Column Download (Rx/Tx) & Column Upload (Tx/Rx) mencakup *Max Limit, Burst Limit, Burst Threshold, Burst Time, Priority, dan Limit At*.
+  - Menambahkan **Live Interactive Preview Badge** (`#add_rate_limit_preview` & `#e_rate_limit_preview`) yang memperbarui representasi string `Mikrotik-Rate-Limit` secara real-time saat admin mengetik angka.
+  - Memperbarui fungsi `editPkg()` untuk mengisi seluruh 12 field parameter rate limit secara presisi saat modal edit dibuka.
+
+### 3. File Diperbarui
+- [`config/database.js`](file:///d:/WEBAPP/myadamedia-billing/config/database.js): Migrasi 10 kolom rate-limit baru di tabel `packages`.
+- [`services/customerService.js`](file:///d:/WEBAPP/myadamedia-billing/services/customerService.js): Handling parameter rate-limit pada `createPackage` & `updatePackage`.
+- [`services/radiusService.js`](file:///d:/WEBAPP/myadamedia-billing/services/radiusService.js): String builder `Mikrotik-Rate-Limit` lengkap.
+- [`views/admin/packages.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/packages.ejs): UI Dual-Column MikroTik Rate-Limit Form & Live Preview.
+
+---
+
 ## [2026-08-02] - Bug Fix: Perbaikan Penayangan Bagi Hasil Dividen Investor Skema Fix di Dashboard
 
 ### 1. Permasalahan yang Ditemukan

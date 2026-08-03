@@ -77,8 +77,36 @@ function getMikrotikRateLimit(customer) {
 
   const upStr = formatSpeedToMikrotik(customer.speed_up || 10000);
   const downStr = formatSpeedToMikrotik(customer.speed_down || 10000);
+  let rateStr = `${upStr}/${downStr}`;
 
-  return `${upStr}/${downStr}`;
+  const bUp = Number(customer.burst_limit_up || 0);
+  const bDown = Number(customer.burst_limit_down || 0);
+  const btUp = Number(customer.burst_threshold_up || 0);
+  const btDown = Number(customer.burst_threshold_down || 0);
+  const btimeUp = Number(customer.burst_time_up || 0);
+  const btimeDown = Number(customer.burst_time_down || 0);
+  const prioUp = Number(customer.priority_up || 8);
+  const prioDown = Number(customer.priority_down || 8);
+  const limUp = Number(customer.limit_at_up || 0);
+  const limDown = Number(customer.limit_at_down || 0);
+
+  const hasBurst = (bUp > 0 || bDown > 0);
+  const hasThreshold = (btUp > 0 || btDown > 0);
+  const hasTime = (btimeUp > 0 || btimeDown > 0);
+  const hasPrio = (prioUp !== 8 || prioDown !== 8);
+  const hasLimitAt = (limUp > 0 || limDown > 0);
+
+  if (hasBurst || hasThreshold || hasTime || hasPrio || hasLimitAt) {
+    const burstStr = `${formatSpeedToMikrotik(bUp)}/${formatSpeedToMikrotik(bDown)}`;
+    const threshStr = `${formatSpeedToMikrotik(btUp)}/${formatSpeedToMikrotik(btDown)}`;
+    const timeStr = `${btimeUp || 0}/${btimeDown || 0}`;
+    const prioStr = `${prioUp || 8}/${prioDown || 8}`;
+    const minStr = `${formatSpeedToMikrotik(limUp)}/${formatSpeedToMikrotik(limDown)}`;
+
+    rateStr += ` ${burstStr} ${threshStr} ${timeStr} ${prioStr} ${minStr}`;
+  }
+
+  return rateStr;
 }
 
 const AUTH_PORT = Number(process.env.RADIUS_AUTH_PORT) || 1812;

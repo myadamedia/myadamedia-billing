@@ -251,6 +251,17 @@ function getPackageById(id) {
 function createPackage(data) {
   const down = Math.round(parseFloat(data.speed_down || 0) * 1000);
   const up = Math.round(parseFloat(data.speed_up || 0) * 1000);
+  const b_limit_down = Math.round(parseFloat(data.burst_limit_down || 0) * 1000);
+  const b_limit_up = Math.round(parseFloat(data.burst_limit_up || 0) * 1000);
+  const b_thresh_down = Math.round(parseFloat(data.burst_threshold_down || 0) * 1000);
+  const b_thresh_up = Math.round(parseFloat(data.burst_threshold_up || 0) * 1000);
+  const b_time_down = Math.max(0, parseInt(data.burst_time_down || 0, 10) || 0);
+  const b_time_up = Math.max(0, parseInt(data.burst_time_up || 0, 10) || 0);
+  const prio_down = Math.min(8, Math.max(1, parseInt(data.priority_down || 8, 10) || 8));
+  const prio_up = Math.min(8, Math.max(1, parseInt(data.priority_up || 8, 10) || 8));
+  const lim_at_down = Math.round(parseFloat(data.limit_at_down || 0) * 1000);
+  const lim_at_up = Math.round(parseFloat(data.limit_at_up || 0) * 1000);
+
   const n_down = Math.round(parseFloat(data.night_speed_down || 0) * 1000);
   const n_up = Math.round(parseFloat(data.night_speed_up || 0) * 1000);
   const f_down = Math.round(parseFloat(data.fup_speed_down || 0) * 1000);
@@ -268,15 +279,19 @@ function createPackage(data) {
     INSERT INTO packages (
       name, price, promo_price, promo_cycles, prorate_first_invoice,
       speed_down, speed_up, 
+      burst_limit_down, burst_limit_up, burst_threshold_down, burst_threshold_up,
+      burst_time_down, burst_time_up, priority_down, priority_up, limit_at_down, limit_at_up,
       use_night_speed, night_profile_name, night_speed_down, night_speed_up, 
       use_fup, fup_profile_name, fup_limit_gb, fup_speed_down, 
       description,
       use_ppn, ppn_percentage, use_uso, uso_percentage, is_hidden
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     data.name, parseInt(data.price) || 0, promoPrice, promoCycles, prorateFirst,
     down, up,
+    b_limit_down, b_limit_up, b_thresh_down, b_thresh_up,
+    b_time_down, b_time_up, prio_down, prio_up, lim_at_down, lim_at_up,
     data.use_night_speed ? 1 : 0, data.night_profile_name || null, n_down, n_up,
     data.use_fup ? 1 : 0, data.fup_profile_name || null, f_limit, f_down,
     data.description || '',
@@ -294,6 +309,17 @@ function parsePromoPrice(raw) {
 function updatePackage(id, data) {
   const down = Math.round(parseFloat(data.speed_down || 0) * 1000);
   const up = Math.round(parseFloat(data.speed_up || 0) * 1000);
+  const b_limit_down = Math.round(parseFloat(data.burst_limit_down || 0) * 1000);
+  const b_limit_up = Math.round(parseFloat(data.burst_limit_up || 0) * 1000);
+  const b_thresh_down = Math.round(parseFloat(data.burst_threshold_down || 0) * 1000);
+  const b_thresh_up = Math.round(parseFloat(data.burst_threshold_up || 0) * 1000);
+  const b_time_down = Math.max(0, parseInt(data.burst_time_down || 0, 10) || 0);
+  const b_time_up = Math.max(0, parseInt(data.burst_time_up || 0, 10) || 0);
+  const prio_down = Math.min(8, Math.max(1, parseInt(data.priority_down || 8, 10) || 8));
+  const prio_up = Math.min(8, Math.max(1, parseInt(data.priority_up || 8, 10) || 8));
+  const lim_at_down = Math.round(parseFloat(data.limit_at_down || 0) * 1000);
+  const lim_at_up = Math.round(parseFloat(data.limit_at_up || 0) * 1000);
+
   const n_down = Math.round(parseFloat(data.night_speed_down || 0) * 1000);
   const n_up = Math.round(parseFloat(data.night_speed_up || 0) * 1000);
   const f_down = Math.round(parseFloat(data.fup_speed_down || 0) * 1000);
@@ -310,6 +336,8 @@ function updatePackage(id, data) {
     UPDATE packages 
     SET name=?, price=?, promo_price=?, promo_cycles=?, prorate_first_invoice=?,
         speed_down=?, speed_up=?, 
+        burst_limit_down=?, burst_limit_up=?, burst_threshold_down=?, burst_threshold_up=?,
+        burst_time_down=?, burst_time_up=?, priority_down=?, priority_up=?, limit_at_down=?, limit_at_up=?,
         use_night_speed=?, night_profile_name=?, night_speed_down=?, night_speed_up=?, 
         use_fup=?, fup_profile_name=?, fup_limit_gb=?, fup_speed_down=?, 
         description=?, is_active=?,
@@ -318,6 +346,8 @@ function updatePackage(id, data) {
   `).run(
     data.name, parseInt(data.price) || 0, promoPrice, promoCycles, prorateFirst,
     down, up,
+    b_limit_down, b_limit_up, b_thresh_down, b_thresh_up,
+    b_time_down, b_time_up, prio_down, prio_up, lim_at_down, lim_at_up,
     data.use_night_speed ? 1 : 0, data.night_profile_name || null, n_down, n_up,
     data.use_fup ? 1 : 0, data.fup_profile_name || null, f_limit, f_down,
     data.description || '', data.is_active == '1' ? 1 : 0,
