@@ -331,7 +331,13 @@ function copyDirSync(srcDir, destDir) {
 }
 
 function getGitDefaultBranch(repoRoot) {
-  const r = runCmd('git', ['symbolic-ref', 'refs/remotes/origin/HEAD'], repoRoot);
+  // 1. Cek branch lokal aktif (misal: main)
+  let r = runCmd('git', ['rev-parse', '--abbrev-ref', 'HEAD'], repoRoot);
+  if (r.ok && r.stdout.trim() && r.stdout.trim() !== 'HEAD') {
+    return r.stdout.trim();
+  }
+  // 2. Cek symbolic ref origin/HEAD
+  r = runCmd('git', ['symbolic-ref', 'refs/remotes/origin/HEAD'], repoRoot);
   if (r.ok) {
     const ref = String(r.stdout || '').trim();
     const m = ref.match(/refs\/remotes\/origin\/(.+)$/);
@@ -3635,13 +3641,18 @@ router.post('/update/run', requireAdminSession, restrictToAdmin, (req, res) => {
     pushCmd('git rev-parse --is-inside-work-tree', inside);
     if (!inside.ok) throw new Error('Folder ini belum menjadi git repository.');
 
-    const fetch = runCmd('git', ['fetch', '--prune'], repoRoot);
-    pushCmd('git fetch --prune', fetch);
-    if (!fetch.ok) throw new Error('Gagal git fetch.');
+    // Fetch update dari remote origin
+    let fetch = runCmd('git', ['fetch', 'origin', branch], repoRoot);
+    pushCmd(`git fetch origin ${branch}`, fetch);
+    if (!fetch.ok) {
+      fetch = runCmd('git', ['fetch', '--prune'], repoRoot);
+      pushCmd('git fetch --prune', fetch);
+    }
+    if (!fetch.ok) throw new Error('Gagal git fetch dari remote origin: ' + (fetch.stderr || fetch.stdout));
 
     const remote = runCmd('git', ['show', `origin/${branch}:version.txt`], repoRoot);
     pushCmd(`git show origin/${branch}:version.txt`, remote);
-    if (!remote.ok) throw new Error('Tidak bisa membaca version.txt dari GitHub.');
+    if (!remote.ok) throw new Error(`Tidak bisa membaca version.txt dari GitHub (origin/${branch}).`);
     const remoteVersion = String(remote.stdout || '').trim() || '-';
 
     if (remoteVersion !== '-' && remoteVersion === localBefore) {
@@ -3654,14 +3665,18 @@ router.post('/update/run', requireAdminSession, restrictToAdmin, (req, res) => {
     if (fs.existsSync(settingsPath)) fs.copyFileSync(settingsPath, backupSettings);
     if (fs.existsSync(dbDir)) copyDirSync(dbDir, backupDb);
 
-    const resetSettings = runCmd('git', ['checkout', '--', 'settings.json'], repoRoot);
-    pushCmd('git checkout -- settings.json', resetSettings);
-    const resetDb = runCmd('git', ['checkout', '--', 'database'], repoRoot);
-    pushCmd('git checkout -- database', resetDb);
+    // Force checkout branch tanpa memanggil pathspec settings.json/database yang diignore
+    const checkoutTracked = runCmd('git', ['checkout', '-f', branch], repoRoot);
+    pushCmd(`git checkout -f ${branch}`, checkoutTracked);
 
-    const resetHard = runCmd('git', ['reset', '--hard', `origin/${branch}`], repoRoot);
+    // Reset hard ke origin/branch (atau fallback FETCH_HEAD)
+    let resetHard = runCmd('git', ['reset', '--hard', `origin/${branch}`], repoRoot);
     pushCmd(`git reset --hard origin/${branch}`, resetHard);
-    if (!resetHard.ok) throw new Error('Gagal reset ke origin/' + branch);
+    if (!resetHard.ok) {
+      resetHard = runCmd('git', ['reset', '--hard', 'FETCH_HEAD'], repoRoot);
+      pushCmd('git reset --hard FETCH_HEAD', resetHard);
+    }
+    if (!resetHard.ok) throw new Error(`Gagal reset ke origin/${branch}: ${resetHard.stderr || resetHard.stdout}`);
 
     if (remoteVersion && remoteVersion !== '-') {
       try {

@@ -1782,8 +1782,12 @@ async function getInterfaceTraffic(routerId, interfaceName) {
       name: interfaceName,
       rxBitsPerSecond: rxBps,
       txBitsPerSecond: txBps,
-      rxFormatted: (rxBps / 1000000).toFixed(2) + ' Mbps',
-      txFormatted: (txBps / 1000000).toFixed(2) + ' Mbps',
+      'rx-bits-per-second': rxBps,
+      'tx-bits-per-second': txBps,
+      rx: rxBps,
+      tx: txBps,
+      rxFormatted: formatBytes(rxBps / 8) + '/s',
+      txFormatted: formatBytes(txBps / 8) + '/s',
       rxPacketsPerSecond: Number(data['rx-packets-per-second'] || 0),
       txPacketsPerSecond: Number(data['tx-packets-per-second'] || 0)
     };

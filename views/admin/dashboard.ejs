@@ -1326,8 +1326,8 @@ async function fetchDashIfaceTraffic(routerId, ifaceName) {
       const txEl = document.getElementById('dash-tx-speed-' + routerId);
       const liveEl = document.getElementById('dash-traffic-live-indicator-' + routerId);
 
-      const rx = d.traffic['rx-bits-per-second'] != null ? Number(d.traffic['rx-bits-per-second']) : (d.traffic.rx || 0);
-      const tx = d.traffic['tx-bits-per-second'] != null ? Number(d.traffic['tx-bits-per-second']) : (d.traffic.tx || 0);
+      const rx = Number(d.traffic.rxBitsPerSecond ?? d.traffic['rx-bits-per-second'] ?? d.traffic.rx ?? 0);
+      const tx = Number(d.traffic.txBitsPerSecond ?? d.traffic['tx-bits-per-second'] ?? d.traffic.tx ?? 0);
 
       if (rxEl) rxEl.textContent = formatBitsPerSecDash(rx);
       if (txEl) txEl.textContent = formatBitsPerSecDash(tx);

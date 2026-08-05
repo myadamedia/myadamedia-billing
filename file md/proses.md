@@ -4,6 +4,56 @@ Dokumen ini mencatat seluruh proses analisis, perancangan arsitektur, dan peruba
 
 ---
 
+## [2026-08-05] - Bug Fix: Perbaikan Live Bandwidth Monitoring Interface Selalu 0 Bps pada Dashboard
+
+### 1. Permasalahan & Penyebab Utama
+Saat admin memilih interface MikroTik pada dropdown monitoring di dashboard admin (`views/admin/dashboard.ejs`), data akumulasi total Rx/Tx bytes muncul dengan benar, namun indikator **DOWNLOAD (RX SPEED)** dan **UPLOAD (TX SPEED)** selalu bernilai **0 Bps**.
+
+**Penyebab Utama**:
+Ketidakcocokan nama kunci properti antara Service API dan Client JS:
+- Service Engine (`getInterfaceTraffic` di `services/mikrotikService.js`) mengembalikan data bertipe *camelCase*: `rxBitsPerSecond` & `txBitsPerSecond`.
+- Client Script pada Dashboard (`fetchDashIfaceTraffic`) mencoba membaca properti bertipe *hyphenated*: `d.traffic['rx-bits-per-second']` dan `d.traffic.rx`.
+- Karena kunci `rx-bits-per-second` bernilai `undefined`, kalkulasi kecepatan otomatis jatuh ke nilai default `0 Bps`.
+
+### 2. Solusi yang Diterapkan
+- **Unified Property Alias Engine ([services/mikrotikService.js](file:///d:/WEBAPP/myadamedia-billing/services/mikrotikService.js))**:
+  Memperbarui return object `getInterfaceTraffic` agar mengembalikan seluruh variasi nama kunci properti (`rxBitsPerSecond`, `txBitsPerSecond`, `rx-bits-per-second`, `tx-bits-per-second`, `rx`, dan `tx`) secara bersamaan.
+- **Robust Client Traffic Parsing ([views/admin/dashboard.ejs](file:///d:/WEBAPP/myadamedia-billing/views/admin/dashboard.ejs))**:
+  Memperbarui fungsi `fetchDashIfaceTraffic` dengan operator nullish coalescing (`rxBitsPerSecond ?? rx-bits-per-second ?? rx ?? 0`), sehingga secara adaptif membaca data kecepatan bandwidth terlepas dari variasi nama properti.
+
+### 3. File Diperbarui
+- [`services/mikrotikService.js`](file:///d:/WEBAPP/myadamedia-billing/services/mikrotikService.js): Aliasing properti traffic `getInterfaceTraffic`.
+- [`views/admin/dashboard.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/dashboard.ejs): Robust parsing `fetchDashIfaceTraffic`.
+
+---
+
+## [2026-08-05] - Bug Fix: Perbaikan Error "Gagal Reset origin/main" pada Fitur Update Aplikasi via GitHub
+
+### 1. Permasalahan & Penyebab Utama
+Saat melakukan update aplikasi dari menu **Update Aplikasi** (`/admin/update`), sistem mengalami kegagalan dengan pesan error: `Gagal update: Gagal reset ke origin/main`.
+Penyebab utama meliputi:
+1. **Kesalahan Eksekusi `git checkout -- settings.json` pada File Ignored**:
+   File `settings.json` dan `database` berada di dalam `.gitignore`. Ketika sistem menjalankan `git checkout -- settings.json`, Git mengembalikan status error `pathspec 'settings.json' did not match any file(s) known to git` sehingga membatalkan proses update.
+2. **Pendeteksian Branch Kurang Presisi**:
+   Fungsi `getGitDefaultBranch()` sebelumnya hanya memeriksa `symbolic-ref origin/HEAD`. Jika `origin/HEAD` tidak terset di sistem lokal, sistem secara *fallback* mengasumsikan branch `main` tanpa mengecek branch lokal aktif (`git rev-parse --abbrev-ref HEAD`).
+3. **Tanpa Fallback Reset**:
+   Jika pembaruan ref `origin/main` memerlukan sinkronisasi `FETCH_HEAD` atau penanganan konflik lokal, perintah `git reset --hard` langsung menggagalkan seluruh proses update tanpa mencatat rincian *stderr* Git.
+
+### 2. Solusi yang Diterapkan
+- **Deteksi Branch Akurat ([routes/adminPortal.js](file:///d:/WEBAPP/myadamedia-billing/routes/adminPortal.js))**:
+  Memperbarui `getGitDefaultBranch()` agar pertama-tama mendeteksi branch lokal aktif (`git rev-parse --abbrev-ref HEAD`).
+- **Pembersihan Berkas Aman**:
+  Menghapus pemanggilan `git checkout -- settings.json` dan `git checkout -- database` yang keliru, serta menggantikannya dengan `git checkout -f [branch]` untuk membersihkan berkas *tracked* secara aman tanpa mengganggu berkas konfigurasi lokal.
+- **Robust Fetch & Hard Reset with Fallback**:
+  - Mengambil update langsung dengan `git fetch origin [branch]` dengan fallback ke `git fetch --prune`.
+  - Melakukan `git reset --hard origin/[branch]` dengan fallback otomatis ke `git reset --hard FETCH_HEAD`.
+  - Menampilkan rincian output error `stderr` yang transparan jika git mengalami kendala.
+
+### 3. File Diperbarui
+- [`routes/adminPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/adminPortal.js): Logika `getGitDefaultBranch()` & perbaikan handler `POST /update/run`.
+
+---
+
 ## [2026-08-05] - Feature Update: Penambahan Fitur Status MikroTik (Daftar Router MikroTik) pada Dashboard Admin
 
 ### 1. Permasalahan & Kebutuhan Fitur
