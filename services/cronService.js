@@ -144,11 +144,11 @@ function startCronJobs() {
     const batchPauseMs = 120000; // Pause 2 menit setelah batch (dari 1 menit)
 
     function getDaysUntilIsolation(today, dueDay) {
+      const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
       let isolateDate = new Date(today.getFullYear(), today.getMonth(), dueDay, 0, 0, 0, 0);
-      if (isolateDate < today) {
+      if (isolateDate < startOfToday) {
         isolateDate = new Date(today.getFullYear(), today.getMonth() + 1, dueDay, 0, 0, 0, 0);
       }
-      const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
       const diffTime = isolateDate.getTime() - startOfToday.getTime();
       return Math.round(diffTime / (1000 * 60 * 60 * 24));
     }
@@ -334,11 +334,11 @@ function startCronJobs() {
     const batchPauseMs = 120000;
 
     function getDaysUntilIsolation(today, dueDay) {
+      const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
       let isolateDate = new Date(today.getFullYear(), today.getMonth(), dueDay, 0, 0, 0, 0);
-      if (isolateDate < today) {
+      if (isolateDate < startOfToday) {
         isolateDate = new Date(today.getFullYear(), today.getMonth() + 1, dueDay, 0, 0, 0, 0);
       }
-      const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
       const diffTime = isolateDate.getTime() - startOfToday.getTime();
       return Math.round(diffTime / (1000 * 60 * 60 * 24));
     }

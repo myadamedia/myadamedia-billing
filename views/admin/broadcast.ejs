@@ -134,6 +134,13 @@
               <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-top: 8px;">
                 <% 
                   const selectedDays = String(getSetting('whatsapp_auto_billing_days', '1')).split(',').map(s => s.trim());
+                  const isCheckedH = selectedDays.includes('0') ? 'checked' : '';
+                %>
+                  <label style="display: flex; align-items: center; gap: 6px; font-weight: 600; color: var(--text); cursor: pointer;">
+                    <input type="checkbox" name="auto_billing_days" value="0" <%= isCheckedH %> style="width: 16px; height: 16px;">
+                    Hari H (Jatuh Tempo)
+                  </label>
+                <%
                   for (let i = 1; i <= 7; i++) { 
                     const isChecked = selectedDays.includes(String(i)) ? 'checked' : '';
                 %>
@@ -144,7 +151,7 @@
                 <% } %>
               </div>
               <div style="font-size: 11px; color: var(--muted); margin-top: 6px;">
-                Pilih hari-hari (H-1 s/d H-7 sebelum isolir) untuk mengirimkan notifikasi pengingat otomatis ke WhatsApp pelanggan.
+                Pilih hari-hari (Hari H / H-1 s/d H-7 sebelum isolir) untuk mengirimkan notifikasi pengingat otomatis ke WhatsApp pelanggan.
               </div>
             </div>
           </div>
@@ -200,6 +207,13 @@
               <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-top: 8px;">
                 <% 
                   const selectedIsolirDays = String(getSetting('whatsapp_auto_isolir_days', '1')).split(',').map(s => s.trim());
+                  const isCheckedIsolirH = selectedIsolirDays.includes('0') ? 'checked' : '';
+                %>
+                  <label style="display: flex; align-items: center; gap: 6px; font-weight: 600; color: var(--text); cursor: pointer;">
+                    <input type="checkbox" name="auto_isolir_days" value="0" <%= isCheckedIsolirH %> style="width: 16px; height: 16px;">
+                    Hari H (Tanggal Isolir)
+                  </label>
+                <%
                   for (let i = 1; i <= 7; i++) { 
                     const isChecked = selectedIsolirDays.includes(String(i)) ? 'checked' : '';
                 %>
@@ -210,7 +224,7 @@
                 <% } %>
               </div>
               <div style="font-size: 11px; color: var(--muted); margin-top: 6px;">
-                Pilih hari-hari (H-1 s/d H-7 sebelum isolir) untuk mengirimkan notifikasi pengingat sebelum isolir otomatis ke WhatsApp pelanggan.
+                Pilih hari-hari (Hari H / H-1 s/d H-7 sebelum isolir) untuk mengirimkan notifikasi pengingat sebelum isolir otomatis ke WhatsApp pelanggan.
               </div>
             </div>
           </div>

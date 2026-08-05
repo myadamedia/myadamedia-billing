@@ -4,6 +4,33 @@ Dokumen ini mencatat seluruh proses analisis, perancangan arsitektur, dan peruba
 
 ---
 
+## [2026-08-05] - Feature Update: Penambahan Opsi Hari H (Tanggal Isolir / Jatuh Tempo) pada Broadcast & Pengingat WhatsApp
+
+### 1. Permasalahan & Kebutuhan Fitur
+Sebelumnya, modul **Broadcast WhatsApp** pada section **Pengingat Otomatis (Jadwal)** dan **Pengingat Sebelum Isolir** hanya menyediakan pilihan checklist hari pengiriman dari `H-1` hingga `H-7` sebelum tanggal isolir. Tidak ada opsi untuk mengirimkan notifikasi pengingat secara otomatis pada **Hari H (Tanggal Isolir / Jatuh Tempo)**.
+
+### 2. Analisis Masalah & Edge Case
+1. **Representasi Nilai Hari H**: Opsi Hari H membutuhkan nilai integer `0` (selisih hari = 0).
+2. **Kalkulasi Jam Eksekusi CRON**:
+   Fungsi `getDaysUntilIsolation(today, dueDay)` pada `services/cronService.js` sebelumnya membandingkan `isolateDate` terhadap `today` yang mengandung jam/menit eksekusi (misal `09:05 AM`).
+   Pada hari H (saat tanggal hari ini sama dengan `dueDay`), `isolateDate` set `00:00:00` dianggap lebih kecil dari `today` `09:05:00`, sehingga kode secara keliru menambahkan 1 bulan ke `isolateDate` dan mengembalikan nilai 30-31 hari (bukan 0 hari).
+
+### 3. Solusi yang Diterapkan
+- **UI Admin Portal ([views/admin/broadcast.ejs](file:///d:/WEBAPP/myadamedia-billing/views/admin/broadcast.ejs))**:
+  - Menambahkan checkbox `Hari H (Jatuh Tempo)` (`value="0"`) pada formulir **Pengingat Otomatis Tagihan**.
+  - Menambahkan checkbox `Hari H (Tanggal Isolir)` (`value="0"`) pada formulir **Pengingat Sebelum Isolir**.
+  - Memperbarui petunjuk pengguna untuk menjelaskan bahwa pengiriman dapat dijadwalkan pada Hari H maupun H-1 s/d H-7.
+- **Engine CRON ([services/cronService.js](file:///d:/WEBAPP/myadamedia-billing/services/cronService.js))**:
+  - Merestrukturisasi fungsi `getDaysUntilIsolation(today, dueDay)` agar membandingkan `isolateDate` terhadap `startOfToday` (`00:00:00`).
+  - Menjamin bahwa saat hari ini adalah tanggal jatuh tempo (`dueDay`), selisih hari dikalkulasi tepat `0` (Hari H).
+  - Memastikan substitusi variabel `{{hari_h}}` pada template pesan WhatsApp menghasilkan `0` dengan baik saat notifikasi dikirim di Hari H.
+
+### 4. File Diperbarui
+- [`views/admin/broadcast.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/broadcast.ejs): UI Checkbox Hari H (`value="0"`).
+- [`services/cronService.js`](file:///d:/WEBAPP/myadamedia-billing/services/cronService.js): Presisi logika `getDaysUntilIsolation` untuk Hari H (0 hari).
+
+---
+
 ## [2026-08-03] - Feature Refactoring: Restrukturisasi Form Kecepatan Paket Internet (MikroTik Rate-Limit Dual-Form Grid)
 
 ### 1. Permasalahan & Kebutuhan Fitur
