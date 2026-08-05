@@ -78,6 +78,102 @@
     <!-- ═══════════════════════════════════════════════════════ -->
     <div id="dashboard-section">
 
+      <!-- MikroTik Stats & List -->
+      <% const routerList = (typeof routers !== 'undefined' && Array.isArray(routers)) ? routers : []; %>
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">
+        <i class="bi bi-hdd-network"></i> <%= t('admin.dashboard.mikrotik_status_title', 'Status MikroTik') %>
+      </div>
+      
+      <!-- Summary Grid Router MikroTik -->
+      <div class="stat-grid" style="margin-bottom: 16px;">
+        <div class="sc p" style="cursor:pointer" onclick="location.href='/admin/routers'">
+          <i class="bi bi-hdd-network sc-icon"></i>
+          <div class="sc-label"><%= t('admin.dashboard.total_routers', 'Total Router MikroTik') %></div>
+          <div class="sc-val"><%= routerList.length %></div>
+          <div class="sc-sub">Router terdaftar</div>
+        </div>
+        <div class="sc s" style="cursor:pointer" onclick="location.href='/admin/routers'">
+          <i class="bi bi-check-circle sc-icon"></i>
+          <div class="sc-label"><%= t('admin.dashboard.active_routers', 'Router Status Aktif') %></div>
+          <div class="sc-val"><%= routerList.filter(r => r.is_active).length %></div>
+          <div class="sc-sub">Siap digunakan</div>
+        </div>
+        <div class="sc w" style="cursor:pointer" onclick="location.href='/admin/routers'">
+          <i class="bi bi-dash-circle sc-icon"></i>
+          <div class="sc-label"><%= t('admin.dashboard.inactive_routers', 'Router Status Nonaktif') %></div>
+          <div class="sc-val"><%= routerList.filter(r => !r.is_active).length %></div>
+          <div class="sc-sub">Di-nonaktifkan</div>
+        </div>
+      </div>
+
+      <!-- Daftar Router MikroTik Table Card -->
+      <div class="card" style="margin-bottom: 20px;">
+        <div class="card-hd" style="display:flex; justify-content:space-between; align-items:center;">
+          <h6><i class="bi bi-hdd-network"></i> <%= t('admin.dashboard.router_list_title', 'Daftar Router MikroTik') %> (<%= routerList.length %>)</h6>
+          <a href="/admin/routers" class="btn btn-g btn-sm"><i class="bi bi-gear"></i> Kelola Router</a>
+        </div>
+        <div class="card-bd" style="padding:0">
+          <% if (routerList.length === 0) { %>
+            <div style="padding: 20px; text-align: center; color: var(--muted);">
+              <i class="bi bi-info-circle" style="font-size: 24px;"></i>
+              <p style="margin-top: 8px; font-size: 13px;">Belum ada router MikroTik yang terdaftar di sistem.</p>
+              <a href="/admin/routers" class="btn btn-p btn-sm" style="margin-top: 8px;"><i class="bi bi-plus-lg"></i> Tambah Router</a>
+            </div>
+          <% } else { %>
+            <div style="overflow-x:auto;">
+              <table class="tbl" style="width:100%; border-collapse:collapse; font-size:13px;">
+                <thead>
+                  <tr style="border-bottom:1px solid var(--border); text-align:left; background:var(--bg2);">
+                    <th style="padding:10px 14px;">Nama Router</th>
+                    <th style="padding:10px 14px;">Host / IP & Port</th>
+                    <th style="padding:10px 14px;">User</th>
+                    <th style="padding:10px 14px;">Status Fitur</th>
+                    <th style="padding:10px 14px;">Koneksi Live</th>
+                    <th style="padding:10px 14px; text-align:right;">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% routerList.forEach(r => { %>
+                    <tr style="border-bottom:1px solid var(--border);">
+                      <td style="padding:10px 14px; font-weight:700; color:var(--text);">
+                        <i class="bi bi-hdd-network" style="color:var(--primary); margin-right:6px;"></i><%= r.name %>
+                        <% if (r.description) { %>
+                          <div style="font-size:11px; font-weight:400; color:var(--muted); margin-top:2px;"><%= r.description %></div>
+                        <% } %>
+                      </td>
+                      <td style="padding:10px 14px; color:var(--text);">
+                        <code><%= r.host %>:<%= r.port || 8728 %></code>
+                      </td>
+                      <td style="padding:10px 14px; color:var(--text);"><%= r.user %></td>
+                      <td style="padding:10px 14px;">
+                        <% if (r.is_active) { %>
+                          <span class="badge bg-s" style="padding:3px 8px; border-radius:4px; font-size:11px; background:rgba(16,185,129,0.15); color:var(--success); font-weight:600;"><i class="bi bi-check-circle"></i> Aktif</span>
+                        <% } else { %>
+                          <span class="badge bg-d" style="padding:3px 8px; border-radius:4px; font-size:11px; background:rgba(239,68,68,0.15); color:var(--danger); font-weight:600;"><i class="bi bi-dash-circle"></i> Nonaktif</span>
+                        <% } %>
+                      </td>
+                      <td style="padding:10px 14px;" id="router-status-cell-<%= r.id %>">
+                        <span class="badge" style="padding:3px 8px; border-radius:4px; font-size:11px; background:var(--bg2); color:var(--muted); font-weight:500;" id="badge-router-<%= r.id %>">
+                          <i class="bi bi-hourglass-split"></i> Siap diuji
+                        </span>
+                      </td>
+                      <td style="padding:10px 14px; text-align:right; white-space:nowrap;">
+                        <button type="button" class="btn btn-g btn-sm" style="padding:4px 8px; font-size:11px;" onclick="testRouterConnDashboard(<%= r.id %>, this)">
+                          <i class="bi bi-arrow-repeat"></i> Tes Koneksi
+                        </button>
+                        <a href="/admin/routers" class="btn btn-g btn-sm" style="padding:4px 8px; font-size:11px;" title="Kelola Router">
+                          <i class="bi bi-sliders"></i>
+                        </a>
+                      </td>
+                    </tr>
+                  <% }); %>
+                </tbody>
+              </table>
+            </div>
+          <% } %>
+        </div>
+      </div>
+
       <!-- ONU Stats -->
       <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">
         <i class="bi bi-router"></i> <%= t('admin.dashboard.onu_status_title', 'Status ONU') %>
@@ -1046,6 +1142,52 @@ async function deleteMonDevice(deviceId, acsId) {
     if (d.success) setTimeout(refreshAll, 1500);
   } catch (err) {
     showToast('Gagal menghapus perangkat: ' + err.message, 'd');
+  }
+}
+
+async function testRouterConnDashboard(id, btn) {
+  const badge = document.getElementById('badge-router-' + id);
+  const origText = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> Menguji...';
+  }
+  if (badge) {
+    badge.style.background = 'rgba(59,130,246,0.15)';
+    badge.style.color = 'var(--info)';
+    badge.innerHTML = '<i class="bi bi-hourglass-split spin"></i> Menghubungkan...';
+  }
+
+  try {
+    const res = await fetch('/admin/api/routers/' + id + '/test');
+    const d = await res.json();
+    if (d.success) {
+      if (badge) {
+        badge.style.background = 'rgba(16,185,129,0.15)';
+        badge.style.color = 'var(--success)';
+        badge.innerHTML = '<i class="bi bi-wifi"></i> Connected';
+      }
+      if (typeof showToast === 'function') showToast(d.message || 'Koneksi Router Berhasil', 's');
+    } else {
+      if (badge) {
+        badge.style.background = 'rgba(239,68,68,0.15)';
+        badge.style.color = 'var(--danger)';
+        badge.innerHTML = '<i class="bi bi-wifi-off"></i> Connection Error';
+      }
+      if (typeof showToast === 'function') showToast(d.error || 'Gagal terhubung ke router', 'd');
+    }
+  } catch (err) {
+    if (badge) {
+      badge.style.background = 'rgba(239,68,68,0.15)';
+      badge.style.color = 'var(--danger)';
+      badge.innerHTML = '<i class="bi bi-wifi-off"></i> Connection Failed';
+    }
+    if (typeof showToast === 'function') showToast('Error: ' + err.message, 'd');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = origText;
+    }
   }
 }
 

@@ -4,6 +4,29 @@ Dokumen ini mencatat seluruh proses analisis, perancangan arsitektur, dan peruba
 
 ---
 
+## [2026-08-05] - Feature Update: Penambahan Fitur Status MikroTik (Daftar Router MikroTik) pada Dashboard Admin
+
+### 1. Permasalahan & Kebutuhan Fitur
+Sebelumnya, Dashboard Admin (`views/admin/dashboard.ejs`) hanya menampilkan **Status ONU** (Monitoring Perangkat GenieACS / OLT) dan **Ringkasan Billing**. Pengelola sistem memerlukan akses langsung dan visibilitas mengenai **Status Router MikroTik** yang terdaftar di aplikasi tanpa harus berpindah ke menu manajemen router.
+
+### 2. Solusi yang Diterapkan
+- **Controller Layer ([routes/adminPortal.js](file:///d:/WEBAPP/myadamedia-billing/routes/adminPortal.js))**:
+  Mengambil daftar router MikroTik aktual via `mikrotikService.getAllRouters()` dan mengoper variabel `routers` ke template `views/admin/dashboard.ejs` pada route `GET /admin`, `GET /admin/devices`, dan `GET /admin/bulk`.
+- **UI Admin Dashboard ([views/admin/dashboard.ejs](file:///d:/WEBAPP/myadamedia-billing/views/admin/dashboard.ejs))**:
+  - Menyisipkan seksi **Status MikroTik** tepat di atas seksi **Status ONU**.
+  - **Summary Stat Cards Grid**: Menampilkan kartu statistik `Total Router MikroTik`, `Router Status Aktif`, dan `Router Status Nonaktif`.
+  - **Tabel Daftar Router MikroTik**: Menampilkan tabel presisi mencakup *Nama Router, Host / IP & Port, User, Status Fitur (Aktif/Nonaktif), Badge Status Live Connection, serta Tombol Aksi Cepat*.
+  - **Live AJAX Test (`testRouterConnDashboard`)**: Menambahkan fungsi JavaScript untuk menguji koneksi router secara real-time dari dashboard melalui endpoint `/admin/api/routers/:id/test` tanpa perlu reload halaman.
+- **Lokalisasi Language Dictionary ([locales/id.json](file:///d:/WEBAPP/myadamedia-billing/locales/id.json))**:
+  Menambahkan entri i18n dictionary untuk seksi Status MikroTik (`mikrotik_status_title`, `total_routers`, `active_routers`, `inactive_routers`, `router_list_title`).
+
+### 3. File Diperbarui
+- [`routes/adminPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/adminPortal.js): Passing variabel `routers` ke `dashboard.ejs`.
+- [`views/admin/dashboard.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/dashboard.ejs): UI Seksi Status MikroTik, Tabel Router, dan JS `testRouterConnDashboard`.
+- [`locales/id.json`](file:///d:/WEBAPP/myadamedia-billing/locales/id.json): Translation dictionary.
+
+---
+
 ## [2026-08-05] - Feature Update: Penambahan Opsi Hari H (Tanggal Isolir / Jatuh Tempo) pada Broadcast & Pengingat WhatsApp
 
 ### 1. Permasalahan & Kebutuhan Fitur

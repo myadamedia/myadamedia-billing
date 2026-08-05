@@ -1603,9 +1603,10 @@ router.get('/', requireAdminSession, requireSidebarMenuAccess('dashboard'), asyn
     const billing = billingSvc.getDashboardStats();
     const custStats = customerSvc.getCustomerStats();
     const settings = getSettings(); // Get current settings
+    const routers = mikrotikService.getAllRouters();
     res.render('admin/dashboard', {
       title: 'Dashboard', company: company(), version: '2.0.0',
-      activePage: 'dashboard', billing, custStats, settings
+      activePage: 'dashboard', billing, custStats, settings, routers
     });
   } catch (e) {
     logger.error('Admin dashboard error:', e);
@@ -1616,12 +1617,14 @@ router.get('/', requireAdminSession, requireSidebarMenuAccess('dashboard'), asyn
 // ─── DEVICE ROUTES (existing) ───────────────────────────────────────────────
 router.get('/devices', requireAdminSession, (req, res) => {
   const settings = getSettings();
-  res.render('admin/dashboard', { title: 'Monitoring ONU', company: company(), version: '2.0.0', activePage: 'devices', billing: null, custStats: null, settings });
+  const routers = mikrotikService.getAllRouters();
+  res.render('admin/dashboard', { title: 'Monitoring ONU', company: company(), version: '2.0.0', activePage: 'devices', billing: null, custStats: null, settings, routers });
 });
 
 router.get('/bulk', requireAdminSession, (req, res) => {
   const settings = getSettings();
-  res.render('admin/dashboard', { title: 'Konfigurasi Massal', company: company(), version: '2.0.0', activePage: 'bulk', billing: null, custStats: null, settings });
+  const routers = mikrotikService.getAllRouters();
+  res.render('admin/dashboard', { title: 'Konfigurasi Massal', company: company(), version: '2.0.0', activePage: 'bulk', billing: null, custStats: null, settings, routers });
 });
 
 // ─── CUSTOMERS ─────────────────────────────────────────────────────────────
