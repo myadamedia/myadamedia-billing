@@ -124,46 +124,58 @@
               <table class="tbl" style="width:100%; border-collapse:collapse; font-size:13px;">
                 <thead>
                   <tr style="border-bottom:1px solid var(--border); text-align:left; background:var(--bg2);">
-                    <th style="padding:10px 14px;">Nama Router</th>
-                    <th style="padding:10px 14px;">Host / IP & Port</th>
-                    <th style="padding:10px 14px;">User</th>
-                    <th style="padding:10px 14px;">Status Fitur</th>
-                    <th style="padding:10px 14px;">Koneksi Live</th>
-                    <th style="padding:10px 14px; text-align:right;">Aksi</th>
+                    <th style="padding:12px 16px; width:38%;">Nama Router</th>
+                    <th style="padding:12px 16px; width:62%;">Detail & Monitoring Interface</th>
                   </tr>
                 </thead>
                 <tbody>
                   <% routerList.forEach(r => { %>
-                    <tr style="border-bottom:1px solid var(--border);">
-                      <td style="padding:10px 14px; font-weight:700; color:var(--text);">
-                        <i class="bi bi-hdd-network" style="color:var(--primary); margin-right:6px;"></i><%= r.name %>
-                        <% if (r.description) { %>
-                          <div style="font-size:11px; font-weight:400; color:var(--muted); margin-top:2px;"><%= r.description %></div>
-                        <% } %>
+                    <tr style="border-bottom:1px solid var(--border); vertical-align:top;">
+                      <!-- Kolom 1: Nama Router -->
+                      <td style="padding:14px 16px;">
+                        <div style="font-weight:700; font-size:14px; color:var(--text); display:flex; align-items:center; gap:8px;">
+                          <i class="bi bi-hdd-network" style="color:var(--primary); font-size:18px;"></i>
+                          <%= r.name %>
+                        </div>
+                        <div style="margin-top:6px; font-size:12px; color:var(--muted); display:flex; flex-direction:column; gap:4px;">
+                          <div><i class="bi bi-hdd-stack" style="margin-right:4px;"></i> Host: <code><%= r.host %>:<%= r.port || 8728 %></code></div>
+                          <div><i class="bi bi-person-lock" style="margin-right:4px;"></i> User: <code><%= r.user %></code></div>
+                          <% if (r.description) { %>
+                            <div><i class="bi bi-info-circle" style="margin-right:4px;"></i> <%= r.description %></div>
+                          <% } %>
+                        </div>
+                        <div style="margin-top:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                          <% if (r.is_active) { %>
+                            <span class="badge bg-s" style="padding:3px 8px; border-radius:4px; font-size:11px; background:rgba(16,185,129,0.15); color:var(--success); font-weight:600;"><i class="bi bi-check-circle"></i> Status Aktif</span>
+                          <% } else { %>
+                            <span class="badge bg-d" style="padding:3px 8px; border-radius:4px; font-size:11px; background:rgba(239,68,68,0.15); color:var(--danger); font-weight:600;"><i class="bi bi-dash-circle"></i> Status Nonaktif</span>
+                          <% } %>
+                          <button type="button" class="btn btn-g btn-sm" style="padding:2px 8px; font-size:11px;" onclick="testRouterConnDashboard(<%= r.id %>, this)">
+                            <i class="bi bi-arrow-repeat"></i> Tes Koneksi
+                          </button>
+                          <span class="badge" style="padding:3px 8px; border-radius:4px; font-size:11px; background:var(--bg2); color:var(--muted); font-weight:500;" id="badge-router-<%= r.id %>">
+                            <i class="bi bi-hourglass-split"></i> Siap diuji
+                          </span>
+                        </div>
                       </td>
-                      <td style="padding:10px 14px; color:var(--text);">
-                        <code><%= r.host %>:<%= r.port || 8728 %></code>
-                      </td>
-                      <td style="padding:10px 14px; color:var(--text);"><%= r.user %></td>
-                      <td style="padding:10px 14px;">
-                        <% if (r.is_active) { %>
-                          <span class="badge bg-s" style="padding:3px 8px; border-radius:4px; font-size:11px; background:rgba(16,185,129,0.15); color:var(--success); font-weight:600;"><i class="bi bi-check-circle"></i> Aktif</span>
-                        <% } else { %>
-                          <span class="badge bg-d" style="padding:3px 8px; border-radius:4px; font-size:11px; background:rgba(239,68,68,0.15); color:var(--danger); font-weight:600;"><i class="bi bi-dash-circle"></i> Nonaktif</span>
-                        <% } %>
-                      </td>
-                      <td style="padding:10px 14px;" id="router-status-cell-<%= r.id %>">
-                        <span class="badge" style="padding:3px 8px; border-radius:4px; font-size:11px; background:var(--bg2); color:var(--muted); font-weight:500;" id="badge-router-<%= r.id %>">
-                          <i class="bi bi-hourglass-split"></i> Siap diuji
-                        </span>
-                      </td>
-                      <td style="padding:10px 14px; text-align:right; white-space:nowrap;">
-                        <button type="button" class="btn btn-g btn-sm" style="padding:4px 8px; font-size:11px;" onclick="testRouterConnDashboard(<%= r.id %>, this)">
-                          <i class="bi bi-arrow-repeat"></i> Tes Koneksi
-                        </button>
-                        <a href="/admin/routers" class="btn btn-g btn-sm" style="padding:4px 8px; font-size:11px;" title="Kelola Router">
-                          <i class="bi bi-sliders"></i>
-                        </a>
+
+                      <!-- Kolom 2: Detail & Monitoring Interface (Dropdown) -->
+                      <td style="padding:14px 16px;">
+                        <div style="display:flex; flex-direction:column; gap:10px;">
+                          <div style="display:flex; gap:8px; align-items:center;">
+                            <select class="fc" id="dash-iface-select-<%= r.id %>" onchange="onDashIfaceChange(<%= r.id %>, this.value)" style="width:100%; font-size:13px; font-weight:600; padding:8px 12px; cursor:pointer;">
+                              <option value="">-- Loading daftar interface... --</option>
+                            </select>
+                            <button type="button" class="btn btn-g btn-sm" onclick="loadDashRouterInterfaces(<%= r.id %>, true)" title="Refresh Interface List" style="padding:8px 12px;">
+                              <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                          </div>
+
+                          <!-- Panel Detail & Live Traffic Monitoring -->
+                          <div id="dash-iface-panel-<%= r.id %>" style="display:none; background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:12px; font-size:12px;">
+                            <!-- Filled dynamically by JavaScript -->
+                          </div>
+                        </div>
                       </td>
                     </tr>
                   <% }); %>
@@ -1189,6 +1201,159 @@ async function testRouterConnDashboard(id, btn) {
       btn.innerHTML = origText;
     }
   }
+}
+
+// ─── DASHBOARD MIKROTIK DROPDOWN INTERFACE MONITORING ───────────────────────
+const dashIfaceDataMap = {};
+const dashIfacePollMap = {};
+
+document.addEventListener('DOMContentLoaded', () => {
+  const routerSelects = document.querySelectorAll('[id^="dash-iface-select-"]');
+  routerSelects.forEach(select => {
+    const routerId = select.id.replace('dash-iface-select-', '');
+    if (routerId) {
+      loadDashRouterInterfaces(routerId);
+    }
+  });
+});
+
+async function loadDashRouterInterfaces(routerId, force = false) {
+  const select = document.getElementById('dash-iface-select-' + routerId);
+  if (!select) return;
+
+  select.innerHTML = '<option value="">⏳ Memuat daftar interface...</option>';
+  select.disabled = true;
+
+  try {
+    const res = await fetch('/admin/api/routers/' + routerId + '/interfaces');
+    const d = await res.json();
+    if (d.success && Array.isArray(d.interfaces)) {
+      dashIfaceDataMap[routerId] = d.interfaces;
+      select.innerHTML = '<option value="">-- Pilih Interface MikroTik untuk Monitoring --</option>';
+      d.interfaces.forEach(iface => {
+        const opt = document.createElement('option');
+        opt.value = iface.name;
+        const statusIcon = iface.disabled ? '🔴' : (iface.running ? '🟢' : '🟡');
+        opt.textContent = `${statusIcon} ${iface.name} (${iface.type || 'ether'}) ${iface.comment ? '- ' + iface.comment : ''}`;
+        select.appendChild(opt);
+      });
+      if (force && typeof showToast === 'function') {
+        showToast('Daftar interface berhasil dimuat (' + d.interfaces.length + ' interface)', 's');
+      }
+    } else {
+      select.innerHTML = '<option value="">❌ Gagal memuat interface (' + (d.error || 'Offline') + ')</option>';
+    }
+  } catch (err) {
+    select.innerHTML = '<option value="">❌ Gagal terhubung ke router</option>';
+  } finally {
+    select.disabled = false;
+  }
+}
+
+function onDashIfaceChange(routerId, ifaceName) {
+  const panel = document.getElementById('dash-iface-panel-' + routerId);
+  if (!panel) return;
+
+  if (dashIfacePollMap[routerId]) {
+    clearInterval(dashIfacePollMap[routerId]);
+    delete dashIfacePollMap[routerId];
+  }
+
+  if (!ifaceName) {
+    panel.style.display = 'none';
+    panel.innerHTML = '';
+    return;
+  }
+
+  const interfaces = dashIfaceDataMap[routerId] || [];
+  const iface = interfaces.find(i => i.name === ifaceName);
+  const statusBadge = iface ? (iface.disabled ? 
+    '<span style="color:var(--danger); font-weight:700;"><i class="bi bi-dash-circle"></i> Disabled</span>' : 
+    (iface.running ? 
+      '<span style="color:var(--success); font-weight:700;"><i class="bi bi-check-circle-fill"></i> Running (Active)</span>' : 
+      '<span style="color:var(--warning); font-weight:700;"><i class="bi bi-exclamation-circle"></i> Link Down</span>'
+    )
+  ) : '-';
+
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <div style="display:flex; justify-space-between; align-items:center; margin-bottom:8px; border-bottom:1px solid var(--border); padding-bottom:6px;">
+      <div style="font-weight:700; font-size:13px; color:var(--text); display:flex; align-items:center; gap:6px;">
+        <i class="bi bi-ethernet" style="color:var(--primary);"></i> ${escapeHtmlDash(ifaceName)}
+      </div>
+      <div>${statusBadge}</div>
+    </div>
+
+    <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:8px; margin-bottom:10px;">
+      <div><span style="color:var(--muted);">Tipe:</span> <b style="color:var(--text);">${iface ? escapeHtmlDash(iface.type) : '-'}</b></div>
+      <div><span style="color:var(--muted);">MAC Address:</span> <code>${iface ? escapeHtmlDash(iface.macAddress) : '-'}</code></div>
+      <div><span style="color:var(--muted);">MTU:</span> <b style="color:var(--text);">${iface ? escapeHtmlDash(iface.mtu) : '-'}</b></div>
+      <div><span style="color:var(--muted);">Comment:</span> <b style="color:var(--text);">${iface && iface.comment ? escapeHtmlDash(iface.comment) : '-'}</b></div>
+    </div>
+
+    <div style="background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:8px 12px;">
+      <div style="font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; margin-bottom:6px; display:flex; justify-content:space-between;">
+        <span><i class="bi bi-speedometer2"></i> Live Bandwidth Monitoring</span>
+        <span id="dash-traffic-live-indicator-${routerId}" style="color:var(--success); font-size:10px;"><i class="bi bi-broadcast spin"></i> Live</span>
+      </div>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; text-align:center;">
+        <div style="background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.2); border-radius:6px; padding:6px;">
+          <div style="font-size:10px; color:var(--success); font-weight:700;">DOWNLOAD (RX SPEED)</div>
+          <div style="font-size:16px; font-weight:800; color:var(--success);" id="dash-rx-speed-${routerId}">0 Bps</div>
+          <div style="font-size:10px; color:var(--muted);" id="dash-rx-total-${routerId}">Total: ${iface ? escapeHtmlDash(iface.rxBytesFormatted) : '0 B'}</div>
+        </div>
+        <div style="background:rgba(59,130,246,0.1); border:1px solid rgba(59,130,246,0.2); border-radius:6px; padding:6px;">
+          <div style="font-size:10px; color:var(--info); font-weight:700;">UPLOAD (TX SPEED)</div>
+          <div style="font-size:16px; font-weight:800; color:var(--info);" id="dash-tx-speed-${routerId}">0 Bps</div>
+          <div style="font-size:10px; color:var(--muted);" id="dash-tx-total-${routerId}">Total: ${iface ? escapeHtmlDash(iface.txBytesFormatted) : '0 B'}</div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  fetchDashIfaceTraffic(routerId, ifaceName);
+  dashIfacePollMap[routerId] = setInterval(() => {
+    fetchDashIfaceTraffic(routerId, ifaceName);
+  }, 2500);
+}
+
+async function fetchDashIfaceTraffic(routerId, ifaceName) {
+  try {
+    const res = await fetch(`/admin/api/routers/${routerId}/interfaces/${encodeURIComponent(ifaceName)}/traffic`);
+    const d = await res.json();
+    if (d.success && d.traffic) {
+      const rxEl = document.getElementById('dash-rx-speed-' + routerId);
+      const txEl = document.getElementById('dash-tx-speed-' + routerId);
+      const liveEl = document.getElementById('dash-traffic-live-indicator-' + routerId);
+
+      const rx = d.traffic['rx-bits-per-second'] != null ? Number(d.traffic['rx-bits-per-second']) : (d.traffic.rx || 0);
+      const tx = d.traffic['tx-bits-per-second'] != null ? Number(d.traffic['tx-bits-per-second']) : (d.traffic.tx || 0);
+
+      if (rxEl) rxEl.textContent = formatBitsPerSecDash(rx);
+      if (txEl) txEl.textContent = formatBitsPerSecDash(tx);
+      if (liveEl) liveEl.style.opacity = liveEl.style.opacity === '0.4' ? '1' : '0.4';
+    }
+  } catch (e) {
+    console.error('Error fetching traffic:', e);
+  }
+}
+
+function formatBitsPerSecDash(bits) {
+  if (!bits || isNaN(bits) || bits <= 0) return '0 Bps';
+  const k = 1000;
+  const sizes = ['Bps', 'Kbps', 'Mbps', 'Gbps'];
+  const i = Math.floor(Math.log(bits) / Math.log(k));
+  return parseFloat((bits / Math.pow(k, i)).toFixed(2)) + ' ' + (sizes[i] || 'Bps');
+}
+
+function escapeHtmlDash(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
 </script>

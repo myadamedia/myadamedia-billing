@@ -15,7 +15,12 @@ Sebelumnya, Dashboard Admin (`views/admin/dashboard.ejs`) hanya menampilkan **St
 - **UI Admin Dashboard ([views/admin/dashboard.ejs](file:///d:/WEBAPP/myadamedia-billing/views/admin/dashboard.ejs))**:
   - Menyisipkan seksi **Status MikroTik** tepat di atas seksi **Status ONU**.
   - **Summary Stat Cards Grid**: Menampilkan kartu statistik `Total Router MikroTik`, `Router Status Aktif`, dan `Router Status Nonaktif`.
-  - **Tabel Daftar Router MikroTik**: Menampilkan tabel presisi mencakup *Nama Router, Host / IP & Port, User, Status Fitur (Aktif/Nonaktif), Badge Status Live Connection, serta Tombol Aksi Cepat*.
+  - **Restrukturisasi Tabel 2-Kolom**: Sesuai instruksi pengguna, tabel disederhanakan menjadi **2 kolom utama**:
+    1. **Nama Router**: Menggabungkan nama router, host IP:port, username, deskripsi, status aktif badge, dan tombol tes koneksi.
+    2. **Detail & Monitoring Interface**: Menggunakan model **Dropdown Interface Selector** (`<select id="dash-iface-select-[id]">`).
+  - **Live AJAX Dropdown Monitoring (`onDashIfaceChange` & `fetchDashIfaceTraffic`)**:
+    - Dropdown memuat daftar interface MikroTik secara otomatis/on-demand.
+    - Saat interface dipilih, panel menampilkan detail interface (*Status, Tipe, MAC Address, MTU, Comment*) dan **Live Bandwidth Monitoring** real-time Rx/Tx speed.
   - **Live AJAX Test (`testRouterConnDashboard`)**: Menambahkan fungsi JavaScript untuk menguji koneksi router secara real-time dari dashboard melalui endpoint `/admin/api/routers/:id/test` tanpa perlu reload halaman.
 - **Lokalisasi Language Dictionary ([locales/id.json](file:///d:/WEBAPP/myadamedia-billing/locales/id.json))**:
   Menambahkan entri i18n dictionary untuk seksi Status MikroTik (`mikrotik_status_title`, `total_routers`, `active_routers`, `inactive_routers`, `router_list_title`).
