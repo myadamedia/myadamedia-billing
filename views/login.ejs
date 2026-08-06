@@ -253,12 +253,9 @@
           <button type="submit" class="btn btn-primary btn-login w-100">
             <i class="bi bi-box-arrow-in-right me-2"></i><%= t('customer.sign_in', 'Masuk') %>
           </button>
-          <div class="quick-actions" style="grid-template-columns:1fr 1fr">
+          <div class="quick-actions" style="grid-template-columns:1fr">
             <a href="/customer/check-billing" class="btn-ghost">
               <i class="bi bi-receipt"></i>Cek Tagihan
-            </a>
-            <a href="/customer/voucher" class="btn-ghost">
-              <i class="bi bi-ticket-perforated"></i>Voucher
             </a>
           </div>
         </form>
@@ -273,7 +270,7 @@
         <div class="info-grid">
           <div class="info-box">
             <div class="info-title"><i class="bi bi-lightning-charge"></i> Akses Cepat</div>
-            <p class="info-text">Cek tagihan dan beli voucher bisa dilakukan tanpa login.</p>
+            <p class="info-text">Cek tagihan bisa dilakukan tanpa login.</p>
           </div>
           <div class="info-box">
             <div class="info-title"><i class="bi bi-clock"></i> Jam Operasional</div>
@@ -302,13 +299,6 @@
                   <div style="padding:8px 0;border-top:1px solid rgba(148,163,184,.12)">
                     <div style="font-weight:900;font-size:12px">
                       <%= p.name %> — Rp <%= Number(p.price||0).toLocaleString('id-ID') %>/bulan
-                    </div>
-                    <div class="info-text" style="margin-top:2px">
-                      <% if (Number(p.speed_down||0) > 0 || Number(p.speed_up||0) > 0) { %>
-                        <span><%= Number(p.speed_down||0) > 0 ? (Math.round(Number(p.speed_down||0)/1000) + ' Mbps') : '-' %> / <%= Number(p.speed_up||0) > 0 ? (Math.round(Number(p.speed_up||0)/1000) + ' Mbps') : '-' %></span>
-                        <span> • </span>
-                      <% } %>
-                      <span><%= p.description ? String(p.description) : '-' %></span>
                     </div>
                   </div>
                 <% }) %>

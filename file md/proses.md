@@ -4,6 +4,35 @@ Dokumen ini mencatat seluruh proses analisis, perancangan arsitektur, dan peruba
 
 ---
 
+## [2026-08-06] - UI Update: Penyederhanaan Tampilan Paket & Harga pada Halaman Login Pelanggan
+
+### 1. Kebutuhan UI
+Menyesuaikan blok "Paket & Harga" pada halaman login portal pelanggan ([`views/login.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/login.ejs)) agar hanya menampilkan format nama paket dan harga per bulan saja (contoh: `LITE — Rp 150.000/bulan`) tanpa menyertakan keterangan kecepatan (Mbps) maupun deskripsi paket.
+
+### 2. Solusi yang Diterapkan
+- **Modifikasi Template EJS ([views/login.ejs](file:///d:/WEBAPP/myadamedia-billing/views/login.ejs))**:
+  - Menghapus sub-elemen info kecepatan (`speed_down`/`speed_up`) dan deskripsi paket.
+  - Memperbarui teks informasi Akses Cepat menjadi "Cek tagihan bisa dilakukan tanpa login."
+
+### 3. File Diperbarui
+- [`views/login.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/login.ejs): Format tampilan Paket & Harga disederhanakan.
+
+---
+
+## [2026-08-06] - UI Update: Menyembunyikan Tombol Fitur Voucher pada Halaman Login Pelanggan
+
+### 1. Kebutuhan UI
+Menyembunyikan opsi tautan "Voucher" pada halaman login portal pelanggan ([`views/login.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/login.ejs)) agar tampilan tombol aksi cepat (*quick-actions*) menjadi lebih bersih dan terfokus pada tombol "Cek Tagihan".
+
+### 2. Solusi yang Diterapkan
+- **Modifikasi Template EJS ([views/login.ejs](file:///d:/WEBAPP/myadamedia-billing/views/login.ejs))**:
+  Menghapus elemen `<a href="/customer/voucher">` dan menyesuaikan kontainer CSS `.quick-actions` menjadi `grid-template-columns: 1fr` sehingga tombol "Cek Tagihan" tampil penuh.
+
+### 3. File Diperbarui
+- [`views/login.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/login.ejs): Menyembunyikan tombol Voucher.
+
+---
+
 ## [2026-08-06] - Feature Update: Penyesuaian Header Notifikasi WhatsApp Pembayaran Parsial & Catatan Penagihan Bulan Berikutnya
 
 ### 1. Kebutuhan Fitur
