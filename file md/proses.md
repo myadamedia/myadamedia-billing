@@ -4,6 +4,28 @@ Dokumen ini mencatat seluruh proses analisis, perancangan arsitektur, dan peruba
 
 ---
 
+## [2026-08-06] - Feature Update: Penyesuaian Header Notifikasi WhatsApp Pembayaran Parsial & Catatan Penagihan Bulan Berikutnya
+
+### 1. Kebutuhan Fitur
+Memperbarui pesan notifikasi WhatsApp untuk pembayaran parsial (sebagian):
+- Header notifikasi diubah dari `PEMBAYARAN BERHASIL (LUNAS)` menjadi `PEMBAYARAN SEBAGIAN / PARTIAL DITERIMA`.
+- Menginformasikan nominal sisa tagihan secara jelas (`⚠️ Sisa Tagihan: Rp XXX`).
+- Menambahkan catatan penagihan: `📌 Catatan: Sisa tagihan akan ditagihkan bulan berikutnya.`.
+
+### 2. Solusi yang Diterapkan
+- **Pengaturan Template WhatsApp ([routes/adminPortal.js](file:///d:/WEBAPP/myadamedia-billing/routes/adminPortal.js) & [views/admin/whatsapp_templates.ejs](file:///d:/WEBAPP/myadamedia-billing/views/admin/whatsapp_templates.ejs))**:
+  - Menambahkan template terpisah `whatsapp_payment_partial_message` pada database app setting serta halaman pengaturan template admin.
+  - Memperbarui `sendPaymentSuccessWA` agar secara otomatis mendeteksi status pembayaran parsial dan menggunakan format header `*PEMBAYARAN SEBAGIAN / PARTIAL DITERIMA*` beserta variabel `{{sisa_tagihan}}` dan catatan penagihan bulan berikutnya.
+- **Notifikasi Auto-Approve Kolektor ([routes/collectorPortal.js](file:///d:/WEBAPP/myadamedia-billing/routes/collectorPortal.js))**:
+  - Menyelaraskan pesan WhatsApp yang dikirim oleh sistem saat kolektor memproses pembayaran parsial.
+
+### 3. File Diperbarui
+- [`routes/adminPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/adminPortal.js): Pembedaan template WA lunas vs parsial & pengisian variabel sisa tagihan.
+- [`routes/collectorPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/collectorPortal.js): Penyesuaian header & rincian sisa tagihan pada notifikasi kolektor.
+- [`views/admin/whatsapp_templates.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/whatsapp_templates.ejs): Form editor template Pembayaran Parsial.
+
+---
+
 ## [2026-08-05] - Feature Update: Implementasi Alokasi Pembayaran FIFO Waterfall & Penyesuaian Sisa Tagihan Multi-Invoice
 
 ### 1. Permasalahan & Kebutuhan Spesifik

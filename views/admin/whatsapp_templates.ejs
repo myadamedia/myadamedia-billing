@@ -75,6 +75,14 @@
             </div>
 
             <div class="fg" style="margin-top: 20px;">
+              <label class="fl">Template Pembayaran Parsial (Sebagian)</label>
+              <textarea class="fc" name="whatsapp_payment_partial_message" rows="8" required style="width: 100%;"><%= templates.whatsapp_payment_partial_message %></textarea>
+              <div style="font-size: 11px; color: var(--muted); margin-top: 6px;">
+                <i class="bi bi-info-circle"></i> Variabel: <b>{{id_pelanggan}}</b>, <b>{{nama}}</b>, <b>{{periode}}</b>, <b>{{total}}</b>, <b>{{sisa_tagihan}}</b>, <b>{{metode}}</b>.
+              </div>
+            </div>
+
+            <div class="fg" style="margin-top: 20px;">
               <label class="fl">Template Pemberitahuan Isolir (Otomatis / Manual)</label>
               <textarea class="fc" name="whatsapp_isolir_message" rows="8" required style="width: 100%;"><%= templates.whatsapp_isolir_message %></textarea>
               <div style="font-size: 11px; color: var(--muted); margin-top: 6px;">

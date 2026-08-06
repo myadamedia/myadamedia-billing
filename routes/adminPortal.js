@@ -221,11 +221,17 @@ async function trySendWhatsappPayment(customerPhone, message) {
   }
 }
 
-async function sendPaymentSuccessWA(customerPhone, customerName, periodText, amountText, paidBy, customerId) {
+async function sendPaymentSuccessWA(customerPhone, customerName, periodText, amountText, paidBy, customerId, isPartial = false, dueText = '0') {
   try {
-    const defaultSuccess = `Yth. Bpk/Ibu {{nama}},\n\n*PEMBAYARAN BERHASIL (LUNAS)*\n\n📅 *Periode:* {{periode}}\n💰 *Total Bayar:* Rp {{total}}\n💳 *Metode:* {{metode}}\n\nLayanan internet Anda aktif. Terima kasih atas kerja samanya.`;
-    const template = db.getAppSetting('whatsapp_payment_success_message', defaultSuccess);
+    const defaultSuccess = `Yth. Pelanggan {{nama}} ({{id_pelanggan}}),\n\n*PEMBAYARAN BERHASIL (LUNAS)*\n\n📅 *Periode:* {{periode}}\n💰 *Total Bayar:* Rp {{total}}\n💳 *Metode:* {{metode}}\n\nLayanan internet Anda aktif. Terima kasih atas kerja samanya.`;
+    
+    const defaultPartial = `Yth. Pelanggan {{nama}} ({{id_pelanggan}}),\n\n*PEMBAYARAN SEBAGIAN / PARTIAL DITERIMA*\n\n📅 *Periode:* {{periode}}\n💰 *Nominal Dibayar:* Rp {{total}}\n💳 *Metode:* {{metode}}\n⚠️ *Sisa Tagihan:* Rp {{sisa_tagihan}}\n\n📌 *Catatan:* Sisa tagihan akan ditagihkan bulan berikutnya. Terima kasih atas kerja samanya.`;
 
+    const rawTemplate = isPartial
+      ? db.getAppSetting('whatsapp_payment_partial_message', defaultPartial)
+      : db.getAppSetting('whatsapp_payment_success_message', defaultSuccess);
+
+    const template = rawTemplate || (isPartial ? defaultPartial : defaultSuccess);
     const customerFormattedId = customerId ? ('MDE-' + String(customerId).padStart(4, '0')) : '';
 
     const formattedMsg = template
@@ -233,7 +239,8 @@ async function sendPaymentSuccessWA(customerPhone, customerName, periodText, amo
       .replace(/{{nama}}/gi, customerName || 'Pelanggan')
       .replace(/{{periode}}/gi, periodText || '-')
       .replace(/{{total}}/gi, amountText || '-')
-      .replace(/{{metode}}/gi, paidBy || '-');
+      .replace(/{{metode}}/gi, paidBy || '-')
+      .replace(/{{sisa_tagihan}}/gi, dueText || '0');
 
     return await trySendWhatsappPayment(customerPhone, formattedMsg);
   } catch (e) {
@@ -2496,15 +2503,21 @@ router.post('/billing/:id/pay-partial', requireAdminSession, express.urlencoded(
     const result = billingSvc.processCustomerPayment(inv.customer_id, amount, paidBy, req.body.notes);
 
     const customer = customerSvc.getCustomerById(inv.customer_id);
+    const remainingRow = db.prepare("SELECT SUM(CASE WHEN balance_due > 0 THEN balance_due ELSE amount END) as total FROM invoices WHERE customer_id = ? AND status IN ('unpaid', 'partial')").get(inv.customer_id);
+    const remainingDue = Number(remainingRow?.total || 0);
+    const isPartial = remainingDue > 0 || result.processedInvoices.some(x => x.newStatus === 'partial');
+
     if (customer && customer.phone) {
-      const summaryText = result.processedInvoices.map(x => `${x.period} (Rp ${x.allocated.toLocaleString('id-ID')} ${x.newStatus.toUpperCase()})`).join(', ');
+      const summaryText = result.processedInvoices.map(x => `${x.period} (Rp ${x.allocated.toLocaleString('id-ID')})`).join(', ');
       await sendPaymentSuccessWA(
         customer.phone,
         customer.name,
         summaryText,
         amount.toLocaleString('id-ID'),
         paidBy,
-        customer.id
+        customer.id,
+        isPartial,
+        remainingDue.toLocaleString('id-ID')
       );
     }
 
@@ -5204,12 +5217,15 @@ router.get('/whatsapp/templates', requireAdminSession, requireSidebarMenuAccess(
 
   const defaultSuccess = `Yth. Pelanggan {{nama}} ({{id_pelanggan}}),\n\n*PEMBAYARAN BERHASIL (LUNAS)*\n\n📅 *Periode:* {{periode}}\n💰 *Total Bayar:* Rp {{total}}\n💳 *Metode:* {{metode}}\n\nLayanan internet Anda aktif. Terima kasih atas kerja samanya.`;
 
+  const defaultPartial = `Yth. Pelanggan {{nama}} ({{id_pelanggan}}),\n\n*PEMBAYARAN SEBAGIAN / PARTIAL DITERIMA*\n\n📅 *Periode:* {{periode}}\n💰 *Nominal Dibayar:* Rp {{total}}\n💳 *Metode:* {{metode}}\n⚠️ *Sisa Tagihan:* Rp {{sisa_tagihan}}\n\n📌 *Catatan:* Sisa tagihan akan ditagihkan bulan berikutnya. Terima kasih atas kerja samanya.`;
+
   const defaultIsolir = `Yth. Pelanggan {{nama}} ({{id_pelanggan}}),\n\nLayanan internet Anda (Paket {{paket}}) saat ini ditangguhkan (Terisolir) karena belum melunasi tagihan sebesar *Rp {{tagihan}}*.\n\nSilakan lakukan pembayaran segera melalui portal pelanggan: {{link}}\n\nTerima kasih.`;
 
   const templates = {
     whatsapp_auto_billing_message: db.getAppSetting('whatsapp_auto_billing_message', defaultAutoBilling),
     whatsapp_billing_qris_message: db.getAppSetting('whatsapp_billing_qris_message', defaultQris),
     whatsapp_payment_success_message: db.getAppSetting('whatsapp_payment_success_message', defaultSuccess),
+    whatsapp_payment_partial_message: db.getAppSetting('whatsapp_payment_partial_message', defaultPartial),
     whatsapp_isolir_message: db.getAppSetting('whatsapp_isolir_message', defaultIsolir)
   };
 
@@ -5228,12 +5244,14 @@ router.post('/whatsapp/templates', requireAdminSession, express.urlencoded({ ext
       whatsapp_auto_billing_message,
       whatsapp_billing_qris_message,
       whatsapp_payment_success_message,
+      whatsapp_payment_partial_message,
       whatsapp_isolir_message
     } = req.body;
 
     db.saveAppSetting('whatsapp_auto_billing_message', whatsapp_auto_billing_message || '');
     db.saveAppSetting('whatsapp_billing_qris_message', whatsapp_billing_qris_message || '');
     db.saveAppSetting('whatsapp_payment_success_message', whatsapp_payment_success_message || '');
+    db.saveAppSetting('whatsapp_payment_partial_message', whatsapp_payment_partial_message || '');
     db.saveAppSetting('whatsapp_isolir_message', whatsapp_isolir_message || '');
 
     req.session._msg = { type: 'success', text: 'Template WhatsApp berhasil disimpan ke database.' };

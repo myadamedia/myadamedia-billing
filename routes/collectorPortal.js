@@ -344,14 +344,22 @@ router.post('/payment-request', requireCollectorSession, express.urlencoded({ ex
 
       // Send WhatsApp notification to customer
       const customer = customerSvc.getCustomerById(inv.customer_id);
+      const remainingRow = db.prepare("SELECT SUM(CASE WHEN balance_due > 0 THEN balance_due ELSE amount END) as total FROM invoices WHERE customer_id = ? AND status IN ('unpaid', 'partial')").get(inv.customer_id);
+      const remainingDue = Number(remainingRow?.total || 0);
+      const isPartial = remainingDue > 0;
+
       if (customer && customer.phone) {
+        const headerTitle = isPartial ? '*PEMBAYARAN SEBAGIAN / PARTIAL DITERIMA*' : '✅ *PEMBAYARAN BERHASIL (LUNAS)*';
+        const dueText = isPartial ? `\n⚠️ *Sisa Tagihan:* Rp ${remainingDue.toLocaleString('id-ID')}` : '';
+        const noteText = isPartial ? '\n\n📌 *Catatan:* Sisa tagihan akan ditagihkan bulan berikutnya.' : '';
+
         const msg =
-          `✅ *PEMBAYARAN BERHASIL*\n\n` +
+          `${headerTitle}\n\n` +
           `👤 *Pelanggan:* ${customer.name}\n` +
           `🧾 *Invoice:* #${inv.id}\n` +
           `📅 *Periode:* ${inv.period_month}/${inv.period_year}\n` +
-          `💰 *Nominal Tagihan:* Rp ${Number(inv.amount || 0).toLocaleString('id-ID')}\n` +
-          `🏷️ *Dibayar Via:* ${collectorLabel}\n\n` +
+          `💰 *Nominal Dibayar:* Rp ${Number(amount || 0).toLocaleString('id-ID')}${dueText}\n` +
+          `🏷️ *Dibayar Via:* ${collectorLabel}${noteText}\n\n` +
           `Terima kasih.`;
         try {
           const waBot = require('../services/whatsappBot.mjs');
