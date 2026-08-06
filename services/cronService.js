@@ -220,7 +220,8 @@ function startCronJobs() {
           await new Promise(r => setTimeout(r, randomDelay));
 
           const unpaidInvoices = billingSvc.getUnpaidInvoicesByCustomerId(c.id);
-          const totalTagihan = unpaidInvoices.reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
+          const totalTagihan = unpaidInvoices.reduce((sum, inv) => sum + (Number(inv.balance_due > 0 ? inv.balance_due : inv.amount) || 0), 0);
+          const totalCarried = unpaidInvoices.reduce((sum, inv) => sum + (Number(inv.carried_balance) || 0), 0);
           const rincianBulan = unpaidInvoices.map(inv => `${inv.period_month}/${inv.period_year}`).join(', ');
 
           const now = new Date();
@@ -228,12 +229,19 @@ function startCronJobs() {
           const currentYear = now.getFullYear();
           const jatuhTempo = `${String(c.isolate_day || 10).padStart(2, '0')}/${currentMonth}/${currentYear}`;
 
+          const rincianSisaText = totalCarried > 0 
+            ? `📌 *Termasuk Sisa Tagihan Bulan Lalu:* Rp ${totalCarried.toLocaleString('id-ID')}\n`
+            : '';
+
           // Format pesan dengan variation untuk anti-spam
           const customerFormattedId = 'MDE-' + String(c.id).padStart(4, '0');
           let formattedMsg = template
             .replace(/{{id_pelanggan}}/gi, customerFormattedId)
             .replace(/{{nama}}/gi, c.name || 'Pelanggan')
             .replace(/{{tagihan}}/gi, totalTagihan.toLocaleString('id-ID'))
+            .replace(/{{sisa_lalu}}/gi, totalCarried.toLocaleString('id-ID'))
+            .replace(/{{sisa_tagihan_bulan_lalu}}/gi, totalCarried.toLocaleString('id-ID'))
+            .replace(/{{rincian_sisa}}/gi, rincianSisaText)
             .replace(/{{rincian}}/gi, rincianBulan || '-')
             .replace(/{{paket}}/gi, c.package_name || '-')
             .replace(/{{link}}/gi, loginLink)

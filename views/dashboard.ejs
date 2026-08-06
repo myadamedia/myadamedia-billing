@@ -1077,13 +1077,23 @@
                                     <td>
                                       <%= inv.package_name || t('customer.billing.internet_service', 'Layanan Internet') %>
                                     </td>
-                                    <td>Rp <%= inv.amount.toLocaleString('id-ID') %>
+                                    <td>
+                                      Rp <%= inv.amount.toLocaleString('id-ID') %>
+                                      <% if (inv.paid_amount > 0 || inv.status === 'partial') { %>
+                                        <div class="text-success small" style="font-size:10px">Terbayar: Rp <%= (inv.paid_amount||0).toLocaleString('id-ID') %></div>
+                                        <div class="text-danger small" style="font-size:10px;font-weight:600">Sisa: Rp <%= (inv.balance_due||0).toLocaleString('id-ID') %></div>
+                                      <% } %>
+                                      <% if (inv.carried_balance > 0) { %>
+                                        <div class="text-muted small" style="font-size:9px">Termasuk sisa lalu: Rp <%= Number(inv.carried_balance).toLocaleString('id-ID') %></div>
+                                      <% } %>
                                     </td>
                                     <td>
                                       <% if (inv.status==='paid' ) { %>
                                         <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i><%= t('customer.billing.paid', 'LUNAS') %></span>
                                         <div class="text-muted small" style="font-size:10px"><%= t('customer.billing.paid_at', 'Dibayar') %>: <%= new Date(inv.paid_at).toLocaleDateString('id-ID') %>
                                         </div>
+                                        <% } else if (inv.status==='partial' ) { %>
+                                          <span class="badge bg-warning text-dark"><i class="bi bi-pie-chart me-1"></i>PARSIAL</span>
                                         <% } else { %>
                                           <span class="badge bg-danger"><i class="bi bi-exclamation-circle me-1"></i><%= t('customer.billing.unpaid', 'BELUM BAYAR') %></span>
                                           <% } %>
@@ -1100,6 +1110,7 @@
                               <% const hasStaticQris = (String(settings.qris_static_qr_url || '').trim() || String(settings.qris_static_payload || '').trim()) && (settings.qris_static_enabled !== false && settings.qris_static_enabled !== 'false' && settings.qris_static_enabled !== 0 && settings.qris_static_enabled !== '0'); %>
                               <div class="row g-2">
                                 <% unpaidInvoices.forEach(function(uinv) { %>
+                                  <% const dueAmt = uinv.balance_due > 0 ? uinv.balance_due : uinv.amount; %>
                                   <div class="col-12 col-md-6">
                                     <div class="p-3" style="background: rgba(15, 23, 42, 0.45); border: 1px solid rgba(148, 163, 184, 0.14); border-radius: 14px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.24);">
                                       <div class="d-flex justify-content-between align-items-start gap-2">
@@ -1108,12 +1119,16 @@
                                           <div class="text-muted small"><%= uinv.package_name || t('customer.billing.internet_service', 'Layanan Internet') %></div>
                                         </div>
                                         <div class="text-end">
-                                          <div class="fw-bold">Rp <%= uinv.amount.toLocaleString('id-ID') %></div>
-                                          <span class="badge bg-danger"><i class="bi bi-exclamation-circle me-1"></i><%= t('customer.billing.unpaid', 'BELUM BAYAR') %></span>
+                                          <div class="fw-bold">Rp <%= dueAmt.toLocaleString('id-ID') %></div>
+                                          <% if (uinv.status === 'partial') { %>
+                                            <span class="badge bg-warning text-dark"><i class="bi bi-pie-chart me-1"></i>SISA PARSIAL</span>
+                                          <% } else { %>
+                                            <span class="badge bg-danger"><i class="bi bi-exclamation-circle me-1"></i><%= t('customer.billing.unpaid', 'BELUM BAYAR') %></span>
+                                          <% } %>
                                         </div>
                                       </div>
                                       <button type="button" class="btn btn-action btn-ssid w-100 mt-3"
-                                        onclick="openPaymentModal('<%= uinv.id %>', '<%= uinv.amount %>')">
+                                        onclick="openPaymentModal('<%= uinv.id %>', '<%= dueAmt %>')">
                                         <i class="bi bi-wallet2 me-2"></i><%= t('customer.billing.pay_online', 'BAYAR ONLINE') %>
                                       </button>
                                       <% if (hasStaticQris) { %>

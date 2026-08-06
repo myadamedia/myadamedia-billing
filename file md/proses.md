@@ -4,6 +4,65 @@ Dokumen ini mencatat seluruh proses analisis, perancangan arsitektur, dan peruba
 
 ---
 
+## [2026-08-05] - Feature Update: Implementasi Alokasi Pembayaran FIFO Waterfall & Penyesuaian Sisa Tagihan Multi-Invoice
+
+### 1. Permasalahan & Kebutuhan Spesifik
+Saat pelanggan memiliki 2 invoice tertunggak (misal Paket Lite Rp 150.000 x 2 = Rp 300.000) dan membayar nominal sebagian (misal Rp 250.000):
+- Sebelumnya, status Invoice 1 tidak berubah menjadi lunas (tetap menggantung).
+- Sisa nominal Rp 100.000 tidak teralokasi dengan benar ke Invoice 2, sehingga Invoice 2 tidak tercatat berstatus parsial dengan sisa Rp 50.000.
+- Saat Invoice 3 terbit, kalkulasi akumulasi sisa tagihan menjadi tidak presisi.
+
+### 2. Solusi yang Diterapkan
+- **Engine FIFO Waterfall Payment ([services/billingService.js](file:///d:/WEBAPP/myadamedia-billing/services/billingService.js))**:
+  Membuat fungsi `processCustomerPayment(customerId, amount, paidByName, notes, actor)` yang mengambil seluruh invoice tertunggak pelanggan diurutkan secara kronologis (`period_year ASC, period_month ASC, id ASC`). Pembayaran dialokasikan penuh ke Invoice 1 terlebih dahulu hingga statusnya berubah menjadi **`paid` (LUNAS)**, lalu sisa dana dialokasikan ke Invoice 2 sehingga statusnya menjadi **`partial`** (`paid_amount` = 100.000, `balance_due` = **Rp 50.000**).
+- **Nominal Murni Invoice & Carried Balance**:
+  Fungsi `computeInvoiceAmountAndMeta` disesuaikan agar `amount` invoice mencatat harga paket murni bulan berjalan (Rp 150.000), sementara `carried_balance` mencatat sisa tunggakan dari bulan sebelumnya (Rp 50.000), sehingga total tunggakan kumulatif aktif di Bulan 3 persis **Rp 200.000**.
+- **Integrasi Router & Kolektor ([routes/adminPortal.js](file:///d:/WEBAPP/myadamedia-billing/routes/adminPortal.js) & [routes/collectorPortal.js](file:///d:/WEBAPP/myadamedia-billing/routes/collectorPortal.js))**:
+  Mengarahkan seluruh handler pembayaran (Admin Bayar Parsial, Auto-Approve Kolektor, dan Approval Kolektor) untuk mengeksekusi `processCustomerPayment` dengan alokasi FIFO.
+- **Pengujian Terverifikasi**:
+  Dibuat dan dijalankan script simulasi unit test FIFO (`test_fifo.js`). Hasil pengujian:
+  - Invoice 1 (Rp 150.000) -> Status `PAID`, `balance_due` = 0.
+  - Invoice 2 (Rp 150.000) -> Status `PARTIAL`, `paid_amount` = 100.000, `balance_due` = 50.000.
+  - Invoice 3 -> Tagihan Paket Rp 150.000 + Sisa Lalu Rp 50.000 = Total Tunggakan Aktif **Rp 200.000** (100% PASSED).
+
+### 3. File Diperbarui
+- [`services/billingService.js`](file:///d:/WEBAPP/myadamedia-billing/services/billingService.js): Implementasi `processCustomerPayment` FIFO engine & penyesuaian nominal invoice murni.
+- [`routes/adminPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/adminPortal.js): Integrasi `processCustomerPayment` pada route `/billing/:id/pay-partial` & approval kolektor.
+- [`routes/collectorPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/collectorPortal.js): Integrasi `processCustomerPayment` pada auto-approve pembayaran kolektor.
+
+---
+
+## [2026-08-05] - Feature Update: Penambahan Sisa Tagihan (Partial Payment Arrears) Ke Tagihan Bulan Selanjutnya & Broadcast Transparan
+
+### 1. Permasalahan & Kebutuhan Fitur
+Sebelumnya, jika pelanggan membayar kurang dari total tagihan (*partial payment*), sistem tidak memiliki mekanisme otomatis untuk mengonsolidasikan sisa tunggakan tersebut ke tagihan periode berikutnya. Sisa tagihan menggantung di invoice lama tanpa rincian transparan pada pesan Broadcast WhatsApp maupun UI Billing Admin & Pelanggan.
+
+### 2. Solusi yang Diterapkan
+- **Migrasi Database Safe Schema ([config/database.js](file:///d:/WEBAPP/myadamedia-billing/config/database.js))**:
+  Menambahkan kolom `paid_amount`, `balance_due`, dan `carried_balance` pada tabel `invoices` menggunakan `PRAGMA table_info` dan `ALTER TABLE` secara aman tanpa merusak data existing.
+- **Logika Kalkulasi & Akses Data ([services/billingService.js](file:///d:/WEBAPP/myadamedia-billing/services/billingService.js))**:
+  - `computeInvoiceAmountAndMeta`: Mengakumulasi sisa tunggakan `balance_due` dari invoice bulan-bulan sebelumnya sebagai `carried_balance` dan menambahkan rincian otomatis pada catatan invoice (`AUTO: ... | Sisa Tagihan Lalu: Rp X`).
+  - `generateMonthlyInvoices` & `generateInvoiceForCustomer`: Menyimpan `paid_amount`, `balance_due`, dan `carried_balance` secara presisi.
+  - `recordPartialPayment`: Menambahkan fungsi pencatatan bayar parsial (sebagian) yang secara otomatis menghitung ulang `paid_amount`, `balance_due`, serta mengubah status invoice ke `partial` atau `paid`.
+  - Memperbarui fungsi `getUnpaidInvoicesByCustomerId`, `getDashboardStats`, `getInvoiceSummary`, `getMonthlyRevenue`, dan `getTopUnpaid` agar menghitung `balance_due` dan mengakomodasi status `partial`.
+- **Modul Broadcast WhatsApp & CRON ([services/cronService.js](file:///d:/WEBAPP/myadamedia-billing/services/cronService.js) & [routes/adminPortal.js](file:///d:/WEBAPP/myadamedia-billing/routes/adminPortal.js))**:
+  - Memperbarui pengisian placeholder WhatsApp broadcast tagihan: `{sisa_lalu}`, `{sisa_tagihan_bulan_lalu}`, dan `{rincian_sisa}`.
+  - Saat broadcast dikirim, pesan WhatsApp menyajikan rincian transparan: Harga Paket Bulan Ini, Sisa Tagihan Bulan Lalu, dan Total Harus Dibayar.
+- **Antarmuka Admin & Portal Pelanggan ([views/admin/billing.ejs](file:///d:/WEBAPP/myadamedia-billing/views/admin/billing.ejs) & [views/dashboard.ejs](file:///d:/WEBAPP/myadamedia-billing/views/dashboard.ejs))**:
+  - **Admin Billing**: Menambahkan status badge `PARTIAL` (orange), rincian `Terbayar` & `Sisa`, modal interaktif "Bayar Parsial" (`partialModal`) dengan tombol cepat (50% / Pelunasan Penuh).
+  - **Customer Portal**: Menampilkan status `PARSIAL`, nominal yang sudah dibayar, sisa tagihan, dan tombol bayar online yang hanya menagih sisa nominal `balance_due`.
+
+### 3. File Diperbarui
+- [`config/database.js`](file:///d:/WEBAPP/myadamedia-billing/config/database.js): Migrasi kolom `paid_amount`, `balance_due`, `carried_balance`.
+- [`services/billingService.js`](file:///d:/WEBAPP/myadamedia-billing/services/billingService.js): Logika `computeInvoiceAmountAndMeta`, `recordPartialPayment`, status `partial`.
+- [`services/cronService.js`](file:///d:/WEBAPP/myadamedia-billing/services/cronService.js): Support placeholder sisa tagihan pada broadcast otomatis.
+- [`routes/adminPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/adminPortal.js): Route `POST /billing/:id/pay-partial` & kalkulasi broadcast tagihan.
+- [`views/admin/billing.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/billing.ejs): UI status badge `PARTIAL`, modal `partialModal`, tombol bayar parsial.
+- [`views/admin/whatsapp_templates.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/whatsapp_templates.ejs): Dokumentasi variabel `{sisa_lalu}` & `{rincian_sisa}`.
+- [`views/dashboard.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/dashboard.ejs): Tampilan status `PARSIAL` & sisa tagihan di Customer Portal.
+
+---
+
 ## [2026-08-05] - Bug Fix: Perbaikan Live Bandwidth Monitoring Interface Selalu 0 Bps pada Dashboard
 
 ### 1. Permasalahan & Penyebab Utama

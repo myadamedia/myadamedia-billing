@@ -333,8 +333,8 @@ router.post('/payment-request', requireCollectorSession, express.urlencoded({ ex
       if (note) notesParts.push(note);
       const notes = notesParts.join(' | ');
 
-      // Mark invoice as paid
-      billingSvc.markAsPaid(invoiceId, collectorLabel, notes);
+      // Process payment with FIFO Waterfall Allocation
+      billingSvc.processCustomerPayment(Number(inv.customer_id), amount, collectorLabel, notes);
 
       // Insert request with approved status
       db.prepare(`

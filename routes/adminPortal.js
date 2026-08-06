@@ -1190,7 +1190,7 @@ router.post('/collector-payments/:id/approve', requireAdminSession, express.urle
     if (decidedNote) notesParts.push(`Approval: ${decidedNote}`);
     const notes = notesParts.join(' | ');
 
-    billingSvc.markAsPaid(Number(row.invoice_id), collectorLabel, notes);
+    billingSvc.processCustomerPayment(Number(inv.customer_id), Number(row.amount || inv.amount || 0), collectorLabel, notes);
 
     db.prepare(`
       UPDATE collector_payment_requests
@@ -2480,6 +2480,45 @@ router.post('/billing/:id/pay', requireAdminSession, express.urlencoded({ extend
     req.session._msg = { type: 'success', text: 'Tagihan berhasil ditandai lunas.' };
   } catch (e) {
     req.session._msg = { type: 'error', text: 'Gagal: ' + e.message };
+  }
+  safeRedirectBack(req, res, '/admin/billing');
+});
+
+router.post('/billing/:id/pay-partial', requireAdminSession, express.urlencoded({ extended: true }), async (req, res) => {
+  try {
+    const inv = billingSvc.getInvoiceById(req.params.id);
+    if (!inv) throw new Error('Tagihan tidak ditemukan');
+
+    const amount = Number(req.body.amount || 0);
+    if (amount <= 0) throw new Error('Nominal pembayaran parsial harus lebih besar dari Rp 0');
+
+    const paidBy = resolvePaidByName(req, req.body.paid_by_name);
+    const result = billingSvc.processCustomerPayment(inv.customer_id, amount, paidBy, req.body.notes);
+
+    const customer = customerSvc.getCustomerById(inv.customer_id);
+    if (customer && customer.phone) {
+      const summaryText = result.processedInvoices.map(x => `${x.period} (Rp ${x.allocated.toLocaleString('id-ID')} ${x.newStatus.toUpperCase()})`).join(', ');
+      await sendPaymentSuccessWA(
+        customer.phone,
+        customer.name,
+        summaryText,
+        amount.toLocaleString('id-ID'),
+        paidBy,
+        customer.id
+      );
+    }
+
+    const freshCustomer = customerSvc.getAllCustomers().find(c => Number(c.id) === Number(inv.customer_id));
+    if (freshCustomer && freshCustomer.status === 'suspended' && Number(freshCustomer.unpaid_count || 0) === 0) {
+      await customerSvc.activateCustomer(inv.customer_id);
+    }
+
+    req.session._msg = { 
+      type: 'success', 
+      text: `Pembayaran Rp ${amount.toLocaleString('id-ID')} berhasil dialokasikan secara FIFO untuk ${result.processedInvoices.length} tagihan.` 
+    };
+  } catch (e) {
+    req.session._msg = { type: 'error', text: 'Gagal bayar parsial: ' + e.message };
   }
   safeRedirectBack(req, res, '/admin/billing');
 });

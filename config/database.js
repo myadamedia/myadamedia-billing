@@ -1170,6 +1170,25 @@ try {
   console.error('[DB] Gagal menginisialisasi tabel admins:', e.message);
 }
 
+// Safe migration: tambah kolom paid_amount, balance_due, carried_balance ke tabel invoices
+try {
+  const invCols = db.prepare("PRAGMA table_info(invoices)").all();
+  if (!invCols.find(c => c.name === 'paid_amount')) {
+    db.exec("ALTER TABLE invoices ADD COLUMN paid_amount INTEGER NOT NULL DEFAULT 0");
+    db.exec("UPDATE invoices SET paid_amount = amount WHERE status = 'paid'");
+  }
+  if (!invCols.find(c => c.name === 'balance_due')) {
+    db.exec("ALTER TABLE invoices ADD COLUMN balance_due INTEGER NOT NULL DEFAULT 0");
+    db.exec("UPDATE invoices SET balance_due = amount WHERE status != 'paid'");
+    db.exec("UPDATE invoices SET balance_due = 0 WHERE status = 'paid'");
+  }
+  if (!invCols.find(c => c.name === 'carried_balance')) {
+    db.exec("ALTER TABLE invoices ADD COLUMN carried_balance INTEGER NOT NULL DEFAULT 0");
+  }
+} catch(e) {
+  console.error('Failed to migrate invoices partial payment columns:', e);
+}
+
 module.exports = db;
 module.exports.getAppSetting = getAppSetting;
 module.exports.saveAppSetting = saveAppSetting;

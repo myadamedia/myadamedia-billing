@@ -93,11 +93,31 @@ function computeInvoiceAmountAndMeta(customer, pkg, periodMonth, periodYear) {
     metaParts.push(`USO ${usoPct}% (Rp ${usoVal.toLocaleString('id-ID')})`);
   }
 
-  const finalAmount = baseAmount + taxAmount + (hasInstallFee ? installFee : 0);
+  // Hitung Sisa Tagihan (Tunggakan) Bulan Lalu yang Belum Lunas
+  let carriedBalance = 0;
+  try {
+    const arrearsRow = db.prepare(`
+      SELECT SUM(CASE WHEN balance_due > 0 THEN balance_due ELSE (amount - COALESCE(paid_amount,0)) END) as total_arrears
+      FROM invoices
+      WHERE customer_id = ? AND status IN ('unpaid', 'partial')
+        AND (period_year < ? OR (period_year = ? AND period_month < ?))
+    `).get(customer.id, periodYear, periodYear, periodMonth);
+    
+    if (arrearsRow && arrearsRow.total_arrears > 0) {
+      carriedBalance = Math.round(Number(arrearsRow.total_arrears));
+      metaParts.push(`Sisa Tagihan Lalu: Rp ${carriedBalance.toLocaleString('id-ID')}`);
+    }
+  } catch (e) {
+    console.error('[Billing] Gagal kalkulasi carried_balance:', e.message);
+  }
+
+  const packageTotal = baseAmount + taxAmount + (hasInstallFee ? installFee : 0);
   const notesAuto = metaParts.length ? `AUTO: ${metaParts.join(' | ')}` : '';
 
   return {
-    amount: Math.max(0, Math.round(finalAmount)),
+    amount: Math.max(0, Math.round(packageTotal)),
+    packageTotal: Math.max(0, Math.round(packageTotal)),
+    carriedBalance,
     bumpPromo: usePromo,
     notesAuto
   };
@@ -107,7 +127,7 @@ function generateMonthlyInvoices(month, year) {
   const customers = db.prepare("SELECT * FROM customers WHERE status IN ('active','suspended') AND package_id IS NOT NULL").all();
   const existing  = db.prepare('SELECT customer_id FROM invoices WHERE period_month=? AND period_year=?').all(month, year);
   const existingIds = new Set(existing.map(e => e.customer_id));
-  const insert = db.prepare(`INSERT INTO invoices (customer_id, period_month, period_year, amount, notes) VALUES (?, ?, ?, ?, ?)`);
+  const insert = db.prepare(`INSERT INTO invoices (customer_id, period_month, period_year, amount, paid_amount, balance_due, carried_balance, notes) VALUES (?, ?, ?, ?, 0, ?, ?, ?)`);
   const bumpPromo = db.prepare('UPDATE customers SET promo_cycles_used = COALESCE(promo_cycles_used,0) + 1 WHERE id=?');
   let created = 0;
   const run = db.transaction(() => {
@@ -115,8 +135,8 @@ function generateMonthlyInvoices(month, year) {
       if (existingIds.has(c.id)) continue;
       const pkg = db.prepare('SELECT * FROM packages WHERE id=?').get(c.package_id);
       if (!pkg) continue;
-      const { amount, bumpPromo: bump, notesAuto } = computeInvoiceAmountAndMeta(c, pkg, month, year);
-      insert.run(c.id, month, year, amount, notesAuto);
+      const { amount, carriedBalance, bumpPromo: bump, notesAuto } = computeInvoiceAmountAndMeta(c, pkg, month, year);
+      insert.run(c.id, month, year, amount, amount, carriedBalance, notesAuto);
       if (bump) bumpPromo.run(c.id);
       created++;
     }
@@ -145,12 +165,113 @@ function generateInvoiceForCustomer(customerId, month, year) {
   const pkg = db.prepare('SELECT * FROM packages WHERE id=?').get(customer.package_id);
   if (!pkg) throw new Error('Paket pelanggan tidak ditemukan');
 
-  const { amount, bumpPromo: bump, notesAuto } = computeInvoiceAmountAndMeta(customer, pkg, m, y);
-  const r = db.prepare('INSERT INTO invoices (customer_id, period_month, period_year, amount, notes) VALUES (?, ?, ?, ?, ?)').run(cid, m, y, amount, notesAuto);
+  const { amount, carriedBalance, bumpPromo: bump, notesAuto } = computeInvoiceAmountAndMeta(customer, pkg, m, y);
+  const r = db.prepare('INSERT INTO invoices (customer_id, period_month, period_year, amount, paid_amount, balance_due, carried_balance, notes) VALUES (?, ?, ?, ?, 0, ?, ?, ?)').run(cid, m, y, amount, amount, carriedBalance, notesAuto);
   if (bump) {
     db.prepare('UPDATE customers SET promo_cycles_used = COALESCE(promo_cycles_used,0) + 1 WHERE id=?').run(cid);
   }
   return { created: true, invoiceId: r.lastInsertRowid, customerName: customer.name };
+}
+
+/**
+  * Engine Pembayaran FIFO Waterfall
+  * Melakukan alokasi pembayaran secara urut dari invoice terlama (period_year ASC, period_month ASC)
+  */
+function processCustomerPayment(customerId, amount, paidByName, notes, actor = null) {
+  const cid = Number(customerId);
+  let remainingPayment = Number(amount) || 0;
+  if (!Number.isFinite(cid) || cid <= 0) throw new Error('Customer ID tidak valid');
+  if (remainingPayment <= 0) throw new Error('Nominal pembayaran harus lebih besar dari 0');
+
+  const customer = db.prepare('SELECT id, name, phone FROM customers WHERE id=?').get(cid);
+  if (!customer) throw new Error('Pelanggan tidak ditemukan');
+
+  const unpaidInvoices = db.prepare(`
+    SELECT * FROM invoices
+    WHERE customer_id = ? AND status IN ('unpaid', 'partial')
+    ORDER BY period_year ASC, period_month ASC, id ASC
+  `).all(cid);
+
+  if (unpaidInvoices.length === 0) {
+    throw new Error('Pelanggan tidak memiliki tagihan aktif yang belum dibayar');
+  }
+
+  const results = [];
+  const run = db.transaction(() => {
+    for (const inv of unpaidInvoices) {
+      if (remainingPayment <= 0) break;
+
+      const totalAmt = Number(inv.amount || 0);
+      const currentPaid = Number(inv.paid_amount || 0);
+      const currentDue = inv.balance_due > 0 ? Number(inv.balance_due) : Math.max(0, totalAmt - currentPaid);
+
+      if (currentDue <= 0) continue;
+
+      const alloc = Math.min(remainingPayment, currentDue);
+      const newPaid = currentPaid + alloc;
+      const newDue = Math.max(0, totalAmt - newPaid);
+      const newStatus = newDue === 0 ? 'paid' : 'partial';
+
+      const noteSuffix = `[Bayar Rp ${alloc.toLocaleString('id-ID')} via ${paidByName || 'Admin'}]`;
+      const combinedNotes = notes
+        ? (inv.notes ? `${inv.notes} | ${notes} ${noteSuffix}` : `${notes} ${noteSuffix}`)
+        : (inv.notes ? `${inv.notes} | ${noteSuffix}` : noteSuffix);
+
+      db.prepare(`
+        UPDATE invoices
+        SET paid_amount = ?,
+            balance_due = ?,
+            status = ?,
+            paid_at = NOW_LOCAL(),
+            paid_by_name = ?,
+            notes = ?
+        WHERE id = ?
+      `).run(newPaid, newDue, newStatus, paidByName || 'Admin', combinedNotes, inv.id);
+
+      remainingPayment -= alloc;
+
+      results.push({
+        invoiceId: inv.id,
+        period: `${inv.period_month}/${inv.period_year}`,
+        allocated: alloc,
+        newPaid,
+        newDue,
+        newStatus
+      });
+
+      if (actor) {
+        auditTrail.logAuditTrail({
+          action: newStatus === 'paid' ? 'MARK_INVOICE_PAID' : 'RECORD_PARTIAL_PAYMENT',
+          entity_type: 'invoice',
+          entity_id: String(inv.id),
+          actor_type: actor.type || 'unknown',
+          actor_id: actor.id || null,
+          actor_name: actor.name || null,
+          details: {
+            customer_id: cid,
+            period: `${inv.period_month}/${inv.period_year}`,
+            allocated: alloc,
+            total_paid: newPaid,
+            balance_due: newDue,
+            status: newStatus,
+            paid_by: paidByName || 'Admin'
+          },
+          ip_address: actor.ip || null,
+          user_agent: actor.userAgent || null
+        });
+      }
+    }
+  });
+
+  run();
+
+  return {
+    customerId: cid,
+    customerName: customer.name,
+    totalPaid: Number(amount) - remainingPayment,
+    remainingPayment,
+    processedInvoices: results
+  };
 }
 
 function payInvoiceForCustomerPeriod(customerId, month, year, paidByName, notes) {
@@ -315,11 +436,69 @@ function getInvoiceById(id) {
     WHERE i.id = ?
   `).get(id);
 }
+function recordPartialPayment(invoiceId, paidAmount, paidByName, notes, actor = null) {
+  const inv = db.prepare('SELECT * FROM invoices WHERE id=?').get(invoiceId);
+  if (!inv) throw new Error('Invoice tidak ditemukan');
+  if (inv.status === 'paid') throw new Error('Invoice ini sudah lunas');
+
+  const payment = Number(paidAmount) || 0;
+  if (payment <= 0) throw new Error('Nominal pembayaran harus lebih besar dari 0');
+
+  const currentPaid = Number(inv.paid_amount || 0);
+  const totalAmount = Number(inv.amount || 0);
+  const newPaid = Math.min(totalAmount, currentPaid + payment);
+  const newDue = Math.max(0, totalAmount - newPaid);
+  const newStatus = newDue === 0 ? 'paid' : 'partial';
+
+  const noteSuffix = `[Bayar Parsial Rp ${payment.toLocaleString('id-ID')} via ${paidByName || 'Admin'}]`;
+  const combinedNotes = notes 
+    ? (inv.notes ? `${inv.notes} | ${notes} ${noteSuffix}` : `${notes} ${noteSuffix}`)
+    : (inv.notes ? `${inv.notes} | ${noteSuffix}` : noteSuffix);
+
+  const result = db.prepare(`
+    UPDATE invoices 
+    SET paid_amount = ?,
+        balance_due = ?,
+        status = ?,
+        paid_at = NOW_LOCAL(),
+        paid_by_name = ?,
+        notes = ?
+    WHERE id = ?
+  `).run(newPaid, newDue, newStatus, paidByName || 'Admin', combinedNotes, invoiceId);
+
+  if (result.changes > 0 && actor) {
+    auditTrail.logAuditTrail({
+      action: newStatus === 'paid' ? 'MARK_INVOICE_PAID' : 'RECORD_PARTIAL_PAYMENT',
+      entity_type: 'invoice',
+      entity_id: String(invoiceId),
+      actor_type: actor.type || 'unknown',
+      actor_id: actor.id || null,
+      actor_name: actor.name || null,
+      details: {
+        customer_id: inv.customer_id,
+        period: `${inv.period_month}/${inv.period_year}`,
+        amount_paid_now: payment,
+        total_paid: newPaid,
+        balance_due: newDue,
+        status: newStatus,
+        paid_by: paidByName || 'Admin',
+        notes: notes || ''
+      },
+      ip_address: actor.ip || null,
+      user_agent: actor.userAgent || null
+    });
+  }
+
+  return { success: true, newStatus, newPaid, newDue };
+}
 
 function markAsPaid(invoiceId, paidByName, notes, actor = null) {
+  const inv = db.prepare('SELECT amount FROM invoices WHERE id=?').get(invoiceId);
+  const totalAmount = inv ? Number(inv.amount || 0) : 0;
+
   const result = db.prepare(`
-    UPDATE invoices SET status='paid', paid_at=NOW_LOCAL(), paid_by_name=?, notes=? WHERE id=?
-  `).run(paidByName || 'Admin', notes || '', invoiceId);
+    UPDATE invoices SET status='paid', paid_amount=?, balance_due=0, paid_at=NOW_LOCAL(), paid_by_name=?, notes=? WHERE id=?
+  `).run(totalAmount, paidByName || 'Admin', notes || '', invoiceId);
 
   // Catat audit trail jika berhasil
   if (result.changes > 0 && actor) {
@@ -349,7 +528,9 @@ function markAsPaid(invoiceId, paidByName, notes, actor = null) {
 }
 
 function markAsUnpaid(invoiceId) {
-  return db.prepare(`UPDATE invoices SET status='unpaid', paid_at=NULL, paid_by_name='', notes='' WHERE id=?`).run(invoiceId);
+  const inv = db.prepare('SELECT amount FROM invoices WHERE id=?').get(invoiceId);
+  const totalAmount = inv ? Number(inv.amount || 0) : 0;
+  return db.prepare(`UPDATE invoices SET status='unpaid', paid_amount=0, balance_due=?, paid_at=NULL, paid_by_name='', notes='' WHERE id=?`).run(totalAmount, invoiceId);
 }
 
 function deleteInvoice(id, actor = null) {
@@ -380,18 +561,18 @@ function deleteInvoice(id, actor = null) {
 
 function getInvoiceSummary(month, year) {
   const total  = db.prepare('SELECT COUNT(*) as count, SUM(amount) as total FROM invoices WHERE period_month=? AND period_year=?').get(month, year);
-  const paid   = db.prepare("SELECT COUNT(*) as count, SUM(amount) as total FROM invoices WHERE period_month=? AND period_year=? AND status='paid'").get(month, year);
-  const unpaid = db.prepare("SELECT COUNT(*) as count, SUM(amount) as total FROM invoices WHERE period_month=? AND period_year=? AND status='unpaid'").get(month, year);
+  const paid   = db.prepare("SELECT COUNT(*) as count, SUM(COALESCE(paid_amount, amount)) as total FROM invoices WHERE period_month=? AND period_year=? AND status='paid'").get(month, year);
+  const unpaid = db.prepare("SELECT COUNT(*) as count, SUM(CASE WHEN balance_due > 0 THEN balance_due ELSE amount END) as total FROM invoices WHERE period_month=? AND period_year=? AND status IN ('unpaid', 'partial')").get(month, year);
   return { total, paid, unpaid };
 }
 
 function getMonthlyRevenue(year) {
   return db.prepare(`
     SELECT period_month as month,
-           SUM(CASE WHEN status='paid' THEN amount ELSE 0 END) as revenue,
+           SUM(CASE WHEN status='paid' THEN amount ELSE COALESCE(paid_amount,0) END) as revenue,
            COUNT(*) as total_invoices,
            SUM(CASE WHEN status='paid' THEN 1 ELSE 0 END) as paid_count,
-           SUM(CASE WHEN status='unpaid' THEN 1 ELSE 0 END) as unpaid_count
+           SUM(CASE WHEN status IN ('unpaid', 'partial') THEN 1 ELSE 0 END) as unpaid_count
     FROM invoices WHERE period_year=?
     GROUP BY period_month ORDER BY period_month
   `).all(year);
@@ -401,10 +582,10 @@ function getDashboardStats() {
   const now = getCurrentDateInTimezone();
   const m = now.getMonth() + 1;
   const y = now.getFullYear();
-  const totalRevenue  = db.prepare("SELECT SUM(amount) as t FROM invoices WHERE status='paid'").get();
-  const thisMonth     = db.prepare("SELECT SUM(amount) as t FROM invoices WHERE status='paid' AND period_month=? AND period_year=?").get(m, y);
-  const pendingAmount = db.prepare("SELECT SUM(amount) as t FROM invoices WHERE status='unpaid'").get();
-  const unpaidCount   = db.prepare("SELECT COUNT(*) as c FROM invoices WHERE status='unpaid'").get();
+  const totalRevenue  = db.prepare("SELECT SUM(COALESCE(paid_amount, CASE WHEN status='paid' THEN amount ELSE 0 END)) as t FROM invoices").get();
+  const thisMonth     = db.prepare("SELECT SUM(COALESCE(paid_amount, CASE WHEN status='paid' THEN amount ELSE 0 END)) as t FROM invoices WHERE period_month=? AND period_year=?").get(m, y);
+  const pendingAmount = db.prepare("SELECT SUM(CASE WHEN balance_due > 0 THEN balance_due ELSE (CASE WHEN status != 'paid' THEN amount ELSE 0 END) END) as t FROM invoices WHERE status IN ('unpaid', 'partial')").get();
+  const unpaidCount   = db.prepare("SELECT COUNT(*) as c FROM invoices WHERE status IN ('unpaid', 'partial')").get();
   return {
     totalRevenue:  totalRevenue.t  || 0,
     thisMonth:     thisMonth.t     || 0,
@@ -417,16 +598,16 @@ function getRecentPayments(limit = 8) {
   return db.prepare(`
     SELECT i.*, c.name as customer_name FROM invoices i
     JOIN customers c ON i.customer_id = c.id
-    WHERE i.status='paid' ORDER BY i.paid_at DESC LIMIT ?
+    WHERE i.status IN ('paid', 'partial') AND COALESCE(i.paid_amount, 0) > 0 ORDER BY i.paid_at DESC LIMIT ?
   `).all(limit);
 }
 
 function getTopUnpaid(limit = 5) {
   return db.prepare(`
-    SELECT c.name, c.phone, COUNT(*) as unpaid_count, SUM(i.amount) as total_unpaid
+    SELECT c.name, c.phone, COUNT(*) as unpaid_count, SUM(CASE WHEN i.balance_due > 0 THEN i.balance_due ELSE i.amount END) as total_unpaid
     FROM invoices i JOIN customers c ON i.customer_id = c.id
-    WHERE i.status='unpaid'
-    GROUP BY c.id ORDER BY unpaid_count DESC LIMIT ?
+    WHERE i.status IN ('unpaid', 'partial')
+    GROUP BY c.id ORDER BY total_unpaid DESC LIMIT ?
   `).all(limit);
 }
 
@@ -626,7 +807,7 @@ module.exports = {
   getInvoicesByAny,
   getUnpaidInvoicesByCustomerId,
   generateMonthlyInvoices, generateInvoiceForCustomer, createInstallProrataCatchUpInvoice, payInvoiceForCustomerPeriod, payInvoicesForCustomerMonths, getPaidMonthsForCustomerYear, getCustomerBillingYearSummary, getAllInvoices, getInvoiceById,
-  markAsPaid, markAsUnpaid, deleteInvoice,
+  markAsPaid, recordPartialPayment, processCustomerPayment, markAsUnpaid, deleteInvoice,
   getInvoiceSummary, getMonthlyRevenue,
   getDashboardStats, getRecentPayments, getTopUnpaid,
   getTodayRevenue,
