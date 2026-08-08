@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title><%= typeof t === 'function' ? t('admin.print_invoice.title', 'Invoice Tagihan') : 'Invoice Tagihan' %> #<%= invoice.id %></title>
+  <title>Cetak Batch Invoice Tagihan - Periode <%= month %>/<%= year %></title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <style>
     @page {
@@ -25,12 +25,12 @@
     }
     .no-print-bar {
       max-width: 800px;
-      margin: 0 auto 15px auto;
+      margin: 0 auto 20px auto;
       display: flex;
       justify-content: space-between;
       align-items: center;
       background: #ffffff;
-      padding: 12px 20px;
+      padding: 14px 24px;
       border-radius: 10px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.06);
       border: 1px solid #e2e8f0;
@@ -52,6 +52,15 @@
     .btn-primary:hover { background: #4338ca; }
     .btn-secondary { background: #f1f5f9; color: #475569; border-color: #cbd5e1; }
     .btn-secondary:hover { background: #e2e8f0; }
+
+    .invoice-page {
+      page-break-after: always;
+      margin-bottom: 40px;
+    }
+    .invoice-page:last-child {
+      page-break-after: auto;
+      margin-bottom: 0;
+    }
 
     .invoice-card {
       max-width: 800px;
@@ -249,6 +258,9 @@
       .no-print-bar {
         display: none !important;
       }
+      .invoice-page {
+        margin-bottom: 0 !important;
+      }
       .invoice-card {
         box-shadow: none !important;
         border: none !important;
@@ -262,10 +274,11 @@
 
   <div class="no-print-bar">
     <div>
-      <strong>Cetak Invoice Standar (Dokumen Normal)</strong>
+      <strong>Cetak Batch Invoice Tagihan Periode <%= month %>/<%= year %></strong>
+      <span style="margin-left: 10px; color: #64748b; font-size: 12px;">(Total <%= invoicesData ? invoicesData.length : 0 %> tagihan)</span>
     </div>
     <div style="display:flex;gap:10px;">
-      <button type="button" class="btn btn-primary" onclick="window.print()"><i class="bi bi-printer"></i> Cetak Invoice</button>
+      <button type="button" class="btn btn-primary" onclick="window.print()"><i class="bi bi-printer"></i> Cetak Semua (<%= invoicesData ? invoicesData.length : 0 %>)</button>
       <button type="button" class="btn btn-secondary" onclick="window.close()"><i class="bi bi-x-lg"></i> Tutup</button>
     </div>
   </div>
@@ -275,119 +288,134 @@
     const monthNamesEn = ['January','February','March','April','May','June','July','August','September','October','November','December'];
     const isEn = (typeof lang !== 'undefined' && lang === 'en');
     const mns = isEn ? monthNamesEn : monthNamesIndo;
-    const isPaid = String(invoice.status || '').toLowerCase() === 'paid';
     const logoUrl = (settings && settings.company_logo) ? settings.company_logo : '/img/logo.png';
   %>
 
-  <div class="invoice-card">
-    <!-- Header -->
-    <div class="invoice-header">
-      <div class="company-brand">
-        <img src="<%= logoUrl %>" alt="Logo" class="company-logo" onerror="this.style.display='none'">
-        <div class="company-details">
-          <h1><%= company %></h1>
-          <p><%= settings.company_address || 'Pusat Layanan Internet & Ekosistem Digital' %></p>
-          <p>Telp/WA: <%= (settings.whatsapp_admin_numbers && settings.whatsapp_admin_numbers.length > 0) ? '+' + settings.whatsapp_admin_numbers[0] : (settings.company_phone || '-') %></p>
+  <% if (invoicesData && invoicesData.length > 0) { %>
+    <% invoicesData.forEach(function(item) {
+        const invoice = item.invoice;
+        const customer = item.customer || {};
+        const isPaid = String(invoice.status || '').toLowerCase() === 'paid';
+    %>
+      <div class="invoice-page">
+        <div class="invoice-card">
+          <!-- Header -->
+          <div class="invoice-header">
+            <div class="company-brand">
+              <img src="<%= logoUrl %>" alt="Logo" class="company-logo" onerror="this.style.display='none'">
+              <div class="company-details">
+                <h1><%= company %></h1>
+                <p><%= settings.company_address || 'Pusat Layanan Internet & Ekosistem Digital' %></p>
+                <p>Telp/WA: <%= (settings.whatsapp_admin_numbers && settings.whatsapp_admin_numbers.length > 0) ? '+' + settings.whatsapp_admin_numbers[0] : (settings.company_phone || '-') %></p>
+              </div>
+            </div>
+            <div class="invoice-meta">
+              <div class="invoice-title">INVOICE</div>
+              <div class="invoice-number">#INV-<%= invoice.id %>-<%= invoice.period_year %></div>
+              <span class="status-badge <%= isPaid ? 'status-paid' : 'status-unpaid' %>">
+                <%= isPaid ? (isEn ? 'PAID' : 'LUNAS') : (isEn ? 'UNPAID' : 'BELUM BAYAR') %>
+              </span>
+            </div>
+          </div>
+
+          <!-- Details Grid -->
+          <div class="details-grid">
+            <div class="details-block">
+              <h3>Ditagihkan Kepada:</h3>
+              <div class="name"><%= customer.name || 'Pelanggan' %></div>
+              <div>ID Pelanggan: <strong>MDE-<%= String(customer.id || 0).padStart(4, '0') %></strong></div>
+              <div>Alamat: <%= customer.address || '-' %></div>
+              <div>Telepon/WA: <%= customer.phone || '-' %></div>
+            </div>
+            <div class="details-block">
+              <h3>Informasi Tagihan:</h3>
+              <div>Periode: <strong><%= mns[invoice.period_month - 1] %> <%= invoice.period_year %></strong></div>
+              <div>Tanggal Tagihan: <%= invoice.created_at ? (typeof formatDateLocal === 'function' ? formatDateLocal(invoice.created_at) : invoice.created_at) : '-' %></div>
+              <div>Status Pembayaran: <strong><%= isPaid ? 'LUNAS' : 'BELUM BAYAR' %></strong></div>
+              <% if (isPaid) { %>
+                <div>Tanggal Bayar: <%= invoice.paid_at ? (typeof formatDateLocal === 'function' ? formatDateLocal(invoice.paid_at) : invoice.paid_at) : '-' %></div>
+                <div>Metode / Kasir: <%= invoice.paid_by_name || 'Sistem' %></div>
+              <% } %>
+            </div>
+          </div>
+
+          <!-- Table -->
+          <div class="table-container">
+            <table class="invoice-table">
+              <thead>
+                <tr>
+                  <th style="width: 40px; text-align: center;">#</th>
+                  <th>Deskripsi Layanan</th>
+                  <th>Periode</th>
+                  <th style="text-align: right;">Jumlah (Rp)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="text-align: center;">1</td>
+                  <td>
+                    <strong><%= customer.package_name || 'Paket Internet' %></strong>
+                    <div style="font-size: 11px; color: #64748b;">Langganan Akses Internet Kecepatan Tinggi</div>
+                  </td>
+                  <td><%= mns[invoice.period_month - 1] %> <%= invoice.period_year %></td>
+                  <td style="text-align: right; font-weight: 700;">Rp <%= Number(invoice.amount || 0).toLocaleString('id-ID') %></td>
+                </tr>
+                <% if (invoice.carried_balance && Number(invoice.carried_balance) > 0) { %>
+                  <tr>
+                    <td style="text-align: center;">2</td>
+                    <td>Tunggakan / Saldo Bawaan Periode Sebelumnya</td>
+                    <td>-</td>
+                    <td style="text-align: right;">Rp <%= Number(invoice.carried_balance).toLocaleString('id-ID') %></td>
+                  </tr>
+                <% } %>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Summary & Totals -->
+          <div class="summary-section">
+            <div class="notes-box">
+              <strong>Catatan:</strong>
+              <p><%= invoice.notes || 'Terima kasih atas kepercayaan Anda menggunakan layanan kami. Mohon simpan invoice ini sebagai bukti pembayaran resmi.' %></p>
+            </div>
+            <div class="totals-box">
+              <div class="totals-row">
+                <span>Subtotal</span>
+                <span>Rp <%= Number(invoice.amount || 0).toLocaleString('id-ID') %></span>
+              </div>
+              <div class="totals-row grand-total">
+                <span>Total Bayar</span>
+                <span>Rp <%= Number(invoice.amount || 0).toLocaleString('id-ID') %></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Signatures -->
+          <div class="signature-section">
+            <div class="signature-box">
+              <div class="signature-title">Pelanggan</div>
+              <div class="signature-name"><%= customer.name || 'Pelanggan' %></div>
+            </div>
+            <div class="signature-box">
+              <div class="signature-title">Hormat Kami (Manajer / Kasir)</div>
+              <div class="signature-name"><%= settings.company_manager || 'Admin Billing' %></div>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <div class="invoice-footer">
+            Bukti Pembayaran Resmi - <%= company %> | Dicetak Otomatis dari Sistem Billing
+          </div>
         </div>
       </div>
-      <div class="invoice-meta">
-        <div class="invoice-title">INVOICE</div>
-        <div class="invoice-number">#INV-<%= invoice.id %>-<%= invoice.period_year %></div>
-        <span class="status-badge <%= isPaid ? 'status-paid' : 'status-unpaid' %>">
-          <%= isPaid ? (isEn ? 'PAID' : 'LUNAS') : (isEn ? 'UNPAID' : 'BELUM BAYAR') %>
-        </span>
-      </div>
+    <% }) %>
+  <% } else { %>
+    <div class="invoice-card" style="text-align: center; padding: 50px 20px;">
+      <i class="bi bi-exclamation-circle" style="font-size: 48px; color: #94a3b8;"></i>
+      <h3 style="margin-top: 15px; color: #334155;">Tidak Ada Tagihan Ditemukan</h3>
+      <p style="color: #64748b;">Tidak ada tagihan yang cocok untuk periode <%= month %>/<%= year %>.</p>
     </div>
-
-    <!-- Details Grid -->
-    <div class="details-grid">
-      <div class="details-block">
-        <h3>Ditagihkan Kepada:</h3>
-        <div class="name"><%= customer.name %></div>
-        <div>ID Pelanggan: <strong>MDE-<%= String(customer.id).padStart(4, '0') %></strong></div>
-        <div>Alamat: <%= customer.address || '-' %></div>
-        <div>Telepon/WA: <%= customer.phone || '-' %></div>
-      </div>
-      <div class="details-block">
-        <h3>Informasi Tagihan:</h3>
-        <div>Periode: <strong><%= mns[invoice.period_month - 1] %> <%= invoice.period_year %></strong></div>
-        <div>Tanggal Tagihan: <%= invoice.created_at ? (typeof formatDateLocal === 'function' ? formatDateLocal(invoice.created_at) : invoice.created_at) : '-' %></div>
-        <div>Status Pembayaran: <strong><%= isPaid ? 'LUNAS' : 'BELUM BAYAR' %></strong></div>
-        <% if (isPaid) { %>
-          <div>Tanggal Bayar: <%= invoice.paid_at ? (typeof formatDateLocal === 'function' ? formatDateLocal(invoice.paid_at) : invoice.paid_at) : '-' %></div>
-          <div>Metode / Kasir: <%= invoice.paid_by_name || 'Sistem' %></div>
-        <% } %>
-      </div>
-    </div>
-
-    <!-- Table -->
-    <div class="table-container">
-      <table class="invoice-table">
-        <thead>
-          <tr>
-            <th style="width: 40px; text-align: center;">#</th>
-            <th>Deskripsi Layanan</th>
-            <th>Periode</th>
-            <th style="text-align: right;">Jumlah (Rp)</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td style="text-align: center;">1</td>
-            <td>
-              <strong><%= customer.package_name || 'Paket Internet' %></strong>
-              <div style="font-size: 11px; color: #64748b;">Langganan Akses Internet Kecepatan Tinggi</div>
-            </td>
-            <td><%= mns[invoice.period_month - 1] %> <%= invoice.period_year %></td>
-            <td style="text-align: right; font-weight: 700;">Rp <%= Number(invoice.amount || 0).toLocaleString('id-ID') %></td>
-          </tr>
-          <% if (invoice.carried_balance && Number(invoice.carried_balance) > 0) { %>
-            <tr>
-              <td style="text-align: center;">2</td>
-              <td>Tunggakan / Saldo Bawaan Periode Sebelumnya</td>
-              <td>-</td>
-              <td style="text-align: right;">Rp <%= Number(invoice.carried_balance).toLocaleString('id-ID') %></td>
-            </tr>
-          <% } %>
-        </tbody>
-      </table>
-    </div>
-
-    <!-- Summary & Totals -->
-    <div class="summary-section">
-      <div class="notes-box">
-        <strong>Catatan:</strong>
-        <p><%= invoice.notes || 'Terima kasih atas kepercayaan Anda menggunakan layanan kami. Mohon simpan invoice ini sebagai bukti pembayaran resmi.' %></p>
-      </div>
-      <div class="totals-box">
-        <div class="totals-row">
-          <span>Subtotal</span>
-          <span>Rp <%= Number(invoice.amount || 0).toLocaleString('id-ID') %></span>
-        </div>
-        <div class="totals-row grand-total">
-          <span>Total Bayar</span>
-          <span>Rp <%= Number(invoice.amount || 0).toLocaleString('id-ID') %></span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Signatures -->
-    <div class="signature-section">
-      <div class="signature-box">
-        <div class="signature-title">Pelanggan</div>
-        <div class="signature-name"><%= customer.name %></div>
-      </div>
-      <div class="signature-box">
-        <div class="signature-title">Hormat Kami (Manajer / Kasir)</div>
-        <div class="signature-name"><%= settings.company_manager || 'Admin Billing' %></div>
-      </div>
-    </div>
-
-    <!-- Footer -->
-    <div class="invoice-footer">
-      Bukti Pembayaran Resmi - <%= company %> | Dicetak Otomatis dari Sistem Billing
-    </div>
-  </div>
+  <% } %>
 
   <script>
     window.onload = function() {

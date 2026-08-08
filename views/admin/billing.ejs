@@ -22,6 +22,7 @@
   <div class="topbar">
     <div class="tb-title"><button class="hb-menu" onclick="toggleSidebar()"><i class="bi bi-list"></i></button><i class="bi bi-receipt"></i> <%= t('admin.billing.manage_title', 'Manajemen Tagihan') %></div>
     <div class="tb-right">
+      <a href="/admin/billing/print-batch?month=<%= filterMonth || currentMonth %>&year=<%= filterYear || currentYear %>&status=<%= filterStatus %>" target="_blank" class="btn btn-g btn-sm" title="Cetak Semua Tagihan Periode Ini"><i class="bi bi-printer"></i> Cetak Tagihan</a>
       <button class="btn btn-p btn-sm" onclick="openModal('genModal')"><i class="bi bi-lightning-charge"></i> <%= t('admin.billing.generate', 'Generate Tagihan') %></button>
       <span class="adm-badge"><i class="bi bi-person-fill"></i> <%= (typeof session !== 'undefined' && session.isCashier) ? t('admin.role.cashier', 'Kasir') : t('admin.role.admin', 'Admin') %></span>
       <a href="/admin/logout" class="btn btn-g btn-sm"><i class="bi bi-box-arrow-left"></i></a>
@@ -31,7 +32,7 @@
 
     <% if (msg) { %>
     <div class="alert alert-<%= msg.type==='success'?'s':'d' %>">
-      <i class="bi bi-<%= msg.type==='success'?'check-circle':'exclamation-circle' %>"></i> <%= msg.text %>
+      <i class="bi bi-<%= msg.type==='success'?'check-circle':'exclamation-circle' %>"></i> <%- msg.text %>
     </div>
     <% } %>
 

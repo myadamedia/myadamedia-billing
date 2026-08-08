@@ -2093,10 +2093,11 @@ router.post('/customers/:id/billing/generate', requireAdminSession, express.urle
   try {
     const { month, year } = req.body;
     const result = billingSvc.generateInvoiceForCustomer(req.params.id, parseInt(month), parseInt(year));
+    const printBtnHtml = result.invoiceId ? ` <a href="/admin/billing/${result.invoiceId}/print" target="_blank" class="btn btn-sm btn-p text-white ms-2" style="text-decoration:none;"><i class="bi bi-printer"></i> Cetak Struk/Invoice</a>` : '';
     if (result.created) {
-      req.session._msg = { type: 'success', text: `Tagihan berhasil dibuat untuk "${result.customerName}" periode ${month}/${year}.` };
+      req.session._msg = { type: 'success', text: `Tagihan berhasil dibuat untuk "${result.customerName}" periode ${month}/${year}.${printBtnHtml}` };
     } else {
-      req.session._msg = { type: 'success', text: `Tagihan sudah ada untuk "${result.customerName}" periode ${month}/${year}.` };
+      req.session._msg = { type: 'success', text: `Tagihan sudah ada untuk "${result.customerName}" periode ${month}/${year}.${printBtnHtml}` };
     }
   } catch (e) {
     req.session._msg = { type: 'error', text: 'Gagal generate tagihan: ' + e.message };
@@ -2330,11 +2331,41 @@ router.post('/billing/generate', requireAdminSession, express.urlencoded({ exten
   try {
     const { month, year } = req.body;
     const count = billingSvc.generateMonthlyInvoices(parseInt(month), parseInt(year));
-    req.session._msg = { type: 'success', text: `${count} tagihan baru berhasil digenerate untuk periode ${month}/${year}.` };
+    const printBatchBtn = `<a href="/admin/billing/print-batch?month=${month}&year=${year}" target="_blank" class="btn btn-sm btn-p text-white ms-2" style="text-decoration:none;"><i class="bi bi-printer"></i> Cetak Tagihan Periode Ini</a>`;
+    req.session._msg = { type: 'success', text: `${count} tagihan baru berhasil digenerate untuk periode ${month}/${year}.${printBatchBtn}` };
   } catch (e) {
     req.session._msg = { type: 'error', text: 'Gagal generate: ' + e.message };
   }
-  res.redirect('/admin/billing');
+  res.redirect(`/admin/billing?month=${req.body.month || ''}&year=${req.body.year || ''}`);
+});
+
+router.get('/billing/print-batch', requireAdminSession, (req, res) => {
+  try {
+    const timeInfo = getCurrentTimeInfo();
+    const month = req.query.month ? parseInt(req.query.month) : timeInfo.month;
+    const year = req.query.year ? parseInt(req.query.year) : timeInfo.year;
+    const status = req.query.status || 'all';
+
+    const invoices = billingSvc.getAllInvoices({ month, year, status, sortBy: 'name_asc' });
+    const invoicesWithCustomer = (Array.isArray(invoices) ? invoices : []).map(inv => {
+      const customer = customerSvc.getCustomerById(inv.customer_id) || {};
+      return { invoice: inv, customer };
+    });
+
+    const settings = getSettings();
+    res.render('admin/print_invoice_batch', {
+      invoicesData: invoicesWithCustomer,
+      month,
+      year,
+      company: settings.company_header || 'MyAdamedia Digital Ekosistem',
+      settings,
+      lang: req.query.lang || 'id',
+      formatDateLocal,
+      getNowLocal
+    });
+  } catch (e) {
+    res.status(500).send('Gagal cetak batch tagihan: ' + e.message);
+  }
 });
 
 router.get('/api/billing/unpaid/:customerId', requireAdmin, (req, res) => {

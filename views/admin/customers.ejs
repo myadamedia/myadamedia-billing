@@ -29,7 +29,7 @@
 
     <% if (msg) { %>
     <div class="alert alert-<%= msg.type === 'success' ? 's' : 'd' %>">
-      <i class="bi bi-<%= msg.type === 'success' ? 'check-circle' : 'exclamation-circle' %>"></i> <%= msg.text %>
+      <i class="bi bi-<%= msg.type === 'success' ? 'check-circle' : 'exclamation-circle' %>"></i> <%- msg.text %>
     </div>
     <% } %>
 
