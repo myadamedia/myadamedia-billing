@@ -2754,6 +2754,34 @@ router.get('/payment/create/:invoiceId', async (req, res) => {
   }
 });
 
+router.get('/billing/:id/print', async (req, res) => {
+  const loginId = req.session && req.session.phone;
+  if (!loginId) return res.redirect('/customer/login');
+
+  try {
+    const inv = billingSvc.getInvoiceById(req.params.id);
+    if (!inv) return res.status(404).send('Invoice tidak ditemukan');
+
+    const profile = findCustomerProfileByLoginId(loginId);
+    if (!profile || Number(inv.customer_id) !== Number(profile.id)) {
+      return res.status(403).send('Akses ditolak. Anda hanya dapat mencetak invoice milik akun Anda sendiri.');
+    }
+
+    const customer = customerSvc.getCustomerById(inv.customer_id);
+    const settings = getSettingsWithCache();
+
+    res.render('admin/print_invoice', {
+      invoice: inv,
+      customer: customer || profile,
+      company: settings.company_header || 'MyAdamedia Digital Ekosistem',
+      settings
+    });
+  } catch (e) {
+    logger.error(`[Customer Print Invoice Error] ${e.message}`);
+    res.status(500).send('Gagal memuat invoice: ' + e.message);
+  }
+});
+
 router.post('/payment/proof/:invoiceId', uploadProof.single('proof'), async (req, res) => {
   const settings = getSettingsWithCache();
   const secret = settings.session_secret || 'rahasia-portal-pelanggan-default-ganti-ini';

@@ -241,3 +241,22 @@ Mengubah tampilan [views/dashboard.ejs](file:///d:/WEBAPP/myadamedia-billing/vie
 ### 3. Hasil Pengujian
 - **Pengujian Unit (`npm test`)**: 9/9 Test Suites PASSED, 187/187 Tests PASSED.
 
+---
+
+## [2026-08-08] Perbaikan Tombol Cetak Struk/Invoice pada Portal Pelanggan
+
+### 1. Penyebab Masalah (Root Cause)
+- **Akses Admin Requirement**: Tautan tombol cetak invoice pada tabel Riwayat Tagihan di portal pelanggan sebelumnya mengarah ke `/admin/billing/:id/print`. Karena rute `/admin/billing/...` dilindungi middleware `requireAdminSession`, saat pelanggan biasa menekan tombol cetak, sistem secara otomatis mengarahkan pelanggan ke halaman login admin (`/admin/login`).
+
+### 2. Solusi & Perubahan yang Diterapkan
+- **`routes/customerPortal.js`**:
+  - Menambahkan rute khusus pelanggan `GET /customer/billing/:id/print`:
+    - Memverifikasi sesi login pelanggan (`req.session.phone`).
+    - Memastikan tagihan invoice yang diminta secara sah milik akun pelanggan yang sedang login (mencegah *IDOR / unauthorized access* ke tagihan orang lain).
+    - Memuat dan me-render template tampilan cetak invoice normal (`admin/print_invoice`).
+- **`views/dashboard.ejs`**:
+  - Mengubah atribut `href` pada tombol cetak invoice di tabel Riwayat Tagihan menjadi `/customer/billing/<%= inv.id %>/print`.
+
+### 3. Hasil Pengujian
+- **Pengujian Unit (`npm test`)**: 9/9 Test Suites PASSED, 187/187 Tests PASSED.
+
