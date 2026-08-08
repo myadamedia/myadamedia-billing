@@ -2159,13 +2159,34 @@ router.post('/change-password', async (req, res) => {
 });
 
 router.post('/reboot', async (req, res) => {
-  const phone = req.session && req.session.phone;
-  if (!phone) return res.redirect('/customer/login');
-  const r = await requestReboot(phone);
+  const loginId = req.session && req.session.phone;
+  if (!loginId) return res.redirect('/customer/login');
+
+  const pppoeUsername = req.session.pppoe_username || loginId;
+  const profile = findCustomerProfileByLoginId(loginId);
+  const tagToUse = (profile && (profile.genieacs_tag || profile.pppoe_username)) || pppoeUsername || loginId;
+
+  const actor = {
+    type: 'customer',
+    id: profile ? profile.id : null,
+    name: profile ? profile.name : loginId,
+    ip: req.ip || req.headers['x-forwarded-for'] || null,
+    userAgent: req.headers['user-agent'] || null
+  };
+
+  let r = await requestReboot(tagToUse, actor);
+
+  // Fallback try if first attempt didn't find the device
+  if (!r.ok && pppoeUsername && pppoeUsername !== tagToUse) {
+    r = await requestReboot(pppoeUsername, actor);
+  }
+  if (!r.ok && loginId && loginId !== tagToUse && loginId !== pppoeUsername) {
+    r = await requestReboot(loginId, actor);
+  }
   
   req.session._msg = r.ok
-    ? { type: 'success', text: 'Perangkat berhasil direboot. Silakan tunggu beberapa menit.' }
-    : { type: 'danger', text: r.message || 'Gagal reboot.' };
+    ? { type: 'success', text: 'Perintah reboot berhasil dikirim. Perangkat ONT/ONU Anda sedang melakukan restart (1-2 menit).' }
+    : { type: 'danger', text: r.message || 'Gagal mengirim perintah reboot ke perangkat.' };
 
   res.redirect('/customer/dashboard');
 });
@@ -2428,13 +2449,30 @@ router.post('/public/payment/create/:invoiceId', async (req, res) => {
 });
 
 // ─── TICKETS / KELUHAN ─────────────────────────────────────────────────────
-router.post('/tickets/create', uploadCustomer.array('photos', 5), async (req, res) => {
+router.post('/tickets/create', (req, res, next) => {
+  uploadCustomer.any()(req, res, (err) => {
+    if (err) {
+      logger.error(`[Ticket Upload Error] ${err.message}`);
+      req.session._msg = { type: 'danger', text: 'Gagal mengupload foto: ' + err.message };
+      return res.redirect('/customer/dashboard');
+    }
+    next();
+  });
+}, async (req, res) => {
   const loginId = req.session && req.session.phone;
   if (!loginId) return res.redirect('/customer/login');
   
-  const { subject, message, customerId } = req.body;
-  if (!subject || !message || !customerId) {
-    req.session._msg = { type: 'danger', text: 'Semua field harus diisi.' };
+  let { subject, message, description, customerId } = req.body;
+  const msgContent = (message || description || '').trim();
+
+  // Auto resolve customerId if missing
+  if (!customerId && loginId) {
+    const custProfile = findCustomerProfileByLoginId(loginId);
+    if (custProfile) customerId = custProfile.id;
+  }
+
+  if (!subject || !msgContent || !customerId) {
+    req.session._msg = { type: 'danger', text: 'Semua field (subjek, deskripsi) harus diisi.' };
     return res.redirect('/customer/dashboard');
   }
 
@@ -2456,7 +2494,7 @@ router.post('/tickets/create', uploadCustomer.array('photos', 5), async (req, re
     }
     
     // Create ticket with photos
-    const result = ticketSvc.createTicket(customerId, subject, message, {
+    const result = ticketSvc.createTicket(customerId, subject, msgContent, {
       customerPhotos: JSON.stringify(photoPaths),
       customerPhotoMetadata: JSON.stringify(photoMetadata)
     });

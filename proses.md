@@ -159,3 +159,43 @@ Mengubah tampilan [views/dashboard.ejs](file:///d:/WEBAPP/myadamedia-billing/vie
 ### 3. Hasil Pengujian
 - **Pengujian Unit (`npm test`)**: 9/9 Test Suites PASSED, 187/187 Tests PASSED.
 
+---
+
+## [2026-08-08] Perbaikan Error Multer "Unexpected field" pada Form Kirim Tiket Gangguan
+
+### 1. Penyebab Masalah (Root Cause)
+- **Nama Field Mismatch**: Backend `routes/customerPortal.js` menggunakan middleware `uploadCustomer.array('photos', 5)` yang secara khusus hanya menerima field bernama `photos`. Sementara pada form HTML `views/dashboard.ejs`, field input file diberi nama `attachment` dan deskripsi menggunakan name `description`.
+- Multer melemparkan exception `MulterError: Unexpected field` saat menerima field upload yang tidak terdaftar di konfigurasi middleware-nya.
+- Elemen `<input type="hidden" name="customerId">` sempat tidak disertakan pada modal form.
+
+### 2. Solusi & Perubahan yang Diterapkan
+- **`routes/customerPortal.js`**:
+  - Mengubah middleware menjadi `uploadCustomer.any()` sehingga dapat menerima lampiran foto dari nama field apapun (`photos`, `attachment`, dll) tanpa exception.
+  - Memasang error-handling wrapper pada middleware Multer agar mengembalikan notifikasi flash message yang ramah pengguna apabila terjadi kegagalan upload.
+  - Menambahkan *auto-resolution* `customerId` berdasarkan sesi login pelanggan (`req.session.phone`) apabila field `customerId` tidak dikirimkan dari form.
+  - Mendukung pembacaan deskripsi dari `req.body.message` maupun `req.body.description`.
+- **`views/dashboard.ejs`**:
+  - Menambahkan input hidden `<input type="hidden" name="customerId" value="<%= profile ? profile.id : '' %>">`.
+  - Menyelaraskan atribut nama input menjadi `name="message"` dan `name="photos"`.
+
+### 3. Hasil Pengujian
+- **Pengujian Unit (`npm test`)**: 9/9 Test Suites PASSED, 187/187 Tests PASSED.
+
+---
+
+## [2026-08-08] Perbaikan Navigasi Menu Tagihan & Fitur Reboot Router Mandiri
+
+### 1. Penyebab Masalah (Root Cause)
+1. **Navigasi Menu Tagihan**: Link `<a href="#billing-section">` pada bar navigasi bawah tidak menggulir (*scroll*) secara halus pada perangkat seluler karena keterbatasan default event browser pada elemen internal.
+2. **Perintah Reboot Router**: Backend `routes/customerPortal.js` sebelumnya hanya mengirimkan nomor HP (`req.session.phone`) sebagai token pencarian perangkat ke GenieACS TR-069. Apabila perangkat di GenieACS didaftarkan menggunakan `pppoe_username` atau `genieacs_tag` yang berbeda dari HP, maka pencarian perangkat gagal (`Perangkat tidak ditemukan`).
+
+### 2. Solusi & Perubahan yang Diterapkan
+- **`views/dashboard.ejs`**:
+  - Menambahkan event handler JavaScript `scrollToSection(sectionId)` yang memanfaatkan `element.scrollIntoView({ behavior: 'smooth', block: 'start' })` pada link menu Tagihan dan Perangkat.
+- **`routes/customerPortal.js`**:
+  - Memperbarui handler `POST /customer/reboot` dengan **Fallback Resolution Chain**: `tagToUse (genieacs_tag / pppoe_username)` -> `pppoeUsername` -> `loginId (phone)`.
+  - Menambahkan *audit trail log* untuk tindakan reboot yang diinisiasi oleh pelanggan.
+
+### 3. Hasil Pengujian
+- **Pengujian Unit (`npm test`)**: 9/9 Test Suites PASSED, 187/187 Tests PASSED.
+
