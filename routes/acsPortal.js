@@ -589,7 +589,8 @@ async function getLANHosts(deviceId, serverConfig) {
             
             let finalRssi = null;
             let band = l2Str.includes('5') ? '5GHz' : '2.4GHz';
-            const macLower = mac.toString().toLowerCase();
+            const macLower = mac.toString().toLowerCase().trim();
+            const isWifiAssociated = isWiFi && wifiRssiMap.has(macLower);
 
             if (isWiFi && wifiRssiMap.has(macLower)) {
                 const wifiInfo = wifiRssiMap.get(macLower);
@@ -597,10 +598,22 @@ async function getLANHosts(deviceId, serverConfig) {
                 band = wifiInfo.band;
             }
 
+            const activeStr = String(activeRaw ?? '').toLowerCase().trim();
+            const isExplicitlyInactive = activeStr === 'false' || activeStr === '0' || activeStr === 'inactive' || activeStr === 'no';
+
+            let isActive = false;
+            if (isWifiAssociated) {
+                isActive = true;
+            } else if (activeRaw === true || activeRaw === 1 || activeStr === 'true' || activeStr === '1' || activeStr === 'active' || activeStr === 'online' || activeStr === 'yes') {
+                isActive = true;
+            } else if ((activeRaw === undefined || activeRaw === null || activeStr === '') && !isExplicitlyInactive && mac !== '-' && ip !== '-' && ip !== '0.0.0.0') {
+                isActive = true;
+            }
+
             return {
                 index: index + 1,
                 mac, ip, hostname,
-                active: activeRaw === true || activeRaw === 'true' || activeRaw === 1,
+                active: isActive,
                 isWiFi, band, rssi: finalRssi,
                 bytesReceived, bytesSent
             };

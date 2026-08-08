@@ -93,7 +93,8 @@
                     <% clients.forEach((client) => { 
                         const iface = String(client.iface || '');
                         const isWiFi = iface.toLowerCase().includes('wifi') || iface.toLowerCase().includes('wlan') || iface.toLowerCase().includes('802.11');
-                        const isOn = String(client.status || '').toLowerCase() === 'online';
+                        const statusLower = String(client.status || '').toLowerCase().trim();
+                        const isOn = statusLower === 'online' || statusLower === 'active' || statusLower === '1' || client.active === true;
                     %>
                         <div class="client-card">
                             <div class="client-header">

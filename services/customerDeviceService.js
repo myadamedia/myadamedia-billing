@@ -520,25 +520,57 @@ function mapDeviceData(device, tag) {
   try {
     const hosts = device?.InternetGatewayDevice?.LANDevice?.['1']?.Hosts?.Host || device?.Device?.Hosts?.Host;
     if (hosts && typeof hosts === 'object') {
-      for (const key in hosts) {
-        if (!isNaN(key)) {
-          const entry = hosts[key];
-          connectedUsers.push({
-            hostname: typeof entry?.HostName === 'object' ? entry?.HostName?._value || '-' : entry?.HostName || '-',
-            ip: typeof entry?.IPAddress === 'object' ? entry?.IPAddress?._value || '-' : entry?.IPAddress || '-',
-            mac: typeof entry?.MACAddress === 'object' ? entry?.MACAddress?._value || '-' : entry?.MACAddress || '-',
-            iface: typeof entry?.InterfaceType === 'object' ? entry?.InterfaceType?._value || '-' : entry?.InterfaceType || entry?.Interface || '-',
-            status: (
-              entry?.Active?._value === 'true' || 
-              entry?.Active?._value === '1' || 
-              entry?.Active?._value === 1 || 
-              entry?.Active === true || 
-              entry?.Active === '1' || 
-              entry?.Active === 1 || 
-              String(entry?.Active || '').toLowerCase() === 'online'
-            ) ? 'Online' : 'Offline'
-          });
+      let hostEntries = [];
+      if (Array.isArray(hosts)) {
+        hostEntries = hosts;
+      } else {
+        hostEntries = Object.values(hosts).filter(v => v && typeof v === 'object');
+      }
+
+      // Collect Wi-Fi associated MACs if present
+      const wifiAssocMacs = new Set();
+      const wlanObj = device?.InternetGatewayDevice?.LANDevice?.['1']?.WLANConfiguration || device?.Device?.WiFi?.AccessPoint;
+      if (wlanObj && typeof wlanObj === 'object') {
+        for (const wKey in wlanObj) {
+          const wlan = wlanObj[wKey];
+          const assoc = wlan?.AssociatedDevice;
+          if (assoc && typeof assoc === 'object') {
+            const assocArr = Array.isArray(assoc) ? assoc : Object.values(assoc);
+            assocArr.forEach(item => {
+              const m = item?.AssociatedDeviceMACAddress?._value || item?.MACAddress?._value || item?.AssociatedDeviceMACAddress || item?.MACAddress;
+              if (m && typeof m === 'string') wifiAssocMacs.add(m.toLowerCase().trim());
+            });
+          }
         }
+      }
+
+      for (const entry of hostEntries) {
+        const hostname = (typeof entry?.HostName === 'object' ? entry?.HostName?._value : entry?.HostName) || 'Unknown';
+        const ip = (typeof entry?.IPAddress === 'object' ? entry?.IPAddress?._value : entry?.IPAddress) || '-';
+        const mac = (typeof entry?.MACAddress === 'object' ? entry?.MACAddress?._value : entry?.MACAddress) || '-';
+        const iface = (typeof entry?.InterfaceType === 'object' ? entry?.InterfaceType?._value : entry?.InterfaceType || entry?.Interface) || '-';
+
+        const rawActive = typeof entry?.Active === 'object' ? entry?.Active?._value : entry?.Active;
+        const activeStr = String(rawActive ?? '').toLowerCase().trim();
+        const isExplicitlyInactive = activeStr === 'false' || activeStr === '0' || activeStr === 'inactive' || activeStr === 'no';
+        const macLower = String(mac || '').toLowerCase().trim();
+
+        let isOnline = false;
+        if (wifiAssocMacs.has(macLower)) {
+          isOnline = true;
+        } else if (rawActive === true || rawActive === 1 || activeStr === 'true' || activeStr === '1' || activeStr === 'active' || activeStr === 'online' || activeStr === 'yes') {
+          isOnline = true;
+        } else if ((rawActive === undefined || rawActive === null || activeStr === '') && !isExplicitlyInactive && mac !== '-' && ip !== '-' && ip !== '0.0.0.0') {
+          isOnline = true;
+        }
+
+        connectedUsers.push({
+          hostname,
+          ip,
+          mac,
+          iface,
+          status: isOnline ? 'Online' : 'Offline'
+        });
       }
     }
   } catch (e) {}

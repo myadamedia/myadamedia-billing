@@ -1520,7 +1520,8 @@
                                       <%= user.iface %>
                                     </td>
                                     <td>
-                                      <% if (user.status==='Online' ) { %>
+                                      <% const isDevOnline = String(user.status || '').toLowerCase() === 'online' || String(user.status || '').toLowerCase() === 'active' || String(user.status || '') === '1' || user.active === true; %>
+                                      <% if (isDevOnline) { %>
                                         <span class="badge bg-success"><%= t('customer.devices.online', 'Online') %></span>
                                         <% } else { %>
                                           <span class="badge bg-secondary"><%= t('customer.devices.offline', 'Offline') %></span>

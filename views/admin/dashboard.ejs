@@ -814,7 +814,8 @@ async function showDetail(tag) {
           ${connected.length > 0 ? connected.map((u) => {
             const iface = String(u.iface || '');
             const isWiFi = iface.toLowerCase().includes('wifi') || iface.toLowerCase().includes('wlan') || iface.toLowerCase().includes('802.11');
-            const isUon = String(u.status || '').toLowerCase() === 'online';
+            const statusLower = String(u.status || '').toLowerCase().trim();
+            const isUon = statusLower === 'online' || statusLower === 'active' || statusLower === '1' || u.active === true;
             return `
               <div style="background:var(--sub-bg);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px">
                 <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
