@@ -2762,17 +2762,36 @@ router.get('/billing/:id/print', async (req, res) => {
     const inv = billingSvc.getInvoiceById(req.params.id);
     if (!inv) return res.status(404).send('Invoice tidak ditemukan');
 
+    const pppoeUsername = req.session.pppoe_username || loginId;
     const profile = findCustomerProfileByLoginId(loginId);
-    if (!profile || Number(inv.customer_id) !== Number(profile.id)) {
+    
+    // Pencocokan fleksibel & aman untuk kepemilikan tagihan
+    const cleanLogin = String(loginId).replace(/\D/g, '');
+    const cleanPhone = profile ? String(profile.phone || '').replace(/\D/g, '') : '';
+    const cleanInvPhone = String(inv.customer_phone || '').replace(/\D/g, '');
+
+    const isOwner = Boolean(
+      (profile && Number(inv.customer_id) === Number(profile.id)) ||
+      (cleanLogin && cleanInvPhone && cleanLogin === cleanInvPhone) ||
+      (cleanPhone && cleanInvPhone && cleanPhone === cleanInvPhone) ||
+      (inv.pppoe_username && (inv.pppoe_username === pppoeUsername || (profile && inv.pppoe_username === profile.pppoe_username))) ||
+      (profile && inv.customer_name && String(inv.customer_name).toLowerCase().trim() === String(profile.name).toLowerCase().trim())
+    );
+
+    if (!isOwner) {
       return res.status(403).send('Akses ditolak. Anda hanya dapat mencetak invoice milik akun Anda sendiri.');
     }
 
-    const customer = customerSvc.getCustomerById(inv.customer_id);
+    const customer = (inv.customer_id ? customerSvc.getCustomerById(inv.customer_id) : null) || profile || {
+      name: inv.customer_name || 'Pelanggan',
+      phone: inv.customer_phone || loginId,
+      address: inv.customer_address || '-'
+    };
     const settings = getSettingsWithCache();
 
     res.render('admin/print_invoice', {
       invoice: inv,
-      customer: customer || profile,
+      customer,
       company: settings.company_header || 'MyAdamedia Digital Ekosistem',
       settings
     });
