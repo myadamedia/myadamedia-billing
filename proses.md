@@ -280,3 +280,17 @@ Mengubah tampilan [views/dashboard.ejs](file:///d:/WEBAPP/myadamedia-billing/vie
 ### 3. Hasil Pengujian
 - **Pengujian Unit (`npm test`)**: 9/9 Test Suites PASSED, 187/187 Tests PASSED.
 
+---
+
+## [2026-08-08] Penyamaan Perilaku Tombol Bayar pada Tabel Tagihan (Pop-up Modal #payModal)
+
+### 1. Deskripsi Perubahan
+- Mengubah tombol **Bayar** biru pada baris tabel Riwayat Tagihan di [views/dashboard.ejs](file:///d:/WEBAPP/myadamedia-billing/views/dashboard.ejs) agar memicu jendela pop-up modal (`#payModal`) persis seperti tombol **Bayar Tagihan** / **Bayar Sekarang** di bagian atas hero banner.
+- Saat tombol **Bayar** pada baris tagihan tertentu ditekan, fungsi JavaScript `selectPayInvoice(invId)` secara otomatis memilih (*auto-select*) tagihan bersangkutan pada dropdown modal pembayaran, lalu menampilkan modal modal `#payModal` untuk memilih metode bayar (QRIS / VA / E-Wallet).
+
+### 2. Modul & File yang Diperbarui
+- **`views/dashboard.ejs`**: Mengubah tombol baris tagihan menjadi `<button data-bs-toggle="modal" data-bs-target="#payModal" onclick="selectPayInvoice('<%= inv.id %>')">Bayar</button>` dan menambahkan handler JS `selectPayInvoice`.
+
+### 3. Hasil Pengujian
+- **Pengujian Unit (`npm test`)**: 9/9 Test Suites PASSED, 187/187 Tests PASSED.
+
