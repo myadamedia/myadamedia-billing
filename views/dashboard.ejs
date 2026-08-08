@@ -854,17 +854,23 @@
         .then(res => res.json())
         .then(data => {
           if (data && data.ok) {
-            const rxVal = parseFloat(data.rxMbps || 0).toFixed(1);
-            const txVal = parseFloat(data.txMbps || 0).toFixed(1);
+            const rxNum = parseFloat(data.rxMbps || 0);
+            const txNum = parseFloat(data.txMbps || 0);
+            
+            const rxVal = rxNum.toFixed(1);
+            const txVal = txNum.toFixed(1);
 
             document.getElementById('pppoe_rx_value').innerText = rxVal;
             document.getElementById('pppoe_tx_value').innerText = txVal;
 
-            const rxMax = parseFloat(document.getElementById('pppoe_rx_gauge').dataset.max || 10);
-            const txMax = parseFloat(document.getElementById('pppoe_tx_gauge').dataset.max || 10);
+            let rxMax = parseFloat(document.getElementById('pppoe_rx_gauge').dataset.max || 10);
+            let txMax = parseFloat(document.getElementById('pppoe_tx_gauge').dataset.max || 10);
 
-            drawSpeedGauge('pppoe_rx_gauge', parseFloat(rxVal), rxMax, '#10b981');
-            drawSpeedGauge('pppoe_tx_gauge', parseFloat(txVal), txMax, '#3b82f6');
+            if (rxNum > rxMax) rxMax = Math.ceil(rxNum * 1.2);
+            if (txNum > txMax) txMax = Math.ceil(txNum * 1.2);
+
+            drawSpeedGauge('pppoe_rx_gauge', rxNum, rxMax, '#10b981');
+            drawSpeedGauge('pppoe_tx_gauge', txNum, txMax, '#3b82f6');
           }
         })
         .catch(() => {});
@@ -874,7 +880,7 @@
       drawSpeedGauge('pppoe_rx_gauge', 0, 10, '#10b981');
       drawSpeedGauge('pppoe_tx_gauge', 0, 10, '#3b82f6');
       fetchTrafficData();
-      setInterval(fetchTrafficData, 3000);
+      setInterval(fetchTrafficData, 2000);
     };
 
     window.onresize = function() {

@@ -1957,6 +1957,10 @@ router.get('/api/pppoe-traffic', async (req, res) => {
       } catch {}
     }
 
+    if (!iface && username) {
+      iface = `<pppoe-${username}>`;
+    }
+
     const sessionId = `${baseSessionId}${iface ? `|${iface}` : ''}`;
 
     const key = `${routerId || 'default'}:${username}`;
@@ -1971,9 +1975,14 @@ router.get('/api/pppoe-traffic', async (req, res) => {
         try {
           const mtRaw = await invokeRouterOsMenuCommand(ifMenu, 'monitor-traffic', { interface: iface, once: '' });
           const mt = Array.isArray(mtRaw) ? mtRaw[0] : mtRaw;
-          const rxBps = numField(mt, ['rxBitsPerSecond', 'rx-bits-per-second', 'rx-bits-per-second']);
-          const txBps = numField(mt, ['txBitsPerSecond', 'tx-bits-per-second', 'tx-bits-per-second']);
+          const rxBps = numField(mt, ['rxBitsPerSecond', 'rx-bits-per-second']);
+          const txBps = numField(mt, ['txBitsPerSecond', 'tx-bits-per-second']);
           if (rxBps || txBps) {
+            // Dalam perspektif MikroTik:
+            // tx-bits-per-second = Router Mengirim -> Ke Pelanggan (Customer DOWNLOAD)
+            // rx-bits-per-second = Router Menerima <- Dari Pelanggan (Customer UPLOAD)
+            const downMbps = (Number(txBps) || 0) / 1e6;
+            const upMbps = (Number(rxBps) || 0) / 1e6;
             return res.json({
               ok: true,
               online: true,
@@ -1981,8 +1990,8 @@ router.get('/api/pppoe-traffic', async (req, res) => {
               iface,
               source: 'monitor-traffic',
               uptime,
-              rxMbps: (Number(rxBps) || 0) / 1e6,
-              txMbps: (Number(txBps) || 0) / 1e6
+              rxMbps: Number(downMbps.toFixed(2)),
+              txMbps: Number(upMbps.toFixed(2))
             });
           }
         } catch {}
@@ -2038,8 +2047,10 @@ router.get('/api/pppoe-traffic', async (req, res) => {
       });
     }
 
-    const rxMbps = (dIn * 8) / (dtMs / 1000) / 1e6;
-    const txMbps = (dOut * 8) / (dtMs / 1000) / 1e6;
+    // dOut = Router Bytes Out -> Customer Download
+    // dIn  = Router Bytes In  -> Customer Upload
+    const downMbps = (dOut * 8) / (dtMs / 1000) / 1e6;
+    const upMbps = (dIn * 8) / (dtMs / 1000) / 1e6;
 
     return res.json({
       ok: true,
@@ -2048,8 +2059,8 @@ router.get('/api/pppoe-traffic', async (req, res) => {
       iface,
       source,
       uptime,
-      rxMbps: Number.isFinite(rxMbps) ? rxMbps : 0,
-      txMbps: Number.isFinite(txMbps) ? txMbps : 0
+      rxMbps: Number.isFinite(downMbps) ? Number(downMbps.toFixed(2)) : 0,
+      txMbps: Number.isFinite(upMbps) ? Number(upMbps.toFixed(2)) : 0
     });
   } catch (e) {
     return res.json({ ok: false, error: e.message || 'failed' });
