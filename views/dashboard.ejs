@@ -576,7 +576,7 @@
                             <i class="bi bi-printer"></i>
                           </a>
                         <% } else { %>
-                          <button class="btn btn-sm btn-primary rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#payModal">Bayar</button>
+                          <a href="/customer/payment/create/<%= inv.id %>" class="btn btn-sm btn-primary rounded-pill px-3">Bayar</a>
                         <% } %>
                       </td>
                     </tr>
@@ -688,6 +688,17 @@
           </div>
 
           <form method="POST" action="/customer/payment/create">
+            <% if (typeof invoices !== 'undefined' && invoices && invoices.filter(i => String(i.status).toLowerCase() !== 'paid').length > 0) { %>
+              <div class="mb-3">
+                <label class="form-label text-sub small fw-semibold">Pilih Tagihan</label>
+                <select name="invoiceId" class="form-select bg-dark border-secondary text-white" required>
+                  <% invoices.filter(i => String(i.status).toLowerCase() !== 'paid').forEach(function(inv) { %>
+                    <option value="<%= inv.id %>">#INV-<%= inv.id %> (Periode <%= monthNamesIndo[inv.period_month] || inv.period_month %> <%= inv.period_year %>) - Rp <%= Number(inv.amount || 0).toLocaleString('id-ID') %></option>
+                  <% }); %>
+                </select>
+              </div>
+            <% } %>
+
             <div class="mb-3">
               <label class="form-label text-sub small fw-semibold">Pilih Metode Pembayaran</label>
               <select name="channel_code" class="form-select bg-dark border-secondary text-white" required>

@@ -199,3 +199,25 @@ Mengubah tampilan [views/dashboard.ejs](file:///d:/WEBAPP/myadamedia-billing/vie
 ### 3. Hasil Pengujian
 - **Pengujian Unit (`npm test`)**: 9/9 Test Suites PASSED, 187/187 Tests PASSED.
 
+---
+
+## [2026-08-08] Perbaikan Alur Pembayaran Tagihan (Pay Bill Fix)
+
+### 1. Penyebab Masalah (Root Cause)
+1. Form modal pembayaran `#payModal` di [views/dashboard.ejs](file:///d:/WEBAPP/myadamedia-billing/views/dashboard.ejs) sebelumnya melakukan submit `POST` ke `/customer/payment/create`, namun handler endpoint `POST /customer/payment/create` belum terdaftar di backend (router sebelumnya hanya menerima `GET /customer/payment/create/:invoiceId`).
+2. Tombol **Bayar** di tabel riwayat tagihan dan modal pembayaran belum meneruskan parameter `invoiceId` tagihan yang hendak dibayar secara spesifik.
+
+### 2. Solusi & Perubahan yang Diterapkan
+- **`routes/customerPortal.js`**:
+  - Menambahkan endpoint `router.post('/payment/create')`:
+    - Membaca `invoiceId` dari form atau secara otomatis memilih tagihan pending milik pelanggan yang bersangkutan.
+    - Membaca metode pembayaran (`channel_code` / `method`).
+    - Melakukan redirect mulus ke endpoint pembuatan transaksi payment gateway (`GET /customer/payment/create/:invoiceId?method=...`).
+  - Memperbarui `router.get('/customer/payment/create/:invoiceId')` agar jika terjadi error (misalnya gateway down), sistem menangkap error tersebut dan melakukan redirect kembali ke dashboard dengan notifikasi flash message yang ramah.
+- **`views/dashboard.ejs`**:
+  - Memperbarui tombol **Bayar** di tabel tagihan menjadi tautan langsung: `<a href="/customer/payment/create/<%= inv.id %>" class="btn btn-sm btn-primary">Bayar</a>`.
+  - Menambahkan selector dropdown `Pilih Tagihan` pada modal `#payModal` sehingga pelanggan yang memiliki beberapa tagihan pending dapat memilih tagihan mana yang ingin dibayar.
+
+### 3. Hasil Pengujian
+- **Pengujian Unit (`npm test`)**: 9/9 Test Suites PASSED, 187/187 Tests PASSED.
+

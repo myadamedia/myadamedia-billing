@@ -2560,6 +2560,35 @@ router.get('/payment/status/:invoiceId', async (req, res) => {
   }
 });
 
+router.post('/payment/create', async (req, res) => {
+  const loginId = req.session && req.session.phone;
+  if (!loginId) return res.redirect('/customer/login');
+
+  try {
+    const profile = findCustomerProfileByLoginId(loginId);
+    let invoiceId = req.body.invoiceId || req.body.invoice_id;
+    
+    // Fallback: If no invoiceId passed, find the first unpaid invoice for this customer
+    if (!invoiceId && profile) {
+      const invoices = billingSvc.getInvoicesByCustomerId(profile.id);
+      const unpaid = (invoices || []).find(i => String(i.status).toLowerCase() !== 'paid');
+      if (unpaid) invoiceId = unpaid.id;
+    }
+
+    if (!invoiceId) {
+      req.session._msg = { type: 'warning', text: 'Tidak ada tagihan pending yang perlu dibayar.' };
+      return res.redirect('/customer/dashboard');
+    }
+
+    const method = req.body.channel_code || req.body.method || 'QRIS';
+    return res.redirect(`/customer/payment/create/${invoiceId}?method=${encodeURIComponent(method)}`);
+  } catch (error) {
+    logger.error(`[Payment POST] Error: ${error.message}`);
+    req.session._msg = { type: 'danger', text: 'Gagal membuat pembayaran: ' + error.message };
+    return res.redirect('/customer/dashboard');
+  }
+});
+
 router.get('/payment/create/:invoiceId', async (req, res) => {
   const loginId = req.session && req.session.phone;
   if (!loginId) return res.redirect('/customer/login');
@@ -2709,7 +2738,8 @@ router.get('/payment/create/:invoiceId', async (req, res) => {
     }
   } catch (error) {
     logger.error(`[Payment] Create Error: ${error.message}`);
-    res.status(500).send(`Terjadi kesalahan: ${error.message}`);
+    req.session._msg = { type: 'danger', text: 'Gagal membuat transaksi pembayaran: ' + error.message };
+    return res.redirect('/customer/dashboard');
   }
 });
 
