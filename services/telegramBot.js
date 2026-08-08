@@ -908,5 +908,71 @@ function initTelegram() {
   });
 }
 
-// Export for manual re-init from settings
-module.exports = { initTelegram };
+/**
+ * Kirim pesan Telegram ke chatId tertentu
+ * @param {string|number} chatId - ID Chat Telegram / Group ID
+ * @param {string} text - Isi pesan (Markdown formatted)
+ * @param {object} options - Options tambahan
+ * @returns {Promise<boolean>}
+ */
+async function sendTelegramMessage(chatId, text, options = {}) {
+  const enabled = getSetting('telegram_enabled', false);
+  const token = getSetting('telegram_bot_token', '');
+
+  if (!enabled || !token || !chatId) {
+    return false;
+  }
+
+  const payloadOptions = { parse_mode: 'Markdown', ...options };
+
+  try {
+    if (bot && typeof bot.sendMessage === 'function') {
+      await bot.sendMessage(chatId, text, payloadOptions);
+      return true;
+    }
+
+    // Fallback: Kirim langsung via Telegram HTTP REST API jika instance bot polling tidak aktif
+    const axios = require('axios');
+    const url = `https://api.telegram.org/bot${token}/sendMessage`;
+    await axios.post(url, {
+      chat_id: chatId,
+      text: text,
+      ...payloadOptions
+    }, { timeout: 5000 });
+    return true;
+  } catch (err) {
+    logger.error(`[Telegram] Gagal mengirim pesan ke ${chatId}: ${err.message}`);
+    return false;
+  }
+}
+
+/**
+ * Kirim pesan Telegram ke seluruh Admin / Group Telegram yang terkonfigurasi
+ * @param {string} text - Isi pesan
+ * @param {object} options - Options tambahan
+ * @returns {Promise<boolean>}
+ */
+async function sendTelegramAdminNotification(text, options = {}) {
+  const adminIdsRaw = getSetting('telegram_admin_id', '');
+  if (!adminIdsRaw) return false;
+
+  const adminIds = String(adminIdsRaw)
+    .split(',')
+    .map(id => id.trim())
+    .filter(Boolean);
+
+  let sent = false;
+  for (const adminId of adminIds) {
+    const success = await sendTelegramMessage(adminId, text, options);
+    if (success) sent = true;
+  }
+  return sent;
+}
+
+// Export for manual re-init from settings and sending notifications
+module.exports = {
+  initTelegram,
+  sendTelegramMessage,
+  sendTelegramAdminNotification
+};
+

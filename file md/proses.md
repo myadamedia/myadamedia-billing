@@ -4,6 +4,39 @@ Dokumen ini mencatat seluruh proses analisis, perancangan arsitektur, dan peruba
 
 ---
 
+## [2026-08-06] - Feature Update: Implementasi Notifikasi Multi-Channel (WhatsApp & Telegram) untuk Tiket Keluhan Pelanggan Baru
+
+### 1. Kebutuhan Fitur & Permasalahan
+- Sebelumnya, saat pelanggan mengirimkan tiket keluhan baru, notifikasi hanya dikirimkan via WhatsApp dan tidak ada notifikasi yang terkirim ke Telegram.
+- Logika pengiriman notifikasi terbarsegmentasi di beberapa file router tanpa modul penanganan notifikasi terpusat.
+- Pengaturan validasi Telegram Admin ID sebelumnya belum mendukung ID Group (berawalan minus `-`) atau multi Admin ID (dipisahkan koma).
+
+### 2. Solusi & Arsitektur yang Diterapkan
+- **Pengembangan Telegram Bot Connector ([services/telegramBot.js](file:///d:/WEBAPP/myadamedia-billing/services/telegramBot.js))**:
+  - Menambahkan fungsi `sendTelegramMessage(chatId, text, options)` dan `sendTelegramAdminNotification(text, options)`.
+  - Menggunakan instance polling `bot` apabila aktif, atau fallback otomatis ke REST API Telegram (`https://api.telegram.org/bot<token>/sendMessage`) via Axios jika polling dihentikan/tidak aktif.
+- **Pembaruan Schema Validator Settings ([config/settingsValidator.js](file:///d:/WEBAPP/myadamedia-billing/config/settingsValidator.js))**:
+  - Mengubah regex `telegram_admin_id` menjadi `/^[-\d,\s]+$/` agar aman menerima Group ID (seperti `-100123456789`) dan daftar ID dipisahkan koma.
+- **Modul Notification Service Terpusat ([services/notificationService.js](file:///d:/WEBAPP/myadamedia-billing/services/notificationService.js))**:
+  - Membuat service terpusat `NotificationService` dengan method static `notifyNewTicket(params)` dan `notifyTechnicianAssignment(params)`.
+  - Secara otomatis mendistribusikan notifikasi ke:
+    1. **WhatsApp**: Ke nomor-nomor admin (`whatsapp_admin_numbers`) dan seluruh teknisi aktif.
+    2. **Telegram**: Ke admin / group Telegram yang terkonfigurasi di `telegram_admin_id`.
+- **Integrasi Router ([routes/customerPortal.js](file:///d:/WEBAPP/myadamedia-billing/routes/customerPortal.js) & [routes/adminPortal.js](file:///d:/WEBAPP/myadamedia-billing/routes/adminPortal.js))**:
+  - Menghubungkan proses submit keluhan pelanggan dan tiket admin dengan `NotificationService.notifyNewTicket(...)`.
+- **Unit Testing ([tests/notificationService.test.js](file:///d:/WEBAPP/myadamedia-billing/tests/notificationService.test.js))**:
+  - Dibuat unit test untuk memverifikasi fungsi pengiriman notifikasi Telegram dan NotificationService berjalan tanpa melempar exception.
+
+### 3. File Diperbarui & Ditambahkan
+- [`services/telegramBot.js`](file:///d:/WEBAPP/myadamedia-billing/services/telegramBot.js): Penambahan `sendTelegramMessage` & `sendTelegramAdminNotification`.
+- [`config/settingsValidator.js`](file:///d:/WEBAPP/myadamedia-billing/config/settingsValidator.js): Penyesuaian regex validator `telegram_admin_id`.
+- [`services/notificationService.js`](file:///d:/WEBAPP/myadamedia-billing/services/notificationService.js) *(FILE BARU)*: Module pusat notifikasi multi-channel.
+- [`routes/customerPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/customerPortal.js): Integrasi `NotificationService` pada ticket submission pelanggan.
+- [`routes/adminPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/adminPortal.js): Integrasi `NotificationService` pada penambahan tiket admin.
+- [`tests/notificationService.test.js`](file:///d:/WEBAPP/myadamedia-billing/tests/notificationService.test.js) *(FILE BARU)*: Unit test Jest.
+
+---
+
 ## [2026-08-06] - UI Update: Penyederhanaan Tampilan Paket & Harga pada Halaman Login Pelanggan
 
 ### 1. Kebutuhan UI
@@ -710,6 +743,32 @@ Saat mengklik tombol **Kick (CoA)** pada menu Monitoring Sesi Aktif RADIUS, munc
 
 ### 3. Dampak Perubahan
 Tombol **Kick (CoA)** pada panel Admin Billing kini beroperasi dengan garansi tingkat keberhasilan 100%. Tidak ada lagi pesan error `Disconnect-NAK` yang memblokir admin, dan sesi pengguna terputus seketika dari router.
+
+---
+
+## [2026-08-07] - Refactoring & Feature Removal: Penghapusan Password Aktivasi pada Dashboard Admin & Pengaturan Sidebar
+
+### 1. Permasalahan & Penyebab Utama
+Sebelumnya, setiap kali Superadmin ingin menyimpan perubahan visibilitas menu sidebar (`Tampil`, `Sembunyikan`, atau `Kunci`) di halaman **Pengaturan Sidebar** (`/admin/sidebar-settings`), sistem mengharuskan pengisian `Password Aktivasi (Seikhlasnya)`. Jika password tidak diisi atau salah, sistem akan menolak penyimpanan status menu.
+- **Penyebab Utama**: Terdapat proteksi kunci hash (`FEATURE_PASSWORD_HASH`) pada `sidebarMenuService.js` dan validasi `isFeaturePasswordValid()` pada controller `routes/adminPortal.js`.
+
+### 2. Solusi yang Diterapkan
+- **Backend Service Layer ([`services/sidebarMenuService.js`](file:///d:/WEBAPP/myadamedia-billing/services/sidebarMenuService.js))**:
+  - Menghapus konstanta `FEATURE_PASSWORD_HASH` dan fungsi `isFeaturePasswordValid()`.
+  - Mengubah `getStoredMenuStates()` dan `saveMenuStates()` agar menyimpan dan membaca status visibilitas menu secara langsung dari tabel `app_settings` di database SQLite tanpa bergantung pada verifikasi `sidebar_activation_keys`.
+  - Menyederhanakan `lockedMessage` pada `enrichMenu()` sehingga hanya menampilkan pesan singkat bahwa menu berstatus terkunci.
+- **Backend Controller Layer ([`routes/adminPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/adminPortal.js))**:
+  - Menghapus pengecekan `req.body.feature_password` dan error `Password aktivasi salah` pada route `POST /admin/sidebar-settings`.
+  - Menghapus variabel `featureContactPhone` pada render GET `/admin/sidebar-settings`.
+- **Frontend UI View Layer**:
+  - **[`views/admin/sidebar_settings.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/sidebar_settings.ejs)**: Menghapus elemen input `feature_password`, label, hint text, serta catatan instruksi seputar password aktivasi.
+  - **[`views/admin/partials/sidebar.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/partials/sidebar.ejs)**: Mengupdate modal `#lockedMenuModal` dengan pesan pemberitahuan yang bersih tanpa referensi nomor telepon aktivasi.
+- **Database Initialization ([`config/database.js`](file:///d:/WEBAPP/myadamedia-billing/config/database.js))**:
+  - Menyederhanakan fungsi `forceUnlockCoreMenus()` agar secara langsung mem-force status menu core menjadi `visible` di `app_settings` tanpa mengolah hash `sidebar_activation_keys`.
+
+### 3. Dampak Perubahan
+Superadmin kini dapat mengubah dan menyimpan status visibilitas menu sidebar (Tampil, Sembunyikan, Kunci) secara langsung dari Dashboard Admin tanpa kendala permintaan Password Aktivasi.
+
 
 
 

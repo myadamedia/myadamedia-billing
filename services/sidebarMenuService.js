@@ -2,17 +2,6 @@ const crypto = require('crypto');
 const { getSetting, getSettings, saveSettings } = require('../config/settingsManager');
 const { getAppSetting, saveAppSetting } = require('../config/database');
 
-const FEATURE_PASSWORD_HASH = '45d841d9f79ebadb8db21b0068b6b6d10a49ff66865e9fbf88267cceccd3c784';
-const FEATURE_CONTACT_PHONE = '085179966227';
-
-function getFeaturePasswordHash() {
-  return getSetting('feature_password_hash', FEATURE_PASSWORD_HASH);
-}
-
-function getFeatureContactPhone() {
-  return getSetting('feature_contact_phone', FEATURE_CONTACT_PHONE);
-}
-
 const SETTINGS_KEY = 'sidebar_menu_states';
 const STATE_VISIBLE = 'visible';
 const STATE_HIDDEN = 'hidden';
@@ -130,18 +119,14 @@ function normalizeState(value) {
 }
 
 function getStoredMenuStates() {
-  // Coba ambil dari Database dulu (Lebih Aman)
+  // Ambil dari Database
   let raw = getAppSetting(SETTINGS_KEY, null);
-  let activationKeys = getAppSetting('sidebar_activation_keys', {});
 
   // Fallback ke settings.json jika di DB masih kosong (Migration)
   if (raw === null) {
     raw = getSetting(SETTINGS_KEY, {});
-    activationKeys = getSetting('sidebar_activation_keys', {});
-    // Langsung migrasi ke DB agar kedepannya pakai DB
     if (Object.keys(raw).length > 0) {
       saveAppSetting(SETTINGS_KEY, raw);
-      saveAppSetting('sidebar_activation_keys', activationKeys);
     }
   }
 
@@ -150,48 +135,14 @@ function getStoredMenuStates() {
   for (const menu of MENU_DEFINITIONS) {
     const defaultState = DEFAULT_MENU_STATES[menu.key] || STATE_VISIBLE;
     let storedState = raw && raw[menu.key] ? raw[menu.key] : defaultState;
-    
-    const normalized = normalizeState(storedState);
-
-    // Jika menu aslinya LOCKED tapi diubah jadi VISIBLE/HIDDEN, cek kunci aktivasinya
-    if (defaultState === STATE_LOCKED && normalized !== STATE_LOCKED) {
-      const expectedKey = sha256(menu.key + getFeaturePasswordHash());
-      const providedKey = activationKeys[menu.key];
-
-      if (providedKey !== expectedKey) {
-        // Kunci tidak cocok! Kembalikan ke LOCKED
-        stateMap[menu.key] = STATE_LOCKED;
-        continue;
-      }
-    }
-
-    stateMap[menu.key] = normalized;
+    stateMap[menu.key] = normalizeState(storedState);
   }
   return stateMap;
 }
 
 function saveMenuStates(stateMap) {
-  const activationKeys = getAppSetting('sidebar_activation_keys', {});
-  const passwordHash = getFeaturePasswordHash();
-
-  for (const key in stateMap) {
-    const newState = stateMap[key];
-    const defaultState = DEFAULT_MENU_STATES[key] || STATE_VISIBLE;
-
-    // Jika menu yang aslinya LOCKED diaktifkan (jadi visible/hidden), generate kunci
-    if (defaultState === STATE_LOCKED && newState !== STATE_LOCKED) {
-      activationKeys[key] = sha256(key + passwordHash);
-    } else if (newState === STATE_LOCKED) {
-      // Jika dikunci kembali, hapus kuncinya
-      delete activationKeys[key];
-    }
-  }
-
   // Simpan ke Database (Utama)
   saveAppSetting(SETTINGS_KEY, sanitizeMenuStates(stateMap));
-  saveAppSetting('sidebar_activation_keys', activationKeys);
-
-  // Hanya gunakan database, tidak perlu backup ke settings.json
   return true;
 }
 
@@ -240,7 +191,7 @@ function enrichMenu(menu, states) {
     locked,
     hidden,
     hrefResolved: menu.href,
-    lockedMessage: locked ? `Menu "${menu.labelDefault}" terkunci. Hubungi ${getFeatureContactPhone()} untuk mendapatkan password aktivasi.` : ''
+    lockedMessage: locked ? `Menu "${menu.labelDefault}" terkunci.` : ''
   };
 }
 
@@ -291,10 +242,6 @@ function getMenuDefinition(key) {
   return MENU_DEFINITIONS.find((menu) => menu.key === key) || null;
 }
 
-function isFeaturePasswordValid(password) {
-  return sha256(password) === getFeaturePasswordHash();
-}
-
 function evaluateMenuAccess(menuKey, session) {
   const menu = getMenuDefinition(menuKey);
   if (!menu) {
@@ -317,8 +264,6 @@ function evaluateMenuAccess(menuKey, session) {
 }
 
 module.exports = {
-  getFeatureContactPhone,
-  getFeaturePasswordHash,
   STATE_VISIBLE,
   STATE_HIDDEN,
   STATE_LOCKED,
@@ -329,7 +274,6 @@ module.exports = {
   getMenuDefinition,
   getStoredMenuStates,
   sanitizeMenuStates,
-  isFeaturePasswordValid,
   saveMenuStates,
   evaluateMenuAccess,
 };

@@ -9,6 +9,7 @@ const mikrotikService = require('../services/mikrotikService');
 const { parseMikhmonOnLogin } = require('../utils/mikhmonParser');
 const { logger } = require('../config/logger');
 const ticketSvc = require('../services/ticketService');
+const notificationSvc = require('../services/notificationService');
 const crypto = require('crypto');
 const db = require('../config/database');
 const sidebarMenuSvc = require('../services/sidebarMenuService');
@@ -2464,48 +2465,24 @@ router.post('/tickets/create', uploadCustomer.array('photos', 5), async (req, re
     
     req.session._msg = { type: 'success', text: 'Keluhan berhasil dikirim. Tim teknisi akan segera mengeceknya.' };
 
-    // --- WHATSAPP NOTIFICATION FOR NEW TICKET ---
+    // --- MULTI-CHANNEL NOTIFICATION FOR NEW TICKET (WA & TELEGRAM) ---
     try {
-      const settings = getSettingsWithCache();
-      if (settings.whatsapp_enabled) {
-        const { sendWA } = await import('../services/whatsappBot.mjs');
-        const customer = customerSvc.getCustomerById(customerId);
-        
-        const photoCount = photoPaths.length;
-        const photoText = photoCount > 0 ? `\n📸 *Foto Masalah:* ${photoCount} foto terlampir` : '';
-        
-        const waMsg = `🎫 *TIKET KELUHAN BARU*\n\n` +
-                     `👤 *Pelanggan:* ${customer ? customer.name : 'Unknown'}\n` +
-                     `📞 *WhatsApp:* ${customer ? customer.phone : '-'}\n` +
-                     `📍 *Alamat:* ${customer ? customer.address : '-'}\n` +
-                     `📝 *Subjek:* ${subject}\n` +
-                     `💬 *Pesan:* ${message}${photoText}\n\n` +
-                     `Silakan cek di panel Admin/Teknisi untuk menindaklanjuti.`;
-
-        const recipients = new Set();
-        if (settings.whatsapp_admin_numbers && settings.whatsapp_admin_numbers.length > 0) {
-          for (const adminPhone of settings.whatsapp_admin_numbers) {
-            const digits = normalizeWaDigits(adminPhone);
-            if (digits) recipients.add(digits);
-          }
-        }
-        const techSvc = require('../services/techService');
-        const technicians = techSvc.getAllTechnicians().filter(t => t.is_active === 1);
-        for (const tech of technicians) {
-          const digits = normalizeWaDigits(tech.phone);
-          if (digits) recipients.add(digits);
-        }
-
-        for (const digits of recipients) {
-          const key = `ticket:new:${ticketId}:${digits}`;
-          if (!shouldSendWa(key)) continue;
-          await sendWA(digits, waMsg);
-        }
-      }
-    } catch (waErr) {
-      logger.error(`[Ticket] WA Notification Error: ${waErr.message}`);
+      const customer = customerSvc.getCustomerById(customerId);
+      const NotificationService = require('../services/notificationService');
+      await NotificationService.notifyNewTicket({
+        ticketId,
+        customerName: customer ? customer.name : 'Unknown',
+        customerPhone: customer ? customer.phone : '-',
+        customerAddress: customer ? customer.address : '-',
+        subject,
+        message,
+        photoCount: photoPaths.length,
+        category: 'Pelanggan'
+      });
+    } catch (notifErr) {
+      logger.error(`[Ticket] Multi-Channel Notification Error: ${notifErr.message}`);
     }
-    // --------------------------------------------
+    // -----------------------------------------------------------------
 
   } catch (error) {
     req.session._msg = { type: 'danger', text: 'Gagal mengirim keluhan: ' + error.message };
@@ -3016,6 +2993,16 @@ router.post('/payment/callback', express.json({
           }
         } catch(waErr) { logger.error('[Topup Webhook] WA error: ' + waErr.message); }
       }
+
+      // Notifikasi Admin (WA Admin & Telegram Bot)
+      notificationSvc.notifyPaymentSuccess({
+        customerName: customer ? customer.name : 'Pelanggan',
+        customerPhone: customer ? customer.phone : '',
+        amount: topupReq.amount,
+        gateway: gateway,
+        paymentOrderNo: gatewayOrderId,
+        paymentType: 'topup_customer'
+      }).catch(err => logger.error('[Topup Webhook Admin Notif Error] ' + err.message));
     }
 
     // --- Cek Request Top-Up Saldo Agen ---
@@ -3047,6 +3034,16 @@ router.post('/payment/callback', express.json({
           }
         } catch(waErr) { logger.error('[AgentTopup Webhook] WA error: ' + waErr.message); }
       }
+
+      // Notifikasi Admin (WA Admin & Telegram Bot)
+      notificationSvc.notifyPaymentSuccess({
+        customerName: agent ? agent.name : 'Agen',
+        customerPhone: agent ? agent.phone : '',
+        amount: agentTopupReq.amount,
+        gateway: gateway,
+        paymentOrderNo: gatewayOrderId,
+        paymentType: 'topup_agent'
+      }).catch(err => logger.error('[AgentTopup Webhook Admin Notif Error] ' + err.message));
     }
 
     // --- Cek Pesanan Voucher Hotspot ---
@@ -3154,6 +3151,16 @@ router.post('/payment/callback', express.json({
             `).run(String(waErr?.message || waErr || ''), orderId);
           }
         }
+
+        // Notifikasi Admin (WA Admin & Telegram Bot)
+        notificationSvc.notifyPaymentSuccess({
+          customerName: fresh.buyer_name || 'Pembeli Voucher',
+          customerPhone: fresh.buyer_phone || '',
+          amount: fresh.price,
+          gateway: gateway,
+          paymentOrderNo: gatewayOrderId,
+          paymentType: 'voucher'
+        }).catch(err => logger.error('[Voucher Webhook Admin Notif Error] ' + err.message));
       } catch (e) {
         logger.error(`[Webhook] Voucher fulfill gagal (order=${orderId}): ${e.message}`);
       }
@@ -3197,6 +3204,18 @@ router.post('/payment/callback', express.json({
       } catch (waErr) {
         logger.error(`[Webhook] Gagal kirim notif WA: ${waErr.message}`);
       }
+
+      // Notifikasi Admin (WA Admin & Telegram Bot)
+      notificationSvc.notifyPaymentSuccess({
+        invoiceId: idNum,
+        customerName: customer ? customer.name : 'Pelanggan',
+        customerPhone: customer ? customer.phone : '',
+        amount: checkInv.amount,
+        period: `${checkInv.period_month}/${checkInv.period_year}`,
+        gateway: gateway,
+        paymentOrderNo: gatewayOrderId,
+        paymentType: 'tagihan'
+      }).catch(err => logger.error('[Invoice Webhook Admin Notif Error] ' + err.message));
 
       if (customer && customer.status === 'suspended') {
         const unpaidCount = billingSvc.getUnpaidInvoicesByCustomerId(customer.id).length;

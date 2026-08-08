@@ -183,8 +183,8 @@ const VALIDATION_RULES = {
   },
   telegram_admin_id: {
     type: 'string',
-    pattern: /^\d+$/,
-    description: 'Telegram admin ID (numeric)'
+    pattern: /^[-\d,\s]+$/,
+    description: 'Telegram admin ID atau Group ID (bisa beberapa dipisahkan koma)'
   },
 
   // Tripay Configuration

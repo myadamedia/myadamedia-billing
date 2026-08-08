@@ -2988,40 +2988,50 @@ router.post('/tickets/create', requireAdminSession, express.urlencoded({ extende
     
     req.session._msg = { type: 'success', text: 'Tiket gangguan berhasil dibuat.' };
     
-    // --- WHATSAPP NOTIFICATION FOR TECHNICIAN ASSIGNMENT ---
-    if (resolvedTechId) {
-      try {
-        const settings = getSettings();
-        const tech = db.prepare('SELECT * FROM technicians WHERE id = ?').get(resolvedTechId);
-        if (settings.whatsapp_enabled && tech && tech.phone) {
-          const { sendWA } = await import('../services/whatsappBot.mjs');
-          
-          let targetText = '';
-          if (category === 'Pelanggan' && resolvedCustomerId) {
-            targetText = `👤 *Pelanggan:* ${resolvedTargetName}\n📍 *Alamat:* ${db.prepare('SELECT address FROM customers WHERE id = ?').get(resolvedCustomerId)?.address || '-'}`;
-          } else {
-            targetText = `🏷️ *Kategori:* ${category}\n📍 *Target:* ${resolvedTargetName || '-'}`;
-          }
-          if (resolvedLat && resolvedLng) {
-            targetText += `\n📍 *Koordinat:* ${resolvedLat},${resolvedLng}`;
-          }
-          
-          const waMessage = `🛠️ *PENUGASAN KELUHAN BARU*\n\n` +
-                            `🎫 *ID Tiket:* #${info.lastInsertRowid}\n` +
-                            `${targetText}\n` +
-                            `📝 *Subjek:* ${subject}\n` +
-                            `💬 *Pesan:* ${message}\n\n` +
-                            `Silakan segera lakukan pengecekan dan perbaikan di lokasi.`;
-          
-          let digits = String(tech.phone).replace(/\D/g, '');
-          if (digits) {
-            if (digits.startsWith('0')) digits = '62' + digits.slice(1);
-            await sendWA(digits, waMessage);
-          }
+    const newTicketId = info.lastInsertRowid;
+
+    // --- MULTI-CHANNEL NOTIFICATION (WA & TELEGRAM) ---
+    try {
+      const NotificationService = require('../services/notificationService');
+      
+      let custPhone = '-';
+      let custAddress = '-';
+      if (category === 'Pelanggan' && resolvedCustomerId) {
+        const custObj = db.prepare('SELECT phone, address FROM customers WHERE id = ?').get(resolvedCustomerId);
+        if (custObj) {
+          custPhone = custObj.phone || '-';
+          custAddress = custObj.address || '-';
         }
-      } catch (err) {
-        logger.error(`Error sending WA notify for new ticket assignment: ${err.message}`);
       }
+
+      await NotificationService.notifyNewTicket({
+        ticketId: newTicketId,
+        customerName: resolvedTargetName || 'General Issue',
+        customerPhone: custPhone,
+        customerAddress: custAddress,
+        subject,
+        message,
+        category: category || 'Umum'
+      });
+
+      if (resolvedTechId) {
+        const tech = db.prepare('SELECT name, phone FROM technicians WHERE id = ?').get(resolvedTechId);
+        let targetText = category === 'Pelanggan' && resolvedCustomerId
+          ? `👤 *Pelanggan:* ${resolvedTargetName}\n📍 *Alamat:* ${custAddress}`
+          : `🏷️ *Kategori:* ${category}\n📍 *Target:* ${resolvedTargetName || '-'}`;
+        if (resolvedLat && resolvedLng) targetText += `\n📍 *Koordinat:* ${resolvedLat},${resolvedLng}`;
+
+        await NotificationService.notifyTechnicianAssignment({
+          ticketId: newTicketId,
+          technicianPhone: tech ? tech.phone : null,
+          technicianName: tech ? tech.name : null,
+          targetText,
+          subject,
+          message
+        });
+      }
+    } catch (err) {
+      logger.error(`Error sending multi-channel notification for new ticket: ${err.message}`);
     }
   } catch (err) {
     logger.error(`Error creating ticket: ${err.message}`);
@@ -3485,18 +3495,12 @@ router.get('/sidebar-settings', requireAdminSession, (req, res) => {
     activePage: 'sidebar_settings',
     msg: flashMsg(req),
     canManageSidebar: Boolean(req.session?.isAdmin),
-    menuConfigs: sidebarMenuSvc.getConfigMenus(),
-    featureContactPhone: sidebarMenuSvc.getFeatureContactPhone()
+    menuConfigs: sidebarMenuSvc.getConfigMenus()
   });
 });
 
 router.post('/sidebar-settings', requireAdminSession, restrictToAdmin, express.urlencoded({ extended: true }), (req, res) => {
   try {
-    const featurePassword = String(req.body.feature_password || '').trim();
-    if (!sidebarMenuSvc.isFeaturePasswordValid(featurePassword)) {
-      throw new Error(`Password aktivasi salah. Hubungi ${sidebarMenuSvc.getFeatureContactPhone()} untuk mendapatkan password yang benar.`);
-    }
-
     const menuStates = sidebarMenuSvc.sanitizeMenuStates(req.body.menu_state || {});
     const success = sidebarMenuSvc.saveMenuStates(menuStates);
     if (!success) throw new Error('Gagal menyimpan pengaturan sidebar');
@@ -3509,7 +3513,7 @@ router.post('/sidebar-settings', requireAdminSession, restrictToAdmin, express.u
         actor_type: req.session?.isAdmin ? 'admin' : 'cashier',
         actor_id: String(req.session?.adminUser || req.session?.cashierUsername || ''),
         actor_name: req.session?.adminUser || req.session?.cashierName || 'Admin',
-        details: { menuStates, password_verified: true },
+        details: { menuStates },
         ip_address: req.ip,
         user_agent: req.get('user-agent')
       });

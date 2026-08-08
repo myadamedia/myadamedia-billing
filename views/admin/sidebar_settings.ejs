@@ -44,7 +44,6 @@
         <div class="card-bd">
           <p class="hint" style="margin-top:0">
             Setiap menu bisa diatur menjadi <strong>Tampil</strong>, <strong>Sembunyikan</strong>, atau <strong>Kunci</strong>.
-            Menu yang dikunci akan meminta password khusus sebelum dibuka.
           </p>
 
           <% if (canManageSidebar) { %>
@@ -85,16 +84,6 @@
                   </tbody>
                 </table>
               </div>
-              <div class="sidebar-settings-save-grid" style="margin-top:16px">
-                <div class="fg" style="margin:0">
-                  <label class="fl">Password Aktivasi (Seikhlasnya)</label>
-                  <input type="password" class="fc" name="feature_password" placeholder="Masukkan password aktivasi sebelum menyimpan" required>
-                  <div class="hint" style="margin-top:6px">Perubahan status menu sidebar hanya akan disimpan jika password aktivasi benar.</div>
-                </div>
-                <div class="hint" style="align-self:center">
-                  Hubungi <strong><%= featureContactPhone %></strong> untuk mendapatkan password aktivasi (seikhlasnya).
-                </div>
-              </div>
               <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px;flex-wrap:wrap">
                 <button type="submit" class="btn btn-p">
                   <i class="bi bi-save"></i> Simpan Pengaturan Sidebar
@@ -114,12 +103,11 @@
         </div>
         <div class="card-bd">
           <div class="alert alert-s" style="margin-bottom:12px">
-            <i class="bi bi-info-circle"></i> Jika menu berstatus <strong>Kunci</strong> diklik dari sidebar, sistem hanya akan menampilkan pemberitahuan untuk menghubungi <strong><%= featureContactPhone %></strong> (seikhlasnya).
+            <i class="bi bi-info-circle"></i> Jika menu berstatus <strong>Kunci</strong> diklik dari sidebar, sistem akan menolak akses hingga statusnya diubah kembali menjadi <strong>Tampil</strong>.
           </div>
           <ul style="margin:0;padding-left:18px;display:grid;gap:8px">
             <li>Status <strong>Sembunyikan</strong> akan menghilangkan menu dari sidebar dan menolak akses URL langsung.</li>
-            <li>Status <strong>Kunci</strong> tetap menampilkan menu, tetapi tidak bisa dibuka sampai statusnya diubah di halaman ini.</li>
-            <li>Perubahan status menu hanya dapat disimpan setelah memasukkan password aktivasi yang benar.</li>
+            <li>Status <strong>Kunci</strong> tetap menampilkan menu di sidebar, tetapi tidak bisa dibuka sampai statusnya diubah kembali di halaman ini.</li>
           </ul>
         </div>
       </div>

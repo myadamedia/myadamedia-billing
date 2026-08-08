@@ -762,8 +762,9 @@
         <i class="bi bi-info-circle"></i> Geser penanda (marker) atau klik pada peta untuk menentukan lokasi yang akurat.
       </div>
     </div>
-    <div class="mf">
-      <button type="button" class="btn btn-p" onclick="closeModal('mapPickerModal')">Selesai</button>
+    <div class="mf" style="justify-content: space-between;">
+      <button type="button" class="btn btn-g" onclick="useCurrentLocationInPicker()"><i class="bi bi-crosshair"></i> Lokasi Saya</button>
+      <button type="button" class="btn btn-p" onclick="confirmPickerLocation()">Selesai</button>
     </div>
   </div>
 </div>
@@ -796,6 +797,40 @@ const officeCoords = {
 
 function openModal(id){document.getElementById(id).classList.add('show')}
 function closeModal(id){document.getElementById(id).classList.remove('show')}
+
+function updateInputs(lat, lng) {
+  const prefix = activePickerType === 'add' ? 'add_' : 'e_';
+  const latElem = document.getElementById(prefix + 'lat');
+  const lngElem = document.getElementById(prefix + 'lng');
+  if (latElem) latElem.value = (typeof lat === 'number' && !isNaN(lat)) ? lat.toFixed(8) : lat;
+  if (lngElem) lngElem.value = (typeof lng === 'number' && !isNaN(lng)) ? lng.toFixed(8) : lng;
+}
+
+function confirmPickerLocation() {
+  if (pickerMarker) {
+    const pos = pickerMarker.getLatLng();
+    updateInputs(pos.lat, pos.lng);
+  }
+  closeModal('mapPickerModal');
+}
+
+function useCurrentLocationInPicker() {
+  if (!navigator.geolocation) {
+    alert('Geolocation tidak didukung oleh peramban ini.');
+    return;
+  }
+  navigator.geolocation.getCurrentPosition((pos) => {
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
+    if (pickerMap && pickerMarker) {
+      pickerMap.setView([lat, lng], 17);
+      pickerMarker.setLatLng([lat, lng]);
+    }
+    updateInputs(lat, lng);
+  }, (err) => {
+    alert('Gagal mengambil lokasi GPS: ' + (err.message || 'Izin ditolak atau timeout'));
+  }, { enableHighAccuracy: true, timeout: 10000 });
+}
 
 function openPicker(type) {
   activePickerType = type;
@@ -841,6 +876,7 @@ function openPicker(type) {
       pickerMarker.setLatLng([startLat, startLng]);
       pickerMap.invalidateSize();
     }
+    updateInputs(startLat, startLng);
   }, 300);
 }
 
