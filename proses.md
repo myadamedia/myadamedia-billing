@@ -282,6 +282,26 @@ Mengubah tampilan [views/dashboard.ejs](file:///d:/WEBAPP/myadamedia-billing/vie
 
 ---
 
+## [2026-08-08] Redesain Halaman Login Pelanggan (Modern & Minimalist Customer Login)
+
+### 1. Deskripsi Pembaruan
+Mengubah tampilan halaman login pelanggan [views/login.ejs](file:///d:/WEBAPP/myadamedia-billing/views/login.ejs) menjadi sangat modern, elegan, dan mudah digunakan:
+- **Desain & Tipografi**: Google Fonts **Plus Jakarta Sans**, skema warna *Obsidian Dark Mode* (`#0b0f19`), pencahayaan ambient radial berpendar, dan *Frosted Glassmorphism Card* (`backdrop-filter: blur(24px)`).
+- **Pengalaman Pengguna (UX) Yang Sangat Mudah**:
+  - Logo perusahaan yang bersih di dalam *glass container*.
+  - Input tunggal yang ramah: **ID Pelanggan / Nomor HP** dengan icon indicator `bi-person-badge`.
+  - Tombol masuk utama berpendar *Indigo Gradient* dengan efek elevasi mikro saat di-hover.
+  - Action button instan: **Cek Tagihan Instan (Tanpa Login)**.
+  - Kartu informasi bantuan CS, jam operasional, dan tautan pendaftaran pemasangan baru yang rapi di bagian bawah.
+
+### 2. Modul & File yang Diperbarui
+- **`views/login.ejs`**: Pembaruan menyeluruh struktur HTML, CSS, Font Google, dan tata letak responsif.
+
+### 3. Hasil Pengujian
+- **Pengujian Unit (`npm test`)**: 9/9 Test Suites PASSED, 187/187 Tests PASSED.
+
+---
+
 ## [2026-08-08] Penyamaan Perilaku Tombol Bayar pada Tabel Tagihan (Pop-up Modal #payModal)
 
 ### 1. Deskripsi Perubahan

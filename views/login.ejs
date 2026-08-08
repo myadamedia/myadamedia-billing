@@ -1,343 +1,347 @@
 <!DOCTYPE html>
-<html lang="<%= lang || 'id' %>">
+<html lang="<%= typeof lang !== 'undefined' && lang ? lang : 'id' %>">
 
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title><%= t('customer.login_title', 'Login Pelanggan') %> | <%= settings.company_header || 'Portal ISP' %></title>
-  <!-- Preconnect to CDN for faster loading -->
-  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-  <!-- Defer non-critical CSS -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" media="print" onload="this.media='all'">
-  <noscript>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  </noscript>
-  <link rel="stylesheet" href="/css/style.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title><%= typeof t === 'function' ? t('customer.login_title', 'Login Pelanggan') : 'Login Pelanggan' %> | <%= (settings && settings.company_header) ? settings.company_header : 'Portal ISP' %></title>
+  
+  <!-- CSS Dependencies -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
   <link rel="manifest" href="/manifest.webmanifest">
-  <meta name="theme-color" content="#0f172a">
+  <meta name="theme-color" content="#0b0f19">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="apple-touch-icon" href="/img/logo.png">
   <link rel="icon" href="/img/logo.png">
+
   <style>
-    body {
-      background: radial-gradient(1200px 600px at 10% 0%, rgba(99, 102, 241, 0.22) 0%, rgba(15, 23, 42, 0) 60%),
-        radial-gradient(900px 450px at 100% 0%, rgba(59, 130, 246, 0.18) 0%, rgba(15, 23, 42, 0) 55%),
-        #0f172a;
-      color: #e2e8f0;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    :root {
+      --bg-dark: #0b0f19;
+      --card-bg: rgba(17, 24, 39, 0.82);
+      --card-border: rgba(255, 255, 255, 0.12);
+      --card-hover: rgba(99, 102, 241, 0.4);
+      --primary-accent: #6366f1;
+      --primary-glow: rgba(99, 102, 241, 0.4);
+      --text-main: #f8fafc;
+      --text-sub: #cbd5e1;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
       -webkit-tap-highlight-color: transparent;
     }
 
-    .login-container {
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(99, 102, 241, 0.20) 0%, transparent 50%),
+        radial-gradient(circle at 85% 20%, rgba(16, 185, 129, 0.12) 0%, transparent 50%),
+        radial-gradient(circle at 50% 85%, rgba(139, 92, 246, 0.15) 0%, transparent 55%);
+      background-attachment: fixed;
+      color: var(--text-main);
       min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 20px;
+      padding: 20px 15px;
+    }
+
+    .text-muted { color: var(--text-muted) !important; }
+    .text-sub { color: var(--text-sub) !important; }
+
+    /* Login Card Glassmorphism */
+    .login-wrapper {
+      width: 100%;
+      max-width: 440px;
+      margin: 0 auto;
     }
 
     .login-card {
-      background: rgba(30, 41, 59, 0.92);
-      backdrop-filter: blur(10px);
-      border: 1px solid #334155;
-      border-radius: 20px;
-      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
+      background: var(--card-bg);
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      border: 1px solid var(--card-border);
+      border-radius: 28px;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(99, 102, 241, 0.08);
       overflow: hidden;
-      max-width: 400px;
-      width: 100%;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    .login-header {
-      background: linear-gradient(135deg, rgba(99, 102, 241, 0.28) 0%, rgba(59, 130, 246, 0.2) 100%);
-      color: #f8fafc;
-      padding: 30px 20px;
+    .login-header-box {
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.20) 0%, rgba(17, 24, 39, 0.6) 100%);
+      border-bottom: 1px solid var(--card-border);
+      padding: 32px 24px 24px;
       text-align: center;
-      border-bottom: 1px solid rgba(148, 163, 184, 0.18);
     }
 
-    .logo-container {
+    .brand-logo-container {
       background: #ffffff;
-      padding: 8px 20px;
-      border-radius: 12px;
+      padding: 8px 18px;
+      border-radius: 16px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      margin: 0 auto 15px;
-      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      margin-bottom: 16px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.2);
     }
-
-    .logo-container img {
-      height: 40px;
+    .brand-logo-container img {
+      height: 42px;
       width: auto;
       object-fit: contain;
     }
 
-    .form-container {
-      padding: 30px 25px;
+    .login-body-box {
+      padding: 30px 24px 24px;
     }
 
-    .form-floating {
+    /* Custom Input Control */
+    .input-group-modern {
+      position: relative;
       margin-bottom: 20px;
     }
 
-    .form-control {
-      background: rgba(15, 23, 42, 0.6);
-      border: 1px solid #334155;
-      color: #e2e8f0;
-      border-radius: 12px;
-      padding: 15px 20px;
-      font-size: 16px;
-      transition: all 0.3s ease;
-    }
-
-    .form-control::placeholder {
-      color: rgba(148, 163, 184, 0.85);
-    }
-
-    .form-control:focus {
+    .input-modern {
       background: rgba(15, 23, 42, 0.75);
-      border-color: rgba(99, 102, 241, 0.85);
-      box-shadow: 0 0 0 0.2rem rgba(99, 102, 241, 0.25);
-      color: #e2e8f0;
-    }
-
-    .btn-login {
-      background: linear-gradient(135deg, #6366f1 0%, #3b82f6 100%);
-      border: none;
-      border-radius: 12px;
-      padding: 15px;
-      font-size: 16px;
-      font-weight: 600;
-      transition: all 0.3s ease;
-    }
-
-    .btn-login:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 14px 28px rgba(99, 102, 241, 0.25);
-    }
-
-    .footer-text {
-      color: rgba(148, 163, 184, 0.9);
-      font-size: 12px;
-      margin-top: 20px;
-    }
-
-    .form-floating>label {
-      color: rgba(148, 163, 184, 0.95);
-    }
-
-    .form-floating>.form-control:focus~label,
-    .form-floating>.form-control:not(:placeholder-shown)~label {
-      color: rgba(148, 163, 184, 0.95);
-    }
-
-    .alert {
-      border: 1px solid rgba(148, 163, 184, 0.15);
-    }
-
-    .quick-actions {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-top: 10px;
-    }
-
-    .btn-ghost {
-      border-radius: 12px;
-      padding: 14px 12px;
+      border: 1px solid var(--card-border);
+      color: #ffffff !important;
+      border-radius: 16px;
+      padding: 16px 20px 16px 48px;
       font-size: 15px;
+      font-weight: 500;
+      width: 100%;
+      transition: all 0.25s ease;
+    }
+
+    .input-modern::placeholder {
+      color: #94a3b8;
+    }
+
+    .input-modern:focus {
+      background: rgba(15, 23, 42, 0.90);
+      border-color: var(--primary-accent);
+      box-shadow: 0 0 0 4px var(--primary-glow);
+      outline: none;
+      color: #ffffff !important;
+    }
+
+    .input-icon-left {
+      position: absolute;
+      left: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--primary-accent);
+      font-size: 20px;
+      pointer-events: none;
+    }
+
+    /* Modern Primary Button */
+    .btn-login-glow {
+      background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+      color: #ffffff !important;
       font-weight: 700;
-      border: 1px solid rgba(148, 163, 184, 0.24);
-      background: rgba(15, 23, 42, 0.35);
-      color: #e2e8f0;
+      font-size: 16px;
+      border-radius: 16px;
+      padding: 15px;
+      border: none;
+      width: 100%;
+      box-shadow: 0 6px 20px var(--primary-glow);
+      transition: all 0.25s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn-login-glow:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 30px rgba(99, 102, 241, 0.6);
+      color: #ffffff !important;
+    }
+
+    /* Secondary Action Button */
+    .btn-secondary-action {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--card-border);
+      color: var(--text-main) !important;
+      border-radius: 14px;
+      padding: 12px;
+      font-size: 13px;
+      font-weight: 600;
       text-decoration: none;
-      display: inline-flex;
+      display: flex;
       align-items: center;
       justify-content: center;
       gap: 8px;
       transition: all 0.2s ease;
+      margin-top: 12px;
     }
 
-    .btn-ghost:hover {
+    .btn-secondary-action:hover {
+      background: rgba(99, 102, 241, 0.15);
+      border-color: rgba(99, 102, 241, 0.4);
+      color: #ffffff !important;
       transform: translateY(-1px);
-      border-color: rgba(99, 102, 241, 0.65);
-      box-shadow: 0 14px 28px rgba(0, 0, 0, 0.25);
-      color: #e2e8f0;
     }
 
-    .info-grid {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 10px;
-      margin-top: 16px;
-    }
-
-    .info-box {
-      border: 1px solid rgba(148, 163, 184, 0.18);
-      background: rgba(15, 23, 42, 0.28);
+    /* Info Accordions */
+    .info-card-item {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--card-border);
       border-radius: 14px;
-      padding: 12px 14px;
+      padding: 12px 16px;
+      margin-top: 10px;
     }
 
-    .info-title {
-      font-weight: 800;
-      font-size: 13px;
-      margin-bottom: 4px;
+    .info-header-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #cbd5e1;
       display: flex;
       align-items: center;
       gap: 8px;
+      margin-bottom: 2px;
     }
 
-    .info-text {
-      color: rgba(148, 163, 184, 0.95);
-      font-size: 12px;
-      line-height: 1.4;
+    .info-body-text {
+      font-size: 11px;
+      color: #94a3b8;
       margin: 0;
-    }
-
-    @media (max-width: 576px) {
-      .login-container {
-        padding: 10px;
-      }
-
-      .login-card {
-        border-radius: 15px;
-      }
-
-      .form-container {
-        padding: 25px 20px;
-      }
-
-      .quick-actions {
-        grid-template-columns: 1fr;
-      }
+      line-height: 1.4;
     }
   </style>
 </head>
 
 <body>
-  <div class="login-container">
+
+  <div class="login-wrapper">
+    
+    <!-- MAIN LOGIN CARD -->
     <div class="login-card">
-      <div class="login-header">
-        <div class="logo-container">
-          <img src="/img/logo.png" alt="Logo">
+      
+      <!-- HEADER -->
+      <div class="login-header-box">
+        <div class="brand-logo-container">
+          <img src="/img/logo.png" alt="Logo" onerror="this.style.display='none'">
         </div>
-        <h4 class="mb-1 fw-bold"><%= t('customer.portal_title', 'Portal Pelanggan') %></h4>
-        <p class="mb-0 opacity-75">
-          <%= settings.company_header %>
-        </p>
+        <h4 class="fw-bold text-white mb-1"><%= typeof t === 'function' ? t('customer.portal_title', 'Portal Pelanggan') : 'Portal Pelanggan' %></h4>
+        <p class="text-sub small mb-0"><%= (settings && settings.company_header) ? settings.company_header : 'Layanan Internet Fiber Tercepat' %></p>
       </div>
-      <div class="form-container">
-        <form method="POST" action="/customer/login">
-          <div class="form-floating">
-            <input type="text" class="form-control" id="phone" name="phone" placeholder="<%= t('customer.id_tag_placeholder', 'Masukkan ID/Tag Pelanggan') %>"
-              required autofocus>
-            <label for="phone">
-              <i class="bi bi-person-badge me-2"></i><%= t('customer.id_tag', 'ID/Tag Pelanggan') %>
-            </label>
-          </div>
-          <div class="text-center mb-3 small" style="color: rgba(148, 163, 184, 0.95);">
-            <i class="bi bi-info-circle me-1"></i>
-            Masukkan ID pelanggan / Nomor HP yang terdaftar
-          </div>
-          <% if (settings.login_otp_enabled) { %>
-            <div class="text-center mb-3 small" style="color: rgba(148, 163, 184, 0.95);">
-              <i class="bi bi-whatsapp text-success me-1"></i> <%= t('customer.otp_sent_via_wa', 'Kode OTP akan dikirim via WhatsApp') %>
-            </div>
-          <% } %>
-          <button type="submit" class="btn btn-primary btn-login w-100">
-            <i class="bi bi-box-arrow-in-right me-2"></i><%= t('customer.sign_in', 'Masuk') %>
-          </button>
-          <div class="quick-actions" style="grid-template-columns:1fr">
-            <a href="/customer/check-billing" class="btn-ghost">
-              <i class="bi bi-receipt"></i>Cek Tagihan
-            </a>
-          </div>
-        </form>
-        <% if (error) { %>
-          <div class="alert alert-danger mt-3 text-center">
-            <i class="bi bi-exclamation-triangle me-2"></i>
-            <%= error==='Nomor HP tidak valid atau belum terdaftar.' ? 'ID/Tag tidak valid atau belum terdaftar.' :
-              error %>
+
+      <!-- FORM BODY -->
+      <div class="login-body-box">
+
+        <!-- Error Flash Alert -->
+        <% if (typeof error !== 'undefined' && error) { %>
+          <div class="alert alert-danger glass-card border-0 mb-4 p-3 text-center small" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4);">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            <%= error === 'Nomor HP tidak valid atau belum terdaftar.' ? 'ID / Nomor HP tidak terdaftar di sistem.' : error %>
           </div>
         <% } %>
 
-        <div class="info-grid">
-          <div class="info-box">
-            <div class="info-title"><i class="bi bi-lightning-charge"></i> Akses Cepat</div>
-            <p class="info-text">Cek tagihan bisa dilakukan tanpa login.</p>
+        <form method="POST" action="/customer/login">
+          
+          <div class="mb-3">
+            <label class="form-label text-sub small fw-semibold">ID Pelanggan / Nomor HP</label>
+            <div class="input-group-modern">
+              <i class="bi bi-person-badge input-icon-left"></i>
+              <input type="text" class="input-modern" id="phone" name="phone" placeholder="Contoh: 08123456789 / MDE-0001" required autofocus autocomplete="username">
+            </div>
           </div>
-          <div class="info-box">
-            <div class="info-title"><i class="bi bi-clock"></i> Jam Operasional</div>
-            <p class="info-text"><%= settings.operational_hours || 'Setiap Hari' %></p>
+
+          <% if (settings && settings.login_otp_enabled) { %>
+            <div class="p-2 px-3 rounded-3 mb-3 d-flex align-items-center gap-2" style="background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.3);">
+              <i class="bi bi-whatsapp text-success fs-5"></i>
+              <span class="small text-sub" style="font-size: 11px;">Kode OTP verifikasi akan dikirim otomatis ke WhatsApp Anda.</span>
+            </div>
+          <% } %>
+
+          <button type="submit" class="btn-login-glow mb-2">
+            <i class="bi bi-box-arrow-in-right"></i>
+            <span><%= typeof t === 'function' ? t('customer.sign_in', 'Masuk ke Portal') : 'Masuk ke Portal' %></span>
+          </button>
+
+          <!-- QUICK CHECK BILLING BUTTON -->
+          <a href="/customer/check-billing" class="btn-secondary-action">
+            <i class="bi bi-search text-info"></i>
+            <span>Cek Tagihan Instan (Tanpa Login)</span>
+          </a>
+        </form>
+
+        <!-- INFO CARDS -->
+        <div class="mt-4 pt-2 border-top border-secondary border-opacity-25">
+          
+          <div class="info-card-item">
+            <div class="info-header-title"><i class="bi bi-clock text-warning"></i> Jam Operasional Support</div>
+            <p class="info-body-text"><%= (settings && settings.operational_hours) ? settings.operational_hours : '24 Jam Setiap Hari (Senin - Minggu)' %></p>
           </div>
-          <% if (settings.company_phone) { %>
-            <div class="info-box">
-              <div class="info-title"><i class="bi bi-headset"></i> Bantuan</div>
-              <p class="info-text">
-                WhatsApp: <a href="https://wa.me/<%= String(settings.company_phone).replace(/\\D/g,'') %>" target="_blank" rel="noopener" style="color:#a5b4fc;text-decoration:none;font-weight:700"><%= settings.company_phone %></a>
+
+          <% if (settings && settings.company_phone) { %>
+            <div class="info-card-item">
+              <div class="info-header-title"><i class="bi bi-headset text-success"></i> Customer Care & WA Support</div>
+              <p class="info-body-text">
+                WhatsApp: <a href="https://wa.me/<%= String(settings.company_phone).replace(/\D/g,'') %>" target="_blank" class="fw-bold text-info text-decoration-none"><%= settings.company_phone %></a>
                 <% if (settings.company_email) { %>
-                  <br>Email: <a href="mailto:<%= settings.company_email %>" style="color:#a5b4fc;text-decoration:none;font-weight:700"><%= settings.company_email %></a>
+                  | Email: <a href="mailto:<%= settings.company_email %>" class="fw-bold text-info text-decoration-none"><%= settings.company_email %></a>
                 <% } %>
               </p>
             </div>
           <% } %>
-          <div class="info-box">
-            <div class="info-title"><i class="bi bi-wifi"></i> Paket & Harga</div>
-            <% const pkgs = (typeof packages !== 'undefined' && Array.isArray(packages)) ? packages : []; %>
-            <% if (pkgs.length === 0) { %>
-              <p class="info-text">Belum ada paket yang aktif.</p>
-            <% } else { %>
-              <% const list = pkgs.slice().sort((a,b) => Number(a.price||0) - Number(b.price||0)); %>
-              <div style="max-height:160px;overflow:auto;padding-right:4px">
-                <% list.forEach(p => { %>
-                  <div style="padding:8px 0;border-top:1px solid rgba(148,163,184,.12)">
-                    <div style="font-weight:900;font-size:12px">
-                      <%= p.name %> — Rp <%= Number(p.price||0).toLocaleString('id-ID') %>/bulan
-                    </div>
-                  </div>
-                <% }) %>
-              </div>
-            <% } %>
+
+        </div>
+
+        <!-- FOOTER LINKS -->
+        <div class="text-center mt-4">
+          <p class="small text-sub mb-3">
+            <%= typeof t === 'function' ? t('customer.not_subscribed', 'Belum berlangganan?') : 'Belum berlangganan?' %> 
+            <a href="/customer/register" class="fw-bold text-primary text-decoration-none"><%= typeof t === 'function' ? t('customer.register_new', 'Daftar Pasang Baru') : 'Daftar Pasang Baru' %></a>
+          </p>
+
+          <div class="d-flex flex-wrap justify-content-center gap-2" style="font-size: 11px;">
+            <a href="/customer/about" class="text-sub text-decoration-none hover-white">Tentang Kami</a>
+            <span class="text-muted">•</span>
+            <a href="/customer/contact" class="text-sub text-decoration-none hover-white">Kontak</a>
+            <span class="text-muted">•</span>
+            <a href="/customer/tos" class="text-sub text-decoration-none hover-white">Syarat & Ketentuan</a>
+            <span class="text-muted">•</span>
+            <a href="/customer/privacy" class="text-sub text-decoration-none hover-white">Privasi</a>
+          </div>
+
+          <div class="text-muted small mt-3" style="font-size: 10px;">
+            &copy; <%= new Date().getFullYear() %> <%= (settings && settings.company_header) ? settings.company_header : 'ISP Provider' %>. All rights reserved.
           </div>
         </div>
 
-        <div class="text-center footer-text mt-4">
-          <p class="mb-3"><%= t('customer.not_subscribed', 'Belum berlangganan?') %> <a href="/customer/register"
-              style="color: #6366f1; text-decoration: none; font-weight: 700;"><%= t('customer.register_new', 'Daftar Pemasangan Baru') %></a></p>
-          
-          <div class="d-flex flex-wrap justify-content-center gap-3 mb-3" style="font-size: 13px;">
-            <a href="/customer/about" class="text-decoration-none" style="color: rgba(148, 163, 184, 0.95);"><%= t('customer.footer.about', 'Tentang Kami') %></a>
-            <a href="/customer/contact" class="text-decoration-none" style="color: rgba(148, 163, 184, 0.95);"><%= t('customer.footer.contact', 'Kontak') %></a>
-            <a href="/customer/tos" class="text-decoration-none" style="color: rgba(148, 163, 184, 0.95);"><%= t('customer.footer.tos', 'Syarat & Ketentuan') %></a>
-            <a href="/customer/privacy" class="text-decoration-none" style="color: rgba(148, 163, 184, 0.95);"><%= t('customer.footer.privacy', 'Kebijakan Privasi') %></a>
-            <a href="/customer/tos#refund" class="text-decoration-none" style="color: rgba(148, 163, 184, 0.95);"><%= t('customer.footer.refund', 'Kebijakan Refund') %></a>
-          </div>
+      </div> <!-- End Login Body -->
+    </div> <!-- End Login Card -->
 
-          &copy; <%= new Date().getFullYear() %> <%= settings.company_header %>
-        </div>
-      </div>
-    </div>
-  </div>
-  <%- include('partials/pwa_install', { hasBottomNav: false }) %>
+  </div> <!-- End Wrapper -->
+
+  <% if (typeof pwa_install !== 'undefined') { %>
+    <%- include('partials/pwa_install', { hasBottomNav: false }) %>
+  <% } %>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-    // Defer service worker registration to not block page load
+    // Auto-focus input phone on load
+    window.addEventListener('load', () => {
+      document.getElementById('phone')?.focus();
+    });
+
     if ('serviceWorker' in navigator) {
       setTimeout(() => {
         navigator.serviceWorker.register('/sw.js', { scope: '/customer/' }).catch(() => {});
       }, 2000);
     }
-    
-    // Auto-focus input after page load
-    window.addEventListener('load', () => {
-      document.getElementById('phone')?.focus();
-    });
   </script>
 </body>
-
 </html>
