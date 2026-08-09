@@ -12,9 +12,18 @@
       font-size: 12px;
       line-height: 1.25;
       color: #000;
+      background: #f1f5f9;
       margin: 0 auto;
-      padding: 6px 10px;
+      padding: 50px 10px 20px 10px;
+      max-width: 320px;
+    }
+    .receipt-card {
+      background: #ffffff;
+      padding: 12px 10px;
+      margin: 0 auto;
       max-width: 58mm;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      border-radius: 4px;
     }
     .text-center { text-align: center; }
     .bold { font-weight: bold; }
@@ -27,81 +36,98 @@
     .top-actions{
       position: fixed;
       top: 8px;
-      right: 8px;
+      left: 50%;
+      transform: translateX(-50%);
       display: flex;
       gap: 8px;
       z-index: 10;
+      background: rgba(255,255,255,0.95);
+      backdrop-filter: blur(4px);
+      padding: 6px 12px;
+      border-radius: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      border: 1px solid #cbd5e1;
     }
     .top-actions button{
       font: inherit;
       font-size: 11px;
-      padding: 6px 8px;
-      border: 1px solid #111;
-      background: #fff;
-      border-radius: 6px;
+      font-weight: 600;
+      padding: 5px 12px;
+      border: 1px solid #0f172a;
+      background: #0f172a;
+      color: #ffffff;
+      border-radius: 14px;
       cursor: pointer;
     }
+    .top-actions button.btn-close-action {
+      background: #ffffff;
+      color: #475569;
+      border-color: #cbd5e1;
+    }
     @media print {
-      body { width: 100%; max-width: 100%; margin: 0; padding: 5mm 5mm 0 5mm; }
-      .top-actions{ display:none; }
+      body { background: #fff !important; width: 100%; max-width: 100%; margin: 0; padding: 5mm 5mm 0 5mm; }
+      .receipt-card { box-shadow: none !important; padding: 0 !important; max-width: 100% !important; border-radius: 0 !important; }
+      .top-actions{ display:none !important; }
     }
   </style>
 </head>
 <body>
   <div class="top-actions">
     <button type="button" onclick="window.print()"><%= t('agent.print_thermal', 'Print Thermal') %></button>
-    <button type="button" onclick="try{window.close()}catch(e){}">Close</button>
+    <button type="button" class="btn-close-action" onclick="try{window.close()}catch(e){}">Tutup</button>
   </div>
 
-  <div class="text-center">
-    <div class="title bold"><%= company %></div>
-    <% if (settings && settings.company_address) { %>
-      <div class="small"><%= settings.company_address %></div>
-    <% } %>
-    <% const wa = (settings && settings.whatsapp_admin_numbers && settings.whatsapp_admin_numbers.length) ? settings.whatsapp_admin_numbers[0] : (settings && settings.company_phone ? settings.company_phone : ''); %>
-    <% if (wa) { %>
-      <div class="small">Telp/WA: <%= String(wa).startsWith('0') ? wa : ('+' + wa) %></div>
-    <% } %>
-  </div>
+  <div class="receipt-card">
+    <div class="text-center">
+      <div class="title bold"><%= company %></div>
+      <% if (settings && settings.company_address) { %>
+        <div class="small"><%= settings.company_address %></div>
+      <% } %>
+      <% const wa = (settings && settings.whatsapp_admin_numbers && settings.whatsapp_admin_numbers.length) ? settings.whatsapp_admin_numbers[0] : (settings && settings.company_phone ? settings.company_phone : ''); %>
+      <% if (wa) { %>
+        <div class="small">Telp/WA: <%= String(wa).startsWith('0') ? wa : ('+' + wa) %></div>
+      <% } %>
+    </div>
 
-  <div class="divider"></div>
+    <div class="divider"></div>
 
-  <div class="text-center bold mb"><%= t('agent.receipt.payment_title', 'STRUK PEMBAYARAN') %></div>
+    <div class="text-center bold mb"><%= t('agent.receipt.payment_title', 'STRUK PEMBAYARAN') %></div>
 
-  <% const mns=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agt','Sep','Okt','Nov','Des']; %>
-  <div class="small">
-    <div class="row"><div><%= t('agent.receipt.transaction_no', 'No. Transaksi') %></div><div class="bold">#<%= tx.id %></div></div>
-    <div class="row"><div><%= t('agent.receipt.date', 'Tanggal') %></div><div class="bold"><%= tx.created_at ? formatDateLocal(tx.created_at) : getNowLocal() %></div></div>
-    <div class="row"><div><%= t('admin.nav.agents', 'Agent') %></div><div class="bold"><%= tx.agent_name || '' %><%= tx.agent_username ? (' (@' + tx.agent_username + ')') : '' %></div></div>
-  </div>
+    <% const mns=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agt','Sep','Okt','Nov','Des']; %>
+    <div class="small">
+      <div class="row"><div><%= t('agent.receipt.transaction_no', 'No. Transaksi') %></div><div class="bold">#<%= tx.id %></div></div>
+      <div class="row"><div><%= t('agent.receipt.date', 'Tanggal') %></div><div class="bold"><%= tx.created_at ? formatDateLocal(tx.created_at) : getNowLocal() %></div></div>
+      <div class="row"><div><%= t('admin.nav.agents', 'Agent') %></div><div class="bold"><%= tx.agent_name || '' %><%= tx.agent_username ? (' (@' + tx.agent_username + ')') : '' %></div></div>
+    </div>
 
-  <div class="divider"></div>
+    <div class="divider"></div>
 
-  <div class="small">
-    <div class="row"><div><%= t('agent.customer', 'Pelanggan') %></div><div class="bold"><%= customer?.name || '-' %></div></div>
-    <% if (customer && customer.id) { %>
-      <div class="row"><div>ID Pelanggan</div><div class="bold">MDE-<%= String(customer.id).padStart(4, '0') %></div></div>
-    <% } %>
-    <% if (customer && (customer.phone || customer.genieacs_tag)) { %>
-      <div class="row"><div>Telepon/Tag</div><div class="bold"><%= customer.phone || customer.genieacs_tag %></div></div>
-    <% } %>
-    <div class="row"><div><%= t('agent.invoice', 'Invoice') %></div><div class="bold">#<%= invoice?.id || tx.invoice_id %></div></div>
-    <% if (invoice && invoice.period_month && invoice.period_year) { %>
-      <div class="row"><div><%= t('agent.period', 'Periode') %></div><div class="bold"><%= mns[invoice.period_month-1] %> <%= invoice.period_year %></div></div>
-    <% } %>
-  </div>
+    <div class="small">
+      <div class="row"><div><%= t('agent.customer', 'Pelanggan') %></div><div class="bold"><%= customer?.name || '-' %></div></div>
+      <% if (customer && customer.id) { %>
+        <div class="row"><div>ID Pelanggan</div><div class="bold">MDE-<%= String(customer.id).padStart(4, '0') %></div></div>
+      <% } %>
+      <% if (customer && (customer.phone || customer.genieacs_tag)) { %>
+        <div class="row"><div>Telepon/Tag</div><div class="bold"><%= customer.phone || customer.genieacs_tag %></div></div>
+      <% } %>
+      <div class="row"><div><%= t('agent.invoice', 'Invoice') %></div><div class="bold">#<%= invoice?.id || tx.invoice_id %></div></div>
+      <% if (invoice && invoice.period_month && invoice.period_year) { %>
+        <div class="row"><div><%= t('agent.period', 'Periode') %></div><div class="bold"><%= mns[invoice.period_month-1] %> <%= invoice.period_year %></div></div>
+      <% } %>
+    </div>
 
-  <div class="divider"></div>
+    <div class="divider"></div>
 
-  <div class="row bold">
-    <div><%= t('agent.receipt.total_paid', 'TOTAL BAYAR') %></div>
-    <div>Rp <%= Number(invoice?.amount || tx.amount_invoice || 0).toLocaleString('id-ID') %></div>
-  </div>
+    <div class="row bold">
+      <div><%= t('agent.receipt.total_paid', 'TOTAL BAYAR') %></div>
+      <div>Rp <%= Number(invoice?.amount || tx.amount_invoice || 0).toLocaleString('id-ID') %></div>
+    </div>
 
-  <div class="divider"></div>
+    <div class="divider"></div>
 
-  <div class="text-center small mt">
-    <%= String(t('agent.receipt.thanks_payment', 'Terima kasih atas pembayaran Anda.\nSimpan struk ini sebagai bukti pembayaran yang sah.')).replace(/\n/g,'<br>') %>
+    <div class="text-center small mt">
+      <%= String(t('agent.receipt.thanks_payment', 'Terima kasih atas pembayaran Anda.\nSimpan struk ini sebagai bukti pembayaran yang sah.')).replace(/\n/g,'<br>') %>
+    </div>
   </div>
 
   <script>

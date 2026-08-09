@@ -29,6 +29,8 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
       background: #ffffff;
       padding: 14px 24px;
       border-radius: 10px;
@@ -38,6 +40,7 @@
     .btn {
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       gap: 6px;
       padding: 8px 16px;
       border-radius: 6px;
@@ -47,6 +50,7 @@
       text-decoration: none;
       border: 1px solid transparent;
       transition: all 0.2s;
+      white-space: nowrap;
     }
     .btn-primary { background: #4f46e5; color: #ffffff; }
     .btn-primary:hover { background: #4338ca; }
@@ -80,12 +84,14 @@
       border-bottom: 2px solid #6366f1;
       padding-bottom: 20px;
       margin-bottom: 25px;
+      gap: 20px;
     }
 
     .company-brand {
       display: flex;
       align-items: center;
       gap: 15px;
+      flex: 1;
     }
     .company-logo {
       max-height: 65px;
@@ -97,14 +103,17 @@
       font-weight: 800;
       color: #0f172a;
       letter-spacing: -0.5px;
+      line-height: 1.2;
     }
     .company-details p {
       font-size: 12px;
       color: #64748b;
+      margin-top: 2px;
     }
 
     .invoice-meta {
       text-align: right;
+      flex-shrink: 0;
     }
     .invoice-title {
       font-size: 22px;
@@ -153,17 +162,23 @@
       font-weight: 700;
       font-size: 15px;
       color: #0f172a;
+      word-break: break-word;
     }
     .details-block div {
       font-size: 12px;
       color: #475569;
+      word-break: break-word;
     }
 
     .table-container {
       margin-bottom: 25px;
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
     }
     table.invoice-table {
       width: 100%;
+      min-width: 460px;
       border-collapse: collapse;
     }
     table.invoice-table th {
@@ -189,9 +204,11 @@
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
+      gap: 20px;
       margin-bottom: 30px;
     }
     .notes-box {
+      flex: 1;
       max-width: 50%;
       font-size: 12px;
       color: #64748b;
@@ -202,6 +219,7 @@
     }
     .totals-box {
       width: 260px;
+      flex-shrink: 0;
     }
     .totals-row {
       display: flex;
@@ -222,6 +240,7 @@
     .signature-section {
       display: flex;
       justify-content: space-between;
+      gap: 20px;
       margin-top: 40px;
       padding-top: 20px;
     }
@@ -250,6 +269,105 @@
       color: #94a3b8;
     }
 
+    /* Media Queries untuk Layar Smartphone & Tablet */
+    @media screen and (max-width: 640px) {
+      body {
+        padding: 10px 8px;
+      }
+      .no-print-bar {
+        padding: 10px 14px;
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .no-print-bar > div:last-child {
+        display: flex;
+        gap: 8px;
+        width: 100%;
+      }
+      .no-print-bar .btn {
+        flex: 1;
+      }
+      .invoice-page {
+        margin-bottom: 20px;
+      }
+      .invoice-card {
+        padding: 20px 14px;
+        border-radius: 10px;
+      }
+      .invoice-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 16px;
+        padding-bottom: 16px;
+        margin-bottom: 18px;
+      }
+      .company-brand {
+        flex-direction: row;
+        align-items: center;
+        gap: 12px;
+      }
+      .company-logo {
+        max-height: 50px;
+        max-width: 120px;
+      }
+      .company-details h1 {
+        font-size: 17px;
+      }
+      .company-details p {
+        font-size: 11px;
+      }
+      .invoice-meta {
+        text-align: left;
+        background: #f8fafc;
+        padding: 12px 14px;
+        border-radius: 8px;
+        border: 1px solid #e2e8f0;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .invoice-title {
+        font-size: 18px;
+      }
+      .details-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+        padding: 14px 12px;
+        margin-bottom: 18px;
+      }
+      .table-container {
+        margin-bottom: 18px;
+      }
+      table.invoice-table th, table.invoice-table td {
+        padding: 8px 10px;
+        font-size: 11px;
+      }
+      .summary-section {
+        flex-direction: column-reverse;
+        align-items: stretch;
+        gap: 16px;
+        margin-bottom: 20px;
+      }
+      .notes-box {
+        max-width: 100%;
+        width: 100%;
+      }
+      .totals-box {
+        width: 100%;
+      }
+      .signature-section {
+        gap: 10px;
+        margin-top: 24px;
+      }
+      .signature-box {
+        width: 48%;
+      }
+      .signature-title {
+        margin-bottom: 35px;
+      }
+    }
+
+    /* Print Styles (Dioptimalkan untuk kertas A4 dari PC maupun Smartphone) */
     @media print {
       body {
         background: #ffffff !important;
@@ -266,6 +384,45 @@
         border: none !important;
         padding: 0 !important;
         max-width: 100% !important;
+      }
+      .invoice-header {
+        flex-direction: row !important;
+        justify-content: space-between !important;
+        align-items: flex-start !important;
+      }
+      .invoice-meta {
+        text-align: right !important;
+        background: transparent !important;
+        padding: 0 !important;
+        border: none !important;
+        display: block !important;
+      }
+      .details-grid {
+        grid-template-columns: 1fr 1fr !important;
+        gap: 25px !important;
+        padding: 18px 20px !important;
+      }
+      table.invoice-table {
+        min-width: 100% !important;
+      }
+      .summary-section {
+        flex-direction: row !important;
+        justify-content: space-between !important;
+      }
+      .notes-box {
+        max-width: 50% !important;
+      }
+      .totals-box {
+        width: 260px !important;
+      }
+      .signature-section {
+        margin-top: 40px !important;
+      }
+      .signature-box {
+        width: 200px !important;
+      }
+      .signature-title {
+        margin-bottom: 50px !important;
       }
     }
   </style>

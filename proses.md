@@ -2,6 +2,46 @@
 
 ---
 
+## [2026-08-09] Perbaikan Tampilan & Hasil Print Invoice di Smartphone (Mobile Responsive & Print Optimization)
+
+### 1. Permasalahan yang Ditemukan
+Saat halaman cetak invoice ([views/admin/print_invoice.ejs](file:///d:/WEBAPP/myadamedia-billing/views/admin/print_invoice.ejs), [views/admin/print_invoice_batch.ejs](file:///d:/WEBAPP/myadamedia-billing/views/admin/print_invoice_batch.ejs), dan [views/agent/print_thermal_invoice.ejs](file:///d:/WEBAPP/myadamedia-billing/views/agent/print_thermal_invoice.ejs)) dibuka melalui perangkat seluler (smartphone/tablet):
+- Tampilan dokumen berantakan, teks bertumpuk, dan elemen meluap keluar dari batas layar (horizontal overflow).
+- Padding dan fixed width berlebihan (`padding: 35px 40px`, `width: 260px`, `width: 200px`) menyebabkan bagian total bayar, catatan, dan tanda tangan terpotong di layar seluler.
+- Header logo, detail pelanggan, dan tabel rincian tagihan tidak memiliki responsivitas CSS (`@media screen`), sehingga pengguna harus melakukan zoom out atau horizontal scrolling untuk melihat invoice secara utuh.
+- Saat mencetak (print) atau menyimpan dokumen sebagai PDF melalui browser smartphone, tampilan hasil cetak terpengaruh tata letak seluler atau tidak tersusun rapi dalam proporsi kertas A4.
+
+### 2. Penyebab Utama (Root Cause)
+- **Ketiadaan CSS Media Queries Responsif (`@media screen`)**: Template EJS cetak invoice hanya memiliki style statis yang dirancang untuk layar desktop (lebar > 800px).
+- **Penggunaan Unit Ukuran Kaku**: Penggunaan piksel tetap (`px`) pada kontainer utama, grid detail (`grid-template-columns: 1fr 1fr`), totals box (`width: 260px`), dan signature box (`width: 200px`) tanpa adaptasi lebar fleksibel (`%` atau `1fr`).
+- **Pencampuran Style Cetak dan Layar**: Aturan `@media print` sebelumnya tidak mengisolasi tata letak cetak A4 dari tampilan seluler, sehingga cetakan dari browser smartphone mewarisi layout seluler yang terpotong.
+
+### 3. Solusi & Perubahan yang Diterapkan
+- **Pengembangan CSS Responsive (`@media screen and (max-width: 640px)`)**:
+  - **`views/admin/print_invoice.ejs` & `views/admin/print_invoice_batch.ejs`**:
+    - **Body & Outer Card**: Menyesuaikan padding dari `20px` / `35px 40px` menjadi `10px 8px` (body) dan `20px 14px` (card) pada layar smartphone.
+    - **Header Brand & Meta Tagihan**: Mengubah flex layout menjadi stacked/column pada layar HP, merapikan logo & detail perusahaan, serta mengelompokkan nomor invoice dan badge status LUNAS/BELUM BAYAR dalam container informasi yang bersih.
+    - **Grid Detail Pelanggan (`.details-grid`)**: Mengubah tampilan dari 2-kolom menjadi 1-kolom pada layar HP dengan word-break yang aman agar alamat/email panjang tidak meluap.
+    - **Tabel Tagihan (`.table-container`)**: Menambahkan container scroll horizontal halus (`overflow-x: auto`) dengan `min-width` yang terjaga agar rincian paket dan nominal tetap mudah dibaca.
+    - **Bagian Total & Catatan (`.summary-section`)**: Mengubah tata letak menjadi `column-reverse` pada layar HP sehingga total bayar berada di atas dengan lebar `100%` disusul catatan di bawahnya.
+    - **Tanda Tangan (`.signature-section`)**: Mengatur lebar tanda tangan menjadi persentase fleksibel (`width: 48%`) agar muat berdampingan di layar HP secara proporsional.
+- **Isolasi & Optimasi Cetak (`@media print`)**:
+  - Memastikan seluruh aturan `@media print` memaksa tampilan kembali ke format dokumen kertas A4 Portrait (2-kolom, header kanan-kiri, totals box 260px) tanpa terpengaruh kondisi tampilan seluler. Dokumen hasil cetak/PDF dari smartphone kini persis seperti hasil cetak dari desktop PC.
+- **Optimasi Struk Thermal Agent (`views/agent/print_thermal_invoice.ejs`)**:
+  - Membungkus struk dalam `<div class="receipt-card">` dengan posisi terpusat (centered) di layar smartphone.
+  - Memperbarui tombol floating action bar agar tidak menutupi judul struk dan nyaman diakses di layar sentuh.
+
+### 4. Dampak Perubahan Terhadap Sistem
+- **Tampilan Smartphone Rapi & Responsif**: Pengguna (Admin/Kasir/Agen/Pelanggan) yang membuka invoice dari HP dapat melihat seluruh rincian tagihan secara nyaman, rapi, dan mudah dibaca tanpa perlu scroll horizontal.
+- **Hasil Cetak / PDF Presisi**: Dokumen yang dicetak atau disimpan ke PDF melalui smartphone tetap memiliki standar format profesional A4 Portrait yang sempurna.
+- **Bebas Regression Risk**: Tidak ada perubahan pada backend/service data invoice, sehingga performa dan integritas data tetap terjaga 100%.
+
+### 5. Pengujian & Verifikasi
+- Uji kompilasi EJS: `node -e` memverifikasi seluruh template `print_invoice.ejs`, `print_invoice_batch.ejs`, dan `print_thermal_invoice.ejs` terkompilasi tanpa error sintaks.
+- Pengujian unit test: `npm test` berjalan sukses.
+
+---
+
 ## [2026-08-08] Perbaikan Bug Pemilih Lokasi Pelanggan (Latitude & Longitude)
 
 ### 1. Permasalahan yang Ditemukan
