@@ -248,6 +248,33 @@
       margin-bottom: 20px;
     }
 
+    /* Stat Card Currency Scaling & Overflow Protection */
+    .stat-grid .sc {
+      padding: 14px 16px;
+    }
+    .sc-val-money {
+      font-size: clamp(16px, 1.35vw, 22px) !important;
+      font-weight: 800;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.25;
+      letter-spacing: -0.2px;
+    }
+    .sc-currency {
+      font-size: 0.72em;
+      font-weight: 700;
+      opacity: 0.85;
+      margin-right: 3px;
+    }
+
+    @media (max-width: 992px) {
+      .stat-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 12px;
+      }
+    }
+
     /* Custom Modal Styling */
     .modal-detail-table th, .modal-detail-table td {
       vertical-align: middle;
@@ -322,19 +349,19 @@
       <div class="sc s">
         <i class="bi bi-cash-stack sc-icon"></i>
         <div class="sc-label">Potensi Pendapatan</div>
-        <div class="sc-val">Rp <%= monthTotalAmt.toLocaleString('id-ID') %></div>
+        <div class="sc-val sc-val-money"><span class="sc-currency">Rp</span><%= monthTotalAmt.toLocaleString('id-ID') %></div>
         <div class="sc-sub">Total Tagihan Periode Ini</div>
       </div>
       <div class="sc s" style="border-left-color:#10b981">
         <i class="bi bi-check-circle sc-icon" style="color:#10b981"></i>
         <div class="sc-label">Terkumpul (Lunas)</div>
-        <div class="sc-val" style="color:#10b981">Rp <%= monthPaidAmt.toLocaleString('id-ID') %></div>
+        <div class="sc-val sc-val-money" style="color:#10b981"><span class="sc-currency">Rp</span><%= monthPaidAmt.toLocaleString('id-ID') %></div>
         <div class="sc-sub"><%= monthTotalAmt > 0 ? Math.round((monthPaidAmt/monthTotalAmt)*100) : 0 %>% Terbayar</div>
       </div>
       <div class="sc d">
         <i class="bi bi-exclamation-triangle sc-icon"></i>
         <div class="sc-label">Belum Terbayar</div>
-        <div class="sc-val" style="color:#ef4444">Rp <%= monthUnpaidAmt.toLocaleString('id-ID') %></div>
+        <div class="sc-val sc-val-money" style="color:#ef4444"><span class="sc-currency">Rp</span><%= monthUnpaidAmt.toLocaleString('id-ID') %></div>
         <div class="sc-sub">Sisa Tagihan Periode Ini</div>
       </div>
     </div>

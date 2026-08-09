@@ -59,6 +59,8 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);heigh
 .sc-icon{position:absolute;top:14px;right:14px;font-size:26px;opacity:.12}
 .sc-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
 .sc-val{font-size:26px;font-weight:700;line-height:1}
+.sc-val-money{font-size:clamp(16px, 1.35vw, 22px);font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2}
+.sc-currency{font-size:0.72em;font-weight:700;opacity:0.85;margin-right:3px}
 .sc-sub{font-size:11px;color:var(--muted);margin-top:3px}
 
 /* ── CARD ── */

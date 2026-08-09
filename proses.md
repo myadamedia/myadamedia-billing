@@ -20,7 +20,10 @@ Menambahkan modul dan menu baru **Distribusi Jatuh Tempo** pada kelompok Billing
 - **`views/admin/billing_due_distribution.ejs` [BARU]**:
   - Halaman view baru dengan layout grid kartu tanggal ringkas (compact) yang disesuaikan menjadi **6 kolom di Desktop** dan **4 kolom di Mobile**.
   - Varian warna kartu (Biru untuk tanggal hari ini, Merah jika ada tagihan belum lunas, Gelap jika seluruh tagihan lunas).
+  - Kartu ringkasan atas (*stat cards*) diperbarui menggunakan utilitas `.sc-val-money` dan `.sc-currency` dengan *font-size auto-scaling* (`clamp(16px, 1.35vw, 22px)`), proteksi *text-ellipsis*, dan penyesuaian padding sehingga angka nominal besar (jutaan / miliaran) tampil utuh, jelas, dan tidak terpotong.
   - Modal Popup `#dueDetailModal` interaktif lengkap dengan penanganan CSS overlay `.mo.show` serta helper fungsi `openModal` dan `closeModal` untuk menampilkan detail pelanggan, paket, nominal, status pembayaran, dan aksi cepat WhatsApp Reminder & Cetak Invoice.
+- **`public/css/admin.css`**:
+  - Menambahkan utilitas global `.sc-val-money` dan `.sc-currency` untuk memastikan tampilan nominal angka pada *stat cards* di seluruh aplikasi tidak lagi terpotong.
 - **`views/admin/billing.ejs`**:
   - Menambahkan tombol navigasi cepat **"Distribusi Jatuh Tempo"** pada topbar halaman Manajemen Tagihan.
 - **`locales/id.json` & `locales/en.json`**:
