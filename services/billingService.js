@@ -786,6 +786,235 @@ function createInstallProrataCatchUpInvoice(customerId) {
   };
 }
 
+function getCustomerDueDay(c) {
+  let day = parseInt(c.isolate_day, 10);
+  if (!day || isNaN(day) || day < 1 || day > 31) {
+    if (c.install_date && typeof c.install_date === 'string') {
+      const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(c.install_date.trim());
+      if (match) {
+        day = parseInt(match[3], 10);
+      }
+    }
+  }
+  if (!day || isNaN(day) || day < 1 || day > 31) day = 10;
+  return day;
+}
+
+/**
+ * Ringkasan distribusi jatuh tempo per tanggal (1-31) untuk bulan & tahun tertentu.
+ */
+function getDueDistributionSummary(month, year) {
+  const m = parseInt(month, 10) || (new Date().getMonth() + 1);
+  const y = parseInt(year, 10) || new Date().getFullYear();
+  const maxDays = daysInMonth(y, m);
+
+  // Ambil seluruh pelanggan aktif/suspended
+  const customers = db.prepare(`
+    SELECT c.id, c.name, c.phone, c.address, c.isolate_day, c.install_date, c.status as customer_status,
+           p.name as package_name, p.price as package_price
+    FROM customers c
+    LEFT JOIN packages p ON c.package_id = p.id
+    WHERE c.status != 'inactive'
+  `).all();
+
+  // Ambil seluruh invoice periode bulan & tahun tersebut
+  const invoices = db.prepare(`
+    SELECT id, customer_id, period_month, period_year, amount, paid_amount, balance_due, status, paid_at
+    FROM invoices
+    WHERE period_month = ? AND period_year = ?
+  `).all(m, y);
+
+  const invoiceMap = new Map();
+  invoices.forEach(inv => {
+    invoiceMap.set(inv.customer_id, inv);
+  });
+
+  const dailyMap = {};
+  for (let d = 1; d <= maxDays; d++) {
+    dailyMap[d] = {
+      day: d,
+      total_customers: 0,
+      paid_customers: 0,
+      unpaid_customers: 0,
+      partial_customers: 0,
+      total_amount: 0,
+      paid_amount: 0,
+      unpaid_amount: 0
+    };
+  }
+
+  customers.forEach(c => {
+    let dueDay = getCustomerDueDay(c);
+    if (dueDay > maxDays) dueDay = maxDays;
+
+    if (dailyMap[dueDay]) {
+      const stats = dailyMap[dueDay];
+      stats.total_customers++;
+
+      const inv = invoiceMap.get(c.id);
+      const pkgPrice = Number(c.package_price || 0);
+
+      if (inv) {
+        const invAmount = Number(inv.amount || 0);
+        const invPaidAmount = inv.status === 'paid' ? invAmount : Number(inv.paid_amount || 0);
+        const invUnpaidAmount = Math.max(0, invAmount - invPaidAmount);
+
+        stats.total_amount += invAmount;
+        stats.paid_amount += invPaidAmount;
+        stats.unpaid_amount += invUnpaidAmount;
+
+        if (inv.status === 'paid') {
+          stats.paid_customers++;
+        } else if (inv.status === 'partial') {
+          stats.partial_customers++;
+          stats.unpaid_customers++;
+        } else {
+          stats.unpaid_customers++;
+        }
+      } else {
+        // Tagihan belum di-generate untuk bulan ini
+        stats.total_amount += pkgPrice;
+        stats.unpaid_amount += pkgPrice;
+        stats.unpaid_customers++;
+      }
+    }
+  });
+
+  const daysArray = [];
+  for (let d = 1; d <= maxDays; d++) {
+    const item = dailyMap[d];
+    let isAllPaid = item.total_customers > 0 && item.unpaid_customers === 0;
+    daysArray.push({
+      ...item,
+      is_all_paid: isAllPaid
+    });
+  }
+
+  return {
+    month: m,
+    year: y,
+    maxDays,
+    days: daysArray
+  };
+}
+
+/**
+ * Detail daftar pelanggan & tagihan untuk tanggal jatuh tempo tertentu.
+ */
+function getDueDistributionDetailsByDay(day, month, year) {
+  const targetDay = parseInt(day, 10);
+  const m = parseInt(month, 10) || (new Date().getMonth() + 1);
+  const y = parseInt(year, 10) || new Date().getFullYear();
+  const maxDays = daysInMonth(y, m);
+
+  if (isNaN(targetDay) || targetDay < 1 || targetDay > 31) {
+    return { day: targetDay, month: m, year: y, total_customers: 0, total_amount: 0, customers: [] };
+  }
+
+  const allCustomers = db.prepare(`
+    SELECT c.id, c.name, c.phone, c.address, c.genieacs_tag, c.pppoe_username, c.isolate_day, c.install_date, c.status as customer_status,
+           p.name as package_name, p.price as package_price
+    FROM customers c
+    LEFT JOIN packages p ON c.package_id = p.id
+    WHERE c.status != 'inactive'
+    ORDER BY c.name ASC
+  `).all();
+
+  const invoices = db.prepare(`
+    SELECT id, customer_id, period_month, period_year, amount, paid_amount, balance_due, status, paid_at, paid_by_name
+    FROM invoices
+    WHERE period_month = ? AND period_year = ?
+  `).all(m, y);
+
+  const invoiceMap = new Map();
+  invoices.forEach(inv => {
+    invoiceMap.set(inv.customer_id, inv);
+  });
+
+  const customerDetails = [];
+  let totalCustomers = 0;
+  let paidCustomers = 0;
+  let unpaidCustomers = 0;
+  let totalAmount = 0;
+  let paidAmount = 0;
+  let unpaidAmount = 0;
+
+  allCustomers.forEach(c => {
+    let dueDay = getCustomerDueDay(c);
+    if (dueDay > maxDays) dueDay = maxDays;
+
+    if (dueDay === targetDay) {
+      totalCustomers++;
+      const inv = invoiceMap.get(c.id);
+      const pkgPrice = Number(c.package_price || 0);
+
+      let itemAmount = 0;
+      let itemPaidAmount = 0;
+      let itemUnpaidAmount = 0;
+      let itemStatus = 'unpaid';
+      let invoiceId = null;
+      let paidAt = null;
+
+      if (inv) {
+        invoiceId = inv.id;
+        itemAmount = Number(inv.amount || 0);
+        itemStatus = inv.status || 'unpaid';
+        paidAt = inv.paid_at || null;
+
+        if (itemStatus === 'paid') {
+          itemPaidAmount = itemAmount;
+          itemUnpaidAmount = 0;
+          paidCustomers++;
+        } else if (itemStatus === 'partial') {
+          itemPaidAmount = Number(inv.paid_amount || 0);
+          itemUnpaidAmount = Number(inv.balance_due || (itemAmount - itemPaidAmount));
+          unpaidCustomers++;
+        } else {
+          itemPaidAmount = 0;
+          itemUnpaidAmount = itemAmount;
+          unpaidCustomers++;
+        }
+      } else {
+        itemAmount = pkgPrice;
+        itemUnpaidAmount = pkgPrice;
+        itemStatus = 'unpaid';
+        unpaidCustomers++;
+      }
+
+      totalAmount += itemAmount;
+      paidAmount += itemPaidAmount;
+      unpaidAmount += itemUnpaidAmount;
+
+      customerDetails.push({
+        customer_id: c.id,
+        name: c.name,
+        phone: c.phone || c.genieacs_tag || c.pppoe_username || '-',
+        address: c.address || '-',
+        package_name: c.package_name || 'Paket Internet',
+        amount: itemAmount,
+        paid_amount: itemPaidAmount,
+        unpaid_amount: itemUnpaidAmount,
+        status: itemStatus,
+        invoice_id: invoiceId,
+        paid_at: paidAt
+      });
+    }
+  });
+
+  return {
+    day: targetDay,
+    month: m,
+    year: y,
+    total_customers: totalCustomers,
+    paid_customers: paidCustomers,
+    unpaid_customers: unpaidCustomers,
+    total_amount: totalAmount,
+    paid_amount: paidAmount,
+    unpaid_amount: unpaidAmount,
+    customers: customerDetails
+  };
+}
+
 function updatePaymentInfo(invoiceId, data) {
   const { 
     gateway, order_id, link, reference, payload, expires_at 
@@ -811,5 +1040,7 @@ module.exports = {
   getInvoiceSummary, getMonthlyRevenue,
   getDashboardStats, getRecentPayments, getTopUnpaid,
   getTodayRevenue,
-  updatePaymentInfo
+  updatePaymentInfo,
+  getDueDistributionSummary,
+  getDueDistributionDetailsByDay
 };

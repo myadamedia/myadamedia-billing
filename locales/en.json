@@ -158,6 +158,7 @@
         "psb": "PSB",
         "internet_packages": "Internet Packages",
         "invoices": "Invoices",
+        "due_distribution": "Due Distribution",
         "customer_tickets": "Customer Tickets",
         "technicians": "Technicians",
         "cashiers": "Cashiers",

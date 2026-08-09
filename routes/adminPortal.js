@@ -2311,6 +2311,40 @@ router.get('/billing', requireAdminSession, requireSidebarMenuAccess('billing'),
   });
 });
 
+router.get('/billing/due-distribution', requireAdminSession, requireSidebarMenuAccess('due_distribution'), (req, res) => {
+  const timeInfo = getCurrentTimeInfo();
+  const filterMonth = parseInt(req.query.month, 10) || timeInfo.month;
+  const filterYear = parseInt(req.query.year, 10) || timeInfo.year;
+  const distribution = billingSvc.getDueDistributionSummary(filterMonth, filterYear);
+  
+  res.render('admin/billing_due_distribution', {
+    title: 'Distribusi Jatuh Tempo',
+    company: company(),
+    activePage: 'due_distribution',
+    distribution,
+    filterMonth,
+    filterYear,
+    currentMonth: timeInfo.month,
+    currentYear: timeInfo.year,
+    currentDay: timeInfo.day || new Date().getDate(),
+    msg: flashMsg(req)
+  });
+});
+
+router.get('/billing/due-distribution/details', requireAdminSession, (req, res) => {
+  try {
+    const timeInfo = getCurrentTimeInfo();
+    const day = parseInt(req.query.day, 10) || 1;
+    const month = parseInt(req.query.month, 10) || timeInfo.month;
+    const year = parseInt(req.query.year, 10) || timeInfo.year;
+    
+    const details = billingSvc.getDueDistributionDetailsByDay(day, month, year);
+    res.json({ ok: true, details });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 router.get('/billing/:id/print', requireAdminSession, (req, res) => {
   const inv = billingSvc.getInvoiceById(req.params.id);
   if (!inv) return res.status(404).send('Invoice tidak ditemukan');

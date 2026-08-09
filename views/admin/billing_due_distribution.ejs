@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="<%= lang || 'id' %>">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title><%= t('admin.nav.due_distribution', 'Distribusi Jatuh Tempo') %> | <%= company %></title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="/css/admin.css?v=2">
+  <style>
+    .distribution-card {
+      background: var(--bg2, #1e293b);
+      border: 1px solid var(--border, #334155);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    }
+    .distribution-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border, #334155);
+    }
+    .distribution-title {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--text, #f8fafc);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Grid Layout 6 Kolom di Desktop & 4 Kolom di Mobile */
+    .day-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 10px;
+    }
+
+    @media (max-width: 1024px) {
+      .day-grid {
+        grid-template-columns: repeat(6, 1fr);
+        gap: 8px;
+      }
+    }
+    @media (max-width: 768px) {
+      .day-grid {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 6px;
+      }
+    }
+    @media (max-width: 480px) {
+      .day-grid {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 5px;
+      }
+    }
+
+    /* Styling Kartu Tanggal Ringkas (Compact) */
+    .day-card {
+      background: #182232;
+      border: 1px solid #2a374a;
+      border-radius: 10px;
+      padding: 8px 6px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease-in-out;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 90px;
+      position: relative;
+      overflow: hidden;
+    }
+    .day-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+      border-color: #6366f1;
+    }
+
+    /* Varian Warna Header Kartu Ringkas */
+    .day-card-badge {
+      font-size: 11px;
+      font-weight: 800;
+      padding: 2px 7px;
+      border-radius: 6px;
+      display: inline-block;
+      margin: 0 auto 4px auto;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      width: fit-content;
+    }
+
+    /* Kartu Tanggal Hari Ini (Biru) */
+    .day-card.today {
+      border-color: #3b82f6;
+      box-shadow: 0 0 12px rgba(59, 130, 246, 0.3);
+    }
+    .day-card.today .day-card-badge {
+      background: #2563eb;
+      color: #ffffff;
+    }
+
+    /* Kartu dengan Belum Bayar (Aksen Merah) */
+    .day-card.has-unpaid .day-card-badge {
+      background: #dc2626;
+      color: #ffffff;
+    }
+
+    /* Kartu Lunas (Aksen Gelap / Hijau Soft) */
+    .day-card.is-lunas .day-card-badge {
+      background: #334155;
+      color: #94a3b8;
+    }
+
+    .day-card-count {
+      font-size: 20px;
+      font-weight: 900;
+      color: #ffffff;
+      line-height: 1.1;
+      margin-bottom: 4px;
+    }
+
+    .day-card-footer {
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+    }
+
+    @media (max-width: 640px) {
+      .distribution-card {
+        padding: 16px 10px;
+        border-radius: 12px;
+      }
+      .day-card {
+        padding: 6px 4px;
+        min-height: 80px;
+        border-radius: 8px;
+      }
+      .day-card-badge {
+        font-size: 10px;
+        padding: 1px 5px;
+        margin-bottom: 2px;
+      }
+      .day-card-count {
+        font-size: 17px;
+        margin-bottom: 2px;
+      }
+      .day-card-footer {
+        font-size: 10px;
+      }
+    }
+
+    .status-lunas {
+      color: #10b981;
+    }
+    .status-unpaid {
+      color: #f87171;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* Custom Modal Overlay & Card Styling */
+    .mo {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .mo.show, .mo.open {
+      display: flex !important;
+    }
+    .mo .mb {
+      background: var(--bg2, #1e293b);
+      border: 1px solid var(--border, #334155);
+      border-radius: 16px;
+      width: 100%;
+      max-width: 850px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      max-height: 90vh;
+      animation: modalFadeIn 0.2s ease-out;
+    }
+    @keyframes modalFadeIn {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    .mo .mh {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border, #334155);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(15, 23, 42, 0.4);
+    }
+    .mo .mt {
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--text, #f8fafc);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .mo .mc {
+      background: none;
+      border: none;
+      color: var(--muted, #94a3b8);
+      font-size: 24px;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0 4px;
+      transition: color 0.15s;
+    }
+    .mo .mc:hover {
+      color: var(--text, #ffffff);
+    }
+    .mo .mf {
+      padding: 14px 20px;
+      border-top: 1px solid var(--border, #334155);
+      background: rgba(15, 23, 42, 0.4);
+    }
+
+    .filter-bar-custom {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      background: rgba(15, 23, 42, 0.6);
+      padding: 12px 16px;
+      border-radius: 12px;
+      border: 1px solid #334155;
+      margin-bottom: 20px;
+    }
+
+    /* Custom Modal Styling */
+    .modal-detail-table th, .modal-detail-table td {
+      vertical-align: middle;
+    }
+  </style>
+</head>
+<body>
+<%- include('partials/sidebar', { activePage: 'due_distribution', company }) %>
+<div class="mw">
+  <div class="topbar">
+    <div class="tb-title">
+      <button class="hb-menu" onclick="toggleSidebar()"><i class="bi bi-list"></i></button>
+      <i class="bi bi-calendar3-range"></i> <%= t('admin.nav.due_distribution', 'Distribusi Jatuh Tempo') %>
+    </div>
+    <div class="tb-right">
+      <a href="/admin/billing" class="btn btn-g btn-sm"><i class="bi bi-receipt"></i> Halaman Tagihan</a>
+      <span class="adm-badge"><i class="bi bi-person-fill"></i> <%= (typeof session !== 'undefined' && session.isCashier) ? t('admin.role.cashier', 'Kasir') : t('admin.role.admin', 'Admin') %></span>
+      <a href="/admin/logout" class="btn btn-g btn-sm"><i class="bi bi-box-arrow-left"></i></a>
+    </div>
+  </div>
+
+  <div class="page">
+    <% if (msg) { %>
+      <div class="alert alert-<%= msg.type==='success'?'s':'d' %>">
+        <i class="bi bi-<%= msg.type==='success'?'check-circle':'exclamation-circle' %>"></i> <%- msg.text %>
+      </div>
+    <% } %>
+
+    <!-- Filter & Periode Selector -->
+    <form method="GET" action="/admin/billing/due-distribution" class="filter-bar-custom">
+      <div style="display:flex;align-items:center;gap:8px;font-weight:700;color:var(--text)">
+        <i class="bi bi-calendar-event" style="color:#6366f1"></i> Periode Tagihan:
+      </div>
+      <select class="fs" name="month" style="width:140px" onchange="this.form.submit()">
+        <% 
+          const monthNames = (lang === 'en')
+            ? ['January','February','March','April','May','June','July','August','September','October','November','December']
+            : ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+          for(let m=1; m<=12; m++) {
+        %>
+          <option value="<%= m %>" <%= filterMonth==m?'selected':'' %>><%= monthNames[m-1] %></option>
+        <% } %>
+      </select>
+      <select class="fs" name="year" style="width:110px" onchange="this.form.submit()">
+        <% for(let y=new Date().getFullYear(); y>=2023; y--){ %>
+          <option value="<%= y %>" <%= filterYear==y?'selected':'' %>><%= y %></option>
+        <% } %>
+      </select>
+      <button class="btn btn-p btn-sm" type="submit"><i class="bi bi-funnel"></i> Tampilkan</button>
+    </form>
+
+    <!-- Summary Stats Bar -->
+    <% 
+      let monthTotalCust = 0;
+      let monthTotalAmt = 0;
+      let monthPaidAmt = 0;
+      let monthUnpaidAmt = 0;
+      (distribution.days || []).forEach(d => {
+        monthTotalCust += d.total_customers;
+        monthTotalAmt += d.total_amount;
+        monthPaidAmt += d.paid_amount;
+        monthUnpaidAmt += d.unpaid_amount;
+      });
+    %>
+    <div class="stat-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px">
+      <div class="sc p">
+        <i class="bi bi-people sc-icon"></i>
+        <div class="sc-label">Total Pelanggan Jatuh Tempo</div>
+        <div class="sc-val"><%= monthTotalCust %></div>
+        <div class="sc-sub">Periode <%= monthNames[filterMonth-1] %> <%= filterYear %></div>
+      </div>
+      <div class="sc s">
+        <i class="bi bi-cash-stack sc-icon"></i>
+        <div class="sc-label">Potensi Pendapatan</div>
+        <div class="sc-val">Rp <%= monthTotalAmt.toLocaleString('id-ID') %></div>
+        <div class="sc-sub">Total Tagihan Periode Ini</div>
+      </div>
+      <div class="sc s" style="border-left-color:#10b981">
+        <i class="bi bi-check-circle sc-icon" style="color:#10b981"></i>
+        <div class="sc-label">Terkumpul (Lunas)</div>
+        <div class="sc-val" style="color:#10b981">Rp <%= monthPaidAmt.toLocaleString('id-ID') %></div>
+        <div class="sc-sub"><%= monthTotalAmt > 0 ? Math.round((monthPaidAmt/monthTotalAmt)*100) : 0 %>% Terbayar</div>
+      </div>
+      <div class="sc d">
+        <i class="bi bi-exclamation-triangle sc-icon"></i>
+        <div class="sc-label">Belum Terbayar</div>
+        <div class="sc-val" style="color:#ef4444">Rp <%= monthUnpaidAmt.toLocaleString('id-ID') %></div>
+        <div class="sc-sub">Sisa Tagihan Periode Ini</div>
+      </div>
+    </div>
+
+    <!-- Main Card Distribusi Jatuh Tempo (Layout Presisi Gambar UI) -->
+    <div class="distribution-card">
+      <div class="distribution-header">
+        <div class="distribution-title">
+          <i class="bi bi-calendar-week" style="color:#6366f1"></i> Distribusi Jatuh Tempo
+        </div>
+        <div style="font-size:12px;color:var(--muted)">
+          Klik pada tanggal untuk melihat detail pelanggan & nominal tagihan
+        </div>
+      </div>
+
+      <div class="day-grid">
+        <% (distribution.days || []).forEach(item => { %>
+          <% 
+            const isToday = (item.day === currentDay && filterMonth === currentMonth && filterYear === currentYear);
+            const hasUnpaid = item.unpaid_customers > 0;
+            const isAllPaid = item.is_all_paid;
+            
+            let cardClass = '';
+            if (isToday) {
+              cardClass = 'today';
+            } else if (hasUnpaid) {
+              cardClass = 'has-unpaid';
+            } else if (isAllPaid) {
+              cardClass = 'is-lunas';
+            }
+          %>
+          <div class="day-card <%= cardClass %>" onclick="openDayDetailModal(<%= item.day %>)">
+            <div class="day-card-badge">Tgl <%= item.day %></div>
+            <div class="day-card-count"><%= item.total_customers %></div>
+            <div class="day-card-footer">
+              <% if (item.total_customers === 0) { %>
+                <span class="text-muted">-</span>
+              <% } else if (isAllPaid) { %>
+                <span class="status-lunas"><i class="bi bi-check-lg"></i> Lunas</span>
+              <% } else { %>
+                <span class="status-unpaid"><i class="bi bi-exclamation-triangle-fill"></i> <%= item.unpaid_customers %></span>
+              <% } %>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Detail Pelanggan Tanggal Jatuh Tempo -->
+<div class="mo" id="dueDetailModal">
+  <div class="mb" style="max-width:850px">
+    <div class="mh">
+      <span class="mt" id="modalTitle"><i class="bi bi-calendar-date"></i> Detail Jatuh Tempo Tanggal</span>
+      <button class="mc" onclick="closeModal('dueDetailModal')">&times;</button>
+    </div>
+    <div class="mbody" style="padding:20px">
+      <!-- Modal Summary Cards -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px">
+        <div style="background:var(--bg3);padding:10px 12px;border-radius:10px;text-align:center">
+          <div style="font-size:11px;color:var(--muted)">Pelanggan</div>
+          <div style="font-size:18px;font-weight:800" id="m_total_cust">0</div>
+        </div>
+        <div style="background:var(--bg3);padding:10px 12px;border-radius:10px;text-align:center">
+          <div style="font-size:11px;color:var(--muted)">Total Potensi</div>
+          <div style="font-size:15px;font-weight:800;color:var(--text)" id="m_total_amt">Rp 0</div>
+        </div>
+        <div style="background:var(--bg3);padding:10px 12px;border-radius:10px;text-align:center">
+          <div style="font-size:11px;color:var(--muted)">Sudah Lunas</div>
+          <div style="font-size:15px;font-weight:800;color:#10b981" id="m_paid_amt">Rp 0</div>
+        </div>
+        <div style="background:var(--bg3);padding:10px 12px;border-radius:10px;text-align:center">
+          <div style="font-size:11px;color:var(--muted)">Belum Bayar</div>
+          <div style="font-size:15px;font-weight:800;color:#ef4444" id="m_unpaid_amt">Rp 0</div>
+        </div>
+      </div>
+
+      <!-- Tabel Daftar Pelanggan -->
+      <div class="tbl-wrap" style="max-height:360px;overflow-y:auto">
+        <table class="dtbl modal-detail-table">
+          <thead>
+            <tr>
+              <th style="width:30px">#</th>
+              <th>Pelanggan</th>
+              <th>Paket</th>
+              <th class="num">Nominal</th>
+              <th>Status</th>
+              <th style="text-align:right">Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="modalTableBody">
+            <tr>
+              <td colspan="6" class="text-center text-muted" style="padding:20px">Memuat data...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="mf" style="display:flex;justify-content:space-between">
+      <button class="btn btn-g btn-sm" onclick="closeModal('dueDetailModal')">Tutup</button>
+      <a href="/admin/billing" class="btn btn-p btn-sm"><i class="bi bi-receipt"></i> Buka Manajemen Tagihan</a>
+    </div>
+  </div>
+</div>
+
+<script>
+  function openModal(id) {
+    const m = document.getElementById(id);
+    if (m) {
+      m.classList.add('show');
+      m.style.display = 'flex';
+    }
+  }
+
+  function closeModal(id) {
+    const m = document.getElementById(id);
+    if (m) {
+      m.classList.remove('show');
+      m.style.display = 'none';
+    }
+  }
+
+  window.addEventListener('click', function(e) {
+    if (e.target && e.target.classList.contains('mo')) {
+      closeModal(e.target.id);
+    }
+  });
+
+  const currentMonthFilter = Number('<%= filterMonth %>');
+  const currentYearFilter = Number('<%= filterYear %>');
+  const monthNamesIndo = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+
+  async function openDayDetailModal(day) {
+    document.getElementById('modalTitle').innerHTML = `<i class="bi bi-calendar-date"></i> Detail Jatuh Tempo Tanggal ${day} ${monthNamesIndo[currentMonthFilter - 1]} ${currentYearFilter}`;
+    document.getElementById('modalTableBody').innerHTML = `<tr><td colspan="6" class="text-center text-muted" style="padding:20px"><i class="bi bi-hourglass-split"></i> Memuat data pelanggan...</td></tr>`;
+    openModal('dueDetailModal');
+
+    try {
+      const resp = await fetch(`/admin/billing/due-distribution/details?day=${day}&month=${currentMonthFilter}&year=${currentYearFilter}`);
+      const data = await resp.json();
+
+      if (!data.ok || !data.details) {
+        document.getElementById('modalTableBody').innerHTML = `<tr><td colspan="6" class="text-center text-muted">Gagal memuat detail tagihan.</td></tr>`;
+        return;
+      }
+
+      const d = data.details;
+      document.getElementById('m_total_cust').innerText = `${d.total_customers} Orang`;
+      document.getElementById('m_total_amt').innerText = `Rp ${Number(d.total_amount || 0).toLocaleString('id-ID')}`;
+      document.getElementById('m_paid_amt').innerText = `Rp ${Number(d.paid_amount || 0).toLocaleString('id-ID')}`;
+      document.getElementById('m_unpaid_amt').innerText = `Rp ${Number(d.unpaid_amount || 0).toLocaleString('id-ID')}`;
+
+      if (!d.customers || d.customers.length === 0) {
+        document.getElementById('modalTableBody').innerHTML = `<tr><td colspan="6" class="text-center text-muted" style="padding:25px">Tidak ada pelanggan yang jatuh tempo pada tanggal ${day}.</td></tr>`;
+        return;
+      }
+
+      let rowsHtml = '';
+      d.customers.forEach((c, idx) => {
+        const isPaid = c.status === 'paid';
+        const isPartial = c.status === 'partial';
+        
+        let statusBadge = '';
+        if (isPaid) {
+          statusBadge = `<span class="badge bs"><i class="bi bi-check-circle-fill" style="font-size:9px"></i> LUNAS</span>`;
+        } else if (isPartial) {
+          statusBadge = `<span class="badge bw" style="background:#f59e0b;color:#fff"><i class="bi bi-pie-chart-fill" style="font-size:9px"></i> PARSIAL</span>`;
+        } else {
+          statusBadge = `<span class="badge bd"><i class="bi bi-clock-fill" style="font-size:9px"></i> BELUM BAYAR</span>`;
+        }
+
+        const phoneClean = String(c.phone || '').replace(/\D/g, '');
+        const waMsg = encodeURIComponent(`Halo Bpk/Ibu ${c.name},\nInformasi tagihan internet periode ${monthNamesIndo[currentMonthFilter-1]} ${currentYearFilter} sebesar Rp ${Number(c.amount).toLocaleString('id-ID')} jatuh tempo pada tanggal ${day}.\nMohon lakukan pembayaran tepat waktu. Terima kasih.`);
+        const waUrl = phoneClean ? `https://wa.me/${phoneClean.startsWith('0') ? '62' + phoneClean.slice(1) : phoneClean}?text=${waMsg}` : '#';
+
+        rowsHtml += `
+          <tr>
+            <td class="text-muted">${idx + 1}</td>
+            <td>
+              <div class="fw6">${escapeHtml(c.name)}</div>
+              <div style="font-size:11px;color:var(--muted)">
+                <span class="badge bm" style="font-size:9px;padding:2px 4px;margin-right:4px">MDE-${String(c.customer_id).padStart(4, '0')}</span>
+                ${escapeHtml(c.phone)}
+              </div>
+            </td>
+            <td style="font-size:12px;color:var(--muted)">${escapeHtml(c.package_name)}</td>
+            <td class="num fw6" style="color:var(--success)">
+              Rp ${Number(c.amount || 0).toLocaleString('id-ID')}
+              ${isPartial ? `<div style="font-size:10px;color:#ef4444">Sisa: Rp ${Number(c.unpaid_amount).toLocaleString('id-ID')}</div>` : ''}
+            </td>
+            <td>${statusBadge}</td>
+            <td style="text-align:right">
+              <div style="display:flex;gap:4px;justify-content:flex-end">
+                ${phoneClean ? `<a href="${waUrl}" target="_blank" class="btn btn-g btn-icon btn-sm" title="Kirim Pengingat WA" style="color:#25d366"><i class="bi bi-whatsapp"></i></a>` : ''}
+                ${c.invoice_id ? `<a href="/admin/billing/${c.invoice_id}/print" target="_blank" class="btn btn-g btn-icon btn-sm" title="Cetak Invoice"><i class="bi bi-printer"></i></a>` : ''}
+              </div>
+            </td>
+          </tr>
+        `;
+      });
+
+      document.getElementById('modalTableBody').innerHTML = rowsHtml;
+    } catch (e) {
+      document.getElementById('modalTableBody').innerHTML = `<tr><td colspan="6" class="text-center text-muted">Terjadi kesalahan: ${e.message}</td></tr>`;
+    }
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+</script>
+</body>
+</html>

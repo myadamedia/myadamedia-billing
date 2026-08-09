@@ -26,6 +26,7 @@ const MENU_DEFINITIONS = [
   { key: 'packages', section: 'billing', href: '/admin/packages', icon: 'bi bi-box-seam', labelKey: 'admin.nav.internet_packages', labelDefault: 'Paket Internet', roles: ['superadmin', 'finance'], activePages: ['packages'] },
   { key: 'voucher_packages', section: 'billing', href: '/admin/vouchers/packages', icon: 'bi bi-ticket-detailed', labelKey: 'admin.nav.voucher_packages', labelDefault: 'Paket Voucher', roles: ['superadmin', 'finance'], activePages: ['voucher_packages'] },
   { key: 'billing', section: 'billing', href: '/admin/billing', icon: 'bi bi-receipt', labelKey: 'admin.nav.invoices', labelDefault: 'Tagihan', roles: ['superadmin', 'finance', 'kolektor'], bottomNav: true, activePages: ['billing'] },
+  { key: 'due_distribution', section: 'billing', href: '/admin/billing/due-distribution', icon: 'bi bi-calendar3-range', labelKey: 'admin.nav.due_distribution', labelDefault: 'Distribusi Jatuh Tempo', roles: ['superadmin', 'finance', 'kolektor'], activePages: ['due_distribution'] },
   { key: 'collector_payments', section: 'billing', href: '/admin/collector-payments', icon: 'bi bi-check2-square', labelKey: 'admin.nav.collector_payments', labelDefault: 'Approval Kolektor', roles: ['superadmin', 'finance'], activePages: ['collector_payments'] },
 
   { key: 'reports', section: 'finance', href: '/admin/reports', icon: 'bi bi-bar-chart-line', labelKey: 'admin.nav.finance_report', labelDefault: 'Laporan Keuangan', roles: ['superadmin', 'finance'], activePages: ['reports'] },
@@ -72,6 +73,7 @@ const DEFAULT_MENU_STATES = {
   packages: STATE_VISIBLE,
   voucher_packages: STATE_VISIBLE,
   billing: STATE_VISIBLE,
+  due_distribution: STATE_VISIBLE,
   reports: STATE_VISIBLE,
   investors: STATE_VISIBLE,
   radius_nas: STATE_VISIBLE,

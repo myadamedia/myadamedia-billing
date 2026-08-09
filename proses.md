@@ -2,6 +2,42 @@
 
 ---
 
+## [2026-08-10] Penambahan Fitur Menu Baru "Distribusi Jatuh Tempo" Billing
+
+### 1. Deskripsi Kebutuhan & Fitur Baru
+Menambahkan modul dan menu baru **Distribusi Jatuh Tempo** pada kelompok Billing untuk menampilkan visualisasi sebaran tagihan dan pendapatan harian berdasarkan tanggal jatuh tempo pelanggan (Tanggal 1 hingga Tanggal 31). Tampilan dirancang mengikuti sampel gambar UI dengan grid 4-kolom kartu tanggal, indikator status Lunas / Belum Bayar, dan popup detail saat kartu tanggal diklik.
+
+### 2. Modul & File yang Diperbarui / Dibuat
+- **`services/sidebarMenuService.js`**:
+  - Mendaftarkan menu baru `due_distribution` pada `MENU_DEFINITIONS` di seksi `billing` dengan icon `bi bi-calendar3-range` dan URL `/admin/billing/due-distribution`.
+  - Menambahkan status default `due_distribution: STATE_VISIBLE`.
+- **`services/billingService.js`**:
+  - Menambahkan fungsi `getDueDistributionSummary(month, year)` untuk menghitung total statistik pelanggan, tagihan terbayar, dan sisa belum bayar per tanggal (1–31).
+  - Menambahkan fungsi `getDueDistributionDetailsByDay(day, month, year)` untuk mengambil rincian daftar pelanggan & tagihan untuk tanggal jatuh tempo terpilih.
+- **`routes/adminPortal.js`**:
+  - Menambahkan handler rute `GET /admin/billing/due-distribution` untuk merender halaman view utama.
+  - Menambahkan handler rute API `GET /admin/billing/due-distribution/details` untuk menyuplai data JSON modal popup.
+- **`views/admin/billing_due_distribution.ejs` [BARU]**:
+  - Halaman view baru dengan layout grid kartu tanggal ringkas (compact) yang disesuaikan menjadi **6 kolom di Desktop** dan **4 kolom di Mobile**.
+  - Varian warna kartu (Biru untuk tanggal hari ini, Merah jika ada tagihan belum lunas, Gelap jika seluruh tagihan lunas).
+  - Modal Popup `#dueDetailModal` interaktif lengkap dengan penanganan CSS overlay `.mo.show` serta helper fungsi `openModal` dan `closeModal` untuk menampilkan detail pelanggan, paket, nominal, status pembayaran, dan aksi cepat WhatsApp Reminder & Cetak Invoice.
+- **`views/admin/billing.ejs`**:
+  - Menambahkan tombol navigasi cepat **"Distribusi Jatuh Tempo"** pada topbar halaman Manajemen Tagihan.
+- **`locales/id.json` & `locales/en.json`**:
+  - Menambahkan terjemahan kunci `admin.nav.due_distribution`.
+
+### 3. Dampak Terhadap Sistem
+- **Visualisasi Cash Flow Harian**: Admin, Kasir, dan Finance dapat secara cepat memantau proyeksi penerimaan kas dan sebaran pelanggan jatuh tempo dari tanggal 1 hingga 31.
+- **Efisiensi Penagihan**: Fitur popup interaktif memudahkan admin untuk langsung mengirimkan pengingat pesan WA (*WhatsApp Reminder*) atau mencetak invoice tagihan per tanggal secara cepat.
+- **Integrasi Seamless**: Terintegrasi penuh dengan sistem otorisasi menu sidebar dan manajemen tagihan yang sudah ada tanpa risiko regresi.
+
+### 4. Pengujian & Verifikasi
+- Pengujian kompilasi EJS: `views/admin/billing_due_distribution.ejs` dan `views/admin/billing.ejs` teruji lulus kompilasi tanpa error.
+- Pengujian service backend: Panggilan `getDueDistributionSummary` dan `getDueDistributionDetailsByDay` teruji mengembalikan data yang akurat.
+- Testing otomatis: `npm test` berjalan sukses.
+
+---
+
 ## [2026-08-09] Perbaikan Tampilan & Hasil Print Invoice di Smartphone (Mobile Responsive & Print Optimization)
 
 ### 1. Permasalahan yang Ditemukan

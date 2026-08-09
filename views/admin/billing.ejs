@@ -22,6 +22,7 @@
   <div class="topbar">
     <div class="tb-title"><button class="hb-menu" onclick="toggleSidebar()"><i class="bi bi-list"></i></button><i class="bi bi-receipt"></i> <%= t('admin.billing.manage_title', 'Manajemen Tagihan') %></div>
     <div class="tb-right">
+      <a href="/admin/billing/due-distribution?month=<%= filterMonth || currentMonth %>&year=<%= filterYear || currentYear %>" class="btn btn-g btn-sm" title="Lihat Distribusi Jatuh Tempo Harian"><i class="bi bi-calendar3-range"></i> Distribusi Jatuh Tempo</a>
       <a href="/admin/billing/print-batch?month=<%= filterMonth || currentMonth %>&year=<%= filterYear || currentYear %>&status=<%= filterStatus %>" target="_blank" class="btn btn-g btn-sm" title="Cetak Semua Tagihan Periode Ini"><i class="bi bi-printer"></i> Cetak Tagihan</a>
       <button class="btn btn-p btn-sm" onclick="openModal('genModal')"><i class="bi bi-lightning-charge"></i> <%= t('admin.billing.generate', 'Generate Tagihan') %></button>
       <span class="adm-badge"><i class="bi bi-person-fill"></i> <%= (typeof session !== 'undefined' && session.isCashier) ? t('admin.role.cashier', 'Kasir') : t('admin.role.admin', 'Admin') %></span>
