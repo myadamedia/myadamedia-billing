@@ -951,6 +951,12 @@ app.get('/broadcast', (req, res) => {
 const acsServerService = require('./services/acsServerService');
 app.post('/acs', express.raw({ type: ['text/xml', 'application/soap+xml', 'application/xml', 'text/plain'], limit: '2mb' }), acsServerService.handleCwmpRequest);
 
+// Mount License Admin Router & Guard
+const licenseGuard = require('./middleware/licenseGuard');
+const licenseRouter = require('./routes/admin/license');
+app.use('/admin/license', licenseRouter);
+app.use(licenseGuard);
+
 // Mount customer portal
 const customerPortal = require('./routes/customerPortal');
 app.use('/customer', customerPortal);

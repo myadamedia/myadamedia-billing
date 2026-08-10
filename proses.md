@@ -2,6 +2,117 @@
 
 ---
 
+## [2026-08-10] Perbaikan Error 404 "Resource Not Found" pada Alamat /admin/dashboard
+
+### 1. Permasalahan yang Ditemukan
+Setelah menginput dan mengaktifkan lisensi pada halaman `/admin/license/activate`, saat pengguna mengeklik tombol **"Masuk ke Dashboard Admin"** atau **"Lanjut ke Dashboard"**, pengguna diarahkan ke URL `http://localhost:3001/admin/dashboard` yang menghasilkan respon error `404 Not Found`:
+`{"success":false,"error":{"message":"Resource not found","type":"NotFoundError","statusCode":404,"path":"/admin/dashboard"}}`
+
+### 2. Penyebab Utama (Root Cause)
+- Pada [views/admin/license_activate.ejs](file:///d:/WEBAPP/myadamedia-billing/views/admin/license_activate.ejs), atribut `href` pada tombol pasca-aktivasi diarahkan ke `/admin/dashboard`.
+- Di dalam rute Express [routes/adminPortal.js](file:///d:/WEBAPP/myadamedia-billing/routes/adminPortal.js), rute utama admin portal didaftarkan pada rute akar `GET /` (sehingga URL yang valid adalah `http://localhost:3001/admin`). Rute `/admin/dashboard` belum terdaftar, sehingga Express mengembalikan handler 404.
+
+### 3. Solusi & Perubahan yang Diterapkan
+- **`views/admin/license_activate.ejs`**: Mengubah atribut `href` pada tombol pasca-aktivasi dari `/admin/dashboard` menjadi `/admin`.
+- **`routes/adminPortal.js`**: Menambahkan handler rute alias `router.get('/dashboard', (req, res) => res.redirect('/admin'))` sehingga jika pengguna mengakses `/admin/dashboard` secara manual, sistem akan secara otomatis mengarahkan (*redirect*) ke `/admin` tanpa error 404.
+
+### 4. Dampak & Verifikasi
+- Pengguna yang baru menyelesaikan aktivasi lisensi dapat langsung mengeklik tombol dan masuk ke halaman Admin Dashboard (`/admin`) secara mulus.
+- Akses ke URL `/admin/dashboard` kini secara otomatis dialihkan ke `/admin`.
+- Pengujian unit `npm test` tetap berjalan 100% PASSED.
+
+---
+
+## [2026-08-10] Implementasi Fitur Auto-Revocation & Sinkronisasi Penghapusan Lisensi (Hybrid Dual-Sync Pattern)
+
+### 1. Permasalahan & Kebutuhan
+Menyediakan mekanisme sinkronisasi penghapusan lisensi otomatis (*Auto-Revocation & Deletion Sync*) antara **BroLinks Vendor Dashboard** dan aplikasi client **`myadamedia-billing`**. Saat vendor menghapus lisensi yang telah di-generate dari BroLinks Vendor Dashboard, lisensi yang terpasang pada aplikasi client harus secara otomatis tercabut/terhapus (*license key* di `settings.json` menjadi kosong) dan sistem mengunci akses aplikasi secara real-time.
+
+### 2. Arsitektur Solusi (Hybrid Dual-Sync Pattern)
+Menerapkan pendekatan hibrida (*Hybrid Dual-Sync*) yang mencakup 2 skenario pengoperasian:
+1. **Local Direct File Sync (Mesin Sama / Co-located)**:
+   - Saat admin vendor mengeklik `Hapus` pada halaman Lisensi BroLinks (`POST /licenses/delete/:id`), service `licenseSyncService.js` secara otomatis membaca file `settings.json` milik `myadamedia-billing`. Jika `license_key` lokal cocok dengan lisensi yang dihapus, field `license_key` langsung dikosongkan.
+   - Pada `myadamedia-billing`, `licenseService.js` memeriksa status lisensi terhadap database SQLite BroLinks (`brolinks.sqlite`). Jika data lisensi tidak ditemukan di tabel `licenses`, fungsi `clearLicenseKey()` dipanggil secara otomatis.
+2. **Remote REST API Verification (Server Klien Terpisah)**:
+   - BroLinks menyediakan REST API endpoint publik `POST /api/v1/license/verify` yang mengembalikan status keaktifan lisensi.
+   - Apabila lisensi telah dihapus dari DB vendor, API mengembalikan `{ valid: false, code: "LICENSE_REVOKED_OR_NOT_FOUND" }`.
+
+### 3. File & Modul yang Dibuat / Diperbarui
+
+#### A. BroLinks Vendor Dashboard (`BroLinks/`)
+- **`services/licenseSyncService.js` [BARU]**: Engine untuk mendeteksi `settings.json` aplikasi billing dan melakukan *instant revocation* saat lisensi dihapus.
+- **`routes/api.js` [BARU]**: Public REST API endpoint `POST /api/v1/license/verify` dan `GET /api/v1/license/verify` untuk mengecek keaktifan lisensi secara remote.
+- **`routes/licenses.js`**: Menghubungkan alur penghapusan lisensi (`POST /licenses/delete/:id`) dengan `licenseSyncService.revokeLocalLicense`.
+- **`app.js`**: Mendaftarkan rute publik `/api/v1/license` dan mengecualikannya dari proteksi sesi admin.
+
+#### B. Client Application (`myadamedia-billing`)
+- **`services/licenseService.js`**:
+  - Menambahkan fungsi `clearLicenseKey()` untuk mengosongkan `license_key` dari `settings.json`.
+  - Menambahkan pengecekan pembatalan lisensi (*Revocation Check*) ke database SQLite vendor (`brolinks.sqlite`). Jika lisensi dihapus di Vendor Dashboard, `licenseService` otomatis mengosongkan `settings.json` dan mengembalikan status `valid: false` dengan alasan *"Lisensi telah dicabut atau dihapus oleh Vendor."*.
+  - Mengeskpor fungsi `clearLicenseKey`.
+- **`middleware/licenseGuard.js`**:
+  - Memperbarui mekanisme redirect agar saat lisensi dicabut/dihapus, pesan error resmi dari `licenseStatus.reason` diteruskan ke halaman `/admin/license/activate?error=...`.
+
+### 4. Dampak Terhadap Sistem
+- **Keamanan Lisensi Terjamin**: Vendor memiliki kontrol penuh atas lisensi yang diterbitkan. Pembeli tidak dapat lagi memakai aplikasi jika lisensinya telah dihapus dari BroLinks Vendor Dashboard.
+- **Respon Real-time**: Pembatalan lisensi terjadi secara instan tanpa perlu restart server.
+- **Pengalaman Pengguna Jelas**: Pengguna yang lisensinya dihapus langsung mendapatkan pemberitahuan resmi bahwa lisensi telah dicabut oleh Vendor dan diarahkan ke halaman aktivasi.
+
+### 5. Hasil Pengujian & Verifikasi
+- **Local File Sync**: Lisensi dibuat -> diaktifkan di `myadamedia-billing` -> dihapus di `BroLinks` -> `settings.json` otomatis terhapus -> `licenseGuard` memblokir akses ke admin portal.
+- **Pengujian Unit (`npm test`)**: Seluruh pengujian unit dan integrasi berjalan lulus tanpa regresi.
+
+---
+
+## [2026-08-10] Penambahan Fitur Sistem Lisensi Seumur Hidup (Lifetime) & BroLinks Vendor Dashboard
+
+### 1. Deskripsi Kebutuhan & Arsitektur Fitur Lisensi Komersial
+Menambahkan sistem lisensi komersial seumur hidup (*Lifetime License*) berbasis **Kriptografi Asimetris RSA (2048-bit)** dan **Hardware Machine ID Binding** (diikat ke CPU, Motherboard, dan MAC Address server lokal). Sistem lisensi diaktivasi **1x saat awal instalasi** tanpa memerlukan koneksi internet (*offline-friendly*).
+
+Dua komponen utama yang dikembangkan:
+1. **`myadamedia-billing` (Client App)**: Memegang *RSA Public Key* (`config/keys/vendor_public_key.pem`) untuk memvalidasi lisensi seumur hidup secara *offline*. Dilengkapi dengan Express Middleware (`licenseGuard.js`) yang mengunci aplikasi dan mengarahkan pengguna ke halaman Aktivasi (`/admin/license/activate`) jika lisensi belum aktif atau di-copy ke server lain.
+2. **`BroLinks/` (Vendor License Dashboard - Standalone App)**: Aplikasi terpisah di folder `BroLinks/` khusus Vendor yang memegang *RSA Private Key* (`BroLinks/config/keys/vendor_private_key.pem`), database CRM SQLite pembeli (Nama, Perusahaan, Alamat, Phone, Email), serta Generator Lisensi Interaktif.
+
+### 2. File & Modul yang Dibuat / Diperbarui
+
+#### A. Client Application (`myadamedia-billing`)
+- **`config/keys/vendor_public_key.pem` [BARU]**: RSA Public Key 2048-bit untuk verifikasi tanda tangan digital lisensi.
+- **`services/machineIdService.js` [BARU]**: Generator Hardware Fingerprint server lokal (`MYADA-XXXX-XXXX-XXXX-XXXX`).
+- **`services/licenseService.js` [BARU]**: Engine pengverifikasi RSA dan status lisensi lifetime.
+- **`middleware/licenseGuard.js` [BARU]**: Express Middleware pencegat akses yang mewajibkan lisensi aktif.
+- **`routes/admin/license.js` & `views/admin/license_status.ejs`**:
+  - Handler rute dan tampilan UI status lisensi di Admin Panel. Diperbarui menggunakan struktur partials sidebar aplikasi (`partials/sidebar`) serta penyediaan konteks lokal `sidebarSections`, `company`, dan `settings` sehingga halaman dirender sempurna tanpa error 500.
+- **`views/admin/license_activate.ejs` [BARU]**: Tampilan UI aktivasi lisensi awal dengan tema Dark Glassmorphism dan fitur *copy Machine ID*.
+- **`services/sidebarMenuService.js`**: Mendaftarkan menu baru **Lisensi Aplikasi** (`license`) pada kelompok `system`.
+- **`app-customer.js`**: Memasang `licenseRouter` dan `licenseGuard` middleware.
+
+#### B. Vendor Dashboard Standalone (`BroLinks/`)
+- **`BroLinks/package.json` [BARU]**: Dependensi mandiri aplikasi BroLinks.
+- **`BroLinks/app.js` [BARU]**: Entry point server Express BroLinks di Port 3005.
+- **`BroLinks/config/keys/vendor_private_key.pem` [BARU]**: RSA Private Key vendor untuk menandatangani payload lisensi.
+- **`BroLinks/database/db.js` [BARU]**: Inisialisasi database SQLite `brolinks.sqlite` untuk tabel `admin_users`, `buyers`, dan `licenses`.
+- **`BroLinks/services/licenseGeneratorService.js` [BARU]**: Generator lisensi RSA.
+- **`BroLinks/routes/` (`auth.js`, `buyers.js`, `licenses.js`) [BARU]**: Route login, CRM pembeli, dan generator lisensi.
+- **`BroLinks/views/` (`layout.ejs`, `login.ejs`, `dashboard.ejs`, `buyers/`, `licenses/`) [BARU]**: Tampilan UI modern BroLinks Vendor Dashboard.
+
+### 3. Dampak Terhadap Sistem
+- **Keamanan Lisensi Komersial**: Aplikasi terlindungi dari duplikasi/copy-paste server karena lisensi terikat secara sah pada Hardware Machine ID dan ditandatangani dengan kunci RSA Private Key Vendor.
+- **Kemudahan Pembeli**: Klien hanya perlu melakukan aktivasi 1x saat awal instalasi tanpa bergantung pada server internet vendor.
+- **Pemisahan Mandiri BroLinks**: Folder `BroLinks/` dapat langsung dipindahkan keluar (*cut/paste*) ke lokasi server vendor mana pun dan berjalan secara independen di Port 3005.
+
+### 4. Cara Menjalankan BroLinks Vendor Dashboard
+1. Jalankan server BroLinks:
+   ```bash
+   node BroLinks/app.js
+   ```
+2. Buka browser: `http://localhost:3005`
+3. Login Admin Default:
+   - **Username**: `admin`
+   - **Password**: `admin123`
+4. Daftarkan Data Pembeli di menu **Data Pembeli (CRM)**, lalu salin **Machine ID** dari aplikasi klien dan klik **Generate Lisensi**.
+
+---
+
 ## [2026-08-10] Penambahan Fitur Menu Baru "Distribusi Jatuh Tempo" Billing
 
 ### 1. Deskripsi Kebutuhan & Fitur Baru

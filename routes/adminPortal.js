@@ -591,6 +591,11 @@ router.post('/login', express.urlencoded({ extended: true }), (req, res) => {
 
 router.get('/logout', (req, res) => { req.session.destroy(); res.redirect('/admin/login'); });
 
+// Alias route: /admin/dashboard -> /admin
+router.get('/dashboard', (req, res) => {
+  return res.redirect('/admin');
+});
+
 // ─── OLT MANAGEMENT ────────────────────────────────────────────────────────
 router.get('/olts', requireAdminSession, async (req, res) => {
   const olts = oltSvc.getAllOlts();

@@ -52,6 +52,7 @@ const MENU_DEFINITIONS = [
 
   { key: 'update', section: 'system', href: '/admin/update', icon: 'bi bi-cloud-arrow-down', labelKey: 'admin.nav.update', labelDefault: 'Update GitHub', roles: ['superadmin'], activePages: ['update'] },
   { key: 'settings', section: 'system', href: '/admin/settings', icon: 'bi bi-gear', labelKey: 'admin.nav.settings', labelDefault: 'Pengaturan', roles: ['superadmin'], activePages: ['settings'] },
+  { key: 'license', section: 'system', href: '/admin/license', icon: 'bi bi-shield-lock-fill', labelKey: 'admin.nav.license', labelDefault: 'Lisensi Aplikasi', roles: ['superadmin'], activePages: ['license'] },
   { key: 'ewallet_logs', section: 'system', href: '/admin/ewallet-logs', icon: 'bi bi-wallet2', labelKey: 'admin.settings.ewallet_logs.title', labelDefault: 'Log Notifikasi E-Wallet', roles: ['superadmin'], activePages: ['ewallet_logs'] },
   { key: 'backup', section: 'system', href: '/admin/backup', icon: 'bi bi-hdd-stack', labelKey: 'admin.nav.backup', labelDefault: 'Backup & Recovery', roles: ['superadmin'], activePages: ['backup'] },
   { key: 'monitoring', section: 'system', href: '/admin/monitoring', icon: 'bi bi-activity', labelKey: 'admin.nav.monitoring', labelDefault: 'Monitoring Sistem', roles: ['superadmin', 'noc'], activePages: ['monitoring'] },
