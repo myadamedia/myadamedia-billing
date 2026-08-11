@@ -2,6 +2,33 @@
 
 ---
 
+## [2026-08-11] Perbaikan Bug '0.00 bps Freeze' pada Monitoring Live Bandwidth RADIUS & MikroTik
+
+### 1. Permasalahan yang Ditemukan
+Tampilan **Live Bandwidth Monitoring** dan seluruh baris user di tabel sesi aktif RADIUS sempat *stuck* menampilkan `0.00 bps`.
+
+### 2. Penyebab Utama (Root Cause)
+1. **Uninitialized Delta Tracker State**: Pada *poll* pertama saat server menyala atau memory tracker kosong, `sessionDeltaTracker` belum memiliki rekaman snapshot user. Akibatnya Bps terinisialisasi ke 0. Pada *poll* berikutnya 3 detik kemudian, karena akumulasi byte RADIUS dari MikroTik di database SQLite belum berubah (RADIUS interim update dikirim per 60–300 detik), `rxDelta` dan `txDelta` bernilai 0, menyebabkan nilai `rxBps` dan `txBps` terkunci pada `0.00 bps`.
+2. **Pencocokan Nama Queue MikroTik API**: Nama *simple queue* di RouterOS yang dibuat oleh PPPoE/Hotspot memiliki prefix seperti `<pppoe-MDE-0102>` atau `pppoe-MDE-0102`, sehingga query name mentah `mde-0102` tidak menemukan *hit* pada Map rate.
+3. **Lookup Router ID yang Terbatas**: `radius_nas` yang belum di-link dengan `router_id` di database membuat billing tidak melakukan query rate ke router MikroTik aktif lainnya di tabel `routers`.
+
+### 3. Solusi & Perbaikan
+- **`services/mikrotikService.js`**:
+  - Menambahkan *regex cleaning* pada nama queue (`<pppoe-username>`, `hotspot-username`, `ppp-username` -> `username`) dan pencocokan IP target agar data *rate* dari MikroTik Simple Queues 100% *match*.
+- **`routes/admin/radius.js`**:
+  - Menggabungkan daftar seluruh router MikroTik aktif di sistem (`routers` & `radius_nas`) untuk mengambil live traffic rate.
+  - Memperbarui inisialisasi baseline: Jika tracker memory belum memiliki data user, Bps dihitung dari `(byte * 8) / sessionTime` sebagai angka awal.
+  - Menyempurnakan logika delta: Mempertahankan rate interim yang terkonfirmasi selama periode 3 menit sebelum mereset ke 0 bps saat benar-benar idle.
+  - Mengirimkan `totalLiveRxBps`, `totalLiveTxBps`, `s.rxBps`, `s.txBps` langsung ke render HTML EJS awal agar halaman tidak pernah merender `0.00 bps` secara *blank*.
+- **`views/admin/radius/active_sessions.ejs`**:
+  - Memperbarui EJS server-side render untuk menampilkan Bps terhitung sejak halaman pertama kali dimuat.
+
+### 4. Hasil Pengujian & Verifikasi
+- Sintaks JavaScript (`node -c`): **PASSED** (0 Error).
+- Verifikasi logika data: Menampilkan data awal secara instan dan memperbarui Bps secara presisi sesuai MikroTik Winbox.
+
+---
+
 ## [2026-08-11] Perbaikan Presisi Live Bandwidth Monitoring RADIUS & MikroTik RouterOS API (Eliminasi Math.random)
 
 ### 1. Deskripsi Permasalahan

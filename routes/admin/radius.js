@@ -193,6 +193,19 @@ function cleanupStaleRadiusSessions() {
 // In-memory delta tracker untuk menghitung Bps dari akumulasi byte RADIUS
 const sessionDeltaTracker = new Map();
 
+// Helper untuk mendapatkan list router ID MikroTik unik
+function getActiveRouterIds() {
+  const routerIds = new Set();
+  try {
+    const nasRouters = db.prepare('SELECT DISTINCT router_id FROM radius_nas WHERE is_active = 1 AND router_id IS NOT NULL').all();
+    nasRouters.forEach(r => routerIds.add(Number(r.router_id)));
+
+    const activeRouters = db.prepare('SELECT id FROM routers WHERE is_active = 1').all();
+    activeRouters.forEach(r => routerIds.add(Number(r.id)));
+  } catch (e) {}
+  return Array.from(routerIds);
+}
+
 // ─── 2. MONITORING ACTIVE SESSIONS & LIVE ACCOUNTING ───
 router.get('/sessions', requireAdminSession, async (req, res) => {
   try {
@@ -206,18 +219,56 @@ router.get('/sessions', requireAdminSession, async (req, res) => {
 
     let totalInputOctets = 0;
     let totalOutputOctets = 0;
-    activeSessions.forEach(s => {
-      totalInputOctets += Number(s.acctinputoctets || 0);
-      totalOutputOctets += Number(s.acctoutputoctets || 0);
+    let totalLiveRxBps = 0;
+    let totalLiveTxBps = 0;
+
+    const now = Date.now();
+    const enrichedSessions = activeSessions.map(s => {
+      const rxOctets = Number(s.acctoutputoctets || 0);
+      const txOctets = Number(s.acctinputoctets || 0);
+      const sessionTime = Math.max(1, Number(s.acctsessiontime || 1));
+
+      totalOutputOctets += rxOctets;
+      totalInputOctets += txOctets;
+
+      let rxBps = 0;
+      let txBps = 0;
+
+      const prev = sessionDeltaTracker.get(s.username);
+      if (prev) {
+        rxBps = prev.rxBps;
+        txBps = prev.txBps;
+      } else {
+        rxBps = Math.round((rxOctets * 8) / sessionTime);
+        txBps = Math.round((txOctets * 8) / sessionTime);
+        sessionDeltaTracker.set(s.username, {
+          lastRxOctets: rxOctets,
+          lastTxOctets: txOctets,
+          lastTime: now,
+          rxBps,
+          txBps
+        });
+      }
+
+      totalLiveRxBps += rxBps;
+      totalLiveTxBps += txBps;
+
+      return {
+        ...s,
+        rxBps,
+        txBps
+      };
     });
 
     res.render('admin/radius/active_sessions', {
       title: 'Active RADIUS Sessions',
       company: company(),
       activePage: 'radius_sessions',
-      activeSessions,
+      activeSessions: enrichedSessions,
       totalInputOctets,
       totalOutputOctets,
+      totalLiveRxBps,
+      totalLiveTxBps,
       msg: flashMsg(req)
     });
   } catch (err) {
@@ -236,21 +287,19 @@ router.get('/api/sessions', requireAdminSession, async (req, res) => {
       ORDER BY radacctid DESC
     `).all();
 
-    // 1. Dapatkan daftar NAS router yang terhubung dengan MikroTik di Billing
-    const activeNasList = db.prepare(`
-      SELECT DISTINCT router_id FROM radius_nas WHERE is_active = 1 AND router_id IS NOT NULL
-    `).all();
-
+    // 1. Dapatkan daftar seluruh MikroTik Router ID yang aktif
+    const routerIds = getActiveRouterIds();
     const liveApiTrafficMap = new Map();
-    if (activeNasList && activeNasList.length > 0) {
-      await Promise.all(activeNasList.map(async (nas) => {
+
+    if (routerIds.length > 0) {
+      await Promise.all(routerIds.map(async (rid) => {
         try {
-          const rates = await mikrotikSvc.getLiveActiveSessionsTraffic(nas.router_id);
+          const rates = await mikrotikSvc.getLiveActiveSessionsTraffic(rid);
           for (const [key, val] of rates.entries()) {
             liveApiTrafficMap.set(key, val);
           }
         } catch (e) {
-          // Ignore error dari router MikroTik individual agar tidak mengganggu router lain
+          // Ignore error dari router MikroTik individual
         }
       }));
     }
@@ -264,6 +313,8 @@ router.get('/api/sessions', requireAdminSession, async (req, res) => {
     const enrichedSessions = sessions.map(s => {
       const rxOctets = Number(s.acctoutputoctets || 0); // Download byte
       const txOctets = Number(s.acctinputoctets || 0); // Upload byte
+      const sessionTime = Math.max(1, Number(s.acctsessiontime || 1));
+
       totalOutputOctets += rxOctets;
       totalInputOctets += txOctets;
 
@@ -282,20 +333,36 @@ router.get('/api/sessions', requireAdminSession, async (req, res) => {
         txBps = Number(apiRate.txBps) || 0;
         trafficSource = 'mikrotik_api';
       } else {
-        // Prioritas 2: Delta Bps murni berbasis selisih byte RADIUS Interim update (tanpa Math.random)
+        // Prioritas 2: Delta Bps murni berbasis selisih byte RADIUS Interim update
         const prev = sessionDeltaTracker.get(s.username);
         if (prev) {
           const dt = (now - prev.lastTime) / 1000;
-          if (dt > 0) {
-            const rxDelta = rxOctets - prev.lastRxOctets;
-            const txDelta = txOctets - prev.lastTxOctets;
+          const rxDelta = rxOctets - prev.lastRxOctets;
+          const txDelta = txOctets - prev.lastTxOctets;
 
-            if (rxDelta > 0) rxBps = Math.round((rxDelta * 8) / dt);
-            else if (rxOctets > 0 && (now - prev.lastTime) < 90000) rxBps = prev.rxBps;
-
-            if (txDelta > 0) txBps = Math.round((txDelta * 8) / dt);
-            else if (txOctets > 0 && (now - prev.lastTime) < 90000) txBps = prev.txBps;
+          if (rxDelta > 0 && dt > 0) {
+            rxBps = Math.round((rxDelta * 8) / dt);
+          } else if (prev.rxBps > 0 && (now - prev.lastTime) < 180000) {
+            rxBps = prev.rxBps;
+          } else if (rxDelta === 0 && (now - prev.lastTime) >= 180000) {
+            rxBps = 0;
+          } else {
+            rxBps = prev.rxBps || Math.round((rxOctets * 8) / sessionTime);
           }
+
+          if (txDelta > 0 && dt > 0) {
+            txBps = Math.round((txDelta * 8) / dt);
+          } else if (prev.txBps > 0 && (now - prev.lastTime) < 180000) {
+            txBps = prev.txBps;
+          } else if (txDelta === 0 && (now - prev.lastTime) >= 180000) {
+            txBps = 0;
+          } else {
+            txBps = prev.txBps || Math.round((txOctets * 8) / sessionTime);
+          }
+        } else {
+          // Baseline inisialisasi awal saat server baru dinyalakan / sesi baru pertama dipoll
+          rxBps = Math.round((rxOctets * 8) / sessionTime);
+          txBps = Math.round((txOctets * 8) / sessionTime);
         }
 
         // Simpan snapshot posisi saat ini untuk delta berikutnya

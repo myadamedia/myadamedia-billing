@@ -233,18 +233,22 @@
           <span class="dot"></span> <i class="bi bi-broadcast"></i> LIVE
         </div>
       </div>
+      <%
+        const safeLiveRxBps = (typeof totalLiveRxBps !== 'undefined') ? totalLiveRxBps : 0;
+        const safeLiveTxBps = (typeof totalLiveTxBps !== 'undefined') ? totalLiveTxBps : 0;
+      %>
       <div class="traffic-grid">
         <!-- DOWNLOAD (RX SPEED) -->
         <div class="traffic-block download">
           <div class="traffic-label">DOWNLOAD (RX SPEED)</div>
-          <div class="traffic-speed" id="liveRxSpeed">0.00 Mbps</div>
+          <div class="traffic-speed" id="liveRxSpeed"><%= fmtSpeed(safeLiveRxBps) %></div>
           <div class="traffic-total" id="liveRxTotal">Total: <%= fmtBytes(safeRxOctets) %></div>
         </div>
 
         <!-- UPLOAD (TX SPEED) -->
         <div class="traffic-block upload">
           <div class="traffic-label">UPLOAD (TX SPEED)</div>
-          <div class="traffic-speed" id="liveTxSpeed">0.00 Mbps</div>
+          <div class="traffic-speed" id="liveTxSpeed"><%= fmtSpeed(safeLiveTxBps) %></div>
           <div class="traffic-total" id="liveTxTotal">Total: <%= fmtBytes(safeTxOctets) %></div>
         </div>
       </div>
@@ -288,8 +292,10 @@
             <% } else { %>
               <% activeSessions.forEach(s => { %>
                 <%
-                  const upMb = (s.acctinputoctets / 1048576).toFixed(2);
-                  const downMb = (s.acctoutputoctets / 1048576).toFixed(2);
+                  const upMb = (Number(s.acctinputoctets || 0) / 1048576).toFixed(2);
+                  const downMb = (Number(s.acctoutputoctets || 0) / 1048576).toFixed(2);
+                  const txBpsStr = fmtSpeed(s.txBps || 0);
+                  const rxBpsStr = fmtSpeed(s.rxBps || 0);
                 %>
                 <tr>
                   <td>
@@ -305,11 +311,11 @@
                   <td>
                     <div style="font-weight: 700;">
                       <span style="color: #34d399;" title="Upload Speed & Total Volume">
-                        <i class="bi bi-arrow-up"></i> 0.00 bps <small class="text-muted">(<%= upMb %> MB)</small>
+                        <i class="bi bi-arrow-up"></i> <%= txBpsStr %> <small class="text-muted">(<%= upMb %> MB)</small>
                       </span>
                       <span class="text-muted mx-1">/</span>
                       <span style="color: #60a5fa;" title="Download Speed & Total Volume">
-                        <i class="bi bi-arrow-down"></i> 0.00 bps <small class="text-muted">(<%= downMb %> MB)</small>
+                        <i class="bi bi-arrow-down"></i> <%= rxBpsStr %> <small class="text-muted">(<%= downMb %> MB)</small>
                       </span>
                     </div>
                   </td>

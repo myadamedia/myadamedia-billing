@@ -1834,18 +1834,31 @@ async function getLiveActiveSessionsTraffic(routerId) {
       );
       if (Array.isArray(queues)) {
         for (const q of queues) {
-          const name = String(q.name || '').trim();
+          const rawName = String(q.name || '').trim();
           const rateStr = String(q.rate || '').trim(); // "tx_bps/rx_bps"
           if (rateStr && rateStr.includes('/')) {
             const parts = rateStr.split('/');
             const txBps = Number(parts[0]) || 0; // upload rate
             const rxBps = Number(parts[1]) || 0; // download rate
-            if (name) {
-              userRates.set(name.toLowerCase(), { txBps, rxBps });
+            const rateObj = { txBps, rxBps };
+
+            if (rawName) {
+              const lowerRaw = rawName.toLowerCase();
+              userRates.set(lowerRaw, rateObj);
+
+              // Bersihkan nama queue dari prefix MikroTik (contoh: <pppoe-MDE-0102> -> mde-0102)
+              const cleanName = rawName
+                .replace(/^[<>\-]*pppoe[<>\-]*|^[<>\-]*hotspot[<>\-]*|^[<>\-]*ppp[<>\-]*|[<>]/gi, '')
+                .trim()
+                .toLowerCase();
+
+              if (cleanName) {
+                userRates.set(cleanName, rateObj);
+              }
             }
             const target = String(q.target || '').replace(/\/32$/, '').trim();
             if (target) {
-              userRates.set(target, { txBps, rxBps });
+              userRates.set(target, rateObj);
             }
           }
         }
