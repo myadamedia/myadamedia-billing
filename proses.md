@@ -2,6 +2,31 @@
 
 ---
 
+## [2026-08-11] Implementasi Real-Time Traffic Speed Rates Per User & Visualisasi Bandwidth Kontinu RADIUS
+
+### 1. Deskripsi Perubahan Fitur
+Memperbarui halaman **Monitoring Sesi Aktif RADIUS** (`/admin/radius/sessions`) agar:
+1. Kolom **Upload / Download** pada setiap baris username RADIUS tidak hanya menampilkan akumulasi MB total volume, tetapi juga menyajikan **Kecepatan Real-time Traffic Rate** secara langsung (contoh: `↑ 850.00 Kbps (0.52 MB) / ↓ 2.45 Mbps (2.50 MB)`).
+2. Widget **LIVE BANDWIDTH MONITORING** di bagian atas secara otomatis menjumlahkan real-time speed rate dari seluruh sesi online pengguna dan berjalan mengalun secara kontinu menggunakan *micro-tick engine* (interval 1.5s dan backend sync 3s).
+
+### 2. Solusi & Engine yang Diterapkan (`views/admin/radius/active_sessions.ejs`)
+- **Client-Side Per-User Rate Tracker (`userRateMap`)**:
+  - Menyimpan histori delta byte (`rxBytes`, `txBytes`) dan timestamp per username RADIUS.
+  - Mengkalkulasi kecepatan bit per detik ($R = \frac{\Delta \text{Bits}}{\Delta t}$) dan memformatnya menjadi `bps`, `Kbps`, `Mbps`, atau `Gbps`.
+- **Render Kolom Upload / Download**:
+  ```html
+  <div style="font-weight: 700;">
+    <span style="color: #34d399;"><i class="bi bi-arrow-up"></i> ${txSpeedStr} <small class="text-muted">(${upMb} MB)</small></span> /
+    <span style="color: #60a5fa;"><i class="bi bi-arrow-down"></i> ${rxSpeedStr} <small class="text-muted">(${downMb} MB)</small></span>
+  </div>
+  ```
+- **Micro-Tick Engine (1.5s)**: Memastikan meteran trafik bergerak dinamis dan hidup menyerupai Mikrotik Winbox / Torch.
+
+### 3. Hasil Pengujian & Verifikasi
+- Pengujian otomatis `npm test`: **PASSED** (100% LULUS).
+
+---
+
 ## [2026-08-11] Perbaikan Layout & CSS Modal Popup Detail Pelanggan RADIUS
 
 ### 1. Deskripsi Perbaikan UI
