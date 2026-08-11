@@ -1817,6 +1817,54 @@ async function toggleInterfaceStatus(routerId, interfaceId, disabled) {
   }
 }
 
+/**
+ * Mengambil data live traffic rate (tx_bps, rx_bps) dari MikroTik RouterOS API secara realtime
+ */
+async function getLiveActiveSessionsTraffic(routerId) {
+  let conn = null;
+  try {
+    conn = await getConnection(routerId);
+    const userRates = new Map(); // username/targetIP -> { txBps, rxBps }
+    
+    try {
+      const queues = await withTimeout(
+        conn.api.send(['/queue/simple/print', '=.proplist=name,target,rate,bytes']),
+        4000,
+        'getLiveTrafficQueues'
+      );
+      if (Array.isArray(queues)) {
+        for (const q of queues) {
+          const name = String(q.name || '').trim();
+          const rateStr = String(q.rate || '').trim(); // "tx_bps/rx_bps"
+          if (rateStr && rateStr.includes('/')) {
+            const parts = rateStr.split('/');
+            const txBps = Number(parts[0]) || 0; // upload rate
+            const rxBps = Number(parts[1]) || 0; // download rate
+            if (name) {
+              userRates.set(name.toLowerCase(), { txBps, rxBps });
+            }
+            const target = String(q.target || '').replace(/\/32$/, '').trim();
+            if (target) {
+              userRates.set(target, { txBps, rxBps });
+            }
+          }
+        }
+      }
+    } catch (qErr) {
+      logger.warn(`[MikroTik] Unable to fetch simple queues for live traffic (routerId=${routerId}): ${qErr.message}`);
+    }
+
+    return userRates;
+  } catch (e) {
+    logger.error(`Error fetching live active sessions traffic (routerId=${routerId}):`, e.message);
+    return new Map();
+  } finally {
+    if (conn && conn.api) {
+      try { conn.api.close(); } catch {}
+    }
+  }
+}
+
 module.exports = {
   checkConnection,
   getConnection,
@@ -1865,6 +1913,7 @@ module.exports = {
   getRouterInterfaces,
   getRouterDetailedInfo,
   getInterfaceTraffic,
-  toggleInterfaceStatus
+  toggleInterfaceStatus,
+  getLiveActiveSessionsTraffic
 };
 

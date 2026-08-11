@@ -190,6 +190,9 @@ function cleanupStaleRadiusSessions() {
   }
 }
 
+// In-memory delta tracker untuk menghitung Bps dari akumulasi byte RADIUS
+const sessionDeltaTracker = new Map();
+
 // ─── 2. MONITORING ACTIVE SESSIONS & LIVE ACCOUNTING ───
 router.get('/sessions', requireAdminSession, async (req, res) => {
   try {
@@ -223,7 +226,7 @@ router.get('/sessions', requireAdminSession, async (req, res) => {
 });
 
 // JSON API Active Sessions (Untuk Auto-Refresh Frontend & Live Traffic Calculations)
-router.get('/api/sessions', requireAdminSession, (req, res) => {
+router.get('/api/sessions', requireAdminSession, async (req, res) => {
   try {
     cleanupStaleRadiusSessions();
 
@@ -233,19 +236,98 @@ router.get('/api/sessions', requireAdminSession, (req, res) => {
       ORDER BY radacctid DESC
     `).all();
 
+    // 1. Dapatkan daftar NAS router yang terhubung dengan MikroTik di Billing
+    const activeNasList = db.prepare(`
+      SELECT DISTINCT router_id FROM radius_nas WHERE is_active = 1 AND router_id IS NOT NULL
+    `).all();
+
+    const liveApiTrafficMap = new Map();
+    if (activeNasList && activeNasList.length > 0) {
+      await Promise.all(activeNasList.map(async (nas) => {
+        try {
+          const rates = await mikrotikSvc.getLiveActiveSessionsTraffic(nas.router_id);
+          for (const [key, val] of rates.entries()) {
+            liveApiTrafficMap.set(key, val);
+          }
+        } catch (e) {
+          // Ignore error dari router MikroTik individual agar tidak mengganggu router lain
+        }
+      }));
+    }
+
+    const now = Date.now();
     let totalInputOctets = 0;
     let totalOutputOctets = 0;
-    sessions.forEach(s => {
-      totalInputOctets += Number(s.acctinputoctets || 0);
-      totalOutputOctets += Number(s.acctoutputoctets || 0);
+    let totalLiveRxBps = 0;
+    let totalLiveTxBps = 0;
+
+    const enrichedSessions = sessions.map(s => {
+      const rxOctets = Number(s.acctoutputoctets || 0); // Download byte
+      const txOctets = Number(s.acctinputoctets || 0); // Upload byte
+      totalOutputOctets += rxOctets;
+      totalInputOctets += txOctets;
+
+      const uLower = String(s.username || '').toLowerCase();
+      const ipAddr = String(s.framedipaddress || '').trim();
+
+      let rxBps = 0;
+      let txBps = 0;
+      let trafficSource = 'none';
+
+      // Prioritas 1: Data live rate dari MikroTik RouterOS API Simple Queues
+      const apiRate = liveApiTrafficMap.get(uLower) || (ipAddr ? liveApiTrafficMap.get(ipAddr) : null);
+
+      if (apiRate) {
+        rxBps = Number(apiRate.rxBps) || 0;
+        txBps = Number(apiRate.txBps) || 0;
+        trafficSource = 'mikrotik_api';
+      } else {
+        // Prioritas 2: Delta Bps murni berbasis selisih byte RADIUS Interim update (tanpa Math.random)
+        const prev = sessionDeltaTracker.get(s.username);
+        if (prev) {
+          const dt = (now - prev.lastTime) / 1000;
+          if (dt > 0) {
+            const rxDelta = rxOctets - prev.lastRxOctets;
+            const txDelta = txOctets - prev.lastTxOctets;
+
+            if (rxDelta > 0) rxBps = Math.round((rxDelta * 8) / dt);
+            else if (rxOctets > 0 && (now - prev.lastTime) < 90000) rxBps = prev.rxBps;
+
+            if (txDelta > 0) txBps = Math.round((txDelta * 8) / dt);
+            else if (txOctets > 0 && (now - prev.lastTime) < 90000) txBps = prev.txBps;
+          }
+        }
+
+        // Simpan snapshot posisi saat ini untuk delta berikutnya
+        sessionDeltaTracker.set(s.username, {
+          lastRxOctets: rxOctets,
+          lastTxOctets: txOctets,
+          lastTime: now,
+          rxBps,
+          txBps
+        });
+        trafficSource = 'radius_delta';
+      }
+
+      totalLiveRxBps += rxBps;
+      totalLiveTxBps += txBps;
+
+      return {
+        ...s,
+        rxBps,
+        txBps,
+        trafficSource
+      };
     });
 
     res.json({
       success: true,
-      sessions,
+      sessions: enrichedSessions,
       totalInputOctets,
       totalOutputOctets,
-      timestamp: Date.now()
+      totalLiveRxBps,
+      totalLiveTxBps,
+      timestamp: now
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

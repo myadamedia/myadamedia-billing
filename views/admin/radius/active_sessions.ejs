@@ -288,9 +288,6 @@
             <% } else { %>
               <% activeSessions.forEach(s => { %>
                 <%
-                  const sTime = Math.max(1, Number(s.acctsessiontime || 1));
-                  const initTxBps = (Number(s.acctinputoctets || 0) * 8) / sTime;
-                  const initRxBps = (Number(s.acctoutputoctets || 0) * 8) / sTime;
                   const upMb = (s.acctinputoctets / 1048576).toFixed(2);
                   const downMb = (s.acctoutputoctets / 1048576).toFixed(2);
                 %>
@@ -308,11 +305,11 @@
                   <td>
                     <div style="font-weight: 700;">
                       <span style="color: #34d399;" title="Upload Speed & Total Volume">
-                        <i class="bi bi-arrow-up"></i> <%= fmtSpeed(initTxBps) %> <small class="text-muted">(<%= upMb %> MB)</small>
+                        <i class="bi bi-arrow-up"></i> 0.00 bps <small class="text-muted">(<%= upMb %> MB)</small>
                       </span>
                       <span class="text-muted mx-1">/</span>
                       <span style="color: #60a5fa;" title="Download Speed & Total Volume">
-                        <i class="bi bi-arrow-down"></i> <%= fmtSpeed(initRxBps) %> <small class="text-muted">(<%= downMb %> MB)</small>
+                        <i class="bi bi-arrow-down"></i> 0.00 bps <small class="text-muted">(<%= downMb %> MB)</small>
                       </span>
                     </div>
                   </td>
@@ -535,6 +532,9 @@ async function showCustomerDetail(username) {
   }
 }
 
+let serverLiveRxBps = 0;
+let serverLiveTxBps = 0;
+
 async function fetchLiveSessions() {
   try {
     const res = await fetch('/admin/radius/api/sessions');
@@ -542,53 +542,8 @@ async function fetchLiveSessions() {
     if (!data.success) return;
 
     activeSessionsData = data.sessions || [];
-    const now = Date.now();
-
-    // Process per-user traffic rate deltas
-    activeSessionsData.forEach(s => {
-      const u = s.username;
-      const rx = Number(s.acctoutputoctets || 0);
-      const tx = Number(s.acctinputoctets || 0);
-      const sessionTime = Math.max(1, Number(s.acctsessiontime || 1));
-
-      if (!userRateMap[u]) {
-        // Baseline rate calculation from session average
-        const baseRxBps = (rx * 8) / sessionTime;
-        const baseTxBps = (tx * 8) / sessionTime;
-        userRateMap[u] = {
-          lastRx: rx,
-          lastTx: tx,
-          lastTime: now,
-          rxBps: baseRxBps,
-          txBps: baseTxBps
-        };
-      } else {
-        const item = userRateMap[u];
-        const dt = (now - item.lastTime) / 1000;
-        if (dt > 0) {
-          const rxDelta = rx - item.lastRx;
-          const txDelta = tx - item.lastTx;
-
-          if (rxDelta > 0) {
-            item.rxBps = (rxDelta * 8) / dt;
-            item.lastRx = rx;
-          } else if (rx > 0) {
-            if (item.rxBps <= 0) item.rxBps = (rx * 8) / sessionTime;
-            item.rxBps = Math.max(100, item.rxBps * (0.94 + Math.random() * 0.10));
-          }
-
-          if (txDelta > 0) {
-            item.txBps = (txDelta * 8) / dt;
-            item.lastTx = tx;
-          } else if (tx > 0) {
-            if (item.txBps <= 0) item.txBps = (tx * 8) / sessionTime;
-            item.txBps = Math.max(100, item.txBps * (0.94 + Math.random() * 0.10));
-          }
-
-          item.lastTime = now;
-        }
-      }
-    });
+    serverLiveRxBps = Number(data.totalLiveRxBps || 0);
+    serverLiveTxBps = Number(data.totalLiveTxBps || 0);
 
     renderUI();
   } catch (err) {
@@ -597,25 +552,18 @@ async function fetchLiveSessions() {
 }
 
 function renderUI() {
-  // 1. Calculate Global Live Bandwidth Traffic Speed
-  let globalRxBps = 0;
-  let globalTxBps = 0;
+  // 1. Calculate Global Volume Totals & Set Live Speed from Server
   let totalRxBytes = 0;
   let totalTxBytes = 0;
 
   activeSessionsData.forEach(s => {
     totalRxBytes += Number(s.acctoutputoctets || 0);
     totalTxBytes += Number(s.acctinputoctets || 0);
-    const rate = userRateMap[s.username];
-    if (rate) {
-      globalRxBps += (rate.rxBps || 0);
-      globalTxBps += (rate.txBps || 0);
-    }
   });
 
   // Top Card Live Bandwidth Speed & Totals
-  document.getElementById('liveRxSpeed').innerText = formatSpeed(globalRxBps);
-  document.getElementById('liveTxSpeed').innerText = formatSpeed(globalTxBps);
+  document.getElementById('liveRxSpeed').innerText = formatSpeed(serverLiveRxBps);
+  document.getElementById('liveTxSpeed').innerText = formatSpeed(serverLiveTxBps);
   document.getElementById('liveRxTotal').innerText = 'Total: ' + formatBytes(totalRxBytes);
   document.getElementById('liveTxTotal').innerText = 'Total: ' + formatBytes(totalTxBytes);
 
@@ -639,13 +587,12 @@ function renderUI() {
     const safeIp = escapeHtml(s.framedipaddress || '-');
     const safeMac = escapeHtml(s.callingstationid || '-');
     const safeNasIp = escapeHtml(s.nasipaddress || '-');
-    const upMb = (s.acctinputoctets / 1048576).toFixed(2);
-    const downMb = (s.acctoutputoctets / 1048576).toFixed(2);
+    const upMb = (Number(s.acctinputoctets || 0) / 1048576).toFixed(2);
+    const downMb = (Number(s.acctoutputoctets || 0) / 1048576).toFixed(2);
     const startTime = new Date(s.acctstarttime).toLocaleString('id-ID');
 
-    const rate = userRateMap[s.username] || { rxBps: 0, txBps: 0 };
-    const rxSpeedStr = formatSpeed(rate.rxBps);
-    const txSpeedStr = formatSpeed(rate.txBps);
+    const rxSpeedStr = formatSpeed(s.rxBps || 0);
+    const txSpeedStr = formatSpeed(s.txBps || 0);
 
     return `
       <tr>
@@ -678,22 +625,6 @@ function renderUI() {
       </tr>`;
   }).join('');
 }
-
-// Micro-tick per 1.5 detik untuk menganimasikan visualisasi trafik secara kontinu
-setInterval(() => {
-  if (activeSessionsData.length > 0) {
-    activeSessionsData.forEach(s => {
-      const item = userRateMap[s.username];
-      if (item && item.rxBps > 0) {
-        item.rxBps = Math.max(100, item.rxBps * (0.95 + Math.random() * 0.10));
-      }
-      if (item && item.txBps > 0) {
-        item.txBps = Math.max(100, item.txBps * (0.95 + Math.random() * 0.10));
-      }
-    });
-    renderUI();
-  }
-}, 1500);
 
 // Auto-Polling Interval ke Backend RADIUS API setiap 3 Detik
 setInterval(fetchLiveSessions, 3000);

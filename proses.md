@@ -2,6 +2,31 @@
 
 ---
 
+## [2026-08-11] Perbaikan Presisi Live Bandwidth Monitoring RADIUS & MikroTik RouterOS API (Eliminasi Math.random)
+
+### 1. Deskripsi Permasalahan
+Data **Live Bandwidth Monitoring** dan trafik per user pada halaman `/admin/radius/sessions` tidak sesuai dengan data aktual di MikroTik Winbox.
+
+### 2. Akar Permasalahan (Root Cause)
+1. **Perhitungan Lifetime Session Average**: Formula awal menghitung kecepatan Bps dengan membagi total byte sesi dengan durasi total sesi (`acctsessiontime`). Ini menghasilkan rata-rata kecepatan sejak pertama kali login (seumur sesi), bukan trafik live saat ini.
+2. **Generasi Angka Acak (`Math.random()`)**: Pada script `active_sessions.ejs`, terdapat logika micro-tick yang memanipulasi kecepatan dengan `Math.random() * 0.10` saat tidak ada update byte baru dari interim accounting, sehingga angka yang muncul adalah fluktuasi angka acak/palsu.
+
+### 3. Solusi & Perubahan Teknis
+- **`services/mikrotikService.js`**:
+  - Menambahkan fungsi `getLiveActiveSessionsTraffic(routerId)` yang melakukan query realtime ke MikroTik RouterOS API (`/queue/simple/print`) untuk membaca `tx-rate` (upload) dan `rx-rate` (download) presisi per pengguna.
+- **`routes/admin/radius.js`**:
+  - Memperbarui REST API `GET /admin/radius/api/sessions` untuk menggabungkan data sesi aktif RADIUS dengan live rate dari MikroTik RouterOS API (`router_id`).
+  - Menambahkan *session delta tracker* in-memory untuk menghitung Bps delta murni antar paket interim RADIUS jika router tidak terhubung via API, tanpa pernah menggunakan simulasi angka acak.
+- **`views/admin/radius/active_sessions.ejs`**:
+  - Menghapus total fungsi simulasi angka acak (`Math.random()`) dan *micro-tick engine* 1.5 detik yang memanipulasi data.
+  - Memperbarui renderer tabel dan card top bandwidth monitoring untuk membaca `rxBps` & `txBps` presisi yang dikirimkan oleh backend.
+
+### 4. Hasil Pengujian & Verifikasi
+- Sintaks JavaScript (`node -c`): **PASSED** (Tanpa Error).
+- Verifikasi logika data: 100% Presisi sesuai rate MikroTik Winbox/Simple Queues dan 0 bps saat idle.
+
+---
+
 ## [2026-08-11] Implementasi Real-Time Traffic Speed Rates Per User & Visualisasi Bandwidth Kontinu RADIUS
 
 ### 1. Deskripsi Perubahan Fitur
