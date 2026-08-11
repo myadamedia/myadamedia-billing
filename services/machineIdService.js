@@ -33,7 +33,7 @@ function getCpuSummary() {
 
 /**
  * Generate formatted Machine ID
- * Output format: MYADA-XXXX-XXXX-XXXX-XXXX (16 uppercase hex chars grouped in 4s)
+ * Output format: BRO-XXXX-XXXX-XXXX-XXXX (16 uppercase hex chars grouped in 4s)
  */
 function getMachineId() {
   const rawString = [
@@ -50,7 +50,7 @@ function getMachineId() {
   const part3 = hash.substring(8, 12);
   const part4 = hash.substring(12, 16);
 
-  return `MYADA-${part1}-${part2}-${part3}-${part4}`;
+  return `BRO-${part1}-${part2}-${part3}-${part4}`;
 }
 
 module.exports = {

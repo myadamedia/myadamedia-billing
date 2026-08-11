@@ -65,14 +65,14 @@
       background: #182232;
       border: 1px solid #2a374a;
       border-radius: 10px;
-      padding: 8px 6px;
+      padding: 10px 6px 8px 6px;
       text-align: center;
       cursor: pointer;
       transition: all 0.2s ease-in-out;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      min-height: 90px;
+      min-height: 115px;
       position: relative;
       overflow: hidden;
     }
@@ -89,7 +89,7 @@
       padding: 2px 7px;
       border-radius: 6px;
       display: inline-block;
-      margin: 0 auto 4px auto;
+      margin: 0 auto 3px auto;
       text-transform: uppercase;
       letter-spacing: 0.3px;
       width: fit-content;
@@ -121,17 +121,37 @@
       font-size: 20px;
       font-weight: 900;
       color: #ffffff;
-      line-height: 1.1;
-      margin-bottom: 4px;
+      line-height: 1;
+      margin-bottom: 3px;
     }
 
-    .day-card-footer {
-      font-size: 11px;
+    .day-card-tot {
+      font-size: 11.5px;
+      font-weight: 800;
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.08);
+      border-radius: 4px;
+      padding: 2px 4px;
+      margin: 2px 0 4px 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .day-card-breakdown {
+      font-size: 10.5px;
       font-weight: 700;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 3px;
+      gap: 2px;
+    }
+
+    .currency-sm {
+      font-size: 0.85em;
+      opacity: 0.85;
+      margin-right: 1px;
     }
 
     @media (max-width: 640px) {
@@ -140,8 +160,8 @@
         border-radius: 12px;
       }
       .day-card {
-        padding: 6px 4px;
-        min-height: 80px;
+        padding: 8px 4px 6px 4px;
+        min-height: 105px;
         border-radius: 8px;
       }
       .day-card-badge {
@@ -153,19 +173,26 @@
         font-size: 17px;
         margin-bottom: 2px;
       }
-      .day-card-footer {
+      .day-card-tot {
         font-size: 10px;
+        padding: 1px 2px;
+      }
+      .day-card-breakdown {
+        font-size: 9.5px;
       }
     }
 
     .status-lunas {
       color: #10b981;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
     }
     .status-unpaid {
       color: #f87171;
       display: inline-flex;
       align-items: center;
-      gap: 4px;
+      gap: 3px;
     }
 
     /* Custom Modal Overlay & Card Styling */
@@ -290,6 +317,9 @@
       <i class="bi bi-calendar3-range"></i> <%= t('admin.nav.due_distribution', 'Distribusi Jatuh Tempo') %>
     </div>
     <div class="tb-right">
+      <button type="button" class="btn btn-g btn-sm" onclick="toggleMoneyVisibility(event)" title="Sembunyikan / Tampilkan Nominal Tagihan">
+        <i id="moneyToggleIcon" class="bi bi-eye"></i> Sensor Nominal
+      </button>
       <a href="/admin/billing" class="btn btn-g btn-sm"><i class="bi bi-receipt"></i> Halaman Tagihan</a>
       <span class="adm-badge"><i class="bi bi-person-fill"></i> <%= (typeof session !== 'undefined' && session.isCashier) ? t('admin.role.cashier', 'Kasir') : t('admin.role.admin', 'Admin') %></span>
       <a href="/admin/logout" class="btn btn-g btn-sm"><i class="bi bi-box-arrow-left"></i></a>
@@ -349,19 +379,19 @@
       <div class="sc s">
         <i class="bi bi-cash-stack sc-icon"></i>
         <div class="sc-label">Potensi Pendapatan</div>
-        <div class="sc-val sc-val-money"><span class="sc-currency">Rp</span><%= monthTotalAmt.toLocaleString('id-ID') %></div>
+        <div class="sc-val sc-val-money money-value"><span class="sc-currency">Rp</span><%= monthTotalAmt.toLocaleString('id-ID') %></div>
         <div class="sc-sub">Total Tagihan Periode Ini</div>
       </div>
       <div class="sc s" style="border-left-color:#10b981">
         <i class="bi bi-check-circle sc-icon" style="color:#10b981"></i>
         <div class="sc-label">Terkumpul (Lunas)</div>
-        <div class="sc-val sc-val-money" style="color:#10b981"><span class="sc-currency">Rp</span><%= monthPaidAmt.toLocaleString('id-ID') %></div>
+        <div class="sc-val sc-val-money money-value" style="color:#10b981"><span class="sc-currency">Rp</span><%= monthPaidAmt.toLocaleString('id-ID') %></div>
         <div class="sc-sub"><%= monthTotalAmt > 0 ? Math.round((monthPaidAmt/monthTotalAmt)*100) : 0 %>% Terbayar</div>
       </div>
       <div class="sc d">
         <i class="bi bi-exclamation-triangle sc-icon"></i>
         <div class="sc-label">Belum Terbayar</div>
-        <div class="sc-val sc-val-money" style="color:#ef4444"><span class="sc-currency">Rp</span><%= monthUnpaidAmt.toLocaleString('id-ID') %></div>
+        <div class="sc-val sc-val-money money-value" style="color:#ef4444"><span class="sc-currency">Rp</span><%= monthUnpaidAmt.toLocaleString('id-ID') %></div>
         <div class="sc-sub">Sisa Tagihan Periode Ini</div>
       </div>
     </div>
@@ -378,6 +408,28 @@
       </div>
 
       <div class="day-grid">
+        <% 
+          function fmtRp(val) {
+            const num = Number(val || 0);
+            if (num === 0) return '0';
+            return num.toLocaleString('id-ID');
+          }
+
+          function fmtCompact(val) {
+            const num = Number(val || 0);
+            if (num === 0) return '0';
+            if (num >= 1000000) {
+              const million = num / 1000000;
+              const str = (million % 1 === 0) ? String(million) : million.toFixed(1);
+              return str.replace('.', ',') + ' Jt';
+            } else if (num >= 1000) {
+              const thousand = num / 1000;
+              const str = (thousand % 1 === 0) ? String(thousand) : thousand.toFixed(1);
+              return str.replace('.', ',') + ' rb';
+            }
+            return num.toLocaleString('id-ID');
+          }
+        %>
         <% (distribution.days || []).forEach(item => { %>
           <% 
             const isToday = (item.day === currentDay && filterMonth === currentMonth && filterYear === currentYear);
@@ -394,15 +446,31 @@
             }
           %>
           <div class="day-card <%= cardClass %>" onclick="openDayDetailModal(<%= item.day %>)">
-            <div class="day-card-badge">Tgl <%= item.day %></div>
+            <div class="day-card-badge">TGL <%= item.day %></div>
             <div class="day-card-count"><%= item.total_customers %></div>
-            <div class="day-card-footer">
+            
+            <!-- Total Nilai Tagihan -->
+            <div class="day-card-tot money-value" title="Total Tagihan Tgl <%= item.day %>: Rp <%= fmtRp(item.total_amount) %>">
+              <span class="currency-sm">Rp</span><%= fmtCompact(item.total_amount) %>
+            </div>
+
+            <!-- Detail Nominal Lunas & Belum Bayar -->
+            <div class="day-card-breakdown">
               <% if (item.total_customers === 0) { %>
-                <span class="text-muted">-</span>
-              <% } else if (isAllPaid) { %>
-                <span class="status-lunas"><i class="bi bi-check-lg"></i> Lunas</span>
+                <span class="text-muted" style="font-size:10px">-</span>
               <% } else { %>
-                <span class="status-unpaid"><i class="bi bi-exclamation-triangle-fill"></i> <%= item.unpaid_customers %></span>
+                <% if (item.paid_amount > 0) { %>
+                  <span class="status-lunas money-value" title="Sudah Lunas: Rp <%= fmtRp(item.paid_amount) %>">
+                    <i class="bi bi-check-lg"></i> Rp <%= fmtCompact(item.paid_amount) %>
+                  </span>
+                <% } %>
+                <% if (item.unpaid_amount > 0) { %>
+                  <span class="status-unpaid money-value" title="Belum Bayar: <%= item.unpaid_customers %> orang (Rp <%= fmtRp(item.unpaid_amount) %>)">
+                    <i class="bi bi-exclamation-triangle-fill"></i> <%= item.unpaid_customers %> (<span class="currency-sm">Rp</span><%= fmtCompact(item.unpaid_amount) %>)
+                  </span>
+                <% } else if (item.total_customers > 0 && item.unpaid_amount === 0) { %>
+                  <span class="status-lunas"><i class="bi bi-check-circle-fill"></i> Lunas</span>
+                <% } %>
               <% } %>
             </div>
           </div>
@@ -428,15 +496,15 @@
         </div>
         <div style="background:var(--bg3);padding:10px 12px;border-radius:10px;text-align:center">
           <div style="font-size:11px;color:var(--muted)">Total Potensi</div>
-          <div style="font-size:15px;font-weight:800;color:var(--text)" id="m_total_amt">Rp 0</div>
+          <div style="font-size:15px;font-weight:800;color:var(--text)" id="m_total_amt" class="money-value">Rp 0</div>
         </div>
         <div style="background:var(--bg3);padding:10px 12px;border-radius:10px;text-align:center">
           <div style="font-size:11px;color:var(--muted)">Sudah Lunas</div>
-          <div style="font-size:15px;font-weight:800;color:#10b981" id="m_paid_amt">Rp 0</div>
+          <div style="font-size:15px;font-weight:800;color:#10b981" id="m_paid_amt" class="money-value">Rp 0</div>
         </div>
         <div style="background:var(--bg3);padding:10px 12px;border-radius:10px;text-align:center">
           <div style="font-size:11px;color:var(--muted)">Belum Bayar</div>
-          <div style="font-size:15px;font-weight:800;color:#ef4444" id="m_unpaid_amt">Rp 0</div>
+          <div style="font-size:15px;font-weight:800;color:#ef4444" id="m_unpaid_amt" class="money-value">Rp 0</div>
         </div>
       </div>
 
@@ -549,9 +617,9 @@
               </div>
             </td>
             <td style="font-size:12px;color:var(--muted)">${escapeHtml(c.package_name)}</td>
-            <td class="num fw6" style="color:var(--success)">
+            <td class="num fw6 money-value" style="color:var(--success)">
               Rp ${Number(c.amount || 0).toLocaleString('id-ID')}
-              ${isPartial ? `<div style="font-size:10px;color:#ef4444">Sisa: Rp ${Number(c.unpaid_amount).toLocaleString('id-ID')}</div>` : ''}
+              ${isPartial ? `<div style="font-size:10px;color:#ef4444" class="money-value">Sisa: Rp ${Number(c.unpaid_amount).toLocaleString('id-ID')}</div>` : ''}
             </td>
             <td>${statusBadge}</td>
             <td style="text-align:right">

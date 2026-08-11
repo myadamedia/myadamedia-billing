@@ -2,6 +2,78 @@
 
 ---
 
+## [2026-08-11] Penambahan Nilai Total Tagihan (Lunas & Belum Bayar) pada Kartu Distribusi Jatuh Tempo Harian
+
+### 1. Deskripsi Perubahan
+Menambahkan tampilan **Nilai Total Tagihan** beserta rincian **Nominal Lunas** dan **Nominal Belum Bayar** pada setiap kartu tanggal (Tgl 1 - Tgl 31) di halaman **Distribusi Jatuh Tempo** (`/admin/billing/due-distribution`).
+
+### 2. Modul & File yang Diperbarui
+- **`views/admin/billing_due_distribution.ejs`**:
+  - Menambahkan fungsi EJS `fmtRp` (format lengkap `150.000`) dan `fmtCompact` (format ringkas `150 rb` / `1,5 Jt`) untuk optimasi tampilan nominal pada kartu tanggal berukuran ringkas.
+  - Memperbarui komponen EJS `.day-card` untuk merender:
+    - `Total Tagihan`: Ditampilkan pada badge khusus `.day-card-tot` dengan warna cyan (`#38bdf8`) dan tooltip nominal lengkap pada *hover*.
+    - `Nominal Lunas`: Ditampilkan pada `.status-lunas` dengan ikon hijau `bi-check-lg` dan nilai Rupiah terbayar.
+    - `Nominal Belum Bayar`: Ditampilkan pada `.status-unpaid` dengan ikon merah `bi-exclamation-triangle-fill`, jumlah pelanggan belum bayar, serta sisa nominal belum bayar.
+  - Menambahkan integrasi kelas `.money-value` pada seluruh elemen nominal Rupiah (Stat cards ringkasan, badge total tagihan kartu tanggal, rincian lunas & belum bayar, modal summary cards, dan tabel pelanggan).
+  - Menambahkan tombol **Sensor Nominal** (`<button onclick="toggleMoneyVisibility(event)">`) di topbar untuk memudahkan pengguna menyensor nominal Rupiah secara interaktif.
+
+### 3. Dampak Terhadap Sistem
+- **Visibilitas Finansial Presisi**: Pengguna dapat melihat langsung sebaran nilai tagihan Rupiah per tanggal tanpa perlu membuka modal satu per satu.
+- **Responsif & Bebas Overflow**: Menggunakan format ringkas yang adaptif sehingga angka jutaan/miliaran tampil rapi baik di Desktop maupun Mobile HP.
+- **Fitur Privasi (Blur Nominal)**: Mendukung mode sensor nominal Rupiah (`.hide-money`) secara global. Saat mode aktif, nilai nominal akan ter-blur dan baru terlihat ketika kursor diarahkan (*hover*).
+
+### 4. Perbaikan Bug (Bug Fix)
+- **`TypeError: .replace is not a function`**: Memperbarui fungsi `fmtCompact` agar mengonversi nilai numerik (e.g. `million` / `thousand`) ke `String` sebelum memanggil `.replace('.', ',')`. Ini mencegah terjadinya runtime crash saat nilai nominal berupa kelipatan genap (seperti 2.000.000 atau 150.000).
+
+### 5. Hasil Pengujian & Verifikasi
+- Pengujian tampilan & fungsi: `npm test` berjalan 100% LULUS tanpa error runtime.
+
+---
+
+## [2026-08-10] Penambahan Fitur Pengaturan Akun (Ubah Username & Password) di BroLinks Vendor Dashboard
+
+### 1. Deskripsi Fitur Baru
+Menambahkan modul dan halaman **Pengaturan Akun** (`/auth/profile`) pada **BroLinks Vendor Dashboard** untuk memungkinkan admin vendor memperbarui **Nama Lengkap**, **Username**, dan **Password** secara mandiri dan aman.
+
+### 2. File & Modul yang Diperbarui / Dibuat
+- **`BroLinks/routes/auth.js`**:
+  - Menambahkan rute `GET /auth/profile` untuk menampilkan form pengaturan akun.
+  - Menambahkan rute `POST /auth/profile` untuk verifikasi password lama, pengecekan keunikan username baru, dan pembaharuan data di SQLite `admin_users` serta pembaruan sesi login (`req.session.user`).
+- **`BroLinks/views/profile.ejs` [BARU]**:
+  - Tampilan UI form pengaturan akun bertema *Dark Glassmorphism Card* lengkap dengan fitur *Show/Hide Password Toggle*.
+- **`BroLinks/views/layout.ejs`**:
+  - Menambahkan link navigasi menu **Pengaturan Akun** (`<i class="bi bi-person-gear"></i>`) pada sidebar navigasi utama dan icon gear pada profil pengguna bawah.
+
+### 3. Keamanan & Validasi
+- **Verifikasi Password Lama**: Setiap perubahan kredensial mewajibkan input Password Saat Ini untuk mencegah akses tanpa izin.
+- **Pengecekan Keunikan Username**: Mencegah duplikasi username dengan admin lain di tabel `admin_users`.
+- **Panjang Password**: Memastikan password baru minimal 6 karakter dengan konfirmasi password yang sesuai.
+
+### 4. Dampak Terhadap Sistem
+- Admin vendor memiliki akses penuh untuk mengelola kredensial akun mereka sendiri secara mandiri tanpa perlu mengubah file database secara manual.
+- Sesi aktif diperbarui secara instan pasca-penyimpanan tanpa memutuskan koneksi login admin.
+
+---
+
+## [2026-08-10] Pembaruan Format Machine ID Server Klien (Prefix BRO-)
+
+### 1. Deskripsi Perubahan
+Mengubah format Machine ID server lokal dari format awal `MYADA-XXXX-XXXX-XXXX-XXXX` menjadi **`BRO-XXXX-XXXX-XXXX-XXXX`** sesuai kebutuhan standar identitas BroLinks Vendor.
+
+### 2. File & Modul yang Diperbarui
+- **`myadamedia-billing/services/machineIdService.js`**:
+  - Mengubah keluaran fungsi `getMachineId()` menjadi `BRO-${part1}-${part2}-${part3}-${part4}`.
+- **`BroLinks/services/licenseGeneratorService.js`**:
+  - Memperbarui fungsi validasi format Machine ID untuk menerima prefix `BRO-` (serta tetap mendukung `MYADA-` untuk Lisensi lama jika ada).
+- **`BroLinks/views/licenses/index.ejs`**:
+  - Memperbarui placeholder form input Machine ID menjadi `BRO-XXXX-XXXX-XXXX-XXXX`.
+
+### 3. Dampak Terhadap Sistem
+- Format Machine ID baru pada aplikasi billing kini secara resmi menggunakan format `BRO-XXXX-XXXX-XXXX-XXXX`.
+- Aplikasi BroLinks Vendor Dashboard secara sah memvalidasi dan memproses aktivasi lisensi dengan format prefix `BRO-`.
+
+---
+
 ## [2026-08-10] Perbaikan Error 404 "Resource Not Found" pada Alamat /admin/dashboard
 
 ### 1. Permasalahan yang Ditemukan
