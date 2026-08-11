@@ -2,6 +2,36 @@
 
 ---
 
+## [2026-08-11] Perbaikan Layout & CSS Modal Popup Detail Pelanggan RADIUS
+
+### 1. Deskripsi Perbaikan UI
+Memperbaiki bug tampilan modal popup `#customerDetailModal` pada halaman `/admin/radius/sessions` yang sebelumnya muncul di pojok kanan atas layar pada saat halaman pertama kali dimuat.
+
+### 2. Root Cause & Solusi
+- **Penyebab**: Elemen modal sebelumnya menggunakan kelas kustom `modal-bg` yang belum memiliki aturan CSS `display: none` dan `position: fixed`. Akibatnya, browser merender elemen modal secara statis di alur dokumen normal (kanan atas).
+- **Solusi pada `views/admin/radius/active_sessions.ejs`**:
+  - Mengubah struktur modal ke standar aplikasi billing menggunakan kelas `.mo`, `.mb`, `.mh`, `.mt`, `.mc`, dan `.mbody`.
+  - Menambahkan aturan CSS resmi untuk `.mo`:
+    ```css
+    .mo {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(6px);
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+    }
+    .mo.show, .mo.open { display: flex !important; }
+    ```
+  - Modal kini tersembunyi secara default saat awal dimuat (`display: none`), dan baru muncul sebagai *center overlay backdrop* ketika username pelanggan diklik.
+
+### 3. Hasil Pengujian & Verifikasi
+- Pengujian otomatis `npm test`: **PASSED** (100% LULUS).
+
+---
+
 ## [2026-08-11] Perbaikan Bug ReferenceError `totalOutputOctets is not defined` pada Sesi RADIUS
 
 ### 1. Deskripsi Perbaikan Bug
