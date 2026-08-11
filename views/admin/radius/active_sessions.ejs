@@ -48,10 +48,69 @@
       box-shadow: 0 0 8px #10b981;
       animation: pulseLive 1.5s infinite ease-in-out;
     }
+    .badge-live-pulse.paused {
+      color: #94a3b8;
+    }
+    .badge-live-pulse.paused .dot {
+      background-color: #64748b;
+      box-shadow: none;
+      animation: none;
+    }
     @keyframes pulseLive {
       0% { transform: scale(0.95); opacity: 0.7; }
       50% { transform: scale(1.3); opacity: 1; box-shadow: 0 0 12px #10b981; }
       100% { transform: scale(0.95); opacity: 0.7; }
+    }
+
+    .toggle-live-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .toggle-live-switch {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg3, #0f172a);
+      padding: 5px 12px;
+      border-radius: 20px;
+      border: 1px solid var(--border, #334155);
+    }
+    .toggle-live-switch label {
+      font-size: 11px;
+      font-weight: 700;
+      color: #94a3b8;
+      cursor: pointer;
+      margin: 0;
+      user-select: none;
+    }
+    .switch-input {
+      position: relative;
+      width: 34px;
+      height: 18px;
+      appearance: none;
+      background: #475569;
+      outline: none;
+      border-radius: 20px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    .switch-input:checked {
+      background: #10b981;
+    }
+    .switch-input::before {
+      content: '';
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      top: 3px;
+      left: 3px;
+      background: #ffffff;
+      transition: transform 0.3s;
+    }
+    .switch-input:checked::before {
+      transform: translateX(16px);
     }
 
     .traffic-grid {
@@ -229,8 +288,14 @@
         <div class="live-monitoring-title">
           <i class="bi bi-speedometer2" style="color:#6366f1"></i> LIVE BANDWIDTH MONITORING
         </div>
-        <div class="badge-live-pulse">
-          <span class="dot"></span> <i class="bi bi-broadcast"></i> LIVE
+        <div class="toggle-live-container">
+          <div class="toggle-live-switch" title="Aktifkan/Nonaktifkan Pemantauan Trafik Real-time & Auto-Refresh">
+            <label for="liveMonitoringToggle">Live Auto-Refresh:</label>
+            <input type="checkbox" id="liveMonitoringToggle" class="switch-input" checked onchange="toggleLiveMonitoring(this.checked)">
+          </div>
+          <div class="badge-live-pulse" id="liveStatusBadge">
+            <span class="dot"></span> <i class="bi bi-broadcast"></i> LIVE
+          </div>
         </div>
       </div>
       <%
@@ -540,10 +605,43 @@ async function showCustomerDetail(username) {
 
 let serverLiveRxBps = 0;
 let serverLiveTxBps = 0;
+let livePollingTimer = null;
+let isLiveMonitoringEnabled = true;
+
+function updateLiveBadgeUI(enabled) {
+  const badge = document.getElementById('liveStatusBadge');
+  if (!badge) return;
+  if (enabled) {
+    badge.className = 'badge-live-pulse';
+    badge.innerHTML = '<span class="dot"></span> <i class="bi bi-broadcast"></i> LIVE';
+  } else {
+    badge.className = 'badge-live-pulse paused';
+    badge.innerHTML = '<span class="dot"></span> <i class="bi bi-pause-circle"></i> PAUSED';
+  }
+}
+
+function toggleLiveMonitoring(enabled) {
+  isLiveMonitoringEnabled = Boolean(enabled);
+  try {
+    localStorage.setItem('radius_live_monitoring', isLiveMonitoringEnabled ? '1' : '0');
+  } catch (e) {}
+
+  updateLiveBadgeUI(isLiveMonitoringEnabled);
+
+  if (livePollingTimer) {
+    clearInterval(livePollingTimer);
+    livePollingTimer = null;
+  }
+
+  if (isLiveMonitoringEnabled) {
+    fetchLiveSessions();
+    livePollingTimer = setInterval(fetchLiveSessions, 3000);
+  }
+}
 
 async function fetchLiveSessions() {
   try {
-    const res = await fetch('/admin/radius/api/sessions');
+    const res = await fetch(`/admin/radius/api/sessions?live=${isLiveMonitoringEnabled ? '1' : '0'}`);
     const data = await res.json();
     if (!data.success) return;
 
@@ -632,9 +730,26 @@ function renderUI() {
   }).join('');
 }
 
-// Auto-Polling Interval ke Backend RADIUS API setiap 3 Detik
-setInterval(fetchLiveSessions, 3000);
-fetchLiveSessions();
+// Inisialisasi awal toggle state live monitoring dari localStorage
+(function initLiveMonitoring() {
+  let savedState = '1';
+  try {
+    savedState = localStorage.getItem('radius_live_monitoring');
+  } catch (e) {}
+
+  const toggleInput = document.getElementById('liveMonitoringToggle');
+  if (savedState === '0') {
+    isLiveMonitoringEnabled = false;
+    if (toggleInput) toggleInput.checked = false;
+    updateLiveBadgeUI(false);
+  } else {
+    isLiveMonitoringEnabled = true;
+    if (toggleInput) toggleInput.checked = true;
+    updateLiveBadgeUI(true);
+    livePollingTimer = setInterval(fetchLiveSessions, 3000);
+  }
+  fetchLiveSessions();
+})();
 </script>
 </body>
 </html>

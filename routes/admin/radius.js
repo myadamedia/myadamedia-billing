@@ -287,8 +287,9 @@ router.get('/api/sessions', requireAdminSession, async (req, res) => {
       ORDER BY radacctid DESC
     `).all();
 
-    // 1. Dapatkan daftar seluruh MikroTik Router ID yang aktif
-    const routerIds = getActiveRouterIds();
+    // 1. Dapatkan daftar seluruh MikroTik Router ID yang aktif (hanya query API jika live monitoring aktif)
+    const isLive = req.query.live !== '0';
+    const routerIds = isLive ? getActiveRouterIds() : [];
     const liveApiTrafficMap = new Map();
 
     if (routerIds.length > 0) {

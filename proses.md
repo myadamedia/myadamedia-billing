@@ -2,6 +2,28 @@
 
 ---
 
+## [2026-08-11] Fitur Toggle Switch Enable/Disable Live Monitoring Trafik RADIUS
+
+### 1. Deskripsi Fitur Baru
+Menambahkan kontrol sakelar (**Toggle Switch**) interaktif pada widget **Live Bandwidth Monitoring** (`/admin/radius/sessions`). Fitur ini memungkinkan admin untuk mengaktifkan (**Enable**) atau menonaktifkan (**Disable / Pause**) pemantauan trafik *real-time* dan *auto-refresh* secara fleksibel.
+
+### 2. Komponen & Implementasi Teknis
+- **UI & Interaction (`views/admin/radius/active_sessions.ejs`)**:
+  - Menambahkan toggle switch bertema *dark-glassmorphism* di header widget dengan label `Live Auto-Refresh`.
+  - **Status Badge Dynamism**:
+    - **ON / Enabled**: Menampilkan indikator animasi glowing hijau `<span class="dot"></span> LIVE`.
+    - **OFF / Disabled**: Menampilkan indikator abu-abu murni `<span class="dot"></span> PAUSED`.
+  - **Client State Persistence (`localStorage`)**: Status sakelar tersimpan otomatis di `localStorage.setItem('radius_live_monitoring', '1'/'0')`, sehingga pilihan admin (Enabled/Disabled) tetap bertahan meskipun halaman di-refresh atau dinavigasi kembali.
+- **Backend Optimization (`routes/admin/radius.js`)**:
+  - Menambahkan dukungan query parameter `?live=0` pada endpoint `/admin/radius/api/sessions`.
+  - Ketika sakelar dalam posisi **OFF (Disabled)**, backend secara cerdas melewati (*skip*) query API ke MikroTik RouterOS untuk menghemat penggunaan CPU server dan lalu lintas jaringan.
+
+### 3. Hasil Pengujian & Verifikasi
+- Sintaks JavaScript (`node -c`): **PASSED** (0 Error).
+- Pengujian fungsionalitas UI: Sakelar merespon instan, polling otomatis berhenti saat PAUSED, dan status tersimpan di `localStorage`.
+
+---
+
 ## [2026-08-11] Perbaikan Bug '0.00 bps Freeze' pada Monitoring Live Bandwidth RADIUS & MikroTik
 
 ### 1. Permasalahan yang Ditemukan
