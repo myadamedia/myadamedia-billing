@@ -2,6 +2,30 @@
 
 ---
 
+## [2026-08-11] Pengecualian Pelanggan Paket Free / Gratis pada Generate Invoice & Distribusi Jatuh Tempo
+
+### 1. Deskripsi Perubahan
+Menambahkan aturan bisnis dan validasi sistem agar seluruh pelanggan yang menggunakan **Paket Free / Gratis** (harga paket = Rp 0 atau nama paket mengandung kata `'Free'` / `'Gratis'`) secara otomatis **dikecualikan** dari:
+1. **Proses Generate Tagihan Bulanan / Invoice** (`generateMonthlyInvoices` & `generateInvoiceForCustomer`).
+2. **Perhitungan & Tampilan Distribusi Jatuh Tempo** (`getDueDistributionSummary` & `getDueDistributionDetailsByDay`).
+
+### 2. Modul & File yang Diperbarui
+- **`services/billingService.js`**:
+  - Menambahkan helper `isFreePackage(pkg)` untuk mendeteksi paket berbayar vs paket Free/Gratis.
+  - Memperbarui `generateMonthlyInvoices(month, year)` agar melewati (*skip*) pelanggan berpaket Free.
+  - Memperbarui `generateInvoiceForCustomer(customerId, month, year)` agar menolak/membatalkan pembuatan invoice untuk pelanggan berpaket Free dengan pesan error resmi.
+  - Memperbarui `getDueDistributionSummary(month, year)` dan `getDueDistributionDetailsByDay(day, month, year)` agar memfilter (*exclude*) pelanggan berpaket Free dari kartu tanggal dan modal detail jatuh tempo.
+  - Mengekspor helper `isFreePackage`.
+
+### 3. Dampak Terhadap Sistem
+- **Efisiensi Tagihan & Database**: Tidak ada invoice Rp 0 yang terbentuk secara berlebihan untuk pelanggan Paket Free.
+- **Akurasi Laporan Jatuh Tempo**: Tampilan Distribusi Jatuh Tempo harian murni menyajikan pelanggan berbayar aktif yang memiliki potensi pendapatan kas.
+
+### 4. Hasil Pengujian & Verifikasi
+- Pengujian otomatis `npm test`: **PASSED** (100% LULUS).
+
+---
+
 ## [2026-08-11] Perbaikan Auto-Update Total Omset & Transaksi Keuangan Terbaru pada Portal Investor
 
 ### 1. Permasalahan & Root Cause

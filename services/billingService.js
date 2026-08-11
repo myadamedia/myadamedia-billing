@@ -26,6 +26,21 @@ function countInvoicesForCustomer(customerId) {
 }
 
 /**
+ * Pengecekan apakah sebuah paket atau pelanggan merupakan Paket Free / Gratis.
+ * Syarat Paket Free:
+ * 1. Harga paket <= 0
+ * 2. Atau Nama paket mengandung kata 'free' atau 'gratis' (case-insensitive)
+ */
+function isFreePackage(pkg) {
+  if (!pkg) return false;
+  const price = Number(pkg.price || 0);
+  if (price <= 0) return true;
+  const name = String(pkg.name || '').toLowerCase();
+  if (name.includes('free') || name.includes('gratis')) return true;
+  return false;
+}
+
+/**
  * Hitung nominal tagihan + catatan otomatis (promo siklus & prorata bulan pertama).
  * Promo: pakai promo_price untuk N invoice pertama per pelanggan (promo_cycles), lalu harga normal.
  * Prorata: jika paket mengaktifkan prorate_first_invoice, belum pernah ada invoice,
@@ -135,6 +150,7 @@ function generateMonthlyInvoices(month, year) {
       if (existingIds.has(c.id)) continue;
       const pkg = db.prepare('SELECT * FROM packages WHERE id=?').get(c.package_id);
       if (!pkg) continue;
+      if (isFreePackage(pkg)) continue; // SKIP PELANGGAN PAKET FREE / GRATIS
       const { amount, carriedBalance, bumpPromo: bump, notesAuto } = computeInvoiceAmountAndMeta(c, pkg, month, year);
       insert.run(c.id, month, year, amount, amount, carriedBalance, notesAuto);
       if (bump) bumpPromo.run(c.id);
@@ -157,13 +173,14 @@ function generateInvoiceForCustomer(customerId, month, year) {
   if (!customer) throw new Error('Pelanggan tidak ditemukan');
   if (!customer.package_id) throw new Error('Pelanggan belum memiliki paket');
 
+  const pkg = db.prepare('SELECT * FROM packages WHERE id=?').get(customer.package_id);
+  if (!pkg) throw new Error('Paket pelanggan tidak ditemukan');
+  if (isFreePackage(pkg)) throw new Error('Pelanggan dengan paket Free / Gratis tidak memerlukan invoice/tagihan');
+
   const exists = db.prepare('SELECT id FROM invoices WHERE customer_id=? AND period_month=? AND period_year=? LIMIT 1').get(cid, m, y);
   if (exists) {
     return { created: false, invoiceId: exists.id, customerName: customer.name };
   }
-
-  const pkg = db.prepare('SELECT * FROM packages WHERE id=?').get(customer.package_id);
-  if (!pkg) throw new Error('Paket pelanggan tidak ditemukan');
 
   const { amount, carriedBalance, bumpPromo: bump, notesAuto } = computeInvoiceAmountAndMeta(customer, pkg, m, y);
   const r = db.prepare('INSERT INTO invoices (customer_id, period_month, period_year, amount, paid_amount, balance_due, carried_balance, notes) VALUES (?, ?, ?, ?, 0, ?, ?, ?)').run(cid, m, y, amount, amount, carriedBalance, notesAuto);
@@ -808,14 +825,14 @@ function getDueDistributionSummary(month, year) {
   const y = parseInt(year, 10) || new Date().getFullYear();
   const maxDays = daysInMonth(y, m);
 
-  // Ambil seluruh pelanggan aktif/suspended
+  // Ambil seluruh pelanggan aktif/suspended (Kecuali Paket Free / Gratis)
   const customers = db.prepare(`
     SELECT c.id, c.name, c.phone, c.address, c.isolate_day, c.install_date, c.status as customer_status,
            p.name as package_name, p.price as package_price
     FROM customers c
     LEFT JOIN packages p ON c.package_id = p.id
-    WHERE c.status != 'inactive'
-  `).all();
+    WHERE c.status != 'inactive' AND c.package_id IS NOT NULL
+  `).all().filter(c => !isFreePackage({ price: c.package_price, name: c.package_name }));
 
   // Ambil seluruh invoice periode bulan & tahun tersebut
   const invoices = db.prepare(`
@@ -916,9 +933,9 @@ function getDueDistributionDetailsByDay(day, month, year) {
            p.name as package_name, p.price as package_price
     FROM customers c
     LEFT JOIN packages p ON c.package_id = p.id
-    WHERE c.status != 'inactive'
+    WHERE c.status != 'inactive' AND c.package_id IS NOT NULL
     ORDER BY c.name ASC
-  `).all();
+  `).all().filter(c => !isFreePackage({ price: c.package_price, name: c.package_name }));
 
   const invoices = db.prepare(`
     SELECT id, customer_id, period_month, period_year, amount, paid_amount, balance_due, status, paid_at, paid_by_name
@@ -1041,6 +1058,7 @@ module.exports = {
   getDashboardStats, getRecentPayments, getTopUnpaid,
   getTodayRevenue,
   updatePaymentInfo,
+  isFreePackage,
   getDueDistributionSummary,
   getDueDistributionDetailsByDay
 };
