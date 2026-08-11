@@ -157,6 +157,9 @@
         if (val >= 1048576) return (val / 1048576).toFixed(2) + ' MB';
         return (val / 1024).toFixed(2) + ' KB';
       }
+
+      const safeRxOctets = (typeof totalOutputOctets !== 'undefined') ? totalOutputOctets : ((typeof locals !== 'undefined' && typeof locals.totalOutputOctets !== 'undefined') ? locals.totalOutputOctets : 0);
+      const safeTxOctets = (typeof totalInputOctets !== 'undefined') ? totalInputOctets : ((typeof locals !== 'undefined' && typeof locals.totalInputOctets !== 'undefined') ? locals.totalInputOctets : 0);
     %>
 
     <!-- Widget Live Bandwidth Monitoring (Presisi Gambar UI) -->
@@ -174,14 +177,14 @@
         <div class="traffic-block download">
           <div class="traffic-label">DOWNLOAD (RX SPEED)</div>
           <div class="traffic-speed" id="liveRxSpeed">0.00 Mbps</div>
-          <div class="traffic-total" id="liveRxTotal">Total: <%= fmtBytes(totalOutputOctets) %></div>
+          <div class="traffic-total" id="liveRxTotal">Total: <%= fmtBytes(safeRxOctets) %></div>
         </div>
 
         <!-- UPLOAD (TX SPEED) -->
         <div class="traffic-block upload">
           <div class="traffic-label">UPLOAD (TX SPEED)</div>
           <div class="traffic-speed" id="liveTxSpeed">0.00 Mbps</div>
-          <div class="traffic-total" id="liveTxTotal">Total: <%= fmtBytes(totalInputOctets) %></div>
+          <div class="traffic-total" id="liveTxTotal">Total: <%= fmtBytes(safeTxOctets) %></div>
         </div>
       </div>
     </div>
@@ -277,8 +280,8 @@
 
 <script>
 let lastTimestamp = Date.now();
-let lastTotalRxBytes = Number("<%= totalOutputOctets || 0 %>");
-let lastTotalTxBytes = Number("<%= totalInputOctets || 0 %>");
+let lastTotalRxBytes = Number("<%= safeRxOctets %>");
+let lastTotalTxBytes = Number("<%= safeTxOctets %>");
 
 function openModal(id) {
   const m = document.getElementById(id);

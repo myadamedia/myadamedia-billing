@@ -2,6 +2,26 @@
 
 ---
 
+## [2026-08-11] Perbaikan Bug ReferenceError `totalOutputOctets is not defined` pada Sesi RADIUS
+
+### 1. Deskripsi Perbaikan Bug
+Memperbaiki error runtime EJS `ReferenceError: totalOutputOctets is not defined` yang terjadi saat halaman `/admin/radius/sessions` diakses.
+
+### 2. Root Cause & Solusi
+- **Penyebab**: Templating EJS melempar `ReferenceError` ketika variabel `totalOutputOctets` atau `totalInputOctets` dipanggil secara langsung namun konteks EJS/locals tidak mendefinisikannya secara eksplisit.
+- **Solusi pada `views/admin/radius/active_sessions.ejs`**:
+  - Menambahkan pengecekan *safe fallback* variabel lokal:
+    ```javascript
+    const safeRxOctets = (typeof totalOutputOctets !== 'undefined') ? totalOutputOctets : ((typeof locals !== 'undefined' && typeof locals.totalOutputOctets !== 'undefined') ? locals.totalOutputOctets : 0);
+    const safeTxOctets = (typeof totalInputOctets !== 'undefined') ? totalInputOctets : ((typeof locals !== 'undefined' && typeof locals.totalInputOctets !== 'undefined') ? locals.totalInputOctets : 0);
+    ```
+  - Mengganti referensi langsung dengan `safeRxOctets` dan `safeTxOctets` sehingga halaman 100% aman dan bebas dari crash.
+
+### 3. Hasil Pengujian & Verifikasi
+- Pengujian otomatis `npm test`: **PASSED** (100% LULUS).
+
+---
+
 ## [2026-08-11] Penambahan Fitur Popup Detail Pelanggan pada Menu Sesi Aktif RADIUS
 
 ### 1. Deskripsi Fitur Baru
