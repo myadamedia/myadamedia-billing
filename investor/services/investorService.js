@@ -56,20 +56,30 @@ function getDateRange(period = 'this_month') {
 function getExecutiveSummary(period = 'this_month') {
   try {
     const { startDate, endDate } = getDateRange(period);
+    const startD = startDate.substring(0, 10);
+    const endD = endDate.substring(0, 10);
 
-    // 1. Total Pendapatan (Revenue) dari Invoices Tagihan Lunas
+    // 1. Total Pendapatan (Revenue) dari Invoices Tagihan Lunas / Parsial
     const payRow = db.prepare(`
-      SELECT COALESCE(SUM(amount), 0) as total_payments
+      SELECT COALESCE(SUM(
+        CASE 
+          WHEN status = 'paid' THEN COALESCE(paid_amount, amount)
+          WHEN status = 'partial' THEN COALESCE(paid_amount, 0)
+          ELSE 0
+        END
+      ), 0) as total_payments
       FROM invoices
-      WHERE status = 'paid' AND paid_at >= ? AND paid_at <= ?
-    `).get(startDate, endDate);
+      WHERE paid_at IS NOT NULL 
+        AND date(paid_at) >= date(?) 
+        AND date(paid_at) <= date(?)
+    `).get(startD, endD);
 
     // 2. Total Pendapatan dari Cash In Tambahan (non-tagihan)
     const cashInRow = db.prepare(`
       SELECT COALESCE(SUM(amount), 0) as total_cashin
       FROM cash_in
-      WHERE date >= ? AND date <= ?
-    `).get(startDate.substring(0, 10), endDate.substring(0, 10));
+      WHERE date(date) >= date(?) AND date(date) <= date(?)
+    `).get(startD, endD);
 
     const grossRevenue = (payRow ? payRow.total_payments : 0) + (cashInRow ? cashInRow.total_cashin : 0);
 
@@ -77,8 +87,8 @@ function getExecutiveSummary(period = 'this_month') {
     const expRow = db.prepare(`
       SELECT COALESCE(SUM(amount), 0) as total_expenses
       FROM expenses
-      WHERE date >= ? AND date <= ?
-    `).get(startDate.substring(0, 10), endDate.substring(0, 10));
+      WHERE date(date) >= date(?) AND date(date) <= date(?)
+    `).get(startD, endD);
 
     const totalExpenses = expRow ? expRow.total_expenses : 0;
 
@@ -214,10 +224,16 @@ function getFinancialTrends(monthsCount = 6) {
       // Label Bulan Bahasa Indonesia (misal: "Jan 2026")
       const monthLabel = d.toLocaleDateString('id-ID', { month: 'short', year: 'numeric' });
 
-      // Revenue dari Tagihan Lunas
+      // Revenue dari Tagihan Lunas / Parsial & Kas Masuk
       const pay = db.prepare(`
-        SELECT COALESCE(SUM(amount), 0) as total FROM invoices
-        WHERE status = 'paid' AND strftime('%Y-%m', paid_at) = ?
+        SELECT COALESCE(SUM(
+          CASE 
+            WHEN status = 'paid' THEN COALESCE(paid_amount, amount)
+            WHEN status = 'partial' THEN COALESCE(paid_amount, 0)
+            ELSE 0
+          END
+        ), 0) as total FROM invoices
+        WHERE paid_at IS NOT NULL AND strftime('%Y-%m', paid_at) = ?
       `).get(monthKey).total;
 
       const cashIn = db.prepare(`
@@ -318,21 +334,41 @@ function getExpenseBreakdown(period = 'this_month') {
  */
 function getRecentTransactions(limit = 8) {
   try {
+    // 1. Pembayaran Tagihan (Invoices)
     const payments = db.prepare(`
-      SELECT ('Pembayaran Tagihan - ' || c.name) as title, i.amount, i.paid_at as date, 'IN' as type
+      SELECT ('Pembayaran Tagihan - ' || c.name) as title, 
+             COALESCE(i.paid_amount, i.amount) as amount, 
+             i.paid_at as date, 
+             'IN' as type
       FROM invoices i
       JOIN customers c ON i.customer_id = c.id
-      WHERE i.status = 'paid' AND i.paid_at IS NOT NULL
-      ORDER BY i.id DESC LIMIT ?
+      WHERE i.paid_at IS NOT NULL 
+        AND (i.status = 'paid' OR (i.status = 'partial' AND i.paid_amount > 0))
+      ORDER BY i.paid_at DESC LIMIT ?
     `).all(limit);
 
+    // 2. Kas Masuk (Cash In Non-Tagihan)
+    const cashIns = db.prepare(`
+      SELECT ('Kas Masuk - ' || category || COALESCE(' (' || description || ')', '')) as title,
+             amount,
+             (date || ' 12:00:00') as date,
+             'IN' as type
+      FROM cash_in
+      ORDER BY id DESC LIMIT ?
+    `).all(limit);
+
+    // 3. Pengeluaran (Expenses)
     const expenses = db.prepare(`
-      SELECT description as title, amount, date || ' 12:00:00' as date, 'OUT' as type
-      FROM expenses ORDER BY id DESC LIMIT ?
+      SELECT (description || ' (' || category || ')') as title,
+             amount,
+             (date || ' 12:00:00') as date,
+             'OUT' as type
+      FROM expenses
+      ORDER BY id DESC LIMIT ?
     `).all(limit);
 
-    const merged = [...payments, ...expenses]
-      .sort((a, b) => new Date(b.date) - new Date(a.date))
+    const merged = [...payments, ...cashIns, ...expenses]
+      .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
       .slice(0, limit);
 
     return merged.map(tx => ({

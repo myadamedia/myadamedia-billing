@@ -2,6 +2,25 @@
 
 ---
 
+## [2026-08-11] Perbaikan Auto-Update Total Omset & Transaksi Keuangan Terbaru pada Portal Investor
+
+### 1. Permasalahan & Root Cause
+- **Bugs Total Omset & Laba**: Pada `investor/services/investorService.js`, query agregasi omset (`getExecutiveSummary`) hanya memfilter tagihan dengan `status = 'paid'` dan menjumlahkan `amount`. Hal ini menyebabkan pembayaran tagihan parsial (`status = 'partial'`), penyesuaian nominal bayar `paid_amount`, dan perbandingan tanggal bermformat ISO (`paid_at`) terlewat/tidak terhitung.
+- **Bugs Transaksi Keuangan Terbaru**: Query `getRecentTransactions` sebelumnya hanya mengambil data dari tabel `invoices` dan `expenses` dengan pengurutan `ORDER BY id DESC`. Transaksi **Kas Masuk** (`cash_in`) tidak disertakan, dan pengurutan berdasarkan `id` menyebabkan pembayaran tagihan lama yang baru lunas hari ini tidak berada di posisi paling atas.
+
+### 2. Solusi & Perubahan yang Diterapkan
+- **`investor/services/investorService.js`**:
+  - Memperbarui `getExecutiveSummary` agar menghitung nominal `paid_amount` pada tagihan status `'paid'` dan `'partial'` (`COALESCE(paid_amount, amount)`).
+  - Memperbarui perbandingan tanggal SQLite menggunakan `date(paid_at) >= date(?) AND date(paid_at) <= date(?)` yang aman untuk seluruh format timestamp.
+  - Memperbarui `getRecentTransactions` untuk mengonsolidasikan 3 sumber transaksi keuangan: **Pembayaran Tagihan (`invoices`)**, **Kas Masuk (`cash_in`)**, dan **Pengeluaran (`expenses`)**, disortir berdasarkan tanggal transaksi terbaru secara presisi.
+- **`investor/routes/investorPortal.js`**:
+  - Menambahkan REST API endpoint `GET /investor/api/summary` untuk mendukung live update data ringkasan eksekutif dan transaksi terbaru.
+
+### 3. Dampak Terhadap Sistem
+- Total Omset (Gross Revenue), Pengeluaran, Laba Bersih, Dividen Investor, dan Transaksi Keuangan Terbaru di Portal Investor kini secara otomatis dan real-time tersinkronisasi 100% dengan transaksi billing.
+
+---
+
 ## [2026-08-11] Penambahan Nilai Total Tagihan (Lunas & Belum Bayar) pada Kartu Distribusi Jatuh Tempo Harian
 
 ### 1. Deskripsi Perubahan

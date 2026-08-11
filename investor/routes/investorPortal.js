@@ -93,6 +93,30 @@ router.get('/dashboard', requireInvestor, (req, res) => {
 
 
 /**
+ * GET /investor/api/summary - REST API Real-time Executive Summary & Recent Transactions
+ */
+router.get('/api/summary', requireInvestor, (req, res) => {
+  try {
+    const period = req.query.period || 'this_month';
+    const currentInvestor = req.session.investor;
+
+    const summary = investorService.getExecutiveSummary(period);
+    const dividendInfo = investorService.getDividendBreakdown(currentInvestor.id, period);
+    const recentTx = investorService.getRecentTransactions(8);
+
+    res.json({
+      success: true,
+      summary,
+      dividendInfo,
+      recentTx
+    });
+  } catch (err) {
+    console.error('[Investor Router] API Summary error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
  * GET /investor/api/chart-data - REST API Data Grafik Keuangan & Tren
  */
 router.get('/api/chart-data', requireInvestor, (req, res) => {
