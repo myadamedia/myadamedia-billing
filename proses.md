@@ -2,6 +2,53 @@
 
 ---
 
+## [2026-08-11] Penambahan Fitur Popup Detail Pelanggan pada Menu Sesi Aktif RADIUS
+
+### 1. Deskripsi Fitur Baru
+Menambahkan fitur interaktif pada halaman **Monitoring Sesi Aktif RADIUS** (`/admin/radius/sessions`). Ketika admin mengklik **Username** pelanggan pada tabel sesi aktif, sistem akan menampilkan **Modal Popup Detail Pelanggan** yang menyajikan informasi profil, status paket, nomor telepon WhatsApp, tanggal pasang, status tunggakan tagihan, serta detail sesi online RADIUS secara real-time.
+
+### 2. Modul & File yang Diperbarui
+- **`routes/admin/radius.js`**:
+  - Menambahkan REST API endpoint `GET /admin/radius/api/customer-detail?username=...` untuk melakukan lookup data pelanggan berdasarkan `pppoe_username`, `hotspot_username`, atau `name`, serta menyertakan akumulasi sisa tunggakan tagihan (`invoices`) dan detail sesi online.
+- **`views/admin/radius/active_sessions.ejs`**:
+  - Mengubah render kolom Username menjadi tautan interaktif bertema cyan (`.user-detail-link`) dengan tooltip *"Klik untuk lihat detail pelanggan"*.
+  - Menambahkan komponen Modal `#customerDetailModal` bertema *Dark Glassmorphism*.
+  - Menambahkan fungsi JavaScript `showCustomerDetail(username)` untuk fetch data API dan merender profil pelanggan lengkap beserta tombol pintas WhatsApp & Kick CoA.
+
+### 3. Dampak Terhadap Sistem
+- **Efisiensi Manajemen Operational**: Admin tidak perlu berpindah halaman ke pencarian pelanggan untuk memeriksa alamat, nomor HP WhatsApp, paket langganan, maupun status tunggakan tagihan user RADIUS.
+- **Navigasi Cepat**: Menyediakan tautan langsung ke obrolan WhatsApp dan halaman manajemen detail pelanggan.
+
+### 4. Hasil Pengujian & Verifikasi
+- Pengujian otomatis `npm test`: **PASSED** (100% LULUS).
+
+---
+
+## [2026-08-11] Penambahan Widget Live Bandwidth Monitoring pada Halaman Sesi Aktif RADIUS
+
+### 1. Deskripsi Fitur Baru
+Menambahkan komponen widget **LIVE BANDWIDTH MONITORING** pada halaman **Monitoring Sesi Aktif RADIUS** (`/admin/radius/sessions`) untuk menyajikan visualisasi statistik kecepatan transfer data real-time (**Download RX Speed** & **Upload TX Speed**) dan total akumulasi volume data (**Total Download** & **Total Upload**) presisi sesuai dengan desain antarmuka pengguna (UI).
+
+### 2. Modul & File yang Diperbarui
+- **`routes/admin/radius.js`**:
+  - Memperbarui handler `GET /admin/radius/sessions` dan REST API `GET /admin/radius/api/sessions` untuk menghitung total akumulasi byte upload (`totalInputOctets`) dan download (`totalOutputOctets`) dari seluruh sesi aktif pelanggan.
+  - Menambahkan timestamp server real-time untuk perhitungan *rate-delta* transfer data yang akurat.
+- **`views/admin/radius/active_sessions.ejs`**:
+  - Menambahkan card container `live-monitoring-card` bertema *Obsidian Glassmorphism* dengan header `LIVE BANDWIDTH MONITORING` dan badge animasi perpendar `LIVE`.
+  - Menampilkan 2 blok status berdampingan:
+    - **DOWNLOAD (RX SPEED)** (Aksen Hijau `#10b981`): Kecepatan Download real-time (e.g. `19.19 Mbps`) dan total volume download (e.g. `Total: 2.78 TB`).
+    - **UPLOAD (TX SPEED)** (Aksen Biru `#3b82f6`): Kecepatan Upload real-time (e.g. `7.86 Mbps`) dan total volume upload (e.g. `Total: 153.39 GB`).
+  - Mengimplementasikan client-side traffic engine yang mengkalkulasi selisih data byte (*rate-delta*) terhadap waktu polling (interval 3 detik).
+
+### 3. Dampak Terhadap Sistem
+- **Monitoring Trafik Real-time**: Admin dan Tim Network Operation dapat secara instan melihat utilisasi bandwidth total seluruh pelanggan PPPoE/Hotspot yang terhubung via RADIUS Server secara *live*.
+- **Responsif & Visualisasi Presisi**: Mendukung penformatan unit otomatis (`bps`, `Kbps`, `Mbps`, `Gbps` dan `KB`, `MB`, `GB`, `TB`) dengan visual yang modern dan responsif.
+
+### 4. Hasil Pengujian & Verifikasi
+- Pengujian otomatis `npm test`: **PASSED** (100% LULUS).
+
+---
+
 ## [2026-08-11] Pengecualian Pelanggan Paket Free / Gratis pada Generate Invoice & Distribusi Jatuh Tempo
 
 ### 1. Deskripsi Perubahan

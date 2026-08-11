@@ -201,11 +201,20 @@ router.get('/sessions', requireAdminSession, async (req, res) => {
       ORDER BY radacctid DESC
     `).all();
 
+    let totalInputOctets = 0;
+    let totalOutputOctets = 0;
+    activeSessions.forEach(s => {
+      totalInputOctets += Number(s.acctinputoctets || 0);
+      totalOutputOctets += Number(s.acctoutputoctets || 0);
+    });
+
     res.render('admin/radius/active_sessions', {
       title: 'Active RADIUS Sessions',
       company: company(),
       activePage: 'radius_sessions',
       activeSessions,
+      totalInputOctets,
+      totalOutputOctets,
       msg: flashMsg(req)
     });
   } catch (err) {
@@ -213,7 +222,7 @@ router.get('/sessions', requireAdminSession, async (req, res) => {
   }
 });
 
-// JSON API Active Sessions (Untuk Auto-Refresh Frontend)
+// JSON API Active Sessions (Untuk Auto-Refresh Frontend & Live Traffic Calculations)
 router.get('/api/sessions', requireAdminSession, (req, res) => {
   try {
     cleanupStaleRadiusSessions();
@@ -223,8 +232,92 @@ router.get('/api/sessions', requireAdminSession, (req, res) => {
       WHERE acctstoptime IS NULL
       ORDER BY radacctid DESC
     `).all();
-    res.json({ success: true, sessions });
+
+    let totalInputOctets = 0;
+    let totalOutputOctets = 0;
+    sessions.forEach(s => {
+      totalInputOctets += Number(s.acctinputoctets || 0);
+      totalOutputOctets += Number(s.acctoutputoctets || 0);
+    });
+
+    res.json({
+      success: true,
+      sessions,
+      totalInputOctets,
+      totalOutputOctets,
+      timestamp: Date.now()
+    });
   } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// REST API Customer Detail Popup berdasarkan RADIUS Username
+router.get('/api/customer-detail', requireAdminSession, (req, res) => {
+  try {
+    const rawUsername = String(req.query.username || '').trim();
+    if (!rawUsername) {
+      return res.status(400).json({ success: false, error: 'Username wajib diisi' });
+    }
+
+    // 1. Cari data pelanggan berdasarkan pppoe_username, hotspot_username, atau name
+    const customer = db.prepare(`
+      SELECT c.*, p.name as package_name, p.price as package_price
+      FROM customers c
+      LEFT JOIN packages p ON c.package_id = p.id
+      WHERE LOWER(c.pppoe_username) = LOWER(?)
+         OR LOWER(c.hotspot_username) = LOWER(?)
+         OR LOWER(c.name) = LOWER(?)
+      LIMIT 1
+    `).get(rawUsername, rawUsername, rawUsername);
+
+    // 2. Ambil data sesi aktif RADIUS (jika sedang online)
+    const activeSession = db.prepare(`
+      SELECT * FROM radius_acct
+      WHERE acctstoptime IS NULL AND LOWER(username) = LOWER(?)
+      ORDER BY radacctid DESC LIMIT 1
+    `).get(rawUsername);
+
+    if (!customer) {
+      return res.json({
+        success: true,
+        found: false,
+        username: rawUsername,
+        message: `Username '${rawUsername}' terhubung di RADIUS, namun belum ditautkan ke profil pelanggan di basis data billing.`,
+        activeSession: activeSession || null
+      });
+    }
+
+    // 3. Ambil ringkasan tagihan (tunggakan)
+    const unpaidSummary = db.prepare(`
+      SELECT COUNT(*) as unpaid_count, COALESCE(SUM(balance_due), 0) as total_unpaid_amount
+      FROM invoices
+      WHERE customer_id = ? AND status IN ('unpaid', 'partial')
+    `).get(customer.id);
+
+    res.json({
+      success: true,
+      found: true,
+      customer: {
+        id: customer.id,
+        name: customer.name,
+        phone: customer.phone || '-',
+        address: customer.address || '-',
+        connection_type: customer.connection_type || 'PPPoE',
+        pppoe_username: customer.pppoe_username || '-',
+        hotspot_username: customer.hotspot_username || '-',
+        status: customer.status,
+        package_name: customer.package_name || 'Tanpa Paket',
+        package_price: customer.package_price || 0,
+        install_date: customer.install_date || '-',
+        isolate_day: customer.isolate_day || 20,
+        unpaid_count: unpaidSummary ? unpaidSummary.unpaid_count : 0,
+        total_unpaid_amount: unpaidSummary ? unpaidSummary.total_unpaid_amount : 0
+      },
+      activeSession: activeSession || null
+    });
+  } catch (err) {
+    console.error('[Radius Router] API Customer Detail Error:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });
