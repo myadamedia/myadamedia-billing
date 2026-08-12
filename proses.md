@@ -888,5 +888,20 @@ Mengubah tampilan halaman login pelanggan [views/login.ejs](file:///d:/WEBAPP/my
   - Stats bar kini rapi dengan 4 indikator utama (Total ODP, Pelanggan di Peta, Aktif, Terisolir/Suspended).
 - **Pengujian Unit (`npm test`)**: 9/9 Test Suites PASSED, 187/187 Tests PASSED.
 
+---
+
+## [2026-08-12] Eksklusi Pelanggan Paket Free dari Perhitungan "Pelanggan Aktif" Dashboard Investor
+
+### 1. Deskripsi Perubahan
+- Menyesuaikan kalkulasi metrik `activeCustomers` (Pelanggan Aktif) pada [investor/services/investorService.js](file:///d:/WEBAPP/myadamedia-billing/investor/services/investorService.js) agar pelanggan dengan paket Free (`status = 'free'`, nama paket mengandung kata `'free'`, atau harga paket `Rp 0`) tidak dihitung sebagai Pelanggan Berbayar Aktif pada Ringkasan Eksekutif Keuangan & Kartu KPI Investor.
+- Kebijakan ini memastikan bahwa angka *Pelanggan Aktif* yang disajikan kepada Investor secara murni merepresentasikan pelanggan berbayar (*paying customers*) yang memberikan kontribusi omset real.
+
+### 2. Modul & File yang Diperbarui
+- **`investor/services/investorService.js`**: Memperbarui query `activeCust` pada `getExecutiveSummary()` dengan klausa filter `LOWER(c.status) != 'free' AND (p.name IS NULL OR LOWER(p.name) NOT LIKE '%free%') AND (p.price IS NULL OR p.price > 0)`.
+
+### 3. Hasil Pengujian
+- **Pengujian Unit (`npm test`)**: 9/9 Test Suites PASSED, 187/187 Tests PASSED.
+
+
 
 

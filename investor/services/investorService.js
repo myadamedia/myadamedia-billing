@@ -114,9 +114,18 @@ function getExecutiveSummary(period = 'this_month') {
     `).get();
     const mrr = mrrRow ? mrrRow.mrr : 0;
 
-    // 6. Demografi & Status Pelanggan
+    // 6. Demografi & Status Pelanggan (Pelanggan Berbayar Aktif)
     const totalCust = db.prepare(`SELECT COUNT(*) as total FROM customers`).get().total;
-    const activeCust = db.prepare(`SELECT COUNT(*) as total FROM customers WHERE status = 'active'`).get().total;
+    const activeCustRow = db.prepare(`
+      SELECT COUNT(c.id) as total 
+      FROM customers c
+      LEFT JOIN packages p ON c.package_id = p.id
+      WHERE c.status = 'active'
+        AND LOWER(c.status) != 'free'
+        AND (p.name IS NULL OR LOWER(p.name) NOT LIKE '%free%')
+        AND (p.price IS NULL OR p.price > 0)
+    `).get();
+    const activeCust = activeCustRow ? activeCustRow.total : 0;
     const isolatedCust = db.prepare(`SELECT COUNT(*) as total FROM customers WHERE status IN ('isolated', 'suspended')`).get().total;
     
     // Pasang Baru (PSB) Bulan Ini
