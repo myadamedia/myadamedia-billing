@@ -2,6 +2,31 @@
 
 ---
 
+## [2026-08-12] Fitur Peta Jaringan & Infrastruktur Pelanggan Real-Time (Read-Only) pada Portal Investor
+
+### 1. Deskripsi Fitur Baru
+Menambahkan tampilan **Peta Jaringan & Infrastruktur Pelanggan** bertema *dark executive glassmorphism* pada Dashboard Investor (`/investor/dashboard`). Peta ini mereplikasi seluruh data peta jaringan dari backend (`odps`, `customers`, `olts`, jalur kabel fiber) secara **Strict Read-Only** (tanpa fitur tambah, edit, atau hapus) dengan pembaruan otomatis (**Real-time Auto-Sync**) setiap 10 detik.
+
+### 2. Komponen & Implementasi Teknis
+- **Backend Service (`investor/services/investorService.js`)**:
+  - Menambahkan fungsi `getMapData()` yang mengambil data ODP, data pelanggan dengan koordinat valid (`lat != 0`, `lng != 0`), OLTs aktif, serta menghitung agregasi statistik (Total ODP, Pelanggan di Peta, Pelanggan Aktif, Pelanggan Terisolir/Suspended, dan Jalur Kabel Fiber Terpasang).
+- **Backend Route REST API (`investor/routes/investorPortal.js`)**:
+  - Menambahkan endpoint `GET /investor/api/map-data` yang dilindungi otentikasi session `requireInvestor`. Endpoint mengembalikan data JSON terstruktur untuk dikonsumsi oleh widget Leaflet.
+- **Frontend Dashboard View (`investor/views/dashboard.ejs`)**:
+  - Menambahkan pustaka Leaflet.js (CSS & JS) di `<head>`.
+  - Menambahkan container card **Peta Jaringan & Infrastruktur Pelanggan (Read-Only)** dengan indikator status *LIVE Auto-Sync* glowing, 5 chip statistik jaringan, container peta Leaflet `#investor-map`, dan legend warna status.
+  - Menambahkan script JavaScript Leaflet interaktif dengan dukungan switcher layer (Dark Theme & Street View), custom icon ODP (Amber), custom icon Pelanggan (Biru/Hijau/Merah sesuai status), garis penghubung putus-putus ke ODP, polyline jalur kabel fiber (Ungu), serta *auto-polling* setiap 10 detik (`setInterval`) tanpa melakukan re-center / reset zoom saat investor menjelajah peta.
+
+### 3. Keamanan & Kepatuhan Aturan
+- **Strict Read-Only**: Pop-up Leaflet hanya menampilkan informasi detail pelanggan & ODP tanpa tombol aksi/formulir edit/hapus.
+- **Aturan Non-Destruktif**: Tidak mengubah kode atau file sistem lain yang sudah ada (`BroLinks` & modul admin `myadamedia-billing` tetap 100% aman).
+
+### 4. Hasil Pengujian & Verifikasi
+- Sintaks JavaScript (`node -c`): **PASSED** (0 Syntax Error pada `investorService.js` & `investorPortal.js`).
+
+---
+
+
 ## [2026-08-11] Fitur Toggle Switch Enable/Disable Live Monitoring Trafik RADIUS
 
 ### 1. Deskripsi Fitur Baru
@@ -814,4 +839,54 @@ Mengubah tampilan halaman login pelanggan [views/login.ejs](file:///d:/WEBAPP/my
 
 ### 3. Hasil Pengujian
 - **Pengujian Unit (`npm test`)**: 9/9 Test Suites PASSED, 187/187 Tests PASSED.
+
+---
+
+## [2026-08-12] Perbaikan Tampilan Peta Jaringan & Infrastruktur Pelanggan Dashboard Investor
+
+### 1. Penyebab Masalah (Root Cause)
+- Query SQL pada `investorService.getMapData()` di [investor/services/investorService.js](file:///d:/WEBAPP/myadamedia-billing/investor/services/investorService.js) sebelumnya memicu exception `no such column: capacity` karena mencoba membaca kolom `capacity` yang tidak ada di tabel SQLite `odps` (nama kolom aktual adalah `port_capacity`).
+- Query SQL pada fungsi yang sama juga memanggil `package_name` langsung dari tabel `customers` tanpa `LEFT JOIN packages`.
+- Akibat exception ini, blok `catch (err)` mengembalikan objek data kosong (`{ odps: [], customers: [], olts: [], stats: { totalOdps: 0, ... } }`), menyebabkan komponen Leaflet pada dashboard investor (`http://localhost:3001/investor/dashboard`) menampilkan 0 ODP dan 0 Pelanggan meskipun data pada `http://localhost:3001/admin/map` terisi penuh.
+
+### 2. Solusi & Perubahan yang Diterapkan
+- **`investor/services/investorService.js`**:
+  - Memperbarui fungsi `getMapData()` untuk memanfaatkan modul terintegrasi `odpService.getAllOdps()` dan `customerService.getAllCustomers()`.
+  - Mengkalkulasi kapasitas port ODP (`port_capacity`) serta pemakaian port aktual secara dinamis.
+  - Melakukan sanitasi koordinat `lat` & `lng`, kategorisasi pelanggan berbayar vs paket free, dan rekapitulasi jalur kabel fiber optic.
+
+### 3. Hasil Pengujian
+- **Pengujian API (`node -e ...`)**:
+  - `ODPs Count`: 22 ODP terdeteksi dan terpetakan dengan presisi.
+  - `Customers Count`: 79 Pelanggan terdeteksi beserta koordinat dan status koneksinya.
+- **Pengujian Unit (`npm test`)**: 9/9 Test Suites PASSED, 187/187 Tests PASSED.
+
+---
+
+## [2026-08-12] Perbaikan Presisi Penggambaran Jalur Kabel Peta Investor & Eliminasi Chip "Jalur Kabel Terpasang"
+
+### 1. Penyebab Masalah (Root Cause)
+- **Jalur Kabel Feeder/Uplink ODP Tidak Render**: Pada dashboard investor sebelumnya, penggambaran garis kabel backbone/feeder antar-ODP (maupun ODP ke Kantor Pusat NOC) tidak dijalankan sehingga hanya garis putus-putus pelanggan yang tampil.
+- **Overlapping Lines**: Jalur kabel pelanggan sebelumnya menggambar garis ganda jika pelanggan memiliki properti `cable_path`.
+- **Fitur redundant "Jalur Kabel Terpasang"**: Kartu chip statistik "Jalur Kabel Terpasang" diminta untuk dihapus dari *stats bar*.
+
+### 2. Solusi & Perubahan yang Diterapkan
+- **`investor/services/investorService.js`**:
+  - Menyertakan data `office` NOC (`office_lat`, `office_lng`), `parent_odp_id`, `parent_name`, `olt_id`, `pon_port`, dan `cable_path` pada payload `getMapData()`.
+  - Mengeliminasi kalkulasi `cablesCount` dari objek `stats`.
+- **`investor/views/dashboard.ejs`**:
+  - Menghapus chip statistik `<div class="map-stat-chip"><span class="lbl">Jalur Kabel Terpasang</span>...</div>`.
+  - Memperbarui skrip `loadInvestorMapData()` agar menyelaraskan penggambaran jalur kabel 100% sama persis dengan `http://localhost:3001/admin/map`:
+    1. **Kabel Feeder/Uplink ODP**: Menggambarkan polyline solid berketebalan 4px menghubungkan ODP ke Parent ODP (atau Kantor Pusat NOC) dengan pewarnaan dinamis berdasarkan PON port (`ponColorMap`).
+    2. **Kabel Drop Pelanggan**: Menggambarkan polyline putus-putus dengan animasi `flowing-line` berketebalan 3px sesuai status pelanggan (Biru untuk Aktif, Hijau untuk Free, Merah untuk Isolir).
+    3. **Custom Coordinate Polyline**: Mendukung array koordinat multi-titik (`cable_path`) baik untuk ODP maupun Pelanggan tanpa *overlapping line*.
+
+### 3. Hasil Pengujian
+- **Pengujian Peta & Data**:
+  - ODP Feeder & Uplink lines terhubung ke NOC / Parent ODP.
+  - Drop lines pelanggan terhubung ke ODP bersangkutan dengan efek animasi `flowing-line`.
+  - Stats bar kini rapi dengan 4 indikator utama (Total ODP, Pelanggan di Peta, Aktif, Terisolir/Suspended).
+- **Pengujian Unit (`npm test`)**: 9/9 Test Suites PASSED, 187/187 Tests PASSED.
+
+
 

@@ -8,7 +8,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
   <style>
     :root {
       --bg-dark: #090d16;
@@ -379,7 +382,146 @@
       padding-top: 20px;
       border-top: 1px solid var(--card-border);
     }
+
+    /* Investor Map Styles */
+    .map-section {
+      margin-top: 24px;
+      margin-bottom: 24px;
+    }
+    .map-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+    }
+    .map-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .map-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #34d399;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      background-color: #10b981;
+      border-radius: 50%;
+      box-shadow: 0 0 8px #10b981;
+      animation: pulse-dot 1.8s infinite;
+    }
+    @keyframes pulse-dot {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { transform: scale(1.2); box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+    .map-stats-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .map-stat-chip {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      padding: 10px 14px;
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+    }
+    .map-stat-chip .lbl {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .map-stat-chip .val {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-top: 2px;
+    }
+    #investor-map {
+      height: 480px;
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      z-index: 1;
+    }
+    .map-legend-bar {
+      display: flex;
+      gap: 16px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 500;
+    }
+    .legend-icon {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .leaflet-popup-content-wrapper {
+      background: #0f172a !important;
+      color: #f8fafc !important;
+      border: 1px solid rgba(255, 255, 255, 0.15) !important;
+      border-radius: 10px !important;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5) !important;
+    }
+    .leaflet-popup-tip {
+      background: #0f172a !important;
+    }
+    .inv-popup {
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .inv-popup h4 {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: #6366f1;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      padding-bottom: 4px;
+    }
+
+    /* Flowing animated dash line for customer drop cables */
+    @keyframes flow {
+      from { stroke-dashoffset: 20; }
+      to { stroke-dashoffset: 0; }
+    }
+    .flowing-line {
+      animation: flow 1.2s linear infinite;
+    }
   </style>
+
 </head>
 <body>
 
@@ -543,8 +685,57 @@
 
     </div>
 
+    <!-- Real-time Read-Only Network Map Section -->
+    <div class="map-section">
+      <div class="map-card">
+        <div class="map-header">
+          <div class="map-title">
+            <i class="bi bi-geo-alt-fill" style="color: var(--primary);"></i>
+            <span>Peta Jaringan & Infrastruktur Pelanggan (Read-Only)</span>
+          </div>
+          <div class="live-badge">
+            <span class="live-dot"></span>
+            <span>Auto-Sync Realtime</span>
+          </div>
+        </div>
+
+        <!-- Quick Stats Bar -->
+        <div class="map-stats-bar">
+          <div class="map-stat-chip">
+            <span class="lbl">Total ODP</span>
+            <span class="val" id="st-odp" style="color: #f59e0b;">0</span>
+          </div>
+          <div class="map-stat-chip">
+            <span class="lbl">Pelanggan di Peta</span>
+            <span class="val" id="st-cust" style="color: #3b82f6;">0</span>
+          </div>
+          <div class="map-stat-chip">
+            <span class="lbl">Aktif</span>
+            <span class="val" id="st-active" style="color: #10b981;">0</span>
+          </div>
+          <div class="map-stat-chip">
+            <span class="lbl">Terisolir / Suspended</span>
+            <span class="val" id="st-suspended" style="color: #ef4444;">0</span>
+          </div>
+        </div>
+
+        <!-- Leaflet Map Container -->
+        <div id="investor-map"></div>
+
+        <!-- Legend Bar -->
+        <div class="map-legend-bar">
+          <div class="legend-item"><span class="legend-icon" style="background:#f59e0b"></span> ODP (Optic Distribution Point)</div>
+          <div class="legend-item"><span class="legend-icon" style="background:#3b82f6"></span> Pelanggan Aktif</div>
+          <div class="legend-item"><span class="legend-icon" style="background:#10b981"></span> Pelanggan Gratis / Demo</div>
+          <div class="legend-item"><span class="legend-icon" style="background:#ef4444"></span> Pelanggan Terisolir</div>
+          <div class="legend-item"><span class="legend-icon" style="background:#a855f7; height:3px; border-radius:1px; width:16px;"></span> Jalur Kabel Fiber</div>
+        </div>
+      </div>
+    </div>
+
     <!-- Details Grid: Top Expense Categories & Recent Transactions -->
     <div class="details-grid">
+
 
       <!-- Top Expense Categories -->
       <div class="table-card">
@@ -714,9 +905,245 @@
           });
         }
 
+        // 3. Initialize Read-Only Network Map for Investor Dashboard
+        try {
+          const defaultLat = -6.200000;
+          const defaultLng = 106.816666;
+          const map = L.map('investor-map', {
+            zoomControl: true,
+            attributionControl: false
+          }).setView([defaultLat, defaultLng], 13);
+
+          const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19
+          });
+          const darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            maxZoom: 19
+          });
+          darkLayer.addTo(map);
+
+          L.control.layers({
+            "Dark Theme": darkLayer,
+            "Street View": streetLayer
+          }).addTo(map);
+
+          const markersLayer = L.layerGroup().addTo(map);
+          const linesLayer = L.layerGroup().addTo(map);
+
+          let initialCentered = false;
+
+          const ponColors = [
+            '#f59e0b', '#10b981', '#3b82f6', '#ec4899',
+            '#8b5cf6', '#ef4444', '#06b6d4', '#f97316',
+            '#14b8a6', '#a855f7', '#6366f1', '#84cc16'
+          ];
+
+          async function loadInvestorMapData() {
+            try {
+              const res = await fetch('/investor/api/map-data');
+              const data = await res.json();
+              if (!data.success) return;
+
+              // Update Quick Stats Bar
+              if (data.stats) {
+                document.getElementById('st-odp').textContent = data.stats.totalOdps || 0;
+                document.getElementById('st-cust').textContent = data.stats.totalMappedCustomers || 0;
+                document.getElementById('st-active').textContent = data.stats.activeCustomers || 0;
+                document.getElementById('st-suspended').textContent = data.stats.suspendedCustomers || 0;
+              }
+
+              markersLayer.clearLayers();
+              linesLayer.clearLayers();
+
+              const bounds = [];
+              const odpMarkers = {};
+
+              // Render Office NOC Marker if coordinates available
+              const officeCoords = data.office || { lat: -6.200000, lng: 106.816666 };
+              if (officeCoords.lat && officeCoords.lng) {
+                bounds.push([officeCoords.lat, officeCoords.lng]);
+                const officeIcon = L.divIcon({
+                  className: 'custom-office-icon',
+                  html: `<div style="background:#6366f1; color:#fff; width:30px; height:30px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:16px; border:2px solid #fff; box-shadow:0 0 12px rgba(99,102,241,0.8);"><i class="bi bi-building-fill"></i></div>`,
+                  iconSize: [30, 30],
+                  iconAnchor: [15, 15]
+                });
+                L.marker([officeCoords.lat, officeCoords.lng], { icon: officeIcon })
+                  .bindPopup(`<div class="inv-popup"><h4><i class="bi bi-building-fill"></i> Kantor Pusat / NOC</h4><div>Pusat jaringan &amp; distribusi fiber optik</div></div>`)
+                  .addTo(markersLayer);
+              }
+
+              // Build PON Port Color Map
+              const ponColorMap = {};
+              let colorIdx = 0;
+              (data.odps || []).forEach(odp => {
+                if (odp.olt_id && odp.pon_port && String(odp.pon_port).trim() !== '') {
+                  const key = `${odp.olt_id}_${String(odp.pon_port).trim()}`;
+                  if (!ponColorMap[key]) {
+                    ponColorMap[key] = ponColors[colorIdx % ponColors.length];
+                    colorIdx++;
+                  }
+                }
+              });
+
+              // 1. Render ODP Markers & Index Locations
+              (data.odps || []).forEach(odp => {
+                const lat = parseFloat(odp.lat);
+                const lng = parseFloat(odp.lng);
+                if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
+                  odpMarkers[odp.id] = [lat, lng];
+                  bounds.push([lat, lng]);
+
+                  const odpIcon = L.divIcon({
+                    className: 'custom-odp-icon',
+                    html: `<div style="background:#f59e0b; color:#0f172a; width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:12px; border:2px solid #fff; box-shadow:0 0 10px rgba(245,158,11,0.6);"><i class="bi bi-box-seam"></i></div>`,
+                    iconSize: [26, 26],
+                    iconAnchor: [13, 13]
+                  });
+
+                  const popupHtml = `
+                    <div class="inv-popup">
+                      <h4><i class="bi bi-box-seam"></i> ODP: ${odp.name || 'ODP'}</h4>
+                      <div><strong>OLT:</strong> ${odp.olt_name || '-'}</div>
+                      <div><strong>PON Port:</strong> ${odp.pon_port || '-'}</div>
+                      <div><strong>Kapasitas Port:</strong> ${odp.used_ports || 0} / ${odp.capacity || 16} Port</div>
+                      <div><strong>Keterangan:</strong> ${odp.description || '-'}</div>
+                      <div style="margin-top:4px; font-size:11px; color:#94a3b8">Koordinat: ${lat.toFixed(6)}, ${lng.toFixed(6)}</div>
+                    </div>
+                  `;
+
+                  L.marker([lat, lng], { icon: odpIcon })
+                    .bindPopup(popupHtml)
+                    .addTo(markersLayer);
+                }
+              });
+
+              // 2. Render ODP Feeder / Uplink Lines (ODP -> Parent ODP or ODP -> NOC)
+              (data.odps || []).forEach(odp => {
+                const lat = parseFloat(odp.lat);
+                const lng = parseFloat(odp.lng);
+                if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
+                  let pathCoords;
+                  let lineLabel;
+
+                  if (odp.parent_odp_id && odpMarkers[odp.parent_odp_id]) {
+                    pathCoords = [[lat, lng], odpMarkers[odp.parent_odp_id]];
+                    lineLabel = `Kabel Uplink ODP: ${odp.name} ↔ ${odp.parent_name || 'Uplink'}`;
+                  } else if (officeCoords.lat && officeCoords.lng) {
+                    pathCoords = [[lat, lng], [officeCoords.lat, officeCoords.lng]];
+                    lineLabel = `Kabel Utama (Feeder): NOC ↔ ${odp.name}`;
+                  }
+
+                  if (odp.cable_path && String(odp.cable_path).trim().length > 2) {
+                    try {
+                      const parsed = JSON.parse(odp.cable_path);
+                      if (Array.isArray(parsed) && parsed.length >= 2) {
+                        pathCoords = parsed.map(pt => Array.isArray(pt) ? [pt[0], pt[1]] : [pt.lat, pt.lng]);
+                      }
+                    } catch (e) {}
+                  }
+
+                  if (pathCoords) {
+                    let ponColor = '#94a3b8';
+                    if (odp.olt_id && odp.pon_port && String(odp.pon_port).trim() !== '') {
+                      const key = `${odp.olt_id}_${String(odp.pon_port).trim()}`;
+                      ponColor = ponColorMap[key] || '#94a3b8';
+                    }
+
+                    L.polyline(pathCoords, {
+                      color: ponColor,
+                      weight: 4,
+                      opacity: 0.9
+                    }).bindTooltip(lineLabel, { sticky: true }).addTo(linesLayer);
+                  }
+                }
+              });
+
+              // 3. Render Customer Markers & Lines to ODP
+              (data.customers || []).forEach(cust => {
+                const cLat = parseFloat(cust.lat);
+                const cLng = parseFloat(cust.lng);
+
+                if (!isNaN(cLat) && !isNaN(cLng) && cLat !== 0 && cLng !== 0) {
+                  bounds.push([cLat, cLng]);
+
+                  const statusStr = String(cust.status || '').toLowerCase();
+                  const isFree = statusStr === 'free' || String(cust.package_name || '').toLowerCase().includes('free') || Number(cust.package_price || 0) === 0;
+                  const isActive = statusStr === 'active' || isFree;
+
+                  let color = '#3b82f6'; // Active
+                  if (isFree) color = '#10b981';
+                  else if (!isActive) color = '#ef4444'; // Suspended / Isolir
+
+                  const custIcon = L.divIcon({
+                    className: 'custom-cust-icon',
+                    html: `<div style="background:${color}; color:#fff; width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; border:2px solid #fff; box-shadow:0 0 8px ${color};"><i class="bi bi-person-fill"></i></div>`,
+                    iconSize: [22, 22],
+                    iconAnchor: [11, 11]
+                  });
+
+                  const popupHtml = `
+                    <div class="inv-popup">
+                      <h4><i class="bi bi-person-fill"></i> ${cust.name || 'Pelanggan'}</h4>
+                      <div><strong>Paket:</strong> ${cust.package_name || '-'}</div>
+                      <div><strong>Status:</strong> <span style="color:${color}; font-weight:700; text-transform:uppercase">${isFree ? 'FREE' : (isActive ? 'AKTIF' : 'ISOLIR')}</span></div>
+                      <div><strong>Username PPPoE:</strong> ${cust.pppoe_username || '-'}</div>
+                      <div><strong>Alamat:</strong> ${cust.address || '-'}</div>
+                    </div>
+                  `;
+
+                  L.marker([cLat, cLng], { icon: custIcon })
+                    .bindPopup(popupHtml)
+                    .addTo(markersLayer);
+
+                  // Connect line to ODP
+                  if (cust.odp_id && odpMarkers[cust.odp_id]) {
+                    let pathCoords = [[cLat, cLng], odpMarkers[cust.odp_id]];
+
+                    if (cust.cable_path && String(cust.cable_path).trim().length > 2) {
+                      try {
+                        const parsed = JSON.parse(cust.cable_path);
+                        if (Array.isArray(parsed) && parsed.length >= 2) {
+                          pathCoords = parsed.map(pt => Array.isArray(pt) ? [pt[0], pt[1]] : [pt.lat, pt.lng]);
+                        }
+                      } catch (e) {}
+                    }
+
+                    L.polyline(pathCoords, {
+                      color: color,
+                      weight: 3,
+                      opacity: 0.8,
+                      dashArray: '10, 10',
+                      className: 'flowing-line'
+                    }).addTo(linesLayer);
+                  }
+                }
+              });
+
+              // Auto fit bounds on initial load
+              if (!initialCentered && bounds.length > 0) {
+                map.fitBounds(bounds, { padding: [30, 30] });
+                initialCentered = true;
+              }
+            } catch (err) {
+              console.error('Error fetching investor map data:', err);
+            }
+          }
+
+          // Initial Load
+          loadInvestorMapData();
+
+          // Real-time Auto-polling every 10 seconds
+          setInterval(loadInvestorMapData, 10000);
+
+        } catch (err) {
+          console.error('Gagal inisialisasi investor map:', err);
+        }
+
       } catch (e) {
         console.error('Gagal memuat chart data:', e);
       }
+
     });
   </script>
 

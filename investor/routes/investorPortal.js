@@ -137,6 +137,22 @@ router.get('/api/chart-data', requireInvestor, (req, res) => {
 });
 
 /**
+ * GET /investor/api/map-data - REST API Read-Only Data Peta Jaringan (ODPs, Pelanggan, Jalur Kabel & Stats)
+ */
+router.get('/api/map-data', requireInvestor, (req, res) => {
+  try {
+    const mapData = investorService.getMapData();
+    res.json({
+      success: true,
+      ...mapData
+    });
+  } catch (err) {
+    console.error('[Investor Router] API Map Data error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
  * GET /investor/logout - Logout Session Investor
  */
 router.get('/logout', (req, res) => {
@@ -145,5 +161,6 @@ router.get('/logout', (req, res) => {
   }
   res.redirect('/investor/login');
 });
+
 
 module.exports = router;

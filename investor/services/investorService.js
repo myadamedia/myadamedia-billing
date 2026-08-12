@@ -402,6 +402,105 @@ function authenticateInvestor(username, password) {
   }
 }
 
+/**
+ * Memperoleh Data Peta Jaringan khusus Tampilan Investor (Read-Only)
+ * Menggunakan data terpadu dari odpService & customerService agar presisi 100% dengan /admin/map
+ * @returns {Object} { odps, customers, olts, office, stats }
+ */
+function getMapData() {
+  try {
+    const odpSvc = require('../../services/odpService');
+    const customerSvc = require('../../services/customerService');
+    const { getSetting } = require('../../config/settingsManager');
+
+    const officeLat = parseFloat(getSetting('office_lat', '-6.200000')) || -6.200000;
+    const officeLng = parseFloat(getSetting('office_lng', '106.816666')) || 106.816666;
+
+    // 1. Ambil seluruh ODP
+    const rawOdps = odpSvc.getAllOdps() || [];
+    const odps = rawOdps.map(o => {
+      const lat = parseFloat(o.lat);
+      const lng = parseFloat(o.lng);
+      const usage = odpSvc.getOdpPortUsage(o.id);
+      return {
+        id: o.id,
+        name: o.name,
+        lat: isNaN(lat) ? 0 : lat,
+        lng: isNaN(lng) ? 0 : lng,
+        capacity: Number(o.port_capacity || 16) || 16,
+        used_ports: usage ? usage.usedCount : 0,
+        description: o.description || '',
+        olt_name: o.olt_name || '',
+        parent_odp_id: o.parent_odp_id || null,
+        parent_name: o.parent_name || '',
+        olt_id: o.olt_id || null,
+        pon_port: o.pon_port || '',
+        cable_path: o.cable_path || ''
+      };
+    });
+
+    // 2. Ambil seluruh Pelanggan
+    const rawCustomers = customerSvc.getAllCustomers() || [];
+    const customers = rawCustomers.map(c => {
+      const lat = parseFloat(c.lat);
+      const lng = parseFloat(c.lng);
+      return {
+        id: c.id,
+        name: c.name,
+        lat: isNaN(lat) ? 0 : lat,
+        lng: isNaN(lng) ? 0 : lng,
+        status: c.status || 'active',
+        address: c.address || '',
+        pppoe_username: c.pppoe_username || '',
+        package_name: c.package_name || '-',
+        package_price: c.package_price !== undefined ? c.package_price : 0,
+        odp_id: c.odp_id || null,
+        cable_path: c.cable_path || ''
+      };
+    });
+
+    // 3. Ambil OLTs
+    const olts = db.prepare(`SELECT id, name FROM olts`).all();
+
+    // 4. Hitung Statistik Ringkasan Peta
+    const validOdps = odps.filter(o => o.lat !== 0 && o.lng !== 0);
+    const validCustomers = customers.filter(c => c.lat !== 0 && c.lng !== 0);
+
+    const isFreeCust = (c) => (c.status && String(c.status).toLowerCase() === 'free') || 
+                             (c.package_name && String(c.package_name).toLowerCase().includes('free')) || 
+                             (c.package_price !== undefined && Number(c.package_price) === 0 && c.package_name);
+
+    const totalOdps = validOdps.length;
+    const totalMappedCustomers = validCustomers.length;
+    const freeCustomers = validCustomers.filter(isFreeCust).length;
+    const activeCustomers = validCustomers.filter(c => String(c.status).toLowerCase() === 'active' && !isFreeCust(c)).length;
+    const suspendedCustomers = validCustomers.filter(c => String(c.status).toLowerCase() !== 'active' && !isFreeCust(c)).length;
+
+    return {
+      odps: validOdps,
+      customers: validCustomers,
+      olts,
+      office: { lat: officeLat, lng: officeLng },
+      stats: {
+        totalOdps,
+        totalMappedCustomers,
+        activeCustomers,
+        freeCustomers,
+        suspendedCustomers
+      }
+    };
+  } catch (err) {
+    console.error('[InvestorService] Error getMapData:', err.message);
+    return {
+      odps: [],
+      customers: [],
+      olts: [],
+      office: { lat: -6.200000, lng: 106.816666 },
+      stats: { totalOdps: 0, totalMappedCustomers: 0, activeCustomers: 0, freeCustomers: 0, suspendedCustomers: 0 }
+    };
+  }
+}
+
 module.exports = {
   formatRp,
   getExecutiveSummary,
@@ -410,5 +509,7 @@ module.exports = {
   getPackageDistribution,
   getExpenseBreakdown,
   getRecentTransactions,
-  authenticateInvestor
+  authenticateInvestor,
+  getMapData
 };
+
