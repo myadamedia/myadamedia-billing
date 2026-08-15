@@ -935,21 +935,18 @@ Mengubah tampilan halaman login pelanggan [views/login.ejs](file:///d:/WEBAPP/my
   1. Mengimplementasikan `syncCustomerIsolation` dan `syncCustomerActivation` pada [`services/customerService.js`](file:///d:/WEBAPP/myadamedia-billing/services/customerService.js) serta menghubungkannya secara otomatis ke dalam `updateCustomer` ketika deteksi transisi status ke `suspended` / `active` terjadi.
   2. Menyempurnakan `suspendCustomer` agar mengeksekusi isolir multi-layer: RADIUS CoA Disconnect (`radiusCoaService.disconnectUserByUsername`), MikroTik API Secret Profile update, serta pemutusan sesi aktif langsung via MikroTik API (`kickPppoeUser` / `kickHotspotUser`) untuk semua tipe koneksi (`pppoe`, `static`, `hotspot`).
   3. Menambahkan parameter `forceKick` pada `setPppoeProfile` di [`services/mikrotikService.js`](file:///d:/WEBAPP/myadamedia-billing/services/mikrotikService.js) untuk menjamin pemutusan sesi aktif pengguna terlepas dari profil secret sebelumnya, serta membuat profil PPPoE `isolir` baru secara otomatis di MikroTik jika belum ada.
-  4. Menghapus ketergantungan guard `pppoe_sync_to_mikrotik_api` pada `syncCustomerIsolation` & `syncCustomerActivation` agar pembaruan profil PPPoE Secret di MikroTik selalu dieksekusi tanpa memerlukan pengaturan manual khusus.
+  4. Menghapus ketergantungan guard `pppoe_sync_to_mikrotik_api` pada `syncCustomerIsolation` & `syncCustomerActivation` agar pembaruan profil PPPoE Secret di MikroTik selalu dieksekusi tanpa memerlukan pengaturan manual khusus. 6. Mengatasi kendala pada Form Tambah/Edit Pelanggan di mana pilihan "Profile Isolir / Address List" tidak terisi daftar profil PPPoE dari MikroTik dengan mendukung rute GET `/admin/api/mikrotik/profiles/:routerId` serta mempertahankan nilai profil terisolir yang tersimpan saat modal edit dibuka.
   5. Memperbarui handler POST `/admin/customers/:id` di [`routes/adminPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/adminPortal.js) untuk mengeksekusi dan menunggu sinkronisasi isolir/aktivasi secara penuh.
 
 ### 2. Modul & File yang Diperbarui
 - **`services/customerService.js`**: Menambahkan fungsi `syncCustomerIsolation` dan `syncCustomerActivation`, memperbarui `updateCustomer`, `suspendCustomer`, `activateCustomer`, dan ekspor modul. Menjalankan `setPppoeProfile` secara langsung tanpa pembatasan guard.
 - **`services/mikrotikService.js`**: Memperbarui `setPppoeProfile` dengan parameter `forceKick` serta menyempurnakan `ensurePppProfileIsolirAddressListHook` untuk membuat profil `isolir` secara otomatis jika belum ada di MikroTik.
-- **`routes/adminPortal.js`**: Memperbarui handler update data pelanggan agar `await customerSvc.syncCustomerIsolation` dan `syncCustomerActivation`.
+- **`routes/adminPortal.js`**: Memperbarui rute API `/api/mikrotik/profiles` untuk menerima parameter route `:routerId` maupun query parameter `?routerId=`.
+- **`views/admin/customers.ejs` & `views/admin/psb.ejs`**: Memperbarui fungsi `loadMikrotikProfiles` agar memuat daftar profil MikroTik dengan benar dan mempertahankan nilai `isolir_profile` pelanggan yang sedang diedit.
 
 ### 3. Hasil Pengujian
 - **Pengujian Integrasi Status & Profil MikroTik**:
   - Profil PPPoE Secret pelanggan di MikroTik diubah menjadi `isolir` secara otomatis saat status diset ke `suspended`.
   - Apabila profil `isolir` belum ada pada router MikroTik, sistem secara otomatis membuat profil `isolir` baru lengkap dengan script `on-up`/`on-down` penambahan IP ke `LIST_ISOLIR`.
-  - RADIUS CoA Disconnect UDP port 3799 dan MikroTik API Kick dieksekusi secara real-time.
-
-
-
-
-
+  - Pilihan Profil Isolir pada Form Tambah/Edit Pelanggan dan PSB berhasil menampilkan seluruh opsi profil dari MikroTik dan mempertahankan nilai yang terpilih.
+  - RADIUS CoA Disconnect UDP port 3799 dan MikroTik API Kick dieksekusi secara real-time.ecara real-time.

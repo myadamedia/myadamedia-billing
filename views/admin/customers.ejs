@@ -973,7 +973,12 @@ function editCust(idx) {
   document.getElementById('e_pon_port').value=c.pon_port||'';
   document.getElementById('e_lat').value=c.lat||'';
   document.getElementById('e_lng').value=c.lng||'';
-  document.getElementById('e_isolir_profile').value=c.isolir_profile||'isolir';
+  const editIsolirSel = document.getElementById('e_isolir_profile');
+  const isolirVal = c.isolir_profile || 'isolir';
+  if (editIsolirSel) {
+    editIsolirSel.dataset.savedVal = isolirVal;
+    editIsolirSel.value = isolirVal;
+  }
   document.getElementById('e_status').value=c.status||'active';
   document.getElementById('e_install').value=c.install_date||'';
   document.getElementById('e_installation_fee').value=c.installation_fee||0;
@@ -1184,24 +1189,47 @@ function loadRouterLists(type, routerId = '', excludeCustomerId = '') {
 }
 
 async function loadMikrotikProfiles(routerId = '') {
+  const selAdd = document.getElementById('add_isolir_select');
+  const selEdit = document.getElementById('e_isolir_profile');
+
+  const curAdd = selAdd ? selAdd.value : 'isolir';
+  const curEdit = selEdit ? (selEdit.dataset.savedVal || selEdit.value) : 'isolir';
+
   try {
     const url = routerId ? `/admin/api/mikrotik/profiles/${routerId}` : '/admin/api/mikrotik/profiles';
     const res = await fetch(url);
     if (!res.ok) return;
     const profiles = await res.json();
-    const selAdd = document.getElementById('add_isolir_select');
-    const selEdit = document.getElementById('e_isolir_profile');
-    
-    const defaultOpt = '<option value="isolir">isolir</option>';
-    selAdd.innerHTML = defaultOpt;
-    selEdit.innerHTML = defaultOpt;
+    if (!Array.isArray(profiles)) return;
+
+    let opts = '<option value="isolir">isolir</option>';
+    const addedNames = new Set(['isolir']);
 
     profiles.forEach(p => {
-      if(p.name === 'isolir') return;
-      const opt = `<option value="${p.name}">${p.name}</option>`;
-      selAdd.innerHTML += opt;
-      selEdit.innerHTML += opt;
+      const name = typeof p === 'string' ? p : (p ? p.name : '');
+      if (name && !addedNames.has(name)) {
+        addedNames.add(name);
+        opts += `<option value="${name}">${name}</option>`;
+      }
     });
+
+    if (selAdd) {
+      let addOpts = opts;
+      if (curAdd && !addedNames.has(curAdd)) {
+        addOpts += `<option value="${curAdd}">${curAdd}</option>`;
+      }
+      selAdd.innerHTML = addOpts;
+      if (curAdd) selAdd.value = curAdd;
+    }
+
+    if (selEdit) {
+      let editOpts = opts;
+      if (curEdit && !addedNames.has(curEdit)) {
+        editOpts += `<option value="${curEdit}">${curEdit}</option>`;
+      }
+      selEdit.innerHTML = editOpts;
+      if (curEdit) selEdit.value = curEdit;
+    }
   } catch (e) {
     console.error('Failed to load MikroTik profiles', e);
   }

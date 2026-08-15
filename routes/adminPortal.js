@@ -4417,9 +4417,10 @@ router.post('/api/bulk/ssid', requireAdmin, express.json(), async (req, res) => 
   res.json({ results, total: tags.length, success: results.filter(r => r.success).length });
 });
 
-router.get('/api/mikrotik/profiles', requireAdmin, async (req, res) => {
+router.get(['/api/mikrotik/profiles', '/api/mikrotik/profiles/:routerId'], requireAdmin, async (req, res) => {
   try {
-    const profiles = await mikrotikService.getPppoeProfiles(req.query.routerId);
+    const routerId = req.params.routerId || req.query.routerId || null;
+    const profiles = await mikrotikService.getPppoeProfiles(routerId);
     res.json(profiles);
   } catch (e) {
     res.status(500).json({ error: e.message });
