@@ -920,6 +920,32 @@ Mengubah tampilan halaman login pelanggan [views/login.ejs](file:///d:/WEBAPP/my
 ### 3. Hasil Pengujian
 - **Pengujian Unit (`npm test`)**: 9/9 Test Suites PASSED, 187/187 Tests PASSED.
 
+---
+
+## [2026-08-15] Otomatisasi Isolir MikroTik & RADIUS Saat Data Pelanggan Diubah Menjadi Suspended
+
+### 1. Deskripsi Perubahan & Analisis Masalah
+- **Permasalahan**: Saat status pelanggan diubah menjadi `suspended` via Form Edit Admin (`POST /admin/customers/:id`), status koneksi di MikroTik/RADIUS tidak otomatis terisolir.
+- **Penyebab Utama**:
+  1. `customerSvc.updateCustomer` hanya memperbarui data SQLite tanpa memicu pipeline isolir (`suspendCustomer`).
+  2. Pengecekan guard `pppoe_sync_to_mikrotik_api` pada route admin melewati pemanggilan RADIUS CoA Disconnect saat menggunakan mode RADIUS Server (default).
+  3. `setPppoeProfile` pada `mikrotikService.js` mengabaikan pemutusan sesi aktif jika profil PPP Secret di MikroTik sudah bernilai `isolir`.
+  4. Pemutusan sesi aktif untuk koneksi Hotspot (`kickHotspotUser`) dan Static IP belum dipanggil secara konsisten saat pelanggan diubah ke `suspended`.
+- **Solusi**:
+  1. Mengimplementasikan `syncCustomerIsolation` dan `syncCustomerActivation` pada [`services/customerService.js`](file:///d:/WEBAPP/myadamedia-billing/services/customerService.js) serta menghubungkannya secara otomatis ke dalam `updateCustomer` ketika deteksi transisi status ke `suspended` / `active` terjadi.
+  2. Menyempurnakan `suspendCustomer` agar mengeksekusi isolir multi-layer: RADIUS CoA Disconnect (`radiusCoaService.disconnectUserByUsername`), MikroTik API Secret Profile update, serta pemutusan sesi aktif langsung via MikroTik API (`kickPppoeUser` / `kickHotspotUser`) untuk semua tipe koneksi (`pppoe`, `static`, `hotspot`).
+  3. Menambahkan parameter `forceKick` pada `setPppoeProfile` di [`services/mikrotikService.js`](file:///d:/WEBAPP/myadamedia-billing/services/mikrotikService.js) untuk menjamin pemutusan sesi aktif pengguna terlepas dari profil secret sebelumnya.
+  4. Memperbarui handler POST `/admin/customers/:id` di [`routes/adminPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/adminPortal.js) untuk mengeksekusi dan menunggu sinkronisasi isolir/aktivasi secara penuh.
+
+### 2. Modul & File yang Diperbarui
+- **`services/customerService.js`**: Menambahkan fungsi `syncCustomerIsolation` dan `syncCustomerActivation`, memperbarui `updateCustomer`, `suspendCustomer`, `activateCustomer`, dan ekspor modul.
+- **`services/mikrotikService.js`**: Memperbarui `setPppoeProfile` dengan parameter `forceKick` untuk memaksa pemutusan sesi aktif saat isolir.
+- **`routes/adminPortal.js`**: Memperbarui handler update data pelanggan agar `await customerSvc.syncCustomerIsolation` dan `syncCustomerActivation`.
+
+### 3. Hasil Pengujian
+- **Pengujian Integrasi Status**: Perubahan status ke `suspended` via form edit maupun isolir manual mengeksekusi RADIUS CoA Disconnect UDP port 3799 dan MikroTik API Kick secara real-time.
+
+
 
 
 

@@ -435,7 +435,7 @@ async function getPppoeUsers(routerId = null) {
 }
 
 // Function to isolate a user
-async function setPppoeProfile(username, profileName, routerId = null) {
+async function setPppoeProfile(username, profileName, routerId = null, forceKick = false) {
   let conn = null;
   try {
     conn = await getConnection(routerId);
@@ -453,12 +453,15 @@ async function setPppoeProfile(username, profileName, routerId = null) {
     }
     const currentProfile = secret.profile;
 
-    // Hanya update dan kick jika profil berubah
+    // Update dan kick jika profil berubah atau jika forceKick diaktifkan
     if (currentProfile !== profileName) {
       logger.info(`[MikroTik] Changing profile for ${username}: ${currentProfile} -> ${profileName}`);
       await secretMenu.set({ profile: profileName }, secretId);
       
       // Disconnect active connection so they reconnect with new profile
+      await kickPppoeUser(username, routerId);
+    } else if (forceKick) {
+      logger.info(`[MikroTik] Profile for ${username} is already ${profileName}. Executing force kick for active session.`);
       await kickPppoeUser(username, routerId);
     } else {
       logger.info(`[MikroTik] Profile for ${username} is already ${profileName}. Skipping update and kick.`);

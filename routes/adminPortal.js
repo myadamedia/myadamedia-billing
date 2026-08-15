@@ -1900,37 +1900,24 @@ router.post('/customers/:id/update', requireAdminSession, express.urlencoded({ e
 
     customerSvc.updateCustomer(req.params.id, req.body);
 
-    // Sync to MikroTik API (hanya jika mode API diaktifkan; default RADIUS Server = false)
-    const pppoeSyncApi = getSetting('pppoe_sync_to_mikrotik_api', false);
-    if (pppoeSyncApi && connectionType === 'pppoe' && req.body.pppoe_username) {
-      let targetProfile = '';
+    // Sync status ke MikroTik & RADIUS (PPPoE, Hotspot, Static IP)
+    try {
       if (req.body.status === 'suspended') {
-        targetProfile = req.body.isolir_profile || 'isolir';
-      } else if (req.body.package_id) {
-        const pkg = customerSvc.getPackageById(req.body.package_id);
-        if (pkg) targetProfile = pkg.name;
-      }
-      if (targetProfile) {
-        try {
-          await mikrotikService.setPppoeProfile(req.body.pppoe_username, targetProfile, req.body.router_id);
-        } catch (mErr) {
-          console.error('Mikrotik sync error (update):', mErr);
+        await customerSvc.syncCustomerIsolation(req.params.id);
+      } else if (req.body.status === 'active') {
+        await customerSvc.syncCustomerActivation(req.params.id);
+      } else {
+        const pppoeSyncApi = getSetting('pppoe_sync_to_mikrotik_api', false);
+        if (pppoeSyncApi && connectionType === 'pppoe' && req.body.pppoe_username) {
+          const pkg = customerSvc.getPackageById(req.body.package_id);
+          const targetProfile = pkg ? pkg.name : '';
+          if (targetProfile) {
+            await mikrotikService.setPppoeProfile(req.body.pppoe_username, targetProfile, req.body.router_id);
+          }
         }
       }
-    }
-    if (connectionType === 'hotspot' && req.body.hotspot_username) {
-      const disabled = String(req.body.status || 'active').toLowerCase() !== 'active';
-      try {
-        await mikrotikService.upsertHotspotUser({
-          username: String(req.body.hotspot_username || '').trim(),
-          password: String(req.body.hotspot_password || '').trim(),
-          profile: String(req.body.hotspot_profile || '').trim(),
-          macAddress: String(req.body.mac_address || '').trim(),
-          disabled
-        }, req.body.router_id ? Number(req.body.router_id) : null);
-      } catch (mErr) {
-        console.error('Mikrotik sync error (update hotspot):', mErr);
-      }
+    } catch (syncErr) {
+      console.error('[AdminPortal] Mikrotik sync error on customer update:', syncErr);
     }
 
     req.session._msg = { type: 'success', text: 'Data pelanggan berhasil diperbarui.' };
