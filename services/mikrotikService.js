@@ -1389,7 +1389,27 @@ async function ensurePppProfileIsolirAddressListHook(profileName, routerId = nul
     const menu = conn.client.menu('/ppp/profile');
     const rows = await menu.get();
     const list = Array.isArray(rows) ? rows : [];
-    const prof = list.find((r) => String(r.name || '') === name);
+    let prof = list.find((r) => String(r.name || '') === name);
+    if (!prof) {
+      logger.info(`[MikroTik] Profil PPPoE "${name}" belum ada di router. Membuat profil isolir baru secara otomatis.`);
+      const hookUp =
+        `/ip firewall address-list remove [find list=${ISOLIR_ADDR_LIST} address=$remote-address]; ` +
+        `/ip firewall address-list add list=${ISOLIR_ADDR_LIST} address=$remote-address comment=$user timeout=23h`;
+      const hookDown = `/ip firewall address-list remove [find list=${ISOLIR_ADDR_LIST} address=$remote-address]`;
+      try {
+        await menu.add({
+          name: name,
+          'rate-limit': '512k/512k',
+          'on-up': hookUp,
+          'on-down': hookDown,
+          comment: 'Profil Isolir Otomatis MyAdaMedia'
+        });
+        const recheckRows = await menu.get();
+        prof = (Array.isArray(recheckRows) ? recheckRows : []).find((r) => String(r.name || '') === name);
+      } catch (addErr) {
+        logger.warn(`[MikroTik] Gagal membuat profil isolir "${name}": ${addErr.message}`);
+      }
+    }
     if (!prof) {
       const msg = `Profil PPPoE "${name}" tidak ada di router (buat profil isolir di MikroTik atau samakan nama dengan isolir_profile pelanggan).`;
       logger.warn(`[MikroTik] ${msg}`);

@@ -1907,8 +1907,7 @@ router.post('/customers/:id/update', requireAdminSession, express.urlencoded({ e
       } else if (req.body.status === 'active') {
         await customerSvc.syncCustomerActivation(req.params.id);
       } else {
-        const pppoeSyncApi = getSetting('pppoe_sync_to_mikrotik_api', false);
-        if (pppoeSyncApi && connectionType === 'pppoe' && req.body.pppoe_username) {
+        if (connectionType === 'pppoe' && req.body.pppoe_username) {
           const pkg = customerSvc.getPackageById(req.body.package_id);
           const targetProfile = pkg ? pkg.name : '';
           if (targetProfile) {

@@ -453,22 +453,19 @@ async function syncCustomerIsolation(idOrCustomer) {
       logger.warn(`[syncCustomerIsolation] RADIUS CoA Disconnect user ${customer.pppoe_username}: ${cErr.message}`);
     }
 
-    // 2. MikroTik API Profile update if enabled
+    // 2. MikroTik API Profile update & Hook ensure
     const isolirProfile = customer.isolir_profile || 'isolir';
-    const pppoeSyncApi = getSetting('pppoe_sync_to_mikrotik_api', false);
-    if (pppoeSyncApi) {
+    if (customer.router_id) {
       try {
-        await mikrotikSvc.setPppoeProfile(customer.pppoe_username, isolirProfile, customer.router_id, true);
-      } catch (pErr) {
-        logger.warn(`[syncCustomerIsolation] setPppoeProfile error: ${pErr.message}`);
+        await mikrotikSvc.ensurePppProfileIsolirAddressListHook(isolirProfile, customer.router_id);
+      } catch (e) {
+        logger.warn(`[syncCustomerIsolation] Hook profil isolir "${isolirProfile}" di router ${customer.router_id}: ${e.message}`);
       }
-      if (customer.router_id) {
-        try {
-          await mikrotikSvc.ensurePppProfileIsolirAddressListHook(isolirProfile, customer.router_id);
-        } catch (e) {
-          logger.warn(`[syncCustomerIsolation] Hook profil isolir "${isolirProfile}" di router ${customer.router_id}: ${e.message}`);
-        }
-      }
+    }
+    try {
+      await mikrotikSvc.setPppoeProfile(customer.pppoe_username, isolirProfile, customer.router_id, true);
+    } catch (pErr) {
+      logger.warn(`[syncCustomerIsolation] setPppoeProfile error: ${pErr.message}`);
     }
 
     // 3. Fallback direct API kick active session to guarantee immediate disconnect on MikroTik
@@ -523,15 +520,12 @@ async function syncCustomerActivation(idOrCustomer) {
       logger.warn(`[syncCustomerActivation] RADIUS CoA Disconnect user ${customer.pppoe_username}: ${cErr.message}`);
     }
 
-    const pppoeSyncApi = getSetting('pppoe_sync_to_mikrotik_api', false);
-    if (pppoeSyncApi) {
-      const pkg = getPackageById(customer.package_id);
-      const targetProfile = pkg ? pkg.name : 'default';
-      try {
-        await mikrotikSvc.setPppoeProfile(customer.pppoe_username, targetProfile, customer.router_id, true);
-      } catch (pErr) {
-        logger.warn(`[syncCustomerActivation] setPppoeProfile error: ${pErr.message}`);
-      }
+    const pkg = getPackageById(customer.package_id);
+    const targetProfile = pkg ? pkg.name : 'default';
+    try {
+      await mikrotikSvc.setPppoeProfile(customer.pppoe_username, targetProfile, customer.router_id, true);
+    } catch (pErr) {
+      logger.warn(`[syncCustomerActivation] setPppoeProfile error: ${pErr.message}`);
     }
 
     try {
