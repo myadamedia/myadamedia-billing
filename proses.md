@@ -2,6 +2,24 @@
 
 ---
 
+## [2026-08-14] Perubahan Portal Gateway SSO: Penggantian Portal Agen / Reseller menjadi Portal Investor
+
+### 1. Deskripsi Perubahan
+Memperbarui halaman Single Sign-On (SSO) Portal Gateway (`http://localhost:3001/sso`) untuk mengganti kartu **Portal Agen / Reseller** (`/agent/login`) menjadi **Portal Investor** (`/investor/login`). Perubahan ini menyelaraskan akses cepat eksekutif investor dari gerbang SSO pusat aplikasi.
+
+### 2. Komponen & Implementasi Teknis
+- **`views/sso.ejs`**:
+  - Menambahkan styling CSS `.icon-investor` bertema gradient eksekutif indigo/purple (`linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)`).
+  - Mengubah kartu ke-4 dari `/agent/login` menjadi `/investor/login` dengan ikon `bi-graph-up-arrow`, judul **Portal Investor**, dan deskripsi *"Pantau statistik performa bisnis, laporan keuangan, pembagian dividen/laba bersih, dan peta jaringan infrastruktur."*
+- **`investor/views/login.ejs`**:
+  - Menambahkan tombol/tautan navigasi kembali ke SSO Portal (`<a href="/sso">`) di bawah formulir login investor agar memiliki konsistensi UX dengan seluruh portal lainnya.
+
+### 3. Hasil Pengujian & Verifikasi
+- Sintaks JavaScript & EJS: **PASSED** (`node -c app-customer.js` lulus 0 error).
+- Pengujian otomatis: **PASSED** (`npm test` 100% LULUS).
+
+---
+
 ## [2026-08-12] Fitur Peta Jaringan & Infrastruktur Pelanggan Real-Time (Read-Only) pada Portal Investor
 
 ### 1. Deskripsi Fitur Baru
