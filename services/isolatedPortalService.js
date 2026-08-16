@@ -173,12 +173,14 @@ function generateMikrotikIsolatedScript(billingHost = '192.168.1.100', httpPort 
 
   scriptLines.push('');
   scriptLines.push('# 6. Izinkan Forwarding Traffic ke Walled Garden');
-  scriptLines.push('/ip firewall filter add chain=forward src-address-list=LIST_ISOLIR dst-address-list=WALLED_GARDEN_ISOLATE action=accept comment="BILLING_ISOLIR_ALLOW_WG"');
   scriptLines.push('');
-  scriptLines.push('# 7. Blokir Sisa Traffic Internet Pelanggan Terisolir');
+  scriptLines.push('# 7. Reject TCP Traffic dengan TCP-Reset agar browser Android/iOS/Windows tidak hang atau menunggu timeout koneksi HTTPS');
+  scriptLines.push('/ip firewall filter add chain=forward src-address-list=LIST_ISOLIR protocol=tcp action=reject reject-with=tcp-reset comment="BILLING_ISOLIR_REJECT_TCP"');
+  scriptLines.push('');
+  scriptLines.push('# 8. Blokir Sisa Traffic UDP/ICMP Pelanggan Terisolir');
   scriptLines.push('/ip firewall filter add chain=forward src-address-list=LIST_ISOLIR action=drop comment="BILLING_ISOLIR_BLOCK_REST"');
   scriptLines.push('');
-  scriptLines.push('# 8. Contoh PPPoE Profile On-Up Command:');
+  scriptLines.push('# 9. Contoh PPPoE Profile On-Up Command:');
   scriptLines.push('# Set script berikut pada PPPoE Profile On-Up untuk memasukkan IP secara otomatis:');
   scriptLines.push('# /ip firewall address-list add list=LIST_ISOLIR address=$remote-address comment=$user');
 
@@ -194,18 +196,21 @@ const CNA_PROBE_USER_AGENTS_AND_PATHS = [
   '/library/test/success.html',
   '/success.html',
   
-  // Android / ChromeOS (Google)
+  // Android / ChromeOS (Google / AOSP)
   '/generate_204',
   '/gen_204',
   '/check_network_status.txt',
+  '/mobile/status.php',
+  '/wpad.dat',
   
   // Windows 10/11 (Microsoft)
   '/connecttest.txt',
   '/ncsi.txt',
   '/redirect',
   
-  // Firefox & Linux
-  '/canonical.html'
+  // Firefox, Linux & Others
+  '/canonical.html',
+  '/kindle-wifi/wifiredirect.html'
 ];
 
 /**

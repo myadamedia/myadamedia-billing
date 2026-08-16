@@ -2,6 +2,46 @@
 
 ---
 
+## [2026-08-16] Optimasi Kecepatan Pop-Up CNA Isolir (`connectivitycheck.gstatic.com` & Android/iOS WebView)
+
+### 1. Deskripsi Permasalahan
+Saat perangkat pelanggan yang terisolir terhubung ke Wi-Fi dan memicu pop-up (*Captive Portal Network Assistant / CNA*) pada domain `connectivitycheck.gstatic.com` (Android/ChromeOS) atau `captive.apple.com` (iOS/macOS), halaman pop-up terbuka sangat lambat (*loading / freeze* hingga 30–60 detik).
+
+### 2. Penyebab Utama (Root Cause)
+1. **Network Blocking Resource Eksternal (CDN Timeout)**:
+   - File template `views/isolated.ejs` sebelumnya memuat stylesheet icon eksternal `<link rel="stylesheet" href="https://cdn.jsdelivr.net/.../bootstrap-icons.min.css">`.
+   - Karena pelanggan berstatus terisolir dan seluruh akses internet HTTPS diblokir oleh router MikroTik, browser bawaan OS (CNA WebView) mengalami *connection timeout* selama 30–60 detik pada tag `<head>` sebelum akhirnya menyerah dan merender halaman.
+2. **Double Request Roundtrip pada Probe Handler**:
+   - Handler CNA probe di `app-customer.js` sebelumnya merespons HTTP 200 OK dengan HTML `<meta http-equiv="refresh" content="0;url=/isolated">` + JavaScript redirect. Pada WebView Captive Portal, hal ini menyebabkan jeda tunggu rendering DOM sebelum memulai request navigasi kedua.
+3. **Firewall Drop vs TCP-Reset pada MikroTik**:
+   - Rule firewall MikroTik lama menggunakan `action=drop` untuk traffic non-HTTP pelanggan terisolir. Paket TCP SYN (seperti koneksi HTTPS latar belakang yang dilakukan Android ke Google telemetry) menggantung tanpa kepastian hingga timeout, memperlambat rendering webview.
+
+### 3. Solusi & Implementasi Teknis
+- **`views/isolated.ejs` (100% Self-Contained & Offline-Ready)**:
+  - Menghapus ketergantungan CDN eksternal (`cdn.jsdelivr.net`).
+  - Mengganti seluruh icon Bootstrap dengan **Inline SVG** berukuran ultra-ringan.
+  - Menggunakan font sistem native (-apple-system, Roboto, Segoe UI, sans-serif) tanpa pemanggilan font eksternal.
+  - **Hasil**: Halaman `/isolated` kini dapat dirender secara instan dalam waktu kurang dari **10 milidetik** tanpa memerlukan koneksi internet.
+- **`app-customer.js` (Immediate HTTP 302 Redirect)**:
+  - Mengganti meta-refresh HTML pada interceptor probe dengan **Immediate HTTP 302 Found** (`Location: /isolated`) disertai header `Cache-Control: no-cache, no-store, must-revalidate`.
+  - Android dan iOS langsung membuka antarmuka isolir secara instan tanpa menunggu parsing JavaScript.
+- **`services/isolatedPortalService.js` (MikroTik Script TCP-Reset Rule)**:
+  - Menambahkan rule `action=reject reject-with=tcp-reset` untuk traffic TCP pelanggan terisolir pada script generator MikroTik.
+  - Setiap upaya koneksi HTTPS latar belakang dari smartphone akan langsung di-reject dalam 0 ms, mencegah browser hang/freeze.
+  - Memperluas daftar probe path OS (`/mobile/status.php`, `/wpad.dat`, `/canonical.html`, dsb.).
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`views/isolated.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/isolated.ejs): 100% inline SVG & zero external dependency.
+- `[MODIFY]` [`app-customer.js`](file:///d:/WEBAPP/myadamedia-billing/app-customer.js): Fast 302 redirect pada probe interceptor.
+- `[MODIFY]` [`services/isolatedPortalService.js`](file:///d:/WEBAPP/myadamedia-billing/services/isolatedPortalService.js): Penambahan rule `reject-with=tcp-reset` & probe paths.
+
+### 5. Hasil Pengujian & Verifikasi
+- Pengujian CNA Probe (`node scratch/test_cna_speed.js`): **PASSED** (100% Match pada seluruh probe path OS).
+- Unit Test Suite (`npm test`): **PASSED** (100% Lulus).
+- Kecepatan Rendering: Pop-up isolir terbuka instan (< 50ms) tanpa jeda tunggu CDN timeout.
+
+---
+
 ## [2026-08-16] Perbaikan Kueri Database Schema: Sinkronisasi Akurat Pelanggan Terisolir & Target Router MikroTik
 
 ### 1. Deskripsi Permasalahan

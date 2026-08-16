@@ -829,19 +829,11 @@ app.use((req, res, next) => {
   if (isolatedPortalSvc.isCnaProbePath(req.path)) {
     const config = isolatedPortalSvc.getIsolatedPortalConfig();
     if (config.enabled && config.cna_push_enabled) {
-      logger.info(`[CNA Engine] Intercepted probe ${req.path} from IP ${req.ip} -> Push Pop-Up active!`);
-      res.set('Content-Type', 'text/html; charset=utf-8');
-      res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-      return res.status(200).send(`<!DOCTYPE html>
-<html>
-<head>
-  <meta http-equiv="refresh" content="0;url=/isolated">
-  <script>window.location.href = "/isolated";</script>
-</head>
-<body>
-  <p>Layanan Terisolir. Membuka Portal... <a href="/isolated">Klik di sini</a></p>
-</body>
-</html>`);
+      logger.info(`[CNA Engine] Intercepted probe ${req.path} from IP ${req.ip} -> Immediate 302 redirect to /isolated`);
+      res.set('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+      res.set('Pragma', 'no-cache');
+      res.set('Expires', '0');
+      return res.redirect(302, '/isolated');
     }
   }
   next();
