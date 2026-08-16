@@ -42,7 +42,7 @@ router.get('/', (req, res) => {
     // Ambil daftar router MikroTik dari database
     let routers = [];
     try {
-      routers = db.prepare('SELECT id, name, host, port, username, is_active FROM routers ORDER BY name ASC').all();
+      routers = mikrotikSvc.getAllRouters();
     } catch (e) {
       logger.warn(`[IsolatedPortalRoute] Router fetch warn: ${e.message}`);
     }

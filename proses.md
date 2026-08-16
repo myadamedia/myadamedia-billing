@@ -2,6 +2,38 @@
 
 ---
 
+## [2026-08-16] Perbaikan Kueri Database Schema: Sinkronisasi Akurat Pelanggan Terisolir & Target Router MikroTik
+
+### 1. Deskripsi Permasalahan
+Pada kartu ringkasan (*Overview Stat Cards*) menu Portal Isolir:
+- **Pelanggan Terisolir** menampilkan angka `0` (padahal terdapat data pelanggan berstatus `suspended` di database).
+- **Target Router MikroTik** menampilkan angka `0` (padahal terdapat router MikroTik terdaftar di database).
+
+### 2. Penyebab Utama (Root Cause)
+1. **Ketidaksesuaian Kolom Tabel `routers`**:
+   - Route handler `GET /admin/isolated-portal` pada `routes/admin/isolatedPortal.js` mengeksekusi kueri `SELECT id, name, host, port, username, is_active FROM routers`. Pada schema SQLite, nama kolom untuk user login router adalah `user`, bukan `username`. Kueri tersebut melempar `SqliteError: no such column: username`, sehingga router fallback ke `[]` (0 Router).
+2. **Ketidaksesuaian Kolom Tabel `customers`**:
+   - Fungsi `getSuspendedCustomers()` pada `services/isolatedPortalService.js` sebelumnya mengeksekusi `SELECT c.isolate_day, c.connection_type, c.auto_isolate FROM customers c`. Pada schema database aktual, kolom yang digunakan adalah `c.isolir_date`, `c.due_date`, dan `c.auto_isolir`. *Exception* SQLite yang terjadi menyebabkan fungsi mengembalikan `[]` (0 Akun).
+
+### 3. Solusi & Implementasi Teknis
+- **`routes/admin/isolatedPortal.js`**:
+  - Mengganti kueri manual `routers` dengan pemanggilan service terpusat `mikrotikSvc.getAllRouters()` yang aman dan membaca tabel `routers` secara akurat.
+- **`services/isolatedPortalService.js`**:
+  - Memperbaiki kueri SQL pada `getSuspendedCustomers()` dengan fallback kolom yang tepat: `COALESCE(c.isolir_date, c.due_date, 10) as isolate_day` dan `COALESCE(c.auto_isolir, 1) as auto_isolate`.
+  - Memperbarui `syncAllOverdueCustomers()` agar mengevaluasi `c.auto_isolir` dan tanggal jatuh tempo secara akurat.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`routes/admin/isolatedPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/admin/isolatedPortal.js): Pemanfaatan `mikrotikSvc.getAllRouters()` untuk data router.
+- `[MODIFY]` [`services/isolatedPortalService.js`](file:///d:/WEBAPP/myadamedia-billing/services/isolatedPortalService.js): Penyelarasan kolom schema SQLite `customers` (`isolir_date`, `due_date`, `auto_isolir`).
+
+### 5. Hasil Pengujian & Verifikasi
+- Pengujian Skrip & Database (`node scratch/test_counts.js`):
+  - **Pelanggan Terisolir**: Terbaca **4 Akun** (100% Sesuai Data Nyata).
+  - **Target Router MikroTik**: Terbaca **1 Router** (100% Sesuai Data Nyata).
+- Unit Test Suite (`npm test`): **PASSED** (100% Lulus).
+
+---
+
 ## [2026-08-16] Sinkronisasi Data Pelanggan Terisolir, Live Auto-Isolate Engine & Manajemen Langsung pada Menu Portal Isolir
 
 ### 1. Deskripsi Permasalahan

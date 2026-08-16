@@ -86,7 +86,9 @@ function getSuspendedCustomers() {
     const customers = db.prepare(`
       SELECT 
         c.id, c.name, c.phone, c.pppoe_username, c.status, c.address, c.ip_address,
-        c.isolate_day, c.connection_type, c.router_id, c.auto_isolate,
+        COALESCE(c.isolir_date, c.due_date, 10) as isolate_day,
+        COALESCE(c.auto_isolir, 1) as auto_isolate,
+        c.router_id,
         p.name as package_name, p.price as package_price,
         r.name as router_name,
         (SELECT COUNT(*) FROM invoices WHERE customer_id = c.id AND status = 'unpaid') as unpaid_count,
@@ -117,8 +119,8 @@ async function syncAllOverdueCustomers() {
   const errors = [];
 
   for (const c of allCustomers) {
-    const isAutoIsolate = c.auto_isolate !== 0;
-    const isolateDay = c.isolate_day || 10;
+    const isAutoIsolate = (c.auto_isolir !== undefined ? c.auto_isolir : c.auto_isolate) !== 0;
+    const isolateDay = Number(c.isolir_date || c.due_date || c.isolate_day || 10);
     
     if (isAutoIsolate && c.status === 'active' && Number(c.unpaid_count) > 0 && today >= isolateDay) {
       try {
