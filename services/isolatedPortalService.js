@@ -79,17 +79,22 @@ function saveIsolatedPortalConfig(newConfig = {}) {
 }
 
 /**
- * Mengambil daftar pelanggan yang berstatus suspended / terisolir.
+ * Mengambil daftar pelanggan yang berstatus suspended / terisolir beserta info tagihan.
  */
 function getSuspendedCustomers() {
   try {
     const customers = db.prepare(`
       SELECT 
         c.id, c.name, c.phone, c.pppoe_username, c.status, c.address, c.ip_address,
-        p.name as package_name, p.price as package_price
+        c.isolate_day, c.connection_type, c.router_id, c.auto_isolate,
+        p.name as package_name, p.price as package_price,
+        r.name as router_name,
+        (SELECT COUNT(*) FROM invoices WHERE customer_id = c.id AND status = 'unpaid') as unpaid_count,
+        (SELECT COALESCE(SUM(amount), 0) FROM invoices WHERE customer_id = c.id AND status = 'unpaid') as unpaid_total
       FROM customers c
       LEFT JOIN packages p ON c.package_id = p.id
-      WHERE c.status = 'suspended'
+      LEFT JOIN routers r ON c.router_id = r.id
+      WHERE c.status IN ('suspended', 'isolated')
       ORDER BY c.name ASC
     `).all();
     return customers || [];
@@ -97,6 +102,51 @@ function getSuspendedCustomers() {
     logger.error(`[IsolatedPortalService] Gagal mengambil pelanggan terisolir: ${error.message}`);
     return [];
   }
+}
+
+/**
+ * Menyinkronkan seluruh pelanggan yang jatuh tempo/belum bayar dan mengisolir secara otomatis ke MikroTik & RADIUS.
+ */
+async function syncAllOverdueCustomers() {
+  const customerSvc = require('./customerService');
+  const now = new Date();
+  const today = now.getDate();
+  
+  const allCustomers = customerSvc.getAllCustomers();
+  let isolatedCount = 0;
+  const errors = [];
+
+  for (const c of allCustomers) {
+    const isAutoIsolate = c.auto_isolate !== 0;
+    const isolateDay = c.isolate_day || 10;
+    
+    if (isAutoIsolate && c.status === 'active' && Number(c.unpaid_count) > 0 && today >= isolateDay) {
+      try {
+        await customerSvc.suspendCustomer(c.id);
+        isolatedCount++;
+      } catch (err) {
+        errors.push(`${c.name}: ${err.message}`);
+        logger.error(`[IsolatedPortalService] Gagal isolir pelanggan ${c.name}: ${err.message}`);
+      }
+    }
+  }
+
+  // Sinkronkan seluruh pelanggan suspended yang ada ke router MikroTik
+  const currentSuspended = getSuspendedCustomers();
+  for (const s of currentSuspended) {
+    try {
+      await customerSvc.syncCustomerIsolation(s);
+    } catch (err) {
+      logger.warn(`[IsolatedPortalService] Sync isolir router warning (${s.name}): ${err.message}`);
+    }
+  }
+
+  return {
+    success: true,
+    isolatedCount,
+    totalSuspended: currentSuspended.length,
+    errors
+  };
 }
 
 /**
@@ -186,6 +236,7 @@ module.exports = {
   getIsolatedPortalConfig,
   saveIsolatedPortalConfig,
   getSuspendedCustomers,
+  syncAllOverdueCustomers,
   generateMikrotikIsolatedScript,
   isCnaProbePath,
   CNA_PROBE_USER_AGENTS_AND_PATHS

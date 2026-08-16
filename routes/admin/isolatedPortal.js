@@ -94,6 +94,49 @@ router.post('/settings', (req, res) => {
   res.redirect('/admin/isolated-portal');
 });
 
+// POST /admin/isolated-portal/sync - Sinkronkan Pelanggan Jatuh Tempo & Router MikroTik
+router.post('/sync', async (req, res) => {
+  try {
+    const result = await isolatedPortalSvc.syncAllOverdueCustomers();
+    req.session._msg = {
+      type: 'success',
+      text: `Sinkronisasi selesai. Total ${result.isolatedCount} pelanggan baru terisolir otomatis, dan ${result.totalSuspended} akun suspended tersinkron ke router.`
+    };
+  } catch (error) {
+    logger.error(`[IsolatedPortalRoute] Sync error: ${error.message}`);
+    req.session._msg = { type: 'error', text: `Gagal sinkronisasi: ${error.message}` };
+  }
+  res.redirect('/admin/isolated-portal');
+});
+
+// POST /admin/isolated-portal/isolate/:id - Isolir manual pelanggan tertentu
+router.post('/isolate/:id', async (req, res) => {
+  try {
+    const customerSvc = require('../../services/customerService');
+    await customerSvc.suspendCustomer(req.params.id);
+    const customer = customerSvc.getCustomerById(req.params.id);
+    req.session._msg = { type: 'success', text: `Pelanggan "${customer ? customer.name : req.params.id}" berhasil diisolir dan disinkronkan ke router.` };
+  } catch (error) {
+    logger.error(`[IsolatedPortalRoute] Isolate error: ${error.message}`);
+    req.session._msg = { type: 'error', text: `Gagal isolir: ${error.message}` };
+  }
+  res.redirect('/admin/isolated-portal');
+});
+
+// POST /admin/isolated-portal/unisolate/:id - Aktifkan kembali layanan pelanggan
+router.post('/unisolate/:id', async (req, res) => {
+  try {
+    const customerSvc = require('../../services/customerService');
+    await customerSvc.activateCustomer(req.params.id);
+    const customer = customerSvc.getCustomerById(req.params.id);
+    req.session._msg = { type: 'success', text: `Layanan pelanggan "${customer ? customer.name : req.params.id}" berhasil diaktifkan kembali.` };
+  } catch (error) {
+    logger.error(`[IsolatedPortalRoute] Unisolate error: ${error.message}`);
+    req.session._msg = { type: 'error', text: `Gagal aktivasi: ${error.message}` };
+  }
+  res.redirect('/admin/isolated-portal');
+});
+
 // POST /admin/isolated-portal/test-cna - Uji coba CNA Probe secara otomatis
 router.post('/test-cna', (req, res) => {
   const { probePath } = req.body;

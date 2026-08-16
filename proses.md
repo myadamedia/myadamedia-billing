@@ -2,6 +2,43 @@
 
 ---
 
+## [2026-08-16] Sinkronisasi Data Pelanggan Terisolir, Live Auto-Isolate Engine & Manajemen Langsung pada Menu Portal Isolir
+
+### 1. Deskripsi Permasalahan
+Data pelanggan terisolir pada menu Portal Isolir sebelumnya belum tersinkronisasi secara komprehensif:
+1. Tidak ada mekanisme/tombol untuk menjalankan isolir otomatis on-demand terhadap pelanggan aktif yang sudah melewati tanggal jatuh tempo (`today >= isolate_day && auto_isolate = 1 && unpaid_count > 0`).
+2. Kueri data pelanggan terisolir belum menyertakan informasi esensial seperti nominal total tagihan belum bayar, jumlah bulan menunggak, tanggal jatuh tempo isolir, dan router MikroTik target.
+3. Ketiadaan tombol aksi langsung per baris untuk mengaktifkan kembali (*unisolate*), sinkronisasi ulang ke router (*re-sync isolate*), serta fitur pencarian live pada tabel pelanggan terisolir.
+
+### 2. Penyebab Utama (Root Cause)
+- Fungsi `getSuspendedCustomers()` di `services/isolatedPortalService.js` sebelumnya hanya membaca data dasar tanpa relasi agregasi invoice (`invoices.status = 'unpaid'`), tanggal jatuh tempo, dan router target.
+- Modul Portal Isolir belum dilengkapi controller & router endpoint untuk sinkronisasi massal (`POST /admin/isolated-portal/sync`) maupun aksi langsung (*unisolate/isolate*).
+
+### 3. Solusi & Implementasi Teknis
+- **`services/isolatedPortalService.js`**:
+  - Memperbarui `getSuspendedCustomers()` dengan kueri agregasi SQL untuk menghitung `unpaid_count`, `unpaid_total`, `isolate_day`, `connection_type`, `router_id`, dan `router_name`.
+  - Menambahkan fungsi `syncAllOverdueCustomers()` yang memindai seluruh pelanggan aktif yang memiliki tagihan belum lunas melewati tanggal jatuh tempo, mengubah statusnya menjadi `suspended`, memicu pipeline isolir (`customerSvc.suspendCustomer`), serta menyinkronkan seluruh akun terisolir ke router MikroTik/RADIUS.
+- **`routes/admin/isolatedPortal.js`**:
+  - Menambahkan endpoint `POST /admin/isolated-portal/sync` untuk sinkronisasi massal instan.
+  - Menambahkan endpoint `POST /admin/isolated-portal/unisolate/:id` untuk aktivasi kembali instan.
+  - Menambahkan endpoint `POST /admin/isolated-portal/isolate/:id` untuk isolir & sinkron ulang router per pelanggan.
+- **`views/admin/isolated_portal.ejs`**:
+  - Menambahkan tombol **"Sinkronkan Isolir Sekarang"** pada Header Banner & Tab Daftar Pelanggan Isolir.
+  - Menyediakan input pencarian instan (*live search*) untuk memfilter tabel pelanggan terisolir berdasarkan nama, PPPoE username, atau nomor telepon.
+  - Memperkaya tabel dengan badge tagihan (`Rp xxx (x bln)`), tanggal jatuh tempo (`Tgl x`), tombol **Aktifkan**, tombol **Isolir Ulang & Sync Router**, tombol **WhatsApp**, dan tombol **Detail**.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`services/isolatedPortalService.js`](file:///d:/WEBAPP/myadamedia-billing/services/isolatedPortalService.js): Kueri data terisolir lengkap & method `syncAllOverdueCustomers()`.
+- `[MODIFY]` [`routes/admin/isolatedPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/admin/isolatedPortal.js): Endpoint rute `/sync`, `/unisolate/:id`, dan `/isolate/:id`.
+- `[MODIFY]` [`views/admin/isolated_portal.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/isolated_portal.ejs): UI Tab 4 dengan tombol sinkronisasi massal, live filter, info tagihan, dan direct action buttons.
+
+### 5. Hasil Pengujian & Verifikasi
+- Pengujian Unit Test (`npm test`): **PASSED** (100% Lulus).
+- Pengujian Sintaks Node.js (`node -c`): **PASSED** (0 Error).
+- Verifikasi Sinkronisasi: Tombol sinkronisasi berhasil mengeksekusi isolir pelanggan jatuh tempo dan menyajikan data lengkap secara real-time.
+
+---
+
 ## [2026-08-16] Perbaikan Multi-Theme (Light/Dark/Ocean/Forest) Text Contrast & Form Input Visibility pada Menu Portal Isolir
 
 ### 1. Deskripsi Permasalahan
