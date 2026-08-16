@@ -535,22 +535,16 @@ function queueBootstrapTasksIfNeeded(deviceId, currentParams) {
     const device = db.prepare('SELECT tags FROM acs_devices WHERE id = ?').get(deviceId);
     if (!device) return;
 
-    let tags = [];
-    try { tags = JSON.parse(device.tags || '[]'); } catch (_) {}
-    if (tags.includes('bootstrapped')) {
-      return;
-    }
+    // Check if we need to fetch parameters (if they are missing from currentParams)
+    const hasWlan = Object.keys(currentParams).some(k => k.toLowerCase().includes('ssid') || k.toLowerCase().includes('keypassphrase'));
+    const hasWan = Object.keys(currentParams).some(k => k.toLowerCase().includes('username') || k.toLowerCase().includes('externalipaddress') || k.toLowerCase().includes('pppoe'));
+    const hasRx = Object.keys(currentParams).some(k => k.toLowerCase().includes('rxpower') || k.toLowerCase().includes('redaman') || k.toLowerCase().includes('opticalsignallevel'));
 
     // Check if there is already a pending getParameterValues task for this device to prevent duplication
     const pending = db.prepare("SELECT COUNT(*) as c FROM acs_tasks WHERE device_id = ? AND name = 'getParameterValues' AND status = 'pending'").get(deviceId);
     if (pending && pending.c > 0) {
       return;
     }
-
-    // Check if we need to fetch parameters (if they are missing from currentParams)
-    const hasWlan = Object.keys(currentParams).some(k => k.toLowerCase().includes('ssid') || k.toLowerCase().includes('keypassphrase'));
-    const hasWan = Object.keys(currentParams).some(k => k.toLowerCase().includes('username') || k.toLowerCase().includes('externalipaddress') || k.toLowerCase().includes('pppoe'));
-    const hasRx = Object.keys(currentParams).some(k => k.toLowerCase().includes('rxpower') || k.toLowerCase().includes('redaman') || k.toLowerCase().includes('opticalsignallevel'));
 
     if (!hasWlan || !hasWan || !hasRx) {
       logger.info(`[ACS] Device ${deviceId} is missing key parameters (WLAN:${hasWlan}, WAN:${hasWan}, RX:${hasRx}). Queuing bootstrap parameter fetches.`);

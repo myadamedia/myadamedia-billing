@@ -795,7 +795,63 @@ function mapDeviceData(device, tag) {
 
 async function getCustomerDeviceData(tag) {
   const base = await resolveDeviceToken(tag);
-  if (!base || !base._id) return null;
+  if (!base || !base._id) {
+    try {
+      const db = require('../config/database');
+      const tagClean = String(tag || '').toLowerCase().trim();
+      const cleanNum = tagClean.replace(/\D/g, '');
+
+      const profile = db.prepare(`
+        SELECT * FROM customers 
+        WHERE LOWER(phone) = ? 
+           OR LOWER(genieacs_tag) = ? 
+           OR LOWER(pppoe_username) = ? 
+           OR CAST(id AS TEXT) = ?
+           OR (? != '' AND (REPLACE(phone, '+', '') LIKE ? OR phone LIKE ?))
+      `).get(tagClean, tagClean, tagClean, tagClean, cleanNum, `%${cleanNum}%`, `%${cleanNum}%`);
+
+      if (profile) {
+        let activeIp = '-';
+        let activeStatus = 'Offline';
+        try {
+          const radSession = db.prepare(`
+            SELECT framedipaddress FROM radacct 
+            WHERE LOWER(username) = LOWER(?) AND acctstoptime IS NULL 
+            ORDER BY acctstarttime DESC LIMIT 1
+          `).get(profile.pppoe_username || profile.phone);
+          if (radSession && radSession.framedipaddress) {
+            activeIp = radSession.framedipaddress;
+            activeStatus = 'Online';
+          }
+        } catch (_) {}
+
+        return {
+          phone: profile.phone || tag,
+          customerName: profile.name || '-',
+          customerPhone: profile.phone || '-',
+          customerTag: profile.genieacs_tag || profile.pppoe_username || profile.phone || tag,
+          ssid: profile.wifi_ssid || '-',
+          status: activeStatus,
+          lastInform: '-',
+          connectedUsers: [],
+          rxPower: '-',
+          pppoeIP: activeIp,
+          pppoeUsername: profile.pppoe_username || '-',
+          pppoeUptime: '-',
+          serialNumber: profile.genieacs_tag || '-',
+          productClass: profile.router_model || '-',
+          lokasi: profile.address || '-',
+          softwareVersion: '-',
+          model: profile.router_model || '-',
+          uptime: '-',
+          totalAssociations: 0
+        };
+      }
+    } catch (e) {
+      logger.debug(`[CustomerDevice] Profile fallback info: ${e.message}`);
+    }
+    return null;
+  }
   
   if (genieacsApi.isBuiltinAcsEnabled() && base._acs_server_id === 'builtin') {
     try {

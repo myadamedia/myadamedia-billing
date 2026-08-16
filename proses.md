@@ -2,6 +2,29 @@
 
 ---
 
+## [2026-08-16] Perbaikan Fallback Profil Billing & Auto Re-fetch Bootstrap TR-069 pada Mode Built-in ACS
+
+### 1. Deskripsi Permasalahan
+Saat perangkat ONT belum/baru terhubung ke **Built-in ACS**, Portal Pelanggan masih menampilkan pesan `Data perangkat tidak ditemukan di sistem ONU` dan seluruh bidang (IP, SSID, Sinyal Optik, Perangkat Terhubung) tampil `-` / `Belum Terdeteksi`.
+
+### 2. Penyebab Utama (Root Cause)
+1. **Un-Enriched Fallback ketika Device Belum Terdaftar di Built-in ACS**:
+   `getCustomerDeviceData()` melempar nilai `null` ketika `resolveDeviceToken()` belum menemukan baris perangkat di `acs_devices`, sehingga Portal Pelanggan menampilkan status tidak terdeteksi.
+2. **Premature `bootstrapped` Flag Blocking pada `acsServerService.js`**:
+   `queueBootstrapTasksIfNeeded()` sebelumnya memasang tag `'bootstrapped'` pada iterasi pertama Inform, sehingga jika perangkat belum merespons parameter WLAN, WAN, atau RX Power pada sesi CWMP pertama, sistem tidak pernah meminta ulang parameter tersebut pada Inform berikutnya.
+
+### 3. Solusi & Implementasi Teknis
+- **`services/customerDeviceService.js`**:
+  - **Billing Profile & RADIUS Fallback**: Memperbarui `getCustomerDeviceData()` agar saat perangkat belum ada di `acs_devices`, sistem secara otomatis mengambil data profil dari tabel billing `customers` dan IP aktif dari `radacct` (MikroTik/RADIUS). Ini menjamin Portal Pelanggan **selalu menampilkan informasi profil, IP aktif, dan SSID bawaan** tanpa banner error `Data perangkat tidak ditemukan`.
+- **`services/acsServerService.js`**:
+  - **Persistent Bootstrap Re-fetch**: Menghapus perkondisian `bootstrapped` prematur dan memastikan Built-in ACS terus mengirim antrean `getParameterValues` untuk WLAN, WAN, dan RX Power pada setiap Inform hingga parameter tersebut berhasil didapatkan dari ONT.
+
+### 4. Hasil Pengujian & Verifikasi
+- Pengecekan Sintaks JavaScript (`node -c`): **PASSED** (0 Error).
+- Pengujian Otomatis (`npm test`): **PASSED** (100% Lulus).
+
+---
+
 ## [2026-08-16] Perbaikan Penayangan 4 Poin Parameter Perangkat (IP, SSID, RX Power, Perangkat Terhubung) pada Mode Built-in ACS
 
 ### 1. Deskripsi Permasalahan
