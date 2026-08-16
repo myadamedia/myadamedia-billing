@@ -2,6 +2,30 @@
 
 ---
 
+## [2026-08-16] Perbaikan Resolusi Detail Perangkat (Modal Detail) pada Mode Built-in ACS Server
+
+### 1. Deskripsi Permasalahan
+Saat menekan tombol **Detail Perangkat** (ikon mata) di tabel Monitoring ONU pada mode **Built-in ACS**, modal detail menampilkan status `Offline — Last Inform: -` dan seluruh data perangkat (Model, Serial, SW Version, PPPoE User, IP, RX Power, SSID, Uptime) tampil `-` (kosong).
+
+### 2. Penyebab Utama (Root Cause)
+1. **Kegagalan Resolusi Tag/Identifier di `resolveDeviceToken()`**:
+   Tombol detail mengirimkan tag/identifier perangkat (misal tag pelanggan `085161999...` atau `AA-COBA`). Pada mode Built-in ACS, `resolveDeviceToken()` mencoba kueri GenieACS MongoDB/Axios standar yang gagal mencocokkan tag pelanggan dengan ID perangkat asli (`000E3B-ONU-1234`) di SQLite, sehingga mengembalikan `null` (HTTP 404 Device not found).
+2. **Penggunaan Tag Sekunder pada Tombol Aksi UI**:
+   Atribut `data-tag` pada tombol detail di `dashboard.ejs` sebelumnya mengutamakan `d.tags[0]` daripada ID perangkat fisik `d.id`.
+
+### 3. Solusi & Implementasi Teknis
+- **`services/customerDeviceService.js`**:
+  - **Direct SQLite Resolution Fallback**: Memperbarui `resolveDeviceToken()` untuk melakukan pencocokan langsung di database SQLite `acs_devices` berdasarkan `id`, `serial_number`, `tags`, atau `params`.
+  - **Relational Customer Resolution**: Menambahkan kueri bertingkat ke tabel `customers` untuk memetakan nomor HP pelanggan, tag pelanggan (`genieacs_tag`), atau `pppoe_username` langsung ke baris perangkat `acs_devices`.
+- **`views/admin/dashboard.ejs`**:
+  - Memperbarui atribut `data-tag` pada tombol aksi tabel (`btn-dev-detail`, `btn-dev-wifi`, `btn-dev-pass`, `btn-dev-reboot`) agar secara konsisten menggunakan ID fisik perangkat `d.id`.
+
+### 4. Hasil Pengujian & Verifikasi
+- Pengecekan Sintaks JavaScript (`node -c`): **PASSED** (0 Error).
+- Pengujian Otomatis (`npm test`): **PASSED** (100% Lulus).
+
+---
+
 ## [2026-08-16] Perbaikan Kestabilan Built-in ACS Server & Pencegahan Error "Gagal Memuat Data"
 
 ### 1. Deskripsi Permasalahan

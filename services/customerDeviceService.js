@@ -112,6 +112,57 @@ async function resolveDeviceToken(input) {
   const found = await findDeviceWithTagVariants(token);
   if (found && found.device && found.device._id) return found.device;
 
+  // Fallback resolution via SQLite acs_devices & customers tables
+  try {
+    const db = require('../config/database');
+    const tokenLower = token.toLowerCase();
+    
+    // 1. Direct match in acs_devices by id, serial_number, tags, or params
+    const row = db.prepare(`
+      SELECT * FROM acs_devices 
+      WHERE LOWER(id) = ? 
+         OR LOWER(serial_number) = ? 
+         OR (tags IS NOT NULL AND LOWER(tags) LIKE ?) 
+         OR (params IS NOT NULL AND LOWER(params) LIKE ?)
+      ORDER BY last_inform DESC LIMIT 1
+    `).get(tokenLower, tokenLower, `%${tokenLower}%`, `%${tokenLower}%`);
+
+    if (row) {
+      const dev = genieacsApi.builtinRowToDevice(row);
+      if (dev && dev._id) return dev;
+    }
+
+    // 2. Search customers table to resolve phone / tag / pppoe_username to acs_devices
+    const cust = db.prepare(`
+      SELECT * FROM customers 
+      WHERE LOWER(phone) = ? 
+         OR LOWER(genieacs_tag) = ? 
+         OR LOWER(pppoe_username) = ? 
+         OR CAST(id AS TEXT) = ?
+    `).get(tokenLower, tokenLower, tokenLower, tokenLower);
+
+    if (cust) {
+      const custTag = (cust.genieacs_tag || cust.phone || cust.pppoe_username || '').toLowerCase();
+      const pppUser = (cust.pppoe_username || '').toLowerCase();
+      
+      const devRow = db.prepare(`
+        SELECT * FROM acs_devices 
+        WHERE LOWER(id) = ? 
+           OR LOWER(serial_number) = ? 
+           OR (tags IS NOT NULL AND LOWER(tags) LIKE ?) 
+           OR (? != '' AND params IS NOT NULL AND LOWER(params) LIKE ?)
+        ORDER BY last_inform DESC LIMIT 1
+      `).get(custTag, custTag, `%${custTag}%`, pppUser, `%${pppUser}%`);
+
+      if (devRow) {
+        const dev = genieacsApi.builtinRowToDevice(devRow);
+        if (dev && dev._id) return dev;
+      }
+    }
+  } catch (err) {
+    logger.debug(`[CustomerDevice] Builtin resolution fallback info: ${err.message}`);
+  }
+
   return null;
 }
 
