@@ -118,13 +118,14 @@ function matchesQuery(device, query) {
         }
       }
     } else {
-      // Direct equality
+      // Direct equality (case-insensitive for IDs, tags, and strings)
+      const condStr = String(condition ?? '').toLowerCase().trim();
       if (key === '_tags') {
-        if (!Array.isArray(device._tags) || !device._tags.includes(condition)) return false;
+        if (!Array.isArray(device._tags) || !device._tags.some(t => String(t ?? '').toLowerCase().trim() === condStr)) return false;
       } else if (key === '_id') {
-        if (device._id !== condition) return false;
+        if (String(device._id ?? '').toLowerCase().trim() !== condStr) return false;
       } else {
-        if (String(val) !== String(condition)) return false;
+        if (String(val ?? '').toLowerCase().trim() !== condStr) return false;
       }
     }
   }

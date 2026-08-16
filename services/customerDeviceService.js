@@ -498,22 +498,30 @@ function mapDeviceData(device, tag) {
   const ssid = getParameterWithPaths(device, parameterPaths.ssid);
   const ssidDisplay = ssid === 'N/A' ? '-' : ssid;
 
-  const lastInform =
+  const lastInformRaw =
     device?._lastInform
-      ? new Date(device._lastInform).toLocaleString('id-ID')
-      : device?.Events?.Inform
-        ? new Date(device.Events.Inform).toLocaleString('id-ID')
-        : device?.InternetGatewayDevice?.DeviceInfo?.['1']?.LastInform?._value
-          ? new Date(device.InternetGatewayDevice.DeviceInfo['1'].LastInform._value).toLocaleString('id-ID')
-          : '-';
+      || device?.Events?.Inform
+      || device?.InternetGatewayDevice?.DeviceInfo?.['1']?.LastInform?._value
+      || device?.InternetGatewayDevice?.DeviceInfo?.LastInform?._value
+      || device?.Device?.DeviceInfo?.LastInform?._value;
 
-  let status = 'Unknown';
-  if (device?._lastInform) {
-    const diffMs = Date.now() - new Date(device._lastInform).getTime();
+  const lastInformDate = lastInformRaw ? new Date(lastInformRaw) : null;
+  const lastInform = (lastInformDate && !isNaN(lastInformDate.getTime()))
+    ? lastInformDate.toLocaleString('id-ID')
+    : '-';
+
+  let status = 'Offline';
+  if (lastInformDate && !isNaN(lastInformDate.getTime())) {
+    const diffMs = Date.now() - lastInformDate.getTime();
     status = diffMs < 15 * 60 * 1000 ? 'Online' : 'Offline';
-  } else if (device?.Events?.Inform) {
-    const diffMs = Date.now() - new Date(device.Events.Inform).getTime();
-    status = diffMs < 15 * 60 * 1000 ? 'Online' : 'Offline';
+  }
+
+  if (status === 'Offline' || status === 'Unknown') {
+    const pppIp = extractPppoeIp(device);
+    const rx = extractRxPower(device);
+    if ((pppIp && pppIp !== 'N/A' && pppIp !== '-') || (rx && rx !== 'N/A' && rx !== '-')) {
+      status = 'Online';
+    }
   }
 
   let connectedUsers = [];
@@ -717,7 +725,7 @@ async function getCustomerDeviceData(tag) {
   }
 
   const device = await fetchFullDevice(base._id);
-  return mapDeviceData(device, tag);
+  return mapDeviceData(device || base, tag);
 }
 
 function fallbackCustomer(tag) {

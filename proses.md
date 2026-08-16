@@ -2,6 +2,31 @@
 
 ---
 
+## [2026-08-16] Perbaikan Diskrepansi Status Perangkat Online/Offline pada Tabel vs Detail Perangkat (Monitoring ONU)
+
+### 1. Deskripsi Permasalahan
+Ditemukan kondisi di mana status perangkat pada tabel **Monitoring ONU** menampilkan status `Online`, namun ketika modal **Detail Perangkat** dibuka, status perangkat justru berubah menjadi `Offline`.
+
+### 2. Penyebab Utama (Root Cause)
+1. **Case-Sensitive Query Filter di GenieACS Adapter (`config/genieacs.js`)**:
+   Fungsi `matchesQuery()` sebelumnya menggunakan pembandingan persis yang peka huruf besar/kecil (`device._id !== condition`). Jika ID perangkat memiliki variasi kapitalisasi (misal `000E3B...` vs `000e3b...`), pencarian `fetchFullDevice(base._id)` gagal mengembalikan data perangkat sehingga sistem menghasilkan *fallback device* yang dianggap `Offline`.
+2. **Keterbatasan Evaluasi Timestamp Inform di `mapDeviceData()`**:
+   Fungsi `mapDeviceData()` hanya mengecek `device._lastInform` atau `device.Events.Inform`, namun mengabaikan jalur timestamp lain seperti `DeviceInfo.LastInform` atau `DeviceInfo.1.LastInform`. Selain itu, tidak ada mekanisme *fallback status check* apabila perangkat memiliki IP PPPoE atau RX Power aktif.
+
+### 3. Solusi & Implementasi Teknis
+- **`config/genieacs.js`**:
+  - Memperbarui `matchesQuery()` agar melakukan pencocokan ID (`_id`), Tag (`_tags`), dan nilai string secara *case-insensitive* (`toLowerCase().trim()`).
+- **`services/customerDeviceService.js`**:
+  - **Enhance Timestamp Resolution**: Memperbarui `mapDeviceData()` untuk memeriksa seluruh variasi antarmuka timestamp inform (`_lastInform`, `Events.Inform`, `DeviceInfo.LastInform`, `DeviceInfo.1.LastInform`).
+  - **Active IP/RX Power Fallback**: Menambahkan aturan *fallback check* di mana jika `lastInform` tidak dapat diurai namun perangkat memiliki IP PPPoE aktif atau RX Power terdeteksi, maka status dipastikan `Online`.
+  - **Robust Fallback Mapping**: Memperbarui `getCustomerDeviceData()` agar menggunakan objek `base` teresolusi jika `fetchFullDevice` mengembalikan `null` (`mapDeviceData(device || base, tag)`).
+
+### 4. Hasil Pengujian & Verifikasi
+- Pengecekan Sintaks JavaScript (`node -c`): **PASSED** (0 Error).
+- Pengujian Otomatis (`npm test`): **PASSED** (100% Lulus).
+
+---
+
 ## [2026-08-16] Implementasi Remote Web Proxy ONT/ONU & Solusi Akses IP Device RADIUS/PPPoE
 
 ### 1. Deskripsi Permasalahan
