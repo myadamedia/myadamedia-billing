@@ -44,7 +44,7 @@ function getIsolatedPortalConfig() {
 /**
  * Menyimpan konfigurasi portal isolir.
  */
-function saveIsolatedPortalConfig(newConfig) {
+function saveIsolatedPortalConfig(newConfig = {}) {
   try {
     const current = getIsolatedPortalConfig();
     let cleanWalledGarden = current.walled_garden_domains;
@@ -60,13 +60,13 @@ function saveIsolatedPortalConfig(newConfig) {
 
     const updated = {
       ...current,
-      enabled: newConfig.enabled === 'true' || newConfig.enabled === true,
-      cna_push_enabled: newConfig.cna_push_enabled === 'true' || newConfig.cna_push_enabled === true,
-      custom_title: String(newConfig.custom_title || current.custom_title).trim(),
-      custom_message: String(newConfig.custom_message || current.custom_message).trim(),
-      custom_wa_message: String(newConfig.custom_wa_message || current.custom_wa_message).trim(),
+      enabled: newConfig.enabled !== undefined ? (newConfig.enabled === 'true' || newConfig.enabled === 'on' || newConfig.enabled === true) : current.enabled,
+      cna_push_enabled: newConfig.cna_push_enabled !== undefined ? (newConfig.cna_push_enabled === 'true' || newConfig.cna_push_enabled === 'on' || newConfig.cna_push_enabled === true) : current.cna_push_enabled,
+      custom_title: newConfig.custom_title !== undefined ? String(newConfig.custom_title || current.custom_title).trim() : current.custom_title,
+      custom_message: newConfig.custom_message !== undefined ? String(newConfig.custom_message || current.custom_message).trim() : current.custom_message,
+      custom_wa_message: newConfig.custom_wa_message !== undefined ? String(newConfig.custom_wa_message || current.custom_wa_message).trim() : current.custom_wa_message,
       walled_garden_domains: Array.from(new Set(cleanWalledGarden)),
-      auto_sync_mikrotik: newConfig.auto_sync_mikrotik === 'true' || newConfig.auto_sync_mikrotik === true
+      auto_sync_mikrotik: newConfig.auto_sync_mikrotik !== undefined ? (newConfig.auto_sync_mikrotik === 'true' || newConfig.auto_sync_mikrotik === 'on' || newConfig.auto_sync_mikrotik === true) : current.auto_sync_mikrotik
     };
 
     saveSettings({ [SETTINGS_KEY_PORTAL_ISOLATED]: updated });

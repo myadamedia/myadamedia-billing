@@ -1,359 +1,599 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="<%= lang || 'id' %>">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Portal Isolir &amp; CNA Push Pop-Up | <%= company %></title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <link rel="stylesheet" href="/css/admin.css">
+  <link rel="stylesheet" href="/css/admin.css?v=2">
   <style>
-    :root {
-      --bg-dark: #0f172a;
-      --card-bg: #1e293b;
-      --border-color: rgba(255, 255, 255, 0.08);
-      --accent-color: #3b82f6;
-    }
-    body {
-      background-color: var(--bg-dark);
-      color: #f8fafc;
-      font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    }
-    .page-header {
-      background: linear-gradient(135deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.9));
-      border: 1px solid var(--border-color);
-      border-radius: 16px;
-      padding: 24px;
-      margin-bottom: 24px;
-      backdrop-filter: blur(10px);
-    }
-    .card-custom {
-      background: var(--card-bg);
-      border: 1px solid var(--border-color);
-      border-radius: 16px;
-      padding: 24px;
-      margin-bottom: 24px;
-      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
-    }
-    .nav-tabs-custom {
-      border-bottom: 1px solid var(--border-color);
-      gap: 8px;
-    }
-    .nav-tabs-custom .nav-link {
-      color: #94a3b8;
-      border: none;
-      border-radius: 10px 10px 0 0;
-      padding: 12px 20px;
-      font-weight: 600;
-      transition: all 0.2s ease;
-    }
-    .nav-tabs-custom .nav-link.active {
-      color: #3b82f6;
-      background: rgba(59, 130, 246, 0.1);
-      border-bottom: 3px solid #3b82f6;
-    }
-    .stat-badge {
-      padding: 6px 12px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.03em;
-    }
-    .stat-active { background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); }
-    .stat-inactive { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
-    .code-box {
-      background: #090d16;
+    /* ── High-Contrast & Modern Scoped Styling ── */
+    .portal-banner {
+      background: linear-gradient(135deg, rgba(30, 41, 59, 0.85), rgba(15, 23, 42, 0.95));
       border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 14px;
+      padding: 22px 24px;
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .portal-title {
+      font-size: 20px;
+      font-weight: 800;
+      color: #ffffff;
+      margin: 0 0 6px 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .portal-sub {
+      color: #94a3b8;
+      font-size: 13px;
+      margin: 0;
+      line-height: 1.5;
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 14px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .pill-active {
+      background: rgba(34, 197, 94, 0.16);
+      color: #4ade80;
+      border: 1px solid rgba(34, 197, 94, 0.35);
+    }
+    .pill-inactive {
+      background: rgba(239, 68, 68, 0.16);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.35);
+    }
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: currentColor;
+      display: inline-block;
+      box-shadow: 0 0 8px currentColor;
+    }
+
+    /* ── Tab Navigation ── */
+    .tab-bar {
+      display: flex;
+      gap: 8px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 20px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+      scrollbar-width: thin;
+    }
+    .tab-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      border-bottom: none;
+      color: #94a3b8;
+      padding: 11px 18px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 10px 10px 0 0;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+    .tab-btn:hover {
+      color: #f1f5f9;
+      background: rgba(255, 255, 255, 0.04);
+    }
+    .tab-btn.active {
+      color: #38bdf8;
+      background: var(--bg2);
+      border-color: var(--border);
+      border-bottom: 2px solid #38bdf8;
+    }
+    .tab-content-panel {
+      display: none;
+    }
+    .tab-content-panel.active {
+      display: block;
+      animation: fadeIn 0.25s ease;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Switch & Form Enhancements ── */
+    .switch-card {
+      background: rgba(13, 17, 23, 0.7);
+      border: 1px solid var(--border);
       border-radius: 12px;
       padding: 16px;
-      font-family: 'Fira Code', 'Courier New', monospace;
-      font-size: 13px;
-      color: #38bdf8;
-      max-height: 420px;
-      overflow-y: auto;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      transition: border-color 0.2s ease;
     }
-    .btn-copy {
+    .switch-card:hover {
+      border-color: rgba(99, 102, 241, 0.35);
+    }
+    .toggle-switch {
+      position: relative;
+      display: inline-block;
+      width: 46px;
+      height: 24px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .toggle-slider {
       position: absolute;
-      top: 12px;
-      right: 12px;
-      background: rgba(59, 130, 246, 0.2);
-      color: #60a5fa;
-      border: 1px solid rgba(59, 130, 246, 0.4);
-      border-radius: 8px;
-      padding: 4px 10px;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #334155;
+      transition: .3s;
+      border-radius: 24px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+    .toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 3px;
+      bottom: 3px;
+      background-color: #ffffff;
+      transition: .3s;
+      border-radius: 50%;
+    }
+    .toggle-switch input:checked + .toggle-slider {
+      background-color: #3b82f6;
+    }
+    .toggle-switch input:checked + .toggle-slider:before {
+      transform: translateX(22px);
+    }
+    .switch-label-title {
+      font-weight: 700;
+      font-size: 14px;
+      color: #f8fafc;
+      margin-bottom: 3px;
+      display: block;
+      cursor: pointer;
+    }
+    .switch-label-desc {
       font-size: 12px;
-      transition: all 0.2s;
+      color: #94a3b8;
+      line-height: 1.4;
     }
-    .btn-copy:hover { background: rgba(59, 130, 246, 0.4); color: #fff; }
-    .probe-card {
-      background: rgba(15, 23, 42, 0.5);
-      border: 1px solid var(--border-color);
+
+    /* ── Code Box & Terminal ── */
+    .code-terminal {
+      background: #090d16;
+      border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: 12px;
-      padding: 14px;
+      position: relative;
+      overflow: hidden;
+      margin-top: 14px;
+    }
+    .code-terminal-hd {
+      background: #111827;
+      padding: 10px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .code-terminal-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #94a3b8;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .code-terminal pre {
+      margin: 0;
+      padding: 16px;
+      color: #38bdf8;
+      font-family: 'Fira Code', 'Courier New', monospace;
+      font-size: 12.5px;
+      line-height: 1.6;
+      max-height: 380px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    /* ── CNA Simulator Cards ── */
+    .probe-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 14px;
+      margin-top: 14px;
+    }
+    .probe-card {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 10px;
+      transition: all 0.2s ease;
+    }
+    .probe-card:hover {
+      border-color: #3b82f6;
+      transform: translateY(-2px);
+    }
+    .probe-path {
+      font-family: monospace;
+      font-size: 12px;
+      background: rgba(0,0,0,0.3);
+      color: #38bdf8;
+      padding: 4px 8px;
+      border-radius: 6px;
+      word-break: break-all;
+    }
+    .probe-os {
+      font-size: 11px;
+      color: #94a3b8;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* ── High-Contrast Form Inputs ── */
+    .form-group-custom {
+      margin-bottom: 18px;
+    }
+    .form-group-custom label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: #e2e8f0;
+      margin-bottom: 6px;
+      letter-spacing: 0.3px;
+    }
+    .form-group-custom .hint-text {
+      font-size: 11.5px;
+      color: #94a3b8;
+      margin-bottom: 6px;
+      line-height: 1.4;
+    }
+    .form-control-custom {
+      width: 100%;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: #f8fafc;
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
       transition: all 0.2s;
     }
-    .probe-card:hover { border-color: rgba(59, 130, 246, 0.4); }
+    .form-control-custom:focus {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+    }
+
+    /* ── Toast notification ── */
+    #copyToast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #10b981;
+      color: #ffffff;
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      z-index: 9999;
+      animation: fadeIn .2s;
+    }
   </style>
 </head>
 <body>
 
-  <%- include('partials/sidebar') %>
+<%- include('partials/sidebar', { activePage: 'isolated_portal', company }) %>
 
-  <div class="main-content p-4">
+<div class="mw">
+  <!-- Topbar Standard -->
+  <div class="topbar">
+    <div class="tb-title">
+      <button class="hb-menu" onclick="toggleSidebar()"><i class="bi bi-list"></i></button>
+      <i class="bi bi-shield-slash-fill" style="color:var(--primary)"></i>
+      <span>Portal Isolir &amp; CNA Push Pop-Up</span>
+    </div>
+    <div class="tb-right">
+      <span class="adm-badge">
+        <i class="bi bi-broadcast"></i> <%= config.cna_push_enabled ? 'CNA Push Aktif' : 'CNA Nonaktif' %>
+      </span>
+      <a href="/isolated" target="_blank" class="btn btn-g btn-sm">
+        <i class="bi bi-eye"></i> Preview /isolated
+      </a>
+      <a href="/admin/logout" class="btn btn-g btn-sm">
+        <i class="bi bi-box-arrow-left"></i> Logout
+      </a>
+    </div>
+  </div>
+
+  <div class="page">
     
     <% if (msg) { %>
-      <div class="alert alert-<%= msg.type === 'error' ? 'danger' : 'success' %> alert-dismissible fade show border-0 shadow-sm rounded-3 mb-4" role="alert">
-        <i class="bi bi-<%= msg.type === 'error' ? 'exclamation-triangle-fill' : 'check-circle-fill' %> me-2"></i>
-        <%= msg.text %>
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      <div class="alert alert-<%= msg.type === 'error' ? 'd' : 's' %>">
+        <i class="bi bi-<%= msg.type === 'error' ? 'exclamation-circle' : 'check-circle' %>"></i>
+        <span><%= msg.text %></span>
       </div>
     <% } %>
 
-    <!-- Header Page -->
-    <div class="page-header d-flex flex-wrap align-items-center justify-content-between gap-3">
+    <!-- Header Banner -->
+    <div class="portal-banner">
       <div>
-        <div class="d-flex align-items-center gap-2 mb-1">
-          <h2 class="h4 fw-bold m-0 text-white"><i class="bi bi-shield-slash-fill text-primary me-2"></i>Portal Isolir &amp; CNA Push Pop-Up</h2>
-          <span class="stat-badge <%= config.enabled ? 'stat-active' : 'stat-inactive' %>">
-            <i class="bi bi-circle-fill me-1" style="font-size: 8px;"></i><%= config.enabled ? 'PORTAL AKTIF' : 'NONAKTIF' %>
+        <div class="portal-title">
+          <i class="bi bi-shield-slash-fill" style="color: #60a5fa;"></i>
+          Portal Isolir &amp; CNA Push Pop-Up
+          <span class="status-pill <%= config.enabled ? 'pill-active' : 'pill-inactive' %>">
+            <span class="pulse-dot"></span>
+            <%= config.enabled ? 'PORTAL AKTIF' : 'PORTAL NONAKTIF' %>
           </span>
         </div>
-        <p class="text-muted m-0 small">Kelola otomatisasi pengalihan isolir pelanggan suspended dan push pop-up otomatis pada koneksi Wi-Fi (Android, iOS, Windows).</p>
+        <p class="portal-sub">
+          Otomatisasi pengalihan isolir pelanggan suspended dan push pop-up otomatis pada koneksi Wi-Fi (Android, iOS, Windows).
+        </p>
       </div>
-      
-      <div class="d-flex gap-2">
-        <a href="/isolated" target="_blank" class="btn btn-outline-light btn-sm rounded-3">
-          <i class="bi bi-eye me-1"></i> Preview /isolated
+      <div>
+        <a href="/isolated" target="_blank" class="btn btn-g btn-sm">
+          <i class="bi bi-box-arrow-up-right"></i> Buka Halaman /isolated
         </a>
       </div>
     </div>
 
-    <!-- Overview Stats Cards -->
-    <div class="row g-3 mb-4">
-      <div class="col-md-3">
-        <div class="card-custom m-0 p-3">
-          <div class="d-flex align-items-center gap-3">
-            <div class="p-3 bg-primary bg-opacity-10 text-primary rounded-3">
-              <i class="bi bi-broadcast fs-3"></i>
-            </div>
-            <div>
-              <div class="text-muted small">CNA Push Pop-Up</div>
-              <div class="fw-bold fs-5 <%= config.cna_push_enabled ? 'text-success' : 'text-danger' %>">
-                <%= config.cna_push_enabled ? 'Aktif' : 'Non-Aktif' %>
-              </div>
-            </div>
-          </div>
+    <!-- Stat Grid Overview -->
+    <div class="stat-grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 20px;">
+      <div class="sc <%= config.cna_push_enabled ? 's' : 'd' %>">
+        <i class="bi bi-broadcast sc-icon"></i>
+        <div class="sc-label">Status CNA Push Pop-Up</div>
+        <div class="sc-val <%= config.cna_push_enabled ? 'text-success' : 'text-danger' %>" style="font-size: 20px;">
+          <%= config.cna_push_enabled ? 'Aktif' : 'Non-Aktif' %>
         </div>
+        <div class="sc-sub">Deteksi Probe OS</div>
       </div>
 
-      <div class="col-md-3">
-        <div class="card-custom m-0 p-3">
-          <div class="d-flex align-items-center gap-3">
-            <div class="p-3 bg-danger bg-opacity-10 text-danger rounded-3">
-              <i class="bi bi-people-fill fs-3"></i>
-            </div>
-            <div>
-              <div class="text-muted small">Pelanggan Terisolir</div>
-              <div class="fw-bold fs-5 text-white"><%= suspendedCustomers.length %> Akun</div>
-            </div>
-          </div>
-        </div>
+      <div class="sc d">
+        <i class="bi bi-people-fill sc-icon"></i>
+        <div class="sc-label">Pelanggan Terisolir</div>
+        <div class="sc-val"><%= suspendedCustomers.length %></div>
+        <div class="sc-sub">Akun berstatus suspended</div>
       </div>
 
-      <div class="col-md-3">
-        <div class="card-custom m-0 p-3">
-          <div class="d-flex align-items-center gap-3">
-            <div class="p-3 bg-warning bg-opacity-10 text-warning rounded-3">
-              <i class="bi bi-shield-check fs-3"></i>
-            </div>
-            <div>
-              <div class="text-muted small">Walled Garden Domain</div>
-              <div class="fw-bold fs-5 text-white"><%= config.walled_garden_domains.length %> Domain</div>
-            </div>
-          </div>
-        </div>
+      <div class="sc w">
+        <i class="bi bi-shield-check sc-icon"></i>
+        <div class="sc-label">Walled Garden Domain</div>
+        <div class="sc-val"><%= config.walled_garden_domains.length %></div>
+        <div class="sc-sub">Domain Whitelist Bypass</div>
       </div>
 
-      <div class="col-md-3">
-        <div class="card-custom m-0 p-3">
-          <div class="d-flex align-items-center gap-3">
-            <div class="p-3 bg-info bg-opacity-10 text-info rounded-3">
-              <i class="bi bi-hdd-network fs-3"></i>
-            </div>
-            <div>
-              <div class="text-muted small">Target Router</div>
-              <div class="fw-bold fs-5 text-white"><%= routers.length %> Router</div>
-            </div>
-          </div>
-        </div>
+      <div class="sc i">
+        <i class="bi bi-hdd-network sc-icon"></i>
+        <div class="sc-label">Target Router MikroTik</div>
+        <div class="sc-val"><%= routers.length %></div>
+        <div class="sc-sub">Router Terdaftar di Billing</div>
       </div>
     </div>
 
-    <!-- Main Tabs -->
-    <ul class="nav nav-tabs nav-tabs-custom mb-4" id="isolirTabs" role="tablist">
-      <li class="nav-item">
-        <button class="nav-link active" id="config-tab" data-bs-toggle="tab" data-bs-target="#config-pane" type="button" role="tab">
-          <i class="bi bi-sliders me-2"></i>Pengaturan Engine
-        </button>
-      </li>
-      <li class="nav-item">
-        <button class="nav-link" id="mikrotik-tab" data-bs-toggle="tab" data-bs-target="#mikrotik-pane" type="button" role="tab">
-          <i class="bi bi-router me-2"></i>Script MikroTik NAT
-        </button>
-      </li>
-      <li class="nav-item">
-        <button class="nav-link" id="tester-tab" data-bs-toggle="tab" data-bs-target="#tester-pane" type="button" role="tab">
-          <i class="bi bi-phone-vibrate me-2"></i>Uji CNA Push Pop-Up
-        </button>
-      </li>
-      <li class="nav-item">
-        <button class="nav-link" id="customers-tab" data-bs-toggle="tab" data-bs-target="#customers-pane" type="button" role="tab">
-          <i class="bi bi-person-x me-2"></i>Daftar Pelanggan Isolir (<%= suspendedCustomers.length %>)
-        </button>
-      </li>
-    </ul>
+    <!-- Tab Bar -->
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab('tab-config', this)">
+        <i class="bi bi-sliders"></i> Pengaturan Engine
+      </button>
+      <button class="tab-btn" onclick="switchTab('tab-mikrotik', this)">
+        <i class="bi bi-terminal"></i> Script MikroTik NAT
+      </button>
+      <button class="tab-btn" onclick="switchTab('tab-tester', this)">
+        <i class="bi bi-phone-vibrate"></i> Uji CNA Push Pop-Up
+      </button>
+      <button class="tab-btn" onclick="switchTab('tab-customers', this)">
+        <i class="bi bi-person-x"></i> Daftar Pelanggan Isolir (<%= suspendedCustomers.length %>)
+      </button>
+    </div>
 
-    <div class="tab-content" id="isolirTabsContent">
-      
-      <!-- TAB 1: Pengaturan Engine -->
-      <div class="tab-pane fade show active" id="config-pane" role="tabpanel">
-        <div class="card-custom">
+    <!-- TAB 1: Pengaturan Engine -->
+    <div id="tab-config" class="tab-content-panel active">
+      <div class="card">
+        <div class="card-hd">
+          <h6><i class="bi bi-gear-fill"></i> Konfigurasi Utama Portal Isolir</h6>
+        </div>
+        <div class="card-bd">
           <form action="/admin/isolated-portal/settings" method="POST">
-            <h5 class="fw-bold text-white mb-4"><i class="bi bi-gear-fill text-primary me-2"></i>Konfigurasi Utama Portal Isolir</h5>
             
-            <div class="row g-4 mb-4">
-              <div class="col-md-6">
-                <div class="form-check form-switch p-3 bg-dark bg-opacity-50 rounded-3 border border-secondary border-opacity-25">
-                  <input class="form-check-input ms-0 me-3" type="checkbox" name="enabled" value="true" id="enabledSwitch" <%= config.enabled ? 'checked' : '' %>>
-                  <label class="form-check-label text-white fw-bold" for="enabledSwitch">
-                    Aktifkan Portal Isolir
-                    <div class="text-muted fw-normal small mt-1">Mengalihkan lalu lintas internet pelanggan berstatus suspended ke halaman informasi tagihan.</div>
-                  </label>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-bottom: 22px;">
+              
+              <!-- Switch 1: Enabled -->
+              <div class="switch-card">
+                <label class="toggle-switch">
+                  <input type="checkbox" name="enabled" value="true" <%= config.enabled ? 'checked' : '' %>>
+                  <span class="toggle-slider"></span>
+                </label>
+                <div>
+                  <label class="switch-label-title">Aktifkan Portal Isolir</label>
+                  <div class="switch-label-desc">Mengalihkan lalu lintas internet pelanggan berstatus suspended ke halaman informasi tagihan.</div>
                 </div>
               </div>
 
-              <div class="col-md-6">
-                <div class="form-check form-switch p-3 bg-dark bg-opacity-50 rounded-3 border border-secondary border-opacity-25">
-                  <input class="form-check-input ms-0 me-3" type="checkbox" name="cna_push_enabled" value="true" id="cnaSwitch" <%= config.cna_push_enabled ? 'checked' : '' %>>
-                  <label class="form-check-label text-white fw-bold" for="cnaSwitch">
-                    Aktifkan Auto Push Pop-Up (CNA Probe Interceptor)
-                    <div class="text-muted fw-normal small mt-1">Mendorong OS (Android, iOS, Windows) untuk otomatis memunculkan pop-up jendela isolir begitu terkoneksi Wi-Fi.</div>
-                  </label>
+              <!-- Switch 2: CNA Push Pop-up -->
+              <div class="switch-card">
+                <label class="toggle-switch">
+                  <input type="checkbox" name="cna_push_enabled" value="true" <%= config.cna_push_enabled ? 'checked' : '' %>>
+                  <span class="toggle-slider"></span>
+                </label>
+                <div>
+                  <label class="switch-label-title">Aktifkan Auto Push Pop-Up (CNA)</label>
+                  <div class="switch-label-desc">Mendorong OS (Android, iOS, Windows) untuk otomatis memunculkan pop-up jendela isolir begitu terkoneksi Wi-Fi.</div>
                 </div>
               </div>
+
             </div>
 
-            <div class="row g-3 mb-4">
-              <div class="col-md-6">
-                <label class="form-label text-light fw-semibold">Judul Utama Halaman Isolir</label>
-                <input type="text" name="custom_title" class="form-control bg-dark border-secondary text-white" value="<%= config.custom_title %>" required>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 18px;">
+              <div class="form-group-custom">
+                <label>Judul Utama Halaman Isolir</label>
+                <div class="hint-text">Judul yang ditampilkan pada pop-up isolir pelanggan.</div>
+                <input type="text" name="custom_title" class="form-control-custom" value="<%= config.custom_title %>" required>
               </div>
 
-              <div class="col-md-6">
-                <label class="form-label text-light fw-semibold">Format Pesan Konfirmasi WA Admin</label>
-                <input type="text" name="custom_wa_message" class="form-control bg-dark border-secondary text-white" value="<%= config.custom_wa_message %>" required>
-              </div>
-
-              <div class="col-12">
-                <label class="form-label text-light fw-semibold">Deskripsi / Penjelasan Isolir</label>
-                <textarea name="custom_message" rows="3" class="form-control bg-dark border-secondary text-white" required><%= config.custom_message %></textarea>
-              </div>
-
-              <div class="col-12">
-                <label class="form-label text-light fw-semibold">Walled Garden Whitelist Domains (1 domain per baris)</label>
-                <div class="text-muted small mb-2">Domain di bawah ini tetap dapat diakses oleh pelanggan terisolir agar dapat melakukan pembayaran QRIS/Midtrans/Tripay/Xendit langsung dari pop-up.</div>
-                <textarea name="walled_garden_domains" rows="6" class="form-control bg-dark border-secondary text-white font-monospace"><%= config.walled_garden_domains.join('\n') %></textarea>
+              <div class="form-group-custom">
+                <label>Format Pesan Konfirmasi WA Admin</label>
+                <div class="hint-text">Template pesan saat pelanggan menekan tombol WhatsApp.</div>
+                <input type="text" name="custom_wa_message" class="form-control-custom" value="<%= config.custom_wa_message %>" required>
               </div>
             </div>
 
-            <div class="d-flex justify-content-end">
-              <button type="submit" class="btn btn-primary px-4 rounded-3">
-                <i class="bi bi-save me-1"></i> Simpan Pengaturan
+            <div class="form-group-custom">
+              <label>Deskripsi / Penjelasan Isolir</label>
+              <div class="hint-text">Pesan informasi tagihan yang dibaca oleh pelanggan ketika terisolir.</div>
+              <textarea name="custom_message" rows="3" class="form-control-custom" required><%= config.custom_message %></textarea>
+            </div>
+
+            <div class="form-group-custom">
+              <label>Walled Garden Whitelist Domains (1 domain per baris)</label>
+              <div class="hint-text">Domain di bawah ini tetap dapat diakses oleh pelanggan terisolir agar dapat melakukan pembayaran QRIS/Midtrans/Tripay/Xendit langsung dari pop-up.</div>
+              <textarea name="walled_garden_domains" rows="6" class="form-control-custom" style="font-family: monospace; font-size: 13px;"><%= config.walled_garden_domains.join('\n') %></textarea>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; margin-top: 20px;">
+              <button type="submit" class="btn btn-p">
+                <i class="bi bi-save"></i> Simpan Konfigurasi
               </button>
             </div>
           </form>
         </div>
       </div>
+    </div>
 
-      <!-- TAB 2: Script MikroTik NAT -->
-      <div class="tab-pane fade" id="mikrotik-pane" role="tabpanel">
-        <div class="card-custom">
-          <div class="d-flex justify-content-between align-items-center mb-3">
-            <div>
-              <h5 class="fw-bold text-white mb-1"><i class="bi bi-terminal-fill text-primary me-2"></i>Script Terminal MikroTik (DST-NAT &amp; Walled Garden)</h5>
-              <div class="text-muted small">Salin script berikut dan jalankan di Terminal RouterOS MikroTik untuk mengaktifkan pengalihan isolir &amp; push pop-up.</div>
+    <!-- TAB 2: Script MikroTik NAT -->
+    <div id="tab-mikrotik" class="tab-content-panel">
+      <div class="card">
+        <div class="card-hd">
+          <h6><i class="bi bi-terminal-fill"></i> Script Terminal MikroTik (DST-NAT &amp; Walled Garden)</h6>
+          <button class="btn btn-p btn-sm" onclick="copyScript()">
+            <i class="bi bi-clipboard"></i> Salin Script
+          </button>
+        </div>
+        <div class="card-bd">
+          <p class="portal-sub" style="margin-bottom: 12px;">
+            Salin script berikut dan jalankan di Terminal RouterOS MikroTik untuk mengaktifkan pengalihan isolir &amp; push pop-up otomatis:
+          </p>
+
+          <div class="code-terminal">
+            <div class="code-terminal-hd">
+              <div class="code-terminal-title">
+                <i class="bi bi-cpu"></i> RouterOS CLI Command Script
+              </div>
+              <button class="btn btn-g btn-sm" onclick="copyScript()">
+                <i class="bi bi-copy"></i> Copy
+              </button>
             </div>
+            <pre id="scriptContent"><%= mikrotikScript %></pre>
           </div>
 
-          <div class="position-relative">
-            <button class="btn btn-copy" onclick="copyScript()"><i class="bi bi-clipboard me-1"></i>Salin Script</button>
-            <pre class="code-box" id="scriptContent"><%= mikrotikScript %></pre>
-          </div>
-
-          <div class="mt-4 p-3 bg-primary bg-opacity-10 border border-primary border-opacity-25 rounded-3">
-            <h6 class="fw-bold text-primary mb-2"><i class="bi bi-info-circle-fill me-2"></i>Cara Kerja Pengalihan MikroTik:</h6>
-            <ol class="text-muted small m-0 ps-3">
-              <li class="mb-1">Pelanggan berstatus <code>suspended</code> didaftarkan ke address-list <code>LIST_ISOLIR</code>.</li>
-              <li class="mb-1">Rule DST-NAT membelokkan seluruh request HTTP (Port 80) dari <code>LIST_ISOLIR</code> ke IP Server Billing (<code><%= billingHost %></code>).</li>
-              <li class="mb-1">Server Billing menerima request CNA Probe OS (mis. <code>/generate_204</code>) dan merespons HTTP 200 OK dengan redirect <code>/isolated</code>.</li>
-              <li>Perangkat pengguna mendeteksi captive network dan <b>secara otomatis mendorong (push) pop-up</b> ke layar perangkat pengguna!</li>
+          <div style="margin-top: 18px; padding: 14px 16px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: 10px;">
+            <h6 style="color: #60a5fa; font-weight: 700; font-size: 13px; margin: 0 0 8px 0;">
+              <i class="bi bi-info-circle-fill"></i> Cara Kerja Pengalihan MikroTik:
+            </h6>
+            <ol style="margin: 0; padding-left: 20px; font-size: 12.5px; color: #94a3b8; line-height: 1.6;">
+              <li>Pelanggan berstatus <code style="color:#38bdf8;">suspended</code> didaftarkan ke address-list <code style="color:#38bdf8;">LIST_ISOLIR</code>.</li>
+              <li>Rule DST-NAT membelokkan seluruh request HTTP (Port 80) dari <code style="color:#38bdf8;">LIST_ISOLIR</code> ke IP Server Billing (<code style="color:#38bdf8;"><%= billingHost %></code>).</li>
+              <li>Server Billing menerima request CNA Probe OS (mis. <code style="color:#38bdf8;">/generate_204</code>) dan merespons HTTP 200 OK dengan redirect <code style="color:#38bdf8;">/isolated</code>.</li>
+              <li>Perangkat pengguna mendeteksi captive network dan <strong>secara otomatis mendorong (push) pop-up</strong> ke layar perangkat pengguna!</li>
             </ol>
           </div>
         </div>
       </div>
+    </div>
 
-      <!-- TAB 3: Uji CNA Push Pop-Up -->
-      <div class="tab-pane fade" id="tester-pane" role="tabpanel">
-        <div class="card-custom">
-          <h5 class="fw-bold text-white mb-3"><i class="bi bi-phone-vibrate-fill text-primary me-2"></i>Simulator Interaktif Captive Network Assistant (CNA)</h5>
-          <p class="text-muted small mb-4">Pengujian simulasi respon server terhadap request probe otomatis yang biasa dikirim oleh Operating System perangkat saat terkoneksi ke Wi-Fi.</p>
+    <!-- TAB 3: Uji CNA Push Pop-Up -->
+    <div id="tab-tester" class="tab-content-panel">
+      <div class="card">
+        <div class="card-hd">
+          <h6><i class="bi bi-phone-vibrate-fill"></i> Simulator Interaktif Captive Network Assistant (CNA)</h6>
+        </div>
+        <div class="card-bd">
+          <p class="portal-sub">
+            Pengujian simulasi respon server terhadap request probe otomatis yang biasa dikirim oleh Operating System perangkat saat terkoneksi ke Wi-Fi.
+          </p>
 
-          <div class="row g-3">
+          <div class="probe-grid">
             <% cnaProbes.forEach(probe => { %>
-              <div class="col-md-6 col-lg-4">
-                <div class="probe-card">
-                  <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="badge bg-secondary font-monospace"><%= probe %></span>
-                    <button class="btn btn-outline-primary btn-sm py-1 px-2 text-nowrap" onclick="testProbe('<%= probe %>')">
-                      <i class="bi bi-play-fill"></i> Uji Probe
-                    </button>
-                  </div>
-                  <div class="text-muted extra-small">
+              <div class="probe-card">
+                <div>
+                  <div class="probe-path"><%= probe %></div>
+                  <div class="probe-os" style="margin-top: 8px;">
                     <% if (probe.includes('apple') || probe.includes('hotspot')) { %>
-                      <i class="bi bi-apple me-1"></i> iOS / iPadOS / macOS
+                      <i class="bi bi-apple" style="color: #cbd5e1;"></i> iOS / iPadOS / macOS
                     <% } else if (probe.includes('204') || probe.includes('google')) { %>
-                      <i class="bi bi-android2 me-1"></i> Android / ChromeOS
+                      <i class="bi bi-android2" style="color: #4ade80;"></i> Android / ChromeOS
                     <% } else if (probe.includes('msft') || probe.includes('ncsi') || probe.includes('connecttest')) { %>
-                      <i class="bi bi-windows me-1"></i> Windows 10 / 11
+                      <i class="bi bi-windows" style="color: #60a5fa;"></i> Windows 10 / 11
                     <% } else { %>
-                      <i class="bi bi-globe me-1"></i> Browser Probes
+                      <i class="bi bi-globe" style="color: #f59e0b;"></i> Browser Probes
                     <% } %>
                   </div>
                 </div>
+                <button class="btn btn-g btn-sm" onclick="testProbe('<%= probe %>')">
+                  <i class="bi bi-play-fill"></i> Uji Probe
+                </button>
               </div>
             <% }) %>
           </div>
 
-          <div id="testResultBox" class="mt-4 p-3 bg-dark border border-secondary rounded-3 d-none">
-            <h6 class="fw-bold text-white mb-2"><i class="bi bi-check2-circle text-success me-2"></i>Hasil Respon Simulator:</h6>
-            <pre class="m-0 text-info font-monospace small" id="testResultText"></pre>
+          <div id="testResultBox" style="margin-top: 20px; display: none; background: #090d16; border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 12px; padding: 16px;">
+            <div style="font-size: 13px; font-weight: 700; color: #4ade80; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+              <i class="bi bi-check2-circle"></i> Hasil Respon Simulator CNA:
+            </div>
+            <pre id="testResultText" style="margin: 0; color: #38bdf8; font-family: monospace; font-size: 12px; line-height: 1.5;"></pre>
           </div>
         </div>
       </div>
+    </div>
 
-      <!-- TAB 4: Pelanggan Terisolir -->
-      <div class="tab-pane fade" id="customers-pane" role="tabpanel">
-        <div class="card-custom">
-          <h5 class="fw-bold text-white mb-3"><i class="bi bi-people-fill text-danger me-2"></i>Daftar Pelanggan Berstatus Suspended</h5>
-          
+    <!-- TAB 4: Pelanggan Terisolir -->
+    <div id="tab-customers" class="tab-content-panel">
+      <div class="card">
+        <div class="card-hd">
+          <h6><i class="bi bi-people-fill"></i> Daftar Pelanggan Berstatus Suspended (<%= suspendedCustomers.length %>)</h6>
+          <a href="/admin/customers?status=suspended" class="btn btn-g btn-sm">
+            <i class="bi bi-box-arrow-up-right"></i> Buka di Menu Pelanggan
+          </a>
+        </div>
+        <div class="card-bd" style="padding: 0;">
           <% if (suspendedCustomers.length === 0) { %>
-            <div class="text-center py-5 text-muted">
-              <i class="bi bi-check-circle fs-1 text-success d-block mb-2"></i>
+            <div style="text-align: center; padding: 48px 20px; color: #94a3b8;">
+              <i class="bi bi-check-circle" style="font-size: 36px; color: #4ade80; display: block; margin-bottom: 10px;"></i>
               Tidak ada pelanggan yang berstatus terisolir / suspended saat ini.
             </div>
           <% } else { %>
-            <div class="table-responsive">
-              <table class="table table-dark table-hover align-middle border-secondary">
+            <div class="tbl-wrap">
+              <table class="dtbl">
                 <thead>
                   <tr>
                     <th>#</th>
@@ -362,22 +602,43 @@
                     <th>PPPoE / Username</th>
                     <th>Paket Internet</th>
                     <th>Alamat</th>
-                    <th>Aksi</th>
+                    <th class="num">Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
                   <% suspendedCustomers.forEach((c, idx) => { %>
                     <tr>
                       <td><%= idx + 1 %></td>
-                      <td class="fw-bold text-white"><%= c.name %></td>
-                      <td><%= c.phone || '-' %></td>
-                      <td><span class="badge bg-secondary font-monospace"><%= c.pppoe_username || '-' %></span></td>
-                      <td><%= c.package_name || '-' %></td>
-                      <td class="small text-muted"><%= c.address || '-' %></td>
                       <td>
-                        <a href="/admin/customers?search=<%= encodeURIComponent(c.name) %>" class="btn btn-outline-info btn-sm">
-                          <i class="bi bi-search"></i> Detail
-                        </a>
+                        <strong style="color: #ffffff;"><%= c.name %></strong>
+                      </td>
+                      <td>
+                        <% if (c.phone) { %>
+                          <a href="https://wa.me/<%= c.phone.replace(/\D/g, '') %>" target="_blank" style="color: #4ade80; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">
+                            <i class="bi bi-whatsapp"></i> <%= c.phone %>
+                          </a>
+                        <% } else { %>
+                          <span style="color: var(--muted);">-</span>
+                        <% } %>
+                      </td>
+                      <td>
+                        <span class="badge bm font-monospace"><%= c.pppoe_username || '-' %></span>
+                      </td>
+                      <td><%= c.package_name || '-' %></td>
+                      <td style="color: var(--muted); font-size: 12px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        <%= c.address || '-' %>
+                      </td>
+                      <td class="num">
+                        <div style="display: inline-flex; gap: 6px;">
+                          <% if (c.phone) { %>
+                            <a href="https://wa.me/<%= c.phone.replace(/\D/g, '') %>?text=<%= encodeURIComponent('Halo ' + c.name + ', tagihan internet Anda saat ini belum diselesaikan. Mohon segera lakukan pembayaran agar layanan aktif kembali.') %>" target="_blank" class="btn btn-g btn-sm" title="Kirim Pengingat WA">
+                              <i class="bi bi-whatsapp" style="color: #4ade80;"></i>
+                            </a>
+                          <% } %>
+                          <a href="/admin/customers?search=<%= encodeURIComponent(c.name) %>" class="btn btn-p btn-sm">
+                            <i class="bi bi-search"></i> Detail
+                          </a>
+                        </div>
                       </td>
                     </tr>
                   <% }) %>
@@ -387,36 +648,73 @@
           <% } %>
         </div>
       </div>
-
     </div>
 
   </div>
+</div>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-  <script>
-    function copyScript() {
-      const content = document.getElementById('scriptContent').innerText;
-      navigator.clipboard.writeText(content).then(() => {
-        alert('Script MikroTik berhasil disalin ke clipboard!');
+<div id="copyToast">
+  <i class="bi bi-check2-circle"></i> Script MikroTik berhasil disalin ke clipboard!
+</div>
+
+<script>
+  function switchTab(tabId, btn) {
+    document.querySelectorAll('.tab-content-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    
+    const panel = document.getElementById(tabId);
+    if (panel) panel.classList.add('active');
+    if (btn) btn.classList.add('active');
+  }
+
+  function copyScript() {
+    const el = document.getElementById('scriptContent');
+    if (!el) return;
+    const content = el.innerText;
+    navigator.clipboard.writeText(content).then(() => {
+      showToast();
+    }).catch(() => {
+      // Fallback copy
+      const ta = document.createElement('textarea');
+      ta.value = content;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showToast();
+    });
+  }
+
+  function showToast() {
+    const toast = document.getElementById('copyToast');
+    if (!toast) return;
+    toast.style.display = 'flex';
+    setTimeout(() => {
+      toast.style.display = 'none';
+    }, 3000);
+  }
+
+  async function testProbe(path) {
+    const box = document.getElementById('testResultBox');
+    const text = document.getElementById('testResultText');
+    if (!box || !text) return;
+
+    text.innerText = 'Menguji probe ' + path + '...';
+    box.style.display = 'block';
+
+    try {
+      const res = await fetch('/admin/isolated-portal/test-cna', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ probePath: path })
       });
+      const data = await res.json();
+      text.innerText = JSON.stringify(data, null, 2);
+    } catch (err) {
+      text.innerText = 'Error: ' + err.message;
     }
+  }
+</script>
 
-    async function testProbe(path) {
-      try {
-        const res = await fetch('/admin/isolated-portal/test-cna', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ probePath: path })
-        });
-        const data = await res.json();
-        const box = document.getElementById('testResultBox');
-        const text = document.getElementById('testResultText');
-        box.classList.remove('d-none');
-        text.innerText = JSON.stringify(data, null, 2);
-      } catch (err) {
-        alert('Gagal uji probe: ' + err.message);
-      }
-    }
-  </script>
 </body>
 </html>

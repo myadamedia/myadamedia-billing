@@ -2,6 +2,45 @@
 
 ---
 
+## [2026-08-16] Perbaikan Bug Menu Portal Isolir: Dark Mode Contrast Fix, Standarisasi Layout Admin & Safe Settings Persistence
+
+### 1. Deskripsi Permasalahan
+1. **Masalah Kontras Teks Gelap (Unreadable Dark-on-Dark Text)**:
+   - Subtitle header, label kartu statistik (*Pelanggan Terisolir*, *Walled Garden Domain*, *Target Router*), teks deskripsi switch toggle, label form input, dan teks pada tab berwarna hitam pekat di atas background gelap, sehingga tidak terbaca di UI.
+2. **Inkonsistensi Layout Admin**:
+   - Template `views/admin/isolated_portal.ejs` belum menggunakan struktur wrapper standar dashboard admin (`.mw`, `.topbar`, `.page`) dan belum menyertakan parameter konteks sidebar `{ activePage: 'isolated_portal', company }` serta tombol toggle hamburger mobile.
+3. **Form Boolean State Reset**:
+   - Nilai konfigurasi boolean seperti `auto_sync_mikrotik` berisiko ter-reset saat menyimpan form pengaturan.
+4. **UX & Interaktivitas Fitur**:
+   - Ketiadaan feedback visual yang jelas saat menyalin script MikroTik dan belum tersedianya tombol aksi cepat WhatsApp pada tabel pelanggan terisolir.
+
+### 2. Penyebab Utama (Root Cause)
+1. **Benturan CSS Bootstrap 5.3**: Bootstrap 5.3 CDN diimpor tanpa atribut `data-bs-theme="dark"`, sehingga class utility bawaan Bootstrap (seperti `.text-muted`, `.form-label`, `p`, dan `small`) menerapkan warna teks mode terang (`#212529` / `#6c757d`) di atas warna background gelap `#0f172a` / `#1e293b`.
+2. **Ketiadaan Wrapper Standar**: Tidak dibungkus dengan wrapper `.mw`, `.topbar`, dan `.page` dari `admin.css`.
+
+### 3. Solusi & Implementasi Teknis
+- **`views/admin/isolated_portal.ejs`**:
+  - Mengintegrasikan layout standar admin MyAdamedia (`.mw`, `.topbar`, `.page`) lengkap dengan tombol toggle sidebar mobile `.hb-menu`, badge status CNA, tombol aksi preview `/isolated`, dan logout.
+  - Menerapkan desain *high-contrast* modern dengan warna teks tajam (`#ffffff` untuk judul/angka, `#f8fafc` untuk konten utama, `#94a3b8` untuk keterangan/subtitle, `#38bdf8` untuk monospace script/path).
+  - Menyediakan switch toggle custom bergaya modern, tab navigasi yang mulus, dan overview stat cards yang rapi.
+  - Menambahkan interactive toast notification saat menyalin script MikroTik Terminal.
+  - Memperkaya tabel pelanggan terisolir dengan tombol cepat kirim pesan pengingat tagihan via WhatsApp (`wa.me/...`).
+- **`services/isolatedPortalService.js`**:
+  - Memperbarui `saveIsolatedPortalConfig` dengan penanganan *safe fallbacks* agar nilai yang tidak dikirim melalui form POST tetap mempertahankan konfigurasi aktif sebelumnya.
+- **`routes/admin/isolatedPortal.js`**:
+  - Memperkuat parsing payload POST `/admin/isolated-portal/settings` untuk menangani nilai checkbox HTML (`'true'`, `'on'`, `true`).
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`views/admin/isolated_portal.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/isolated_portal.ejs): Desain ulang UI dengan kontras tinggi, layout standar admin, dan interaktivitas tab.
+- `[MODIFY]` [`services/isolatedPortalService.js`](file:///d:/WEBAPP/myadamedia-billing/services/isolatedPortalService.js): Logika safe fallback untuk persistensi konfigurasi.
+- `[MODIFY]` [`routes/admin/isolatedPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/admin/isolatedPortal.js): Parsing boolean state yang robust pada endpoint simpan setting.
+
+### 5. Hasil Pengujian & Verifikasi
+- Pengujian Unit Test (`npm test`): **PASSED** (100% Lulus).
+- Verifikasi Tampilan: Seluruh teks, label, form input, dan tombol memiliki kontras tinggi yang jernih dan terbaca sempurna di tema gelap.
+
+---
+
 ## [2026-08-16] Pengembangan Fitur Menu Baru Portal Isolir & Engine Captive Network Assistant (CNA) Push Pop-Up Wi-Fi
 
 ### 1. Deskripsi Fitur & Kebutuhan

@@ -75,7 +75,13 @@ router.get('/', (req, res) => {
 // POST /admin/isolated-portal/settings - Simpan Pengaturan Portal Isolir
 router.post('/settings', (req, res) => {
   try {
-    const result = isolatedPortalSvc.saveIsolatedPortalConfig(req.body);
+    const payload = {
+      ...req.body,
+      enabled: req.body.enabled === 'true' || req.body.enabled === 'on' || req.body.enabled === true,
+      cna_push_enabled: req.body.cna_push_enabled === 'true' || req.body.cna_push_enabled === 'on' || req.body.cna_push_enabled === true,
+      auto_sync_mikrotik: req.body.auto_sync_mikrotik === 'true' || req.body.auto_sync_mikrotik === 'on' || req.body.auto_sync_mikrotik === true
+    };
+    const result = isolatedPortalSvc.saveIsolatedPortalConfig(payload);
     if (result.success) {
       req.session._msg = { type: 'success', text: 'Konfigurasi Portal Isolir & Walled Garden berhasil diperbarui.' };
     } else {
