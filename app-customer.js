@@ -225,6 +225,31 @@ app.use((req, res, next) => {
   next();
 });
 
+// CNA Probe Interceptor: Push Pop-Up pada perangkat Wi-Fi saat terisolir/terkoneksi (iOS, Android, Windows)
+const isolatedPortalSvc = require('./services/isolatedPortalService');
+app.use((req, res, next) => {
+  if (isolatedPortalSvc.isCnaRequest(req)) {
+    const config = isolatedPortalSvc.getIsolatedPortalConfig();
+    if (config.enabled && config.cna_push_enabled) {
+      logger.info(`[CNA Engine] Intercepted probe (Host: ${req.headers.host}, Path: ${req.path}, UA: ${req.headers['user-agent']}) from IP ${req.ip} -> Rendering isolated portal directly (HTTP 200 OK)`);
+      const { getSettingsWithCache } = require('./config/settingsManager');
+      const settings = getSettingsWithCache();
+      res.set('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+      res.set('Pragma', 'no-cache');
+      res.set('Expires', '0');
+      res.set('Content-Type', 'text/html; charset=utf-8');
+      res.status(200);
+      return res.render('isolated', {
+        company: settings.company_header || 'My ISP',
+        adminPhone: settings.company_phone || '',
+        address: settings.company_address || '',
+        config
+      });
+    }
+  }
+  next();
+});
+
 // i18n middleware (aman: hanya teks UI, tidak mengubah logic fitur)
 app.use((req, res, next) => {
   if (req.query && typeof req.query.lang === 'string') {
@@ -824,31 +849,6 @@ app.get('/sso', (req, res) => {
     company: settings.company_header || 'ISP App',
     version: VERSION
   });
-});
-
-// CNA Probe Interceptor: Push Pop-Up pada perangkat Wi-Fi saat terisolir/terkoneksi
-const isolatedPortalSvc = require('./services/isolatedPortalService');
-app.use((req, res, next) => {
-  if (isolatedPortalSvc.isCnaProbePath(req.path)) {
-    const config = isolatedPortalSvc.getIsolatedPortalConfig();
-    if (config.enabled && config.cna_push_enabled) {
-      logger.info(`[CNA Engine] Intercepted probe ${req.path} from IP ${req.ip} -> Rendering isolated portal directly (HTTP 200 OK)`);
-      const { getSettingsWithCache } = require('./config/settingsManager');
-      const settings = getSettingsWithCache();
-      res.set('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
-      res.set('Pragma', 'no-cache');
-      res.set('Expires', '0');
-      res.set('Content-Type', 'text/html; charset=utf-8');
-      res.status(200);
-      return res.render('isolated', {
-        company: settings.company_header || 'My ISP',
-        adminPhone: settings.company_phone || '',
-        address: settings.company_address || '',
-        config
-      });
-    }
-  }
-  next();
 });
 
 // Halaman Isolir (Akses langsung dari redirect MikroTik)

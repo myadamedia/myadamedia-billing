@@ -188,6 +188,32 @@ function generateMikrotikIsolatedScript(billingHost = '192.168.1.100', httpPort 
 }
 
 /**
+ * Daftar host domain populer yang dikirim oleh OS perangkat untuk deteksi Captive Portal (CNA).
+ */
+const APPLE_CNA_HOSTS = [
+  'captive.apple.com',
+  'appleiphonecell.com',
+  'airport.us',
+  'ibook.info',
+  'itools.info',
+  'thinkdifferent.us',
+  'apple.com'
+];
+
+const ANDROID_CNA_HOSTS = [
+  'connectivitycheck.gstatic.com',
+  'connectivitycheck.android.com',
+  'clients3.google.com',
+  'play.googleapis.com'
+];
+
+const WINDOWS_CNA_HOSTS = [
+  'msftconnecttest.com',
+  'msftncsi.com',
+  'ipv6.msftconnecttest.com'
+];
+
+/**
  * Daftar endpoint probe populer yang dikirim oleh OS perangkat untuk deteksi Captive Portal (CNA).
  */
 const CNA_PROBE_USER_AGENTS_AND_PATHS = [
@@ -226,6 +252,30 @@ function isCnaProbePath(requestPath = '') {
   });
 }
 
+/**
+ * Memeriksa apakah suatu request HTTP merupakan probe CNA (iOS, Android, Windows)
+ * baik berdasarkan Host Header, User-Agent, maupun Path URL.
+ */
+function isCnaRequest(req) {
+  if (!req) return false;
+  const host = String(req.headers?.host || req.hostname || '').toLowerCase().split(':')[0];
+  const ua = String(req.headers?.['user-agent'] || '').toLowerCase();
+  const path = String(req.path || req.url || '').toLowerCase();
+
+  // 1. Apple User-Agent
+  if (ua.includes('captivenetworksupport') || ua.includes('wispr')) {
+    return true;
+  }
+
+  // 2. Known Captive Portal Probe Hosts
+  if (APPLE_CNA_HOSTS.some(h => host === h || host.endsWith('.' + h))) return true;
+  if (ANDROID_CNA_HOSTS.some(h => host === h || host.endsWith('.' + h))) return true;
+  if (WINDOWS_CNA_HOSTS.some(h => host === h || host.endsWith('.' + h))) return true;
+
+  // 3. Known Captive Portal Probe Paths
+  return isCnaProbePath(path);
+}
+
 module.exports = {
   getIsolatedPortalConfig,
   saveIsolatedPortalConfig,
@@ -233,5 +283,9 @@ module.exports = {
   syncAllOverdueCustomers,
   generateMikrotikIsolatedScript,
   isCnaProbePath,
-  CNA_PROBE_USER_AGENTS_AND_PATHS
+  isCnaRequest,
+  CNA_PROBE_USER_AGENTS_AND_PATHS,
+  APPLE_CNA_HOSTS,
+  ANDROID_CNA_HOSTS,
+  WINDOWS_CNA_HOSTS
 };

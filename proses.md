@@ -2,6 +2,46 @@
 
 ---
 
+## [2026-08-16] Perbaikan Pemicu Pop-Up CNA Apple iOS (iPhone / iPad / macOS / Safari WebSheet)
+
+### 1. Deskripsi Permasalahan
+Saat perangkat Apple (iPhone, iPad, macOS) yang terisolir terhubung ke Wi-Fi, pop-up lembar web (*Apple Captive Network Assistant / WebSheet*) tidak muncul otomatis.
+
+### 2. Penyebab Utama (Root Cause)
+1. **Posisi Middleware Interceptor Terlalu Bawah**:
+   - Middleware CNA probe pada `app-customer.js` sebelumnya diletakkan di bawah rute utama `app.get('/')` (yang me-redirect ke `/customer/login`).
+   - Perangkat Apple sering mengirim probe ke root domain seperti `http://captive.apple.com/` atau `http://www.appleiphonecell.com/`. Karena rute `app.get('/')` terpanggil lebih dahulu, iOS menerima redirect `302 /customer/login` alih-alih rendering deteksi isolir, sehingga sistem iOS menghentikan proses peluncuran pop-up CNA.
+2. **Ketiadaan Deteksi Host Domain Apple & User-Agent `CaptiveNetworkSupport`**:
+   - Deteksi probe sebelumnya hanya mencocokkan URI path string tanpa memeriksa Host Header spesifik Apple (`captive.apple.com`, `appleiphonecell.com`, `thinkdifferent.us`, `airport.us`, `ibook.info`) dan User-Agent resmi Apple `CaptiveNetworkSupport` / `wispr`.
+
+### 3. Solusi & Implementasi Teknis
+- **`services/isolatedPortalService.js`**:
+  - Mengimplementasikan fungsi deteksi komprehensif `isCnaRequest(req)` yang mengenali seluruh varian Apple iOS:
+    - **User-Agent Detection**: Mendeteksi `CaptiveNetworkSupport` dan `wispr`.
+    - **Host Header Matching**: Mendeteksi `captive.apple.com`, `appleiphonecell.com`, `airport.us`, `ibook.info`, `itools.info`, `thinkdifferent.us`, `apple.com`, `connectivitycheck.gstatic.com`, `msftconnecttest.com`.
+    - **Path Matching**: Mendeteksi `/hotspot-detect.html`, `/library/test/success.html`, `/success.html`, `/generate_204`, dsb.
+- **`app-customer.js`**:
+  - Memindahkan middleware CNA probe ke **posisi paling atas (*top of middleware chain*)**, dieksekusi sebelum rute `/`, `/customer`, `/admin`, dan routing lainnya.
+  - Setiap kali perangkat Apple melakukan probe, server langsung merespons dengan **HTTP 200 OK** dan konten `views/isolated.ejs`.
+  - Sistem iOS mendeteksi bahwa respons bukan `<TITLE>Success</TITLE>`, sehingga secara instan **memunculkan pop-up jendela Captive Network Assistant (WebSheet) pada iPhone/iPad/Mac**.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`services/isolatedPortalService.js`](file:///d:/WEBAPP/myadamedia-billing/services/isolatedPortalService.js): Implementasi `isCnaRequest(req)` dengan deteksi Host Header & User-Agent Apple.
+- `[MODIFY]` [`app-customer.js`](file:///d:/WEBAPP/myadamedia-billing/app-customer.js): Relokasi middleware interceptor ke bagian paling atas Express stack.
+
+### 5. Hasil Pengujian & Verifikasi
+- Pengujian Simulasi iOS Probe (`node scratch/test_ios_cna.js`):
+  - `Host: captive.apple.com Path: /hotspot-detect.html`: **YES (CNA Intercepted)**
+  - `Host: www.appleiphonecell.com Path: /`: **YES (CNA Intercepted)**
+  - `Host: www.apple.com Path: /library/test/success.html`: **YES (CNA Intercepted)**
+  - `Host: connectivitycheck.gstatic.com Path: /generate_204`: **YES (CNA Intercepted)**
+  - `Host: www.msftconnecttest.com Path: /connecttest.txt`: **YES (CNA Intercepted)**
+  - `Normal Request (/customer/login)`: **NO (Normal Access)**
+- Unit Test Suite (`npm test`): **PASSED** (100% Lulus).
+- Sintaks Node.js (`node -c`): **PASSED** (0 Error).
+
+---
+
 ## [2026-08-16] Optimasi Kecepatan Pop-Up CNA Isolir (`connectivitycheck.gstatic.com` & Android/iOS WebView)
 
 ### 1. Deskripsi Permasalahan
