@@ -2,6 +2,33 @@
 
 ---
 
+## [2026-08-16] Perbaikan Multi-Theme (Light/Dark/Ocean/Forest) Text Contrast & Form Input Visibility pada Menu Portal Isolir
+
+### 1. Deskripsi Permasalahan
+Ketika admin menggunakan mode tema terang (**Light Theme**), teks pada form konfigurasi Portal Isolir (label judul, teks placeholder/input, teks textarea, deskripsi switch toggle) menjadi tidak terlihat (teks putih/abu terang di atas background putih/abu terang).
+
+### 2. Penyebab Utama (Root Cause)
+File `views/admin/isolated_portal.ejs` sebelumnya menggunakan pewarnaan statis (*hardcoded hex colors* seperti `#f8fafc`, `#e2e8f0`, `rgba(13,17,23,0.7)`) yang dikhususkan untuk mode gelap. Saat sistem beralih ke `.theme-light`, warna latar belakang berubah menjadi putih (`#ffffff` / `#f8fafc`), namun teks statis tetap berwarna putih/abu terang sehingga kehilangan kontras.
+
+### 3. Solusi & Implementasi Teknis
+- **`views/admin/isolated_portal.ejs`**:
+  - Mengganti seluruh pewarnaan statis menjadi 100% **CSS Theme Variables** dinamis yang terhubung dengan `admin.css`:
+    - Label & Teks Input Form: `color: var(--text);` (Otomatis `#0f172a` pada Light Theme dan `#e6edf3` pada Dark Theme).
+    - Hint & Keterangan Subtitle: `color: var(--muted);` (Otomatis `#64748b` pada Light Theme dan `#7d8590` pada Dark Theme).
+    - Kontainer Switch Card: `background: var(--bg3); border: 1px solid var(--border);`
+    - Form Input & Textarea: Menggunakan kelas standar `.fc` (`background: var(--bg3); border: 1px solid var(--border); color: var(--text);`).
+    - Banner & Tab Navigasi: Menggunakan `var(--bg2)`, `var(--border)`, `var(--primary)`, dan `var(--pdim)`.
+  - Menjamin kompatibilitas visual 100% pada 4 preset tema: **Default Dark**, **Light**, **Ocean**, dan **Forest**.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`views/admin/isolated_portal.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/isolated_portal.ejs): Implementasi adaptive theme variables pada seluruh komponen form & kartu.
+
+### 5. Hasil Pengujian & Verifikasi
+- Pengujian Sintaks & Unit Test (`npm test`): **PASSED** (100% Lulus).
+- Verifikasi Multi-Theme: Teks form, input, switch card, dan tabel terlihat dengan kontras sempurna baik di tema Light, Dark, Ocean, maupun Forest.
+
+---
+
 ## [2026-08-16] Perbaikan Bug Menu Portal Isolir: Dark Mode Contrast Fix, Standarisasi Layout Admin & Safe Settings Persistence
 
 ### 1. Deskripsi Permasalahan

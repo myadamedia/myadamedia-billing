@@ -7,10 +7,10 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="/css/admin.css?v=2">
   <style>
-    /* ── High-Contrast & Modern Scoped Styling ── */
+    /* ── Multi-Theme Adaptive Scoped Styling ── */
     .portal-banner {
-      background: linear-gradient(135deg, rgba(30, 41, 59, 0.85), rgba(15, 23, 42, 0.95));
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: var(--bg2);
+      border: 1px solid var(--border);
       border-radius: 14px;
       padding: 22px 24px;
       margin-bottom: 20px;
@@ -23,14 +23,14 @@
     .portal-title {
       font-size: 20px;
       font-weight: 800;
-      color: #ffffff;
+      color: var(--text);
       margin: 0 0 6px 0;
       display: flex;
       align-items: center;
       gap: 10px;
     }
     .portal-sub {
-      color: #94a3b8;
+      color: var(--muted);
       font-size: 13px;
       margin: 0;
       line-height: 1.5;
@@ -47,14 +47,14 @@
       text-transform: uppercase;
     }
     .pill-active {
-      background: rgba(34, 197, 94, 0.16);
-      color: #4ade80;
-      border: 1px solid rgba(34, 197, 94, 0.35);
+      background: var(--sdim);
+      color: var(--success);
+      border: 1px solid var(--success);
     }
     .pill-inactive {
-      background: rgba(239, 68, 68, 0.16);
-      color: #f87171;
-      border: 1px solid rgba(239, 68, 68, 0.35);
+      background: var(--ddim);
+      color: var(--danger);
+      border: 1px solid var(--danger);
     }
     .pulse-dot {
       width: 8px;
@@ -79,7 +79,7 @@
       background: transparent;
       border: 1px solid transparent;
       border-bottom: none;
-      color: #94a3b8;
+      color: var(--muted);
       padding: 11px 18px;
       font-size: 13px;
       font-weight: 600;
@@ -92,14 +92,14 @@
       white-space: nowrap;
     }
     .tab-btn:hover {
-      color: #f1f5f9;
-      background: rgba(255, 255, 255, 0.04);
+      color: var(--text);
+      background: var(--pdim);
     }
     .tab-btn.active {
-      color: #38bdf8;
+      color: var(--primary);
       background: var(--bg2);
       border-color: var(--border);
-      border-bottom: 2px solid #38bdf8;
+      border-bottom: 2px solid var(--primary);
     }
     .tab-content-panel {
       display: none;
@@ -115,7 +115,7 @@
 
     /* ── Switch & Form Enhancements ── */
     .switch-card {
-      background: rgba(13, 17, 23, 0.7);
+      background: var(--bg3);
       border: 1px solid var(--border);
       border-radius: 12px;
       padding: 16px;
@@ -125,7 +125,7 @@
       transition: border-color 0.2s ease;
     }
     .switch-card:hover {
-      border-color: rgba(99, 102, 241, 0.35);
+      border-color: var(--primary);
     }
     .toggle-switch {
       position: relative;
@@ -144,10 +144,10 @@
       position: absolute;
       cursor: pointer;
       top: 0; left: 0; right: 0; bottom: 0;
-      background-color: #334155;
+      background-color: var(--border);
       transition: .3s;
       border-radius: 24px;
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      border: 1px solid var(--border);
     }
     .toggle-slider:before {
       position: absolute;
@@ -161,7 +161,7 @@
       border-radius: 50%;
     }
     .toggle-switch input:checked + .toggle-slider {
-      background-color: #3b82f6;
+      background-color: var(--primary);
     }
     .toggle-switch input:checked + .toggle-slider:before {
       transform: translateX(22px);
@@ -169,21 +169,21 @@
     .switch-label-title {
       font-weight: 700;
       font-size: 14px;
-      color: #f8fafc;
+      color: var(--text);
       margin-bottom: 3px;
       display: block;
       cursor: pointer;
     }
     .switch-label-desc {
       font-size: 12px;
-      color: #94a3b8;
+      color: var(--muted);
       line-height: 1.4;
     }
 
     /* ── Code Box & Terminal ── */
     .code-terminal {
       background: #090d16;
-      border: 1px solid rgba(255, 255, 255, 0.12);
+      border: 1px solid var(--border);
       border-radius: 12px;
       position: relative;
       overflow: hidden;
@@ -237,27 +237,28 @@
       transition: all 0.2s ease;
     }
     .probe-card:hover {
-      border-color: #3b82f6;
+      border-color: var(--primary);
       transform: translateY(-2px);
     }
     .probe-path {
       font-family: monospace;
       font-size: 12px;
-      background: rgba(0,0,0,0.3);
-      color: #38bdf8;
+      background: var(--bg2);
+      color: var(--primary);
+      border: 1px solid var(--border);
       padding: 4px 8px;
       border-radius: 6px;
       word-break: break-all;
     }
     .probe-os {
       font-size: 11px;
-      color: #94a3b8;
+      color: var(--muted);
       display: flex;
       align-items: center;
       gap: 6px;
     }
 
-    /* ── High-Contrast Form Inputs ── */
+    /* ── Form Inputs ── */
     .form-group-custom {
       margin-bottom: 18px;
     }
@@ -265,31 +266,15 @@
       display: block;
       font-size: 12px;
       font-weight: 600;
-      color: #e2e8f0;
-      margin-bottom: 6px;
+      color: var(--text);
+      margin-bottom: 4px;
       letter-spacing: 0.3px;
     }
     .form-group-custom .hint-text {
       font-size: 11.5px;
-      color: #94a3b8;
+      color: var(--muted);
       margin-bottom: 6px;
       line-height: 1.4;
-    }
-    .form-control-custom {
-      width: 100%;
-      background: var(--bg3);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px 14px;
-      color: #f8fafc;
-      font-size: 13px;
-      font-family: inherit;
-      outline: none;
-      transition: all 0.2s;
-    }
-    .form-control-custom:focus {
-      border-color: #3b82f6;
-      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
     }
 
     /* ── Toast notification ── */
@@ -297,7 +282,7 @@
       position: fixed;
       bottom: 24px;
       right: 24px;
-      background: #10b981;
+      background: var(--success);
       color: #ffffff;
       padding: 10px 20px;
       border-radius: 10px;
@@ -306,7 +291,7 @@
       display: none;
       align-items: center;
       gap: 8px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
       z-index: 9999;
       animation: fadeIn .2s;
     }
@@ -350,8 +335,8 @@
     <div class="portal-banner">
       <div>
         <div class="portal-title">
-          <i class="bi bi-shield-slash-fill" style="color: #60a5fa;"></i>
-          Portal Isolir &amp; CNA Push Pop-Up
+          <i class="bi bi-shield-slash-fill" style="color: var(--primary);"></i>
+          <span>Portal Isolir &amp; CNA Push Pop-Up</span>
           <span class="status-pill <%= config.enabled ? 'pill-active' : 'pill-inactive' %>">
             <span class="pulse-dot"></span>
             <%= config.enabled ? 'PORTAL AKTIF' : 'PORTAL NONAKTIF' %>
@@ -454,30 +439,30 @@
 
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 18px;">
+            <div class="form-row mb16">
               <div class="form-group-custom">
                 <label>Judul Utama Halaman Isolir</label>
                 <div class="hint-text">Judul yang ditampilkan pada pop-up isolir pelanggan.</div>
-                <input type="text" name="custom_title" class="form-control-custom" value="<%= config.custom_title %>" required>
+                <input type="text" name="custom_title" class="fc" value="<%= config.custom_title %>" required>
               </div>
 
               <div class="form-group-custom">
                 <label>Format Pesan Konfirmasi WA Admin</label>
                 <div class="hint-text">Template pesan saat pelanggan menekan tombol WhatsApp.</div>
-                <input type="text" name="custom_wa_message" class="form-control-custom" value="<%= config.custom_wa_message %>" required>
+                <input type="text" name="custom_wa_message" class="fc" value="<%= config.custom_wa_message %>" required>
               </div>
             </div>
 
             <div class="form-group-custom">
               <label>Deskripsi / Penjelasan Isolir</label>
               <div class="hint-text">Pesan informasi tagihan yang dibaca oleh pelanggan ketika terisolir.</div>
-              <textarea name="custom_message" rows="3" class="form-control-custom" required><%= config.custom_message %></textarea>
+              <textarea name="custom_message" rows="3" class="fc" required><%= config.custom_message %></textarea>
             </div>
 
             <div class="form-group-custom">
               <label>Walled Garden Whitelist Domains (1 domain per baris)</label>
               <div class="hint-text">Domain di bawah ini tetap dapat diakses oleh pelanggan terisolir agar dapat melakukan pembayaran QRIS/Midtrans/Tripay/Xendit langsung dari pop-up.</div>
-              <textarea name="walled_garden_domains" rows="6" class="form-control-custom" style="font-family: monospace; font-size: 13px;"><%= config.walled_garden_domains.join('\n') %></textarea>
+              <textarea name="walled_garden_domains" rows="6" class="fc" style="font-family: monospace; font-size: 13px;"><%= config.walled_garden_domains.join('\n') %></textarea>
             </div>
 
             <div style="display: flex; justify-content: flex-end; margin-top: 20px;">
@@ -516,14 +501,14 @@
             <pre id="scriptContent"><%= mikrotikScript %></pre>
           </div>
 
-          <div style="margin-top: 18px; padding: 14px 16px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: 10px;">
-            <h6 style="color: #60a5fa; font-weight: 700; font-size: 13px; margin: 0 0 8px 0;">
+          <div style="margin-top: 18px; padding: 14px 16px; background: var(--pdim); border: 1px solid var(--primary); border-radius: 10px;">
+            <h6 style="color: var(--primary); font-weight: 700; font-size: 13px; margin: 0 0 8px 0;">
               <i class="bi bi-info-circle-fill"></i> Cara Kerja Pengalihan MikroTik:
             </h6>
-            <ol style="margin: 0; padding-left: 20px; font-size: 12.5px; color: #94a3b8; line-height: 1.6;">
-              <li>Pelanggan berstatus <code style="color:#38bdf8;">suspended</code> didaftarkan ke address-list <code style="color:#38bdf8;">LIST_ISOLIR</code>.</li>
-              <li>Rule DST-NAT membelokkan seluruh request HTTP (Port 80) dari <code style="color:#38bdf8;">LIST_ISOLIR</code> ke IP Server Billing (<code style="color:#38bdf8;"><%= billingHost %></code>).</li>
-              <li>Server Billing menerima request CNA Probe OS (mis. <code style="color:#38bdf8;">/generate_204</code>) dan merespons HTTP 200 OK dengan redirect <code style="color:#38bdf8;">/isolated</code>.</li>
+            <ol style="margin: 0; padding-left: 20px; font-size: 12.5px; color: var(--muted); line-height: 1.6;">
+              <li>Pelanggan berstatus <code style="color:var(--primary);">suspended</code> didaftarkan ke address-list <code style="color:var(--primary);">LIST_ISOLIR</code>.</li>
+              <li>Rule DST-NAT membelokkan seluruh request HTTP (Port 80) dari <code style="color:var(--primary);">LIST_ISOLIR</code> ke IP Server Billing (<code style="color:var(--primary);"><%= billingHost %></code>).</li>
+              <li>Server Billing menerima request CNA Probe OS (mis. <code style="color:var(--primary);">/generate_204</code>) dan merespons HTTP 200 OK dengan redirect <code style="color:var(--primary);">/isolated</code>.</li>
               <li>Perangkat pengguna mendeteksi captive network dan <strong>secara otomatis mendorong (push) pop-up</strong> ke layar perangkat pengguna!</li>
             </ol>
           </div>
@@ -549,13 +534,13 @@
                   <div class="probe-path"><%= probe %></div>
                   <div class="probe-os" style="margin-top: 8px;">
                     <% if (probe.includes('apple') || probe.includes('hotspot')) { %>
-                      <i class="bi bi-apple" style="color: #cbd5e1;"></i> iOS / iPadOS / macOS
+                      <i class="bi bi-apple"></i> iOS / iPadOS / macOS
                     <% } else if (probe.includes('204') || probe.includes('google')) { %>
-                      <i class="bi bi-android2" style="color: #4ade80;"></i> Android / ChromeOS
+                      <i class="bi bi-android2" style="color: var(--success);"></i> Android / ChromeOS
                     <% } else if (probe.includes('msft') || probe.includes('ncsi') || probe.includes('connecttest')) { %>
-                      <i class="bi bi-windows" style="color: #60a5fa;"></i> Windows 10 / 11
+                      <i class="bi bi-windows" style="color: var(--info);"></i> Windows 10 / 11
                     <% } else { %>
-                      <i class="bi bi-globe" style="color: #f59e0b;"></i> Browser Probes
+                      <i class="bi bi-globe" style="color: var(--warning);"></i> Browser Probes
                     <% } %>
                   </div>
                 </div>
@@ -587,8 +572,8 @@
         </div>
         <div class="card-bd" style="padding: 0;">
           <% if (suspendedCustomers.length === 0) { %>
-            <div style="text-align: center; padding: 48px 20px; color: #94a3b8;">
-              <i class="bi bi-check-circle" style="font-size: 36px; color: #4ade80; display: block; margin-bottom: 10px;"></i>
+            <div style="text-align: center; padding: 48px 20px; color: var(--muted);">
+              <i class="bi bi-check-circle" style="font-size: 36px; color: var(--success); display: block; margin-bottom: 10px;"></i>
               Tidak ada pelanggan yang berstatus terisolir / suspended saat ini.
             </div>
           <% } else { %>
@@ -610,11 +595,11 @@
                     <tr>
                       <td><%= idx + 1 %></td>
                       <td>
-                        <strong style="color: #ffffff;"><%= c.name %></strong>
+                        <strong style="color: var(--text);"><%= c.name %></strong>
                       </td>
                       <td>
                         <% if (c.phone) { %>
-                          <a href="https://wa.me/<%= c.phone.replace(/\D/g, '') %>" target="_blank" style="color: #4ade80; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">
+                          <a href="https://wa.me/<%= c.phone.replace(/\D/g, '') %>" target="_blank" style="color: var(--success); text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">
                             <i class="bi bi-whatsapp"></i> <%= c.phone %>
                           </a>
                         <% } else { %>
@@ -632,7 +617,7 @@
                         <div style="display: inline-flex; gap: 6px;">
                           <% if (c.phone) { %>
                             <a href="https://wa.me/<%= c.phone.replace(/\D/g, '') %>?text=<%= encodeURIComponent('Halo ' + c.name + ', tagihan internet Anda saat ini belum diselesaikan. Mohon segera lakukan pembayaran agar layanan aktif kembali.') %>" target="_blank" class="btn btn-g btn-sm" title="Kirim Pengingat WA">
-                              <i class="bi bi-whatsapp" style="color: #4ade80;"></i>
+                              <i class="bi bi-whatsapp" style="color: var(--success);"></i>
                             </a>
                           <% } %>
                           <a href="/admin/customers?search=<%= encodeURIComponent(c.name) %>" class="btn btn-p btn-sm">
