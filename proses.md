@@ -2,6 +2,32 @@
 
 ---
 
+## [2026-08-16] Perbaikan Penayangan & Prefill Nama Wi-Fi (SSID) Lama pada Portal Pelanggan
+
+### 1. Deskripsi Permasalahan
+Pada modal **Pengaturan Wi-Fi Mandiri** di Portal Pelanggan, kolom input **Nama Wi-Fi (SSID) Baru** tampil kosong tanpa informasi nama Wi-Fi (SSID) lama/saat ini, sehingga pelanggan tidak mengetahui nama Wi-Fi yang sedang aktif.
+
+### 2. Penyebab Utama (Root Cause)
+1. **Daftar Parameter Path SSID Terbatas di `customerDeviceService.js`**:
+   `parameterPaths.ssid` sebelumnya hanya mencakup `WLANConfiguration.1` dan `WiFi.SSID.1/2`. Perangkat ONT dengan antarmuka dual-band (misal `WLANConfiguration.5` untuk 5GHz) atau model vendor khusus tidak terdeteksi sehingga nilai `customer.ssid` menjadi `'-'` (kosong).
+2. **Ketiadaan Banner Informasi SSID Saat Ini pada UI Modal**:
+   Desain modal sebelumnya tidak menyediakan elemen visual yang secara eksplisit menampilkan **Nama Wi-Fi (SSID) Saat Ini**.
+
+### 3. Solusi & Implementasi Teknis
+- **`services/customerDeviceService.js`**:
+  - Memperluas daftar `parameterPaths.ssid` untuk mencakup seluruh variasi antarmuka WLAN (`WLANConfiguration.1` s/d `5`, wildcard `WLANConfiguration.*`, `Device.WiFi.SSID.*`, serta `VirtualParameters.SSID/SSID2G/SSID5G`).
+  - Menambahkan *fallback scanning* pada fungsi `mapDeviceData()` untuk melakukan iterasi otomatis terhadap seluruh struktur objek `WLANConfiguration` / `AccessPoint` jika parameter utama bernilai kosong.
+- **`views/dashboard.ejs`**:
+  - Menambahkan banner informatif khusus **"Nama Wi-Fi (SSID) Saat Ini"** di dalam modal **Pengaturan Wi-Fi Mandiri**.
+  - Mengisi otomatis (*pre-fill*) atribut `value` dan `placeholder` pada input nama Wi-Fi baru dengan nama Wi-Fi saat ini.
+  - Menampilkan nama Wi-Fi aktif sebagai subteks pada tombol cepat **Ganti Wi-Fi** di beranda pelanggan.
+
+### 4. Hasil Pengujian & Verifikasi
+- Pengecekan Sintaks JavaScript (`node -c`): **PASSED** (0 Error).
+- Pengujian Otomatis (`npm test`): **PASSED** (100% Lulus).
+
+---
+
 ## [2026-08-16] Perbaikan Diskrepansi Status Perangkat Online/Offline pada Tabel vs Detail Perangkat (Monitoring ONU)
 
 ### 1. Deskripsi Permasalahan

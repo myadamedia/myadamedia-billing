@@ -133,8 +133,18 @@ const parameterPaths = {
   ],
   ssid: [
     'InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID',
+    'InternetGatewayDevice.LANDevice.1.WLANConfiguration.2.SSID',
+    'InternetGatewayDevice.LANDevice.1.WLANConfiguration.3.SSID',
+    'InternetGatewayDevice.LANDevice.1.WLANConfiguration.4.SSID',
+    'InternetGatewayDevice.LANDevice.1.WLANConfiguration.5.SSID',
+    'InternetGatewayDevice.LANDevice.*.WLANConfiguration.*.SSID',
     'Device.WiFi.SSID.1.SSID',
-    'Device.WiFi.SSID.2.SSID'
+    'Device.WiFi.SSID.2.SSID',
+    'Device.WiFi.SSID.*.SSID',
+    'VirtualParameters.SSID',
+    'VirtualParameters.SSID2G',
+    'VirtualParameters.SSID5G',
+    'VirtualParameters.ssid'
   ],
   rxPower: [
     'VirtualParameters.RXPower',
@@ -495,8 +505,21 @@ function phoneFromPnJid(jid) {
 function mapDeviceData(device, tag) {
   if (!device) return null;
 
-  const ssid = getParameterWithPaths(device, parameterPaths.ssid);
-  const ssidDisplay = ssid === 'N/A' ? '-' : ssid;
+  let ssid = getParameterWithPaths(device, parameterPaths.ssid);
+  if (!ssid || ssid === 'N/A' || ssid === '-') {
+    const wlanObj = device?.InternetGatewayDevice?.LANDevice?.['1']?.WLANConfiguration || device?.Device?.WiFi?.SSID || device?.Device?.WiFi?.AccessPoint;
+    if (wlanObj && typeof wlanObj === 'object') {
+      for (const wKey in wlanObj) {
+        const item = wlanObj[wKey];
+        const sVal = item?.SSID?._value || item?.SSID;
+        if (sVal && typeof sVal === 'string' && sVal.trim() && sVal !== 'N/A' && sVal !== '0') {
+          ssid = sVal.trim();
+          break;
+        }
+      }
+    }
+  }
+  const ssidDisplay = (ssid && ssid !== 'N/A' && ssid !== '0') ? ssid : '-';
 
   const lastInformRaw =
     device?._lastInform
