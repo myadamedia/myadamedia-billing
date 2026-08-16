@@ -4275,8 +4275,8 @@ router.get('/api/devices', requireAdmin, async (req, res) => {
   try {
     const { search, status, limit = 999999, offset = 0 } = req.query;
     const result = await customerDevice.listAllDevices(999999);
-    if (!result.ok) return res.json({ error: result.message });
-    let devices = result.devices.map(d => {
+    const rawDevs = (result && Array.isArray(result.devices)) ? result.devices : [];
+    let devices = rawDevs.map(d => {
       const mapped = customerDevice.mapDeviceData(d, d._tags?.[0] || d._id) || {};
       const rawTags = Array.isArray(d._tags) ? d._tags.filter(Boolean).map(String) : [];
       const tagsArr = rawTags.length > 0

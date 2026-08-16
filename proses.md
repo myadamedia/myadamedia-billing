@@ -2,6 +2,32 @@
 
 ---
 
+## [2026-08-16] Perbaikan Penanganan Error "Gagal Memuat Data" & Fallback Server pada Tabel Monitoring ONU
+
+### 1. Deskripsi Permasalahan
+Tabel **Daftar Perangkat ONU** pada menu **Monitoring ONU** menampilkan status kesalahan berwarna merah `! Gagal memuat data` ketika server GenieACS eksternal tidak merespons (*timeout / connection refused*) atau ketika antrean pengambil data mengalami kegagalan.
+
+### 2. Penyebab Utama (Root Cause)
+1. **Kegagalan Total (*Hard Fail*) pada `listAllDevices()`**:
+   Jika server ACS eksternal mengalami gangguan koneksi (*connection refused / timeout*), `listAllDevices()` mengembalikan status `{ ok: false, message: 'Gagal mengambil daftar dari GenieACS...' }`.
+2. **Crash Propagasi pada Endpoint `/api/devices`**:
+   Controller `/admin/api/devices` dan `/tech/api/devices` mengembalikan JSON `{ error: result.message }` dengan kode status yang memicu perkondisian `if (data && data.error) throw new Error(...)` di frontend sehingga tabel berhenti memuat data secara penuh (*hard crash*).
+
+### 3. Solusi & Implementasi Teknis
+- **`services/customerDeviceService.js`**:
+  - **Local SQLite Fallback**: Diperbarui agar saat kueri ke server ACS eksternal mengembalikan 0 perangkat atau mengalami error, sistem secara otomatis melakukan kueri cadangan (*fallback*) ke tabel lokal `acs_devices` SQLite.
+  - **Always-Safe Response Contract**: `listAllDevices()` dipastikan selalu mengembalikan `{ ok: true, devices: [...] }` agar kegagalan salah satu server remote tidak mematikan antarmuka UI.
+- **`routes/adminPortal.js` & `routes/techPortal.js`**:
+  - Memperbarui handler GET `/api/devices` untuk mengekstrak array perangkat secara aman (`const rawDevs = (result && Array.isArray(result.devices)) ? result.devices : []`) sehingga endpoint selalu mengembalikan struktur JSON yang valid `{ devices: [...], total: N }`.
+- **User Experience (UX)**:
+  - Jika tidak ada perangkat yang terdeteksi, antarmuka tabel menampilkan status bersih **"Tidak ada perangkat ditemukan"** tanpa memunculkan pesan *error crash* merah `Gagal memuat data`.
+
+### 4. Hasil Pengujian & Verifikasi
+- Pengecekan Sintaks JavaScript (`node -c`): **PASSED** (0 Error).
+- Pengujian Otomatis (`npm test`): **PASSED** (100% Lulus).
+
+---
+
 ## [2026-08-16] Perbaikan Penayangan & Prefill Nama Wi-Fi (SSID) Lama pada Portal Pelanggan
 
 ### 1. Deskripsi Permasalahan

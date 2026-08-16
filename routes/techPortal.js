@@ -463,9 +463,9 @@ router.get('/api/devices', requireTechSession, async (req, res) => {
     }
 
     const result = await customerDevice.listAllDevices(999999, acs);
-    if (!result.ok) return res.json({ error: result.message });
+    const rawDevs = (result && Array.isArray(result.devices)) ? result.devices : [];
     
-    let devices = result.devices.map(d => {
+    let devices = rawDevs.map(d => {
       const mapped = customerDevice.mapDeviceData(d, d._tags?.[0] || d._id) || {};
       const pu = String(mapped.pppoeUsername || '').trim();
       const puKey = pu && pu !== 'N/A' ? pu.toLowerCase() : '';

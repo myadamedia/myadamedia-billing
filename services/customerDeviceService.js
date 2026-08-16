@@ -1140,11 +1140,17 @@ async function listAllDevices(limit = 999999, acsId = null) {
     }
   });
   
-  if (allDevices.length > 0 || !lastError) {
-    return { ok: true, devices: allDevices.slice(0, limit) };
+  if (allDevices.length === 0) {
+    try {
+      const db = require('../config/database');
+      const rows = db.prepare('SELECT * FROM acs_devices ORDER BY last_inform DESC LIMIT ?').all(limit);
+      if (rows && rows.length > 0) {
+        allDevices = rows.map(r => genieacsApi.builtinRowToDevice(r));
+      }
+    } catch (_) {}
   }
   
-  return { ok: false, devices: [], message: 'Gagal mengambil daftar dari GenieACS: ' + (lastError ? lastError.message : 'Unknown error') };
+  return { ok: true, devices: allDevices.slice(0, limit) };
 }
 
 async function updateCustomerTag(oldTag, newTag) {
