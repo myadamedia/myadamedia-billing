@@ -478,48 +478,54 @@ function extractPppoeUptime(d) {
 }
 
 function getParameterWithPaths(device, paths) {
+  if (!device || typeof device !== 'object') return 'N/A';
   let values = [];
+
   for (const p of paths) {
-    const parts = p.split('.');
-    let value = device;
-    for (const part of parts) {
-      if (value && typeof value === 'object' && part in value) {
-        value = value[part];
-        if (value && value._value !== undefined) value = value._value;
-      } else {
-        value = undefined;
-        break;
+    // 1. Try wildcard traverse on inflated device object
+    const matches = getWildcardMatches(device, p);
+    for (const m of matches) {
+      const val = m.value;
+      if (val !== undefined && val !== null && val !== '' && val !== 'N/A') {
+        const isIpPath = p.toLowerCase().includes('ipaddress') || p.toLowerCase().includes('pppoeip') || p.toLowerCase().includes('pppip');
+        if (isIpPath && String(val) === '0.0.0.0') continue;
+
+        const isCountParam = p.includes('TotalAssociations') || 
+                             p.includes('AssociatedDeviceNumberOfEntries') || 
+                             p.includes('HostNumberOfEntries');
+        if (isCountParam) {
+          values.push(parseInt(val) || 0);
+        } else {
+          return String(val);
+        }
       }
     }
-    if (value !== undefined && value !== null && value !== '' && value !== 'N/A') {
-      const isIpPath = p.toLowerCase().includes('ipaddress') || p.toLowerCase().includes('pppoeip') || p.toLowerCase().includes('pppip') || p.toLowerCase().includes('pppusername') || p.toLowerCase().includes('pppoeusername');
-      if (isIpPath && String(value) === '0.0.0.0') {
-        continue;
-      }
-      const isCountParam = p.includes('TotalAssociations') || 
-                           p.includes('AssociatedDeviceNumberOfEntries') || 
-                           p.includes('HostNumberOfEntries');
-                           
-      if (isCountParam) {
-        // Ensure we push a number
-        const val = (typeof value === 'object' && value._value !== undefined) ? value._value : value;
-        values.push(parseInt(val) || 0);
-      } else {
-        // If it's still an object, try to get _value or stringify it
-        if (typeof value === 'object') {
-          if (value._value !== undefined) return String(value._value);
-          return 'N/A'; // Don't return raw object
+
+    // 2. Try flat params direct lookup if device._flatParams is available
+    if (device._flatParams && typeof device._flatParams === 'object') {
+      const pLower = p.toLowerCase();
+      for (const [fKey, fVal] of Object.entries(device._flatParams)) {
+        if (fKey.toLowerCase() === pLower && fVal !== undefined && fVal !== null && fVal !== '' && fVal !== 'N/A') {
+          const isIpPath = p.toLowerCase().includes('ipaddress') || p.toLowerCase().includes('pppoeip') || p.toLowerCase().includes('pppip');
+          if (isIpPath && String(fVal) === '0.0.0.0') continue;
+
+          const isCountParam = p.includes('TotalAssociations') || 
+                               p.includes('AssociatedDeviceNumberOfEntries') || 
+                               p.includes('HostNumberOfEntries');
+          if (isCountParam) {
+            values.push(parseInt(fVal) || 0);
+          } else {
+            return String(fVal);
+          }
         }
-        return String(value);
       }
     }
   }
-  
+
   if (values.length > 0) {
-    // If it's a count parameter, sum them up (for dual band)
     return values.reduce((a, b) => a + b, 0);
   }
-  
+
   return 'N/A';
 }
 

@@ -66,6 +66,8 @@ function builtinRowToDevice(row) {
       device = {};
     }
 
+    device._flatParams = params || {};
+    device._ip = row.ip_address || null;
     device._id = String(row.id || '');
     device._tags = tags;
     device._lastInform = row.last_inform || null;

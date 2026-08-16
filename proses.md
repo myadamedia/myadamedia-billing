@@ -2,6 +2,38 @@
 
 ---
 
+## [2026-08-16] Perbaikan Penayangan 4 Poin Parameter Perangkat (IP, SSID, RX Power, Perangkat Terhubung) pada Mode Built-in ACS
+
+### 1. Deskripsi Permasalahan
+Pada mode **Built-in ACS**, terdapat 4 poin informasi penting yang tidak muncul di Portal Pelanggan & Detail Perangkat:
+1. **IP Device/PPPoE** tidak muncul (`-`).
+2. **Nama Wi-Fi/SSID Eksisting** tidak muncul (`Belum Terdeteksi`).
+3. **Sinyal Optik (RX Power)** tidak muncul (`-`).
+4. **Perangkat Terhubung (Live Clients)** tidak muncul (`0 Perangkat`).
+
+### 2. Penyebab Utama (Root Cause)
+1. **Ketiadaan Properti `_ip` & `_flatParams` pada Objektifikasi ACS**:
+   Fungsi `builtinRowToDevice()` sebelumnya tidak menetapkan `_ip = row.ip_address` dan `_flatParams = params`, sehingga kueri pencarian parameter tidak bisa mengakses IP bawaan database atau flat parameter TR-069.
+2. **Keterbatasan Kueri `getParameterWithPaths()`**:
+   `getParameterWithPaths()` sebelumnya menggunakan pencarian string persis tanpa dukungan karakter *wildcard* (`*`), sehingga kueri seperti `InternetGatewayDevice.LANDevice.*.WLANConfiguration.*.SSID` atau `VirtualParameters.RXPower` melempar hasil `undefined`.
+3. **Urutan Resolusi Profil Pelanggan di `routes/customerPortal.js`**:
+   Portal pelanggan memanggil `getCustomerDeviceData(pppoeUsername)` sebelum memuat profil pelanggan dari database billing, sehingga kueri awal menggunakan nomor HP alih-alih tag `genieacs_tag` / `pppoe_username` pelanggan yang valid.
+
+### 3. Solusi & Implementasi Teknis
+- **`config/genieacs.js`**:
+  - Memperbarui `builtinRowToDevice()` untuk menetapkan `device._ip = row.ip_address` dan `device._flatParams = params || {}`.
+- **`services/customerDeviceService.js`**:
+  - **Wildcard & Flat Parameter Support**: Memperbarui `getParameterWithPaths()` agar secara otomatis mengeksekusi `getWildcardMatches()` (traversal *wildcard* & case-insensitive) serta melakukan kueri pencocokan langsung pada `device._flatParams`.
+  - **Dynamic Client Scanner**: Memperbarui pencarian `connectedUsers` untuk memindai seluruh *node* `WLANConfiguration.*.AssociatedDevice.*` dan `Hosts.Host.*` secara dinamis.
+- **`routes/customerPortal.js`**:
+  - Memperbarui rute `/customer/dashboard` agar mencari `profile` pelanggan terlebih dahulu, lalu memanggil `getCustomerDeviceData()` menggunakan urutan tag paling presisi (`profile.genieacs_tag || profile.pppoe_username || profile.phone`).
+
+### 4. Hasil Pengujian & Verifikasi
+- Pengecekan Sintaks JavaScript (`node -c`): **PASSED** (0 Error).
+- Pengujian Otomatis (`npm test`): **PASSED** (100% Lulus).
+
+---
+
 ## [2026-08-16] Perbaikan Resolusi Detail Perangkat (Modal Detail) pada Mode Built-in ACS Server
 
 ### 1. Deskripsi Permasalahan

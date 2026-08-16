@@ -1808,25 +1808,24 @@ router.get('/dashboard', async (req, res) => {
     delete req.session._msg;
   }
   
-  // Data dari GenieACS - use PPPoE username if available, fallback to phone
-  const pppoeUsername = req.session.pppoe_username || loginId;
-  const deviceData = await getCustomerDeviceData(pppoeUsername);
-  
-  // Data dari Billing DB (Coba cari pakai loginId atau pppoeUsername)
-  let searchToken = loginId;
-  if (deviceData && deviceData.pppoeUsername) {
-    searchToken = deviceData.pppoeUsername;
-  }
-  
-  const invoices = billingSvc.getInvoicesByAny(searchToken);
+  // Data dari Billing DB (Cari profile dulu untuk mendapatkan tag/pppoe/phone)
   const profile = customerSvc.getAllCustomers().find(c => {
-    const cleanLogin = loginId.replace(/\D/g, '');
-    const cleanDb = (c.phone || '').replace(/\D/g, '');
-    return cleanDb === cleanLogin || 
+    const cleanLogin = String(loginId || '').replace(/\D/g, '');
+    const cleanDb = String(c.phone || '').replace(/\D/g, '');
+    return (cleanLogin && cleanDb === cleanLogin) || 
            c.phone === loginId || 
            c.genieacs_tag === loginId || 
-           c.pppoe_username === (deviceData ? deviceData.pppoeUsername : null);
+           c.pppoe_username === loginId;
   });
+
+  const tagToQuery = (profile && (profile.genieacs_tag || profile.pppoe_username || profile.phone)) || req.session.pppoe_username || loginId;
+  const deviceData = await getCustomerDeviceData(tagToQuery);
+
+  let searchToken = loginId;
+  if (profile && profile.pppoe_username) searchToken = profile.pppoe_username;
+  else if (deviceData && deviceData.pppoeUsername) searchToken = deviceData.pppoeUsername;
+  
+  const invoices = billingSvc.getInvoicesByAny(searchToken);
   
   // Ambil tiket keluhan pelanggan
   let tickets = [];
