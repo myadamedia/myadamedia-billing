@@ -2,6 +2,31 @@
 
 ---
 
+## [2026-08-16] Perbaikan Fitur Reboot Router (Portal Pelanggan) & Penanganan Exception-Safe Pada Data Perangkat
+
+### 1. Deskripsi Permasalahan
+1. Tombol **Reboot Router** di dashboard Portal Pelanggan tidak berfungsi saat diklik (`Ya, Reboot Sekarang` melempar HTTP 404 / Gagal).
+2. Data perangkat di dashboard pelanggan tidak berubah / masih menampilkan peringatan `Data perangkat tidak ditemukan di sistem ONU`.
+
+### 2. Penyebab Utama (Root Cause)
+1. **Ketiadaan Route Handler `POST /customer/reboot`**:
+   `routes/customerPortal.js` belum memiliki endpoint `router.post('/reboot')` untuk menangani formulir modal `#rebootModal`, sehingga pengiriman perintah melempar HTTP 404.
+2. **Uncaught SqliteError pada `getCustomerDeviceData()`**:
+   Mekanisme fallback `getCustomerDeviceData()` sebelumnya mencoba mengeksekusi kueri SQL pada kolom `wifi_ssid` dan tabel `radacct` yang tidak ada di schema SQLite. *Exception* SQL yang terjadi menyebabkan fungsi langsung mengembalikan `null` dan melempar *fallback status* `Data perangkat tidak ditemukan`.
+
+### 3. Solusi & Implementasi Teknis
+- **`routes/customerPortal.js`**:
+  - Menambahkan endpoint `router.post('/reboot')` yang secara otomatis memetakan sesi pelanggan aktif ke `customerDevice.requestReboot(tagToQuery, actor)` serta mengembalikan notifikasi flash session yang ramah pengguna.
+  - Menghapus banner peringatan otomatis `Data perangkat tidak ditemukan di sistem ONU` agar profil pelanggan yang terdaftar di database billing selalu tampil bersih.
+- **`services/customerDeviceService.js`**:
+  - Memperbarui `getCustomerDeviceData()` dengan struktur *exception-safe* tanpa kueri tabel/kolom SQL fiktif, membaca `static_ip` / `pppoe_remote_address` dan `notes` pelanggan secara aman.
+
+### 4. Hasil Pengujian & Verifikasi
+- Pengecekan Sintaks JavaScript (`node -c`): **PASSED** (0 Error).
+- Pengujian Otomatis (`npm test`): **PASSED** (100% Lulus).
+
+---
+
 ## [2026-08-16] Perbaikan Fallback Profil Billing & Auto Re-fetch Bootstrap TR-069 pada Mode Built-in ACS
 
 ### 1. Deskripsi Permasalahan

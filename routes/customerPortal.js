@@ -1889,8 +1889,38 @@ router.get('/dashboard', async (req, res) => {
     customerBalance,
     isLoggedIn: true,
     showPPOB,
-    notif: msgNotif || (deviceData ? null : dashboardNotif('Data perangkat tidak ditemukan di sistem ONU.', 'warning'))
+    notif: msgNotif
   });
+});
+
+router.post('/reboot', async (req, res) => {
+  const loginId = req.session && req.session.phone;
+  if (!loginId) return res.redirect('/customer/login');
+
+  try {
+    const cleanLogin = String(loginId).replace(/\D/g, '');
+    const profile = customerSvc.getAllCustomers().find(c => {
+      const cleanDb = String(c.phone || '').replace(/\D/g, '');
+      return (cleanLogin && cleanDb === cleanLogin) || c.phone === loginId || c.genieacs_tag === loginId || c.pppoe_username === loginId;
+    }) || null;
+
+    const tagToQuery = (profile && (profile.genieacs_tag || profile.pppoe_username || profile.phone)) || req.session.pppoe_username || loginId;
+    const result = await customerDevice.requestReboot(tagToQuery, {
+      type: 'customer',
+      id: profile ? profile.id : loginId,
+      name: profile ? profile.name : loginId,
+      ip: req.ip
+    });
+
+    if (result && result.ok) {
+      req.session._msg = { text: 'Perintah reboot router berhasil dikirim ke perangkat. Perangkat akan menyala kembali dalam 1-2 menit.', type: 'success' };
+    } else {
+      req.session._msg = { text: (result && result.message) || 'Gagal mengirim perintah reboot. Perangkat mungkin sedang offline atau belum terdaftar di ACS.', type: 'error' };
+    }
+  } catch (e) {
+    req.session._msg = { text: 'Terjadi kesalahan sistem saat mengirim perintah reboot.', type: 'error' };
+  }
+  res.redirect('/customer/dashboard');
 });
 
 router.get('/api/pppoe-traffic', async (req, res) => {

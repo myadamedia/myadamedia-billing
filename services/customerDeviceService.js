@@ -794,7 +794,13 @@ function mapDeviceData(device, tag) {
 }
 
 async function getCustomerDeviceData(tag) {
-  const base = await resolveDeviceToken(tag);
+  let base = null;
+  try {
+    base = await resolveDeviceToken(tag);
+  } catch (e) {
+    logger.debug(`[CustomerDevice] Error resolving device token: ${e.message}`);
+  }
+
   if (!base || !base._id) {
     try {
       const db = require('../config/database');
@@ -811,38 +817,24 @@ async function getCustomerDeviceData(tag) {
       `).get(tagClean, tagClean, tagClean, tagClean, cleanNum, `%${cleanNum}%`, `%${cleanNum}%`);
 
       if (profile) {
-        let activeIp = '-';
-        let activeStatus = 'Offline';
-        try {
-          const radSession = db.prepare(`
-            SELECT framedipaddress FROM radacct 
-            WHERE LOWER(username) = LOWER(?) AND acctstoptime IS NULL 
-            ORDER BY acctstarttime DESC LIMIT 1
-          `).get(profile.pppoe_username || profile.phone);
-          if (radSession && radSession.framedipaddress) {
-            activeIp = radSession.framedipaddress;
-            activeStatus = 'Online';
-          }
-        } catch (_) {}
-
         return {
           phone: profile.phone || tag,
           customerName: profile.name || '-',
           customerPhone: profile.phone || '-',
           customerTag: profile.genieacs_tag || profile.pppoe_username || profile.phone || tag,
-          ssid: profile.wifi_ssid || '-',
-          status: activeStatus,
+          ssid: profile.notes ? (profile.notes.match(/SSID:\s*([^\n,]+)/i)?.[1] || '-') : '-',
+          status: profile.status === 'active' ? 'Online' : 'Offline',
           lastInform: '-',
           connectedUsers: [],
           rxPower: '-',
-          pppoeIP: activeIp,
+          pppoeIP: profile.static_ip || profile.pppoe_remote_address || '-',
           pppoeUsername: profile.pppoe_username || '-',
           pppoeUptime: '-',
           serialNumber: profile.genieacs_tag || '-',
-          productClass: profile.router_model || '-',
+          productClass: 'ONT / Router',
           lokasi: profile.address || '-',
           softwareVersion: '-',
-          model: profile.router_model || '-',
+          model: 'ONT / Router',
           uptime: '-',
           totalAssociations: 0
         };
@@ -860,7 +852,13 @@ async function getCustomerDeviceData(tag) {
     } catch (_) {}
   }
 
-  const device = await fetchFullDevice(base._id);
+  let device = null;
+  try {
+    device = await fetchFullDevice(base._id);
+  } catch (e) {
+    logger.debug(`[CustomerDevice] Error fetching full device: ${e.message}`);
+  }
+
   return mapDeviceData(device || base, tag);
 }
 
