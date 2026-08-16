@@ -2240,6 +2240,26 @@ router.post('/delete-connected-client', async (req, res) => {
   res.redirect('/customer/dashboard');
 });
 
+router.all('/web-proxy', (req, res) => {
+  const loginId = req.session && req.session.phone;
+  if (!loginId) return res.redirect('/customer/login');
+  const pppoeUsername = req.session.pppoe_username || loginId;
+  const profile = findCustomerProfileByLoginId(loginId);
+  const tagToUse = (profile && (profile.genieacs_tag || profile.pppoe_username)) || pppoeUsername || loginId;
+  const baseProxyUrl = `/customer/web-proxy/`;
+  customerDevice.proxyOntWebRequest(tagToUse, baseProxyUrl, req, res);
+});
+
+router.all('/web-proxy/*', (req, res) => {
+  const loginId = req.session && req.session.phone;
+  if (!loginId) return res.redirect('/customer/login');
+  const pppoeUsername = req.session.pppoe_username || loginId;
+  const profile = findCustomerProfileByLoginId(loginId);
+  const tagToUse = (profile && (profile.genieacs_tag || profile.pppoe_username)) || pppoeUsername || loginId;
+  const baseProxyUrl = `/customer/web-proxy/`;
+  customerDevice.proxyOntWebRequest(tagToUse, baseProxyUrl, req, res);
+});
+
 router.post('/change-tag', async (req, res) => {
   const oldTag = req.session && req.session.phone;
   const newTag = (req.body.newTag || '').trim();

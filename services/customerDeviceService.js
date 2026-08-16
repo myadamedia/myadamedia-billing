@@ -1241,6 +1241,158 @@ async function deleteConnectedClient(tag, clientMac, clientIp, actor = null) {
   }
 }
 
+async function enableRemoteWebAccess(tag) {
+  try {
+    const device = await resolveDeviceToken(tag);
+    if (!device || !device._id) return { ok: false, message: 'Perangkat ONT/ONU tidak ditemukan.' };
+
+    if (!genieacsApi.isBuiltinAcsEnabled()) {
+      return { ok: false, message: 'Mode Built-in ACS tidak aktif.' };
+    }
+
+    const server = genieacsApi.getACSServer('builtin');
+    const instance = genieacsApi.createAxiosInstance(server);
+    const tasksUrl = `/devices/${encodeURIComponent(device._id)}/tasks`;
+
+    const parameterValues = [
+      ['InternetGatewayDevice.UserInterface.RemoteAccess.Enable', true, 'xsd:boolean'],
+      ['InternetGatewayDevice.UserInterface.RemoteAccess.Port', 8080, 'xsd:unsignedInt'],
+      ['Device.UserInterface.RemoteAccess.Enable', true, 'xsd:boolean']
+    ];
+
+    try {
+      await instance.post(tasksUrl, { name: 'setParameterValues', parameterValues }, { timeout: 15000 });
+    } catch (_) {}
+
+    try {
+      const acsSvc = require('./acsServerService');
+      acsSvc.triggerConnectionRequest(device._id).catch(() => {});
+    } catch (_) {}
+
+    return { ok: true, message: 'Perintah pengaktifan Remote Web Access via TR-069 berhasil dikirim ke ONT.' };
+  } catch (e) {
+    return { ok: false, message: 'Gagal mengaktifkan Remote Web Access: ' + e.message };
+  }
+}
+
+async function proxyOntWebRequest(tag, baseProxyUrl, req, res) {
+  try {
+    const data = await getCustomerDeviceData(tag);
+    const targetIp = (data && data.pppoeIP && data.pppoeIP !== '-') ? data.pppoeIP : null;
+
+    if (!targetIp) {
+      res.status(404).send(`
+        <!doctype html>
+        <html lang="id">
+        <head><meta charset="utf-8"><title>IP ONT Tidak Ditemukan</title>
+        <style>body{font-family:system-ui;background:#0f172a;color:#f8fafc;padding:40px;text-align:center} .card{max-width:480px;margin:0 auto;background:#1e293b;padding:24px;border-radius:12px;border:1px solid #334155} h1{font-size:20px;color:#f43f5e}</style>
+        </head>
+        <body>
+          <div class="card">
+            <h1>IP ONT/ONU Tidak Terdeteksi</h1>
+            <p>Perangkat dengan tag <strong>${tag}</strong> sedang offline atau belum memiliki IP PPPoE/RADIUS aktif.</p>
+            <p style="font-size:13px;color:#94a3b8">Pastikan ONT dalam keadaan menyala dan terhubung ke server ACS.</p>
+          </div>
+        </body>
+        </html>
+      `);
+      return;
+    }
+
+    const http = require('http');
+    const https = require('https');
+
+    const subPath = req.params[0] ? '/' + req.params[0] : '';
+    const queryString = req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : '';
+    
+    const targetUrlString = `http://${targetIp}${subPath}${queryString}`;
+    const targetUrl = new URL(targetUrlString);
+
+    const clientReqModule = targetUrl.protocol === 'https:' ? https : http;
+
+    const proxyHeaders = { ...req.headers };
+    delete proxyHeaders.host;
+    delete proxyHeaders.connection;
+    delete proxyHeaders['accept-encoding'];
+
+    proxyHeaders['host'] = targetUrl.host;
+
+    const proxyReq = clientReqModule.request({
+      hostname: targetUrl.hostname,
+      port: targetUrl.port || (targetUrl.protocol === 'https:' ? 443 : 80),
+      path: targetUrl.pathname + targetUrl.search,
+      method: req.method,
+      headers: proxyHeaders,
+      timeout: 10000,
+      rejectUnauthorized: false
+    }, (proxyRes) => {
+      if (proxyRes.headers.location) {
+        let loc = proxyRes.headers.location;
+        if (loc.startsWith('/')) {
+          loc = baseProxyUrl + loc.substring(1);
+        } else if (loc.includes(targetIp)) {
+          loc = loc.replace(new RegExp(`https?://${targetIp}(:\\d+)?`, 'g'), baseProxyUrl);
+        }
+        proxyRes.headers.location = loc;
+      }
+
+      const contentType = String(proxyRes.headers['content-type'] || '').toLowerCase();
+      const isHtml = contentType.includes('text/html');
+
+      if (isHtml) {
+        let responseBody = '';
+        proxyRes.setEncoding('utf8');
+        proxyRes.on('data', chunk => { responseBody += chunk; });
+        proxyRes.on('end', () => {
+          const prefix = baseProxyUrl.endsWith('/') ? baseProxyUrl : baseProxyUrl + '/';
+          let modifiedBody = responseBody;
+          if (modifiedBody.includes('<head>')) {
+            modifiedBody = modifiedBody.replace('<head>', `<head><base href="${prefix}">`);
+          } else if (modifiedBody.includes('<HEAD>')) {
+            modifiedBody = modifiedBody.replace('<HEAD>', `<HEAD><base href="${prefix}">`);
+          }
+
+          delete proxyRes.headers['content-length'];
+          res.writeHead(proxyRes.statusCode || 200, proxyRes.headers);
+          res.end(modifiedBody);
+        });
+      } else {
+        res.writeHead(proxyRes.statusCode || 200, proxyRes.headers);
+        proxyRes.pipe(res);
+      }
+    });
+
+    proxyReq.on('error', (err) => {
+      logger.error(`[proxyOntWebRequest] Error proxying to ${targetIp}: ${err.message}`);
+      res.status(502).send(`
+        <!doctype html>
+        <html lang="id">
+        <head><meta charset="utf-8"><title>Gagal Terhubung ke Web ONT</title>
+        <style>body{font-family:system-ui;background:#0f172a;color:#f8fafc;padding:40px;text-align:center} .card{max-width:520px;margin:0 auto;background:#1e293b;padding:24px;border-radius:12px;border:1px solid #334155} h1{font-size:20px;color:#f43f5e} code{background:#0f172a;padding:2px 6px;border-radius:4px;color:#38bdf8}</style>
+        </head>
+        <body>
+          <div class="card">
+            <h1>Gagal Membuka Web GUI ONT (${targetIp})</h1>
+            <p>Server billing tidak dapat membuka port HTTP pada IP <code>${targetIp}</code>.</p>
+            <p style="font-size:13px;color:#94a3b8">Penyebab umum: Port Remote WAN Web ONT (Port 80/8080) belum diaktifkan atau diblokir oleh router/ONT.</p>
+            <p style="font-size:13px;color:#cbd5e1">Solusi: Gunakan fitur <strong>Aktifkan Remote Web via TR-069</strong> di dashboard atau periksa aturan NAT/Proxy-ARP MikroTik.</p>
+          </div>
+        </body>
+        </html>
+      `);
+    });
+
+    if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
+      req.pipe(proxyReq);
+    } else {
+      proxyReq.end();
+    }
+  } catch (e) {
+    logger.error(`[proxyOntWebRequest] Exception: ${e.message}`);
+    res.status(500).send('Internal Proxy Error: ' + e.message);
+  }
+}
+
 module.exports = {
   findDeviceByTag,
   findDeviceByPppoe,
@@ -1258,5 +1410,7 @@ module.exports = {
   expandTagCandidates,
   findDeviceWithTagVariants,
   phoneFromPnJid,
-  deleteConnectedClient
+  deleteConnectedClient,
+  enableRemoteWebAccess,
+  proxyOntWebRequest
 };

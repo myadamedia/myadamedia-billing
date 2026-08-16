@@ -807,6 +807,15 @@ async function showDetail(tag) {
         </div>
       </div>
 
+      <div style="margin-top:16px;background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between">
+        <div style="font-weight:700"><i class="bi bi-display"></i> Remote Web Management ONT</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <a href="/admin/api/device/${encodeURIComponent(tag)}/web-proxy/" target="_blank" class="btn btn-p btn-sm"><i class="bi bi-box-arrow-up-right"></i> Buka Web ONT (Remote Web)</a>
+          <button class="btn btn-g btn-sm" onclick="enableRemoteWebOnt('${tag}')"><i class="bi bi-shield-check"></i> Aktifkan Remote Web (TR-069)</button>
+          <button class="btn btn-g btn-sm" onclick="fixRadiusMikrotikAccess()"><i class="bi bi-router"></i> Fix Access RADIUS (MikroTik)</button>
+        </div>
+      </div>
+
       <div style="margin-top:16px;background:var(--card-bg);border:1px solid var(--border);border-radius:12px;overflow:hidden">
         <div style="padding:14px 18px;border-bottom:1px solid var(--border);font-weight:700;color:var(--muted);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
           <div><i class="bi bi-people"></i> Connected Clients (Live)</div>
@@ -860,6 +869,27 @@ async function deleteConnectedClientModal(tag, mac, ip, hostname) {
     if (data.ok) {
       showDetail(tag);
     }
+  } catch (e) {
+    showToast('Error: ' + e.message, 'd');
+  }
+}
+
+async function enableRemoteWebOnt(tag) {
+  try {
+    const res = await fetch('/admin/api/device/' + encodeURIComponent(tag) + '/enable-remote-web', { method: 'POST' });
+    const data = await res.json();
+    showToast(data.message || (data.ok ? 'Perintah Remote Web dikirim' : 'Gagal'), data.ok ? 's' : 'd');
+  } catch (e) {
+    showToast('Error: ' + e.message, 'd');
+  }
+}
+
+async function fixRadiusMikrotikAccess() {
+  if (!confirm('Terapkan aturan NAT Masquerade, Proxy-ARP, dan Forward Filter di MikroTik untuk mengizinkan akses Web ONT RADIUS?')) return;
+  try {
+    const res = await fetch('/admin/api/mikrotik/setup-remote-access', { method: 'POST' });
+    const data = await res.json();
+    showToast(data.message || (data.ok ? 'Aturan MikroTik diterapkan' : 'Gagal'), data.ok ? 's' : 'd');
   } catch (e) {
     showToast('Error: ' + e.message, 'd');
   }

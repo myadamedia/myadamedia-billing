@@ -632,6 +632,16 @@ router.post('/api/device/:tag/connected-clients/delete', requireTechSession, exp
   res.json(result);
 });
 
+router.all('/api/device/:tag/web-proxy', requireTechSession, (req, res) => {
+  const baseProxyUrl = `/tech/api/device/${encodeURIComponent(req.params.tag)}/web-proxy/`;
+  customerDevice.proxyOntWebRequest(req.params.tag, baseProxyUrl, req, res);
+});
+
+router.all('/api/device/:tag/web-proxy/*', requireTechSession, (req, res) => {
+  const baseProxyUrl = `/tech/api/device/${encodeURIComponent(req.params.tag)}/web-proxy/`;
+  customerDevice.proxyOntWebRequest(req.params.tag, baseProxyUrl, req, res);
+});
+
 // ─── ATTENDANCE ROUTES ───────────────────────────────────────────────────────
 
 // Get attendance page

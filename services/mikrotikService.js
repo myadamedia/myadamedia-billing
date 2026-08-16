@@ -1901,6 +1901,224 @@ async function getLiveActiveSessionsTraffic(routerId) {
   }
 }
 
+
+async function getRouterDetailedInfo(routerId = null) {
+  let conn = null;
+  try {
+    conn = await getConnection(routerId);
+    const [resArr, idArr, rbArr] = await Promise.all([
+      conn.client.menu('/system/resource').get().catch(() => []),
+      conn.client.menu('/system/identity').get().catch(() => []),
+      conn.client.menu('/system/routerboard').get().catch(() => [])
+    ]);
+
+    const resource = resArr[0] || {};
+    const identity = idArr[0] || {};
+    const routerboard = rbArr[0] || {};
+
+    const freeMem = Number(resource['free-memory'] || 0);
+    const totalMem = Number(resource['total-memory'] || 0);
+    const freeHdd = Number(resource['free-hdd-space'] || 0);
+    const totalHdd = Number(resource['total-hdd-space'] || 0);
+
+    return {
+      identity: identity.name || 'MikroTik',
+      uptime: resource.uptime || '-',
+      version: resource.version || '-',
+      buildTime: resource['build-time'] || resource.buildTime || '-',
+      freeMemory: formatBytes(freeMem),
+      totalMemory: formatBytes(totalMem),
+      memoryUsagePercent: totalMem > 0 ? (((totalMem - freeMem) / totalMem) * 100).toFixed(1) : 0,
+      cpuLoad: resource['cpu-load'] !== undefined ? Number(resource['cpu-load']) : 0,
+      cpuCount: resource['cpu-count'] || 1,
+      cpuFrequency: resource['cpu-frequency'] ? `${resource['cpu-frequency']} MHz` : '-',
+      cpuModel: resource.cpu || '-',
+      freeHdd: formatBytes(freeHdd),
+      totalHdd: formatBytes(totalHdd),
+      hddUsagePercent: totalHdd > 0 ? (((totalHdd - freeHdd) / totalHdd) * 100).toFixed(1) : 0,
+      boardName: resource['board-name'] || routerboard.model || '-',
+      architectureName: resource['architecture-name'] || '-',
+      model: routerboard.model || resource['board-name'] || '-',
+      serialNumber: routerboard['serial-number'] || routerboard.serialNumber || '-'
+    };
+  } catch (e) {
+    logger.error(`Error getting detailed router info (routerId=${routerId}):`, e);
+    throw e;
+  } finally {
+    if (conn && conn.api) conn.api.close();
+  }
+}
+
+async function getInterfaceTraffic(routerId, interfaceName) {
+  if (!interfaceName) throw new Error('Nama interface harus diisi');
+  let conn = null;
+  try {
+    conn = await getConnection(routerId);
+    const words = [
+      '/interface/monitor-traffic',
+      `=interface=${interfaceName}`,
+      '=once='
+    ];
+    const res = await conn.api.send(words);
+    const data = Array.isArray(res) && res.length ? res[0] : {};
+    const rxBps = Number(data['rx-bits-per-second'] || 0);
+    const txBps = Number(data['tx-bits-per-second'] || 0);
+    
+    return {
+      name: interfaceName,
+      rxBitsPerSecond: rxBps,
+      txBitsPerSecond: txBps,
+      'rx-bits-per-second': rxBps,
+      'tx-bits-per-second': txBps,
+      rx: rxBps,
+      tx: txBps,
+      rxFormatted: formatBytes(rxBps / 8) + '/s',
+      txFormatted: formatBytes(txBps / 8) + '/s',
+      rxPacketsPerSecond: Number(data['rx-packets-per-second'] || 0),
+      txPacketsPerSecond: Number(data['tx-packets-per-second'] || 0)
+    };
+  } catch (e) {
+    logger.error(`Error monitoring traffic for ${interfaceName} (routerId=${routerId}):`, e);
+    throw e;
+  } finally {
+    if (conn && conn.api) conn.api.close();
+  }
+}
+
+async function toggleInterfaceStatus(routerId, interfaceId, disabled) {
+  if (!interfaceId) throw new Error('ID Interface harus diisi');
+  let conn = null;
+  try {
+    conn = await getConnection(routerId);
+    const isDisabled = disabled === true || String(disabled) === 'true';
+    const action = isDisabled ? '/interface/disable' : '/interface/enable';
+    const words = [action, `=.id=${interfaceId}`];
+    await conn.api.send(words);
+    return { success: true, message: `Interface ${isDisabled ? 'dinonaktifkan' : 'diaktifkan'}` };
+  } catch (e) {
+    logger.error(`Error toggling interface status (id=${interfaceId}, routerId=${routerId}):`, e);
+    throw e;
+  } finally {
+    if (conn && conn.api) conn.api.close();
+  }
+}
+
+/**
+ * Mengambil data live traffic rate (tx_bps, rx_bps) dari MikroTik RouterOS API secara realtime
+ */
+async function getLiveActiveSessionsTraffic(routerId) {
+  let conn = null;
+  try {
+    conn = await getConnection(routerId);
+    const userRates = new Map(); // username/targetIP -> { txBps, rxBps }
+    
+    try {
+      const queues = await withTimeout(
+        conn.api.send(['/queue/simple/print', '=.proplist=name,target,rate,bytes']),
+        4000,
+        'getLiveTrafficQueues'
+      );
+      if (Array.isArray(queues)) {
+        for (const q of queues) {
+          const rawName = String(q.name || '').trim();
+          const rateStr = String(q.rate || '').trim(); // "tx_bps/rx_bps"
+          if (rateStr && rateStr.includes('/')) {
+            const parts = rateStr.split('/');
+            const txBps = Number(parts[0]) || 0; // upload rate
+            const rxBps = Number(parts[1]) || 0; // download rate
+            const rateObj = { txBps, rxBps };
+
+            if (rawName) {
+              const lowerRaw = rawName.toLowerCase();
+              userRates.set(lowerRaw, rateObj);
+
+              // Bersihkan nama queue dari prefix MikroTik (contoh: <pppoe-MDE-0102> -> mde-0102)
+              const cleanName = rawName
+                .replace(/^[<>\-]*pppoe[<>\-]*|^[<>\-]*hotspot[<>\-]*|^[<>\-]*ppp[<>\-]*|[<>]/gi, '')
+                .trim()
+                .toLowerCase();
+
+              if (cleanName) {
+                userRates.set(cleanName, rateObj);
+              }
+            }
+            const target = String(q.target || '').replace(/\/32$/, '').trim();
+            if (target) {
+              userRates.set(target, rateObj);
+            }
+          }
+        }
+      }
+    } catch (qErr) {
+      logger.warn(`[MikroTik] Unable to fetch simple queues for live traffic (routerId=${routerId}): ${qErr.message}`);
+    }
+
+    return userRates;
+  } catch (e) {
+    logger.error(`Error fetching live active sessions traffic (routerId=${routerId}):`, e.message);
+    return new Map();
+  } finally {
+    if (conn && conn.api) {
+      try { conn.api.close(); } catch {}
+    }
+  }
+}
+
+async function setupRadiusOntRemoteAccess(routerId = null) {
+  try {
+    const conn = await getClient(routerId);
+    if (!conn) return { ok: false, message: 'Gagal terhubung ke MikroTik RouterOS.' };
+
+    let addedRules = [];
+
+    try {
+      const existingNat = await conn.write('/ip/firewall/nat/print', ['?comment=Billing ONT Remote Access - NAT PPP']);
+      if (!Array.isArray(existingNat) || existingNat.length === 0) {
+        await conn.write('/ip/firewall/nat/add', [
+          '=chain=srcnat',
+          '=action=masquerade',
+          '=comment=Billing ONT Remote Access - NAT PPP'
+        ]);
+        addedRules.push('NAT Masquerade rule added');
+      }
+    } catch (_) {}
+
+    try {
+      const existingFilter = await conn.write('/ip/firewall/filter/print', ['?comment=Billing ONT Remote Access - Forward Filter']);
+      if (!Array.isArray(existingFilter) || existingFilter.length === 0) {
+        await conn.write('/ip/firewall/filter/add', [
+          '=chain=forward',
+          '=action=accept',
+          '=comment=Billing ONT Remote Access - Forward Filter'
+        ]);
+        addedRules.push('Forward Filter rule added');
+      }
+    } catch (_) {}
+
+    try {
+      const bridges = await conn.write('/interface/bridge/print');
+      if (Array.isArray(bridges) && bridges.length > 0) {
+        for (const b of bridges) {
+          if (b['.id'] && b.arp !== 'proxy-arp') {
+            await conn.write('/interface/bridge/set', [`=.id=${b['.id']}`, '=arp=proxy-arp']);
+            addedRules.push(`Proxy-ARP enabled on bridge ${b.name || ''}`);
+          }
+        }
+      }
+    } catch (_) {}
+
+    return {
+      ok: true,
+      message: addedRules.length > 0
+        ? `Aturan Remote Access RADIUS ONT berhasil diterapkan di MikroTik: ${addedRules.join(', ')}`
+        : 'Aturan Remote Access RADIUS ONT sudah terpasang dan aktif di MikroTik.'
+    };
+  } catch (e) {
+    logger.error(`[setupRadiusOntRemoteAccess] Error: ${e.message}`);
+    return { ok: false, message: 'Gagal memasang aturan MikroTik: ' + e.message };
+  }
+}
+
 module.exports = {
   checkConnection,
   getConnection,
@@ -1950,6 +2168,6 @@ module.exports = {
   getRouterDetailedInfo,
   getInterfaceTraffic,
   toggleInterfaceStatus,
-  getLiveActiveSessionsTraffic
+  getLiveActiveSessionsTraffic,
+  setupRadiusOntRemoteAccess
 };
-

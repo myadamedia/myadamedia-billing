@@ -4409,6 +4409,27 @@ router.post('/api/device/:tag/connected-clients/delete', requireAdmin, express.j
   res.json(result);
 });
 
+router.all('/api/device/:tag/web-proxy', requireAdmin, (req, res) => {
+  const baseProxyUrl = `/admin/api/device/${encodeURIComponent(req.params.tag)}/web-proxy/`;
+  customerDevice.proxyOntWebRequest(req.params.tag, baseProxyUrl, req, res);
+});
+
+router.all('/api/device/:tag/web-proxy/*', requireAdmin, (req, res) => {
+  const baseProxyUrl = `/admin/api/device/${encodeURIComponent(req.params.tag)}/web-proxy/`;
+  customerDevice.proxyOntWebRequest(req.params.tag, baseProxyUrl, req, res);
+});
+
+router.post('/api/device/:tag/enable-remote-web', requireAdmin, async (req, res) => {
+  const result = await customerDevice.enableRemoteWebAccess(req.params.tag);
+  res.json(result);
+});
+
+router.post('/api/mikrotik/setup-remote-access', requireAdmin, async (req, res) => {
+  const routerId = req.body?.routerId || null;
+  const result = await mikrotikService.setupRadiusOntRemoteAccess(routerId);
+  res.json(result);
+});
+
 router.post('/api/bulk/ssid', requireAdmin, express.json(), async (req, res) => {
   const { tags, ssid } = req.body;
   if (!Array.isArray(tags) || !ssid) return res.status(400).json({ error: 'Tags and SSID required' });

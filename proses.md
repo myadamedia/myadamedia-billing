@@ -2,6 +2,34 @@
 
 ---
 
+## [2026-08-16] Implementasi Remote Web Proxy ONT/ONU & Solusi Akses IP Device RADIUS/PPPoE
+
+### 1. Deskripsi Permasalahan
+Perangkat ONT/ONU yang menggunakan jaringan PPPoE / RADIUS mendapatkan IP privat point-to-point (misal `10.10.x.x` / `172.16.x.x`) yang tidak bisa dipanggil / dibuka langsung dari browser perangkat lain karena:
+1. *PPP Client Isolation* atau aturan Firewall/Routing MikroTik yang mengisolasi antarmuka PPP.
+2. Fitur *WAN Remote Web Management* (Port 80/8080) pada ONT dalam kondisi nonaktif secara default.
+3. Ketiadaan reverse proxy pada aplikasi billing untuk menjembatani request HTTP browser ke IP ONT target.
+
+### 2. Solusi & Implementasi Teknis
+- **`services/customerDeviceService.js`**:
+  - `proxyOntWebRequest(tag, baseProxyUrl, req, res)`: Reverse Web Proxy HTTP internal yang meneruskan lalu lintas web secara transparan dari browser pengguna ke IP ONT target dan melakukan rewrite URL HTML/header `Location`.
+  - `enableRemoteWebAccess(tag)`: Mengirimkan perintah CWMP TR-069 (`InternetGatewayDevice.UserInterface.RemoteAccess.Enable = true`) untuk mengaktifkan akses remote WAN web pada ONT.
+- **`services/mikrotikService.js`**:
+  - `setupRadiusOntRemoteAccess(routerId)`: Otomatisasi penambahan aturan **NAT Masquerade** (Src-NAT PPP subnet), **Proxy-ARP** pada interface bridge, dan **Forward Filter Rule** di MikroTik RouterOS agar IP ONT dapat diakses antar-subnet.
+- **Endpoints Controller**:
+  - **Admin Portal**: `ALL /admin/api/device/:tag/web-proxy/*`, `POST /admin/api/device/:tag/enable-remote-web`, dan `POST /admin/api/mikrotik/setup-remote-access`.
+  - **Tech Portal**: `ALL /tech/api/device/:tag/web-proxy/*`.
+  - **Customer Portal**: `ALL /customer/web-proxy/*`.
+- **User Interface (UI)**:
+  - **`views/admin/dashboard.ejs`**: Menambahkan tombol **"Buka Web ONT (Remote Web)"**, **"Aktifkan Remote Web (TR-069)"**, dan **"Fix Access RADIUS (MikroTik)"** pada tabel & modal detail.
+  - **`views/dashboard.ejs` (Pelanggan)**: Menambahkan tombol **"Web Router"** untuk membuka Web GUI ONT dari portal pelanggan.
+
+### 3. Hasil Pengujian & Verifikasi
+- Pengecekan Sintaks JavaScript (`node -c`): **PASSED** (0 Error).
+- Pengujian Otomatis (`npm test`): **PASSED** (100% Lulus).
+
+---
+
 ## [2026-08-16] Penambahan Fitur Hapus Perangkat Terhubung (Connected Clients Live) pada Portal Pelanggan & Portal Admin/Teknisi
 
 ### 1. Deskripsi Fitur Baru
