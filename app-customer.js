@@ -44,6 +44,9 @@ const { SUPPORTED_LANGS, FALLBACK_LANG, normalizeLang, t } = require('./config/i
 // Inisialisasi aplikasi Express
 const app = express();
 
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
+
 app.disable('x-powered-by');
 
 // Security headers with Helmet (exclude CSP to avoid breaking UI layout assets)
@@ -829,11 +832,20 @@ app.use((req, res, next) => {
   if (isolatedPortalSvc.isCnaProbePath(req.path)) {
     const config = isolatedPortalSvc.getIsolatedPortalConfig();
     if (config.enabled && config.cna_push_enabled) {
-      logger.info(`[CNA Engine] Intercepted probe ${req.path} from IP ${req.ip} -> Immediate 302 redirect to /isolated`);
+      logger.info(`[CNA Engine] Intercepted probe ${req.path} from IP ${req.ip} -> Rendering isolated portal directly (HTTP 200 OK)`);
+      const { getSettingsWithCache } = require('./config/settingsManager');
+      const settings = getSettingsWithCache();
       res.set('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
       res.set('Pragma', 'no-cache');
       res.set('Expires', '0');
-      return res.redirect(302, '/isolated');
+      res.set('Content-Type', 'text/html; charset=utf-8');
+      res.status(200);
+      return res.render('isolated', {
+        company: settings.company_header || 'My ISP',
+        adminPhone: settings.company_phone || '',
+        address: settings.company_address || '',
+        config
+      });
     }
   }
   next();
@@ -844,6 +856,7 @@ app.get('/isolated', (req, res) => {
   const { getSettingsWithCache } = require('./config/settingsManager');
   const settings = getSettingsWithCache();
   const config = isolatedPortalSvc.getIsolatedPortalConfig();
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
   res.render('isolated', {
     company: settings.company_header || 'My ISP',
     adminPhone: settings.company_phone || '',
@@ -851,10 +864,6 @@ app.get('/isolated', (req, res) => {
     config
   });
 });
-
-// Tambahkan view engine dan static
-app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views'));
 app.get('/manifest.webmanifest', (req, res) => {
   res.type('application/manifest+json');
   res.sendFile(path.join(__dirname, 'public', 'manifest.webmanifest'));

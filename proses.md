@@ -22,9 +22,10 @@ Saat perangkat pelanggan yang terisolir terhubung ke Wi-Fi dan memicu pop-up (*C
   - Mengganti seluruh icon Bootstrap dengan **Inline SVG** berukuran ultra-ringan.
   - Menggunakan font sistem native (-apple-system, Roboto, Segoe UI, sans-serif) tanpa pemanggilan font eksternal.
   - **Hasil**: Halaman `/isolated` kini dapat dirender secara instan dalam waktu kurang dari **10 milidetik** tanpa memerlukan koneksi internet.
-- **`app-customer.js` (Immediate HTTP 302 Redirect)**:
-  - Mengganti meta-refresh HTML pada interceptor probe dengan **Immediate HTTP 302 Found** (`Location: /isolated`) disertai header `Cache-Control: no-cache, no-store, must-revalidate`.
-  - Android dan iOS langsung membuka antarmuka isolir secara instan tanpa menunggu parsing JavaScript.
+- **`app-customer.js` (Direct HTTP 200 OK Rendering pada Interceptor Probe)**:
+  - Mengganti mekanisme redirect dengan **Direct HTTP 200 OK Rendering** template `views/isolated.ejs` secara langsung saat request probe OS (`/generate_204`, `/hotspot-detect.html`, `/ncsi.txt`) terdeteksi.
+  - Android NetworkMonitor & Apple CNA mendeteksi status code 200 (bukan 204 No Content) dan langsung memicu *launch* pop-up Captive Portal secara instan serta menampilkan halaman isolir secara langsung tanpa memerlukan request kedua.
+  - Memindahkan konfigurasi `app.set('view engine', 'ejs')` dan `views` ke inisialisasi awal aplikasi Express.
 - **`services/isolatedPortalService.js` (MikroTik Script TCP-Reset Rule)**:
   - Menambahkan rule `action=reject reject-with=tcp-reset` untuk traffic TCP pelanggan terisolir pada script generator MikroTik.
   - Setiap upaya koneksi HTTPS latar belakang dari smartphone akan langsung di-reject dalam 0 ms, mencegah browser hang/freeze.

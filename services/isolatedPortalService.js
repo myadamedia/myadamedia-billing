@@ -221,7 +221,8 @@ function isCnaProbePath(requestPath = '') {
   if (!path) return false;
 
   return CNA_PROBE_USER_AGENTS_AND_PATHS.some(probe => {
-    return path === probe || path.endsWith(probe);
+    const p = probe.toLowerCase();
+    return path === p || path.endsWith(p) || path.startsWith(p) || (p.length > 4 && path.includes(p));
   });
 }
 
