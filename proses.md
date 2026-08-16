@@ -2,6 +2,36 @@
 
 ---
 
+## [2026-08-16] Pengembangan Fitur Menu Baru Portal Isolir & Engine Captive Network Assistant (CNA) Push Pop-Up Wi-Fi
+
+### 1. Deskripsi Fitur & Kebutuhan
+Menambahkan menu navigasi baru **"Portal Isolir"** di Admin Panel beserta engine **Captive Network Assistant (CNA)** yang mendeteksi probe OS secara otomatis dan mendorong (**push pop-up window**) halaman pengalihan isolir pada layar perangkat pengguna (Android, iOS/macOS, Windows) saat terkoneksi ke jaringan Wi-Fi apabila akun pelanggan berstatus *suspended/terisolir*.
+
+### 2. Solusi & Arsitektur Solusi
+- **Sidebar Menu Registration (`services/sidebarMenuService.js`)**:
+  - Mendaftarkan kunci menu `isolated_portal` dengan rute `/admin/isolated-portal`, icon `bi bi-shield-slash-fill`, dan visibilitas default `STATE_VISIBLE`.
+- **CNA Probe Interceptor Middleware (`app-customer.js` & `services/isolatedPortalService.js`)**:
+  - Menangkap request probe standar OS (`/hotspot-detect.html`, `/generate_204`, `/connecttest.txt`, `/ncsi.txt`, `/canonical.html`).
+  - Mengembalikan `HTTP 200 OK` berisi EJS/HTML pengalihan `/isolated` alih-alih status 204 / text ncsi standard, sehingga OS mendeteksi Captive Portal dan memicu **Native Push Pop-Up Window** di perangkat.
+- **Admin Controller & View (`routes/admin/isolatedPortal.js` & `views/admin/isolated_portal.ejs`)**:
+  - UI manajemen lengkap: Switch Toggle Portal, Walled Garden Whitelist Domain Editor, Live Simulator Probe CNA, Penjana Script Terminal MikroTik 1-Click Copy, serta Tabel Pelanggan Terisolir.
+- **Dynamic Halaman Isolir Pelanggan (`views/isolated.ejs`)**:
+  - Halaman isolir yang diperbarui dengan desain modern glassmorphism, menyajikan info penyedia layanan, pusat bantuan, link konfirmasi WhatsApp otomatis, tombol bayar via Walled Garden, dan login customer portal.
+
+### 3. Komponen & File Yang Diubah/Dibuat
+- `[NEW]` [`services/isolatedPortalService.js`](file:///d:/WEBAPP/myadamedia-billing/services/isolatedPortalService.js): Layanan pusat pengelolaan konfigurasi, script MikroTik, dan pendeteksi probe CNA.
+- `[NEW]` [`routes/admin/isolatedPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/admin/isolatedPortal.js): Router Admin Portal Isolir (`/admin/isolated-portal`).
+- `[NEW]` [`views/admin/isolated_portal.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/isolated_portal.ejs): UI Admin Panel Portal Isolir.
+- `[MODIFY]` [`services/sidebarMenuService.js`](file:///d:/WEBAPP/myadamedia-billing/services/sidebarMenuService.js): Pendaftaran menu `isolated_portal`.
+- `[MODIFY]` [`app-customer.js`](file:///d:/WEBAPP/myadamedia-billing/app-customer.js): Middleware CNA Probe Interceptor & mounting rute `/admin/isolated-portal`.
+- `[MODIFY]` [`views/isolated.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/isolated.ejs): Tampilan halaman isolir dinamis & responsive.
+
+### 4. Hasil Pengujian & Verifikasi
+- Pengecekan Sintaks JavaScript (`node -c`): **PASSED** (0 Error).
+- Pengujian Unit Test (`npm test`): **PASSED** (100% Lulus).
+
+---
+
 ## [2026-08-16] Perbaikan Fitur Reboot Router (Portal Pelanggan) & Penanganan Exception-Safe Pada Data Perangkat
 
 ### 1. Deskripsi Permasalahan

@@ -823,14 +823,40 @@ app.get('/sso', (req, res) => {
   });
 });
 
+// CNA Probe Interceptor: Push Pop-Up pada perangkat Wi-Fi saat terisolir/terkoneksi
+const isolatedPortalSvc = require('./services/isolatedPortalService');
+app.use((req, res, next) => {
+  if (isolatedPortalSvc.isCnaProbePath(req.path)) {
+    const config = isolatedPortalSvc.getIsolatedPortalConfig();
+    if (config.enabled && config.cna_push_enabled) {
+      logger.info(`[CNA Engine] Intercepted probe ${req.path} from IP ${req.ip} -> Push Pop-Up active!`);
+      res.set('Content-Type', 'text/html; charset=utf-8');
+      res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+      return res.status(200).send(`<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="refresh" content="0;url=/isolated">
+  <script>window.location.href = "/isolated";</script>
+</head>
+<body>
+  <p>Layanan Terisolir. Membuka Portal... <a href="/isolated">Klik di sini</a></p>
+</body>
+</html>`);
+    }
+  }
+  next();
+});
+
 // Halaman Isolir (Akses langsung dari redirect MikroTik)
 app.get('/isolated', (req, res) => {
   const { getSettingsWithCache } = require('./config/settingsManager');
   const settings = getSettingsWithCache();
+  const config = isolatedPortalSvc.getIsolatedPortalConfig();
   res.render('isolated', {
     company: settings.company_header || 'My ISP',
     adminPhone: settings.company_phone || '',
-    address: settings.company_address || ''
+    address: settings.company_address || '',
+    config
   });
 });
 
@@ -964,6 +990,10 @@ app.use('/customer', customerPortal);
 // Mount RADIUS Admin Router
 const radiusRouter = require('./routes/admin/radius');
 app.use('/admin/radius', radiusRouter);
+
+// Mount Isolated Portal Admin Router
+const isolatedPortalRouter = require('./routes/admin/isolatedPortal');
+app.use('/admin/isolated-portal', isolatedPortalRouter);
 
 // Mount Investor Standalone Portal & Admin Investor Management
 const investorPortal = require('./investor/routes/investorPortal');
