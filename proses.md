@@ -2,6 +2,34 @@
 
 ---
 
+## [2026-08-16] Penambahan Fitur Hapus Perangkat Terhubung (Connected Clients Live) pada Portal Pelanggan & Portal Admin/Teknisi
+
+### 1. Deskripsi Fitur Baru
+Menambahkan kemampuan bagi pelanggan di **Portal Pelanggan** dan admin/teknisi di **Portal Admin & Teknisi (Detail Perangkat Monitoring ONU)** untuk menghapus atau mengeluarkan (*kick / remove*) perangkat klien yang terhubung ke koneksi LAN/Wi-Fi router/ONT.
+
+### 2. Solusi & Implementasi Teknis
+- **`services/acsServerService.js`**:
+  - Menambahkan pendataan SOAP builder `buildDeleteObject()` dan penanganan CWMP response method `DeleteObjectResponse` untuk mengeksekusi perintah penghapusan instans host TR-069 (`DeleteObject`).
+- **`services/customerDeviceService.js`**:
+  - Menambahkan fungsi `deleteConnectedClient(tag, clientMac, clientIp, actor)`:
+    - Mencari instans host parameter (`Hosts.Host` & `AssociatedDevice`) yang cocok dengan MAC/IP target.
+    - Menghapus key instans dari data `params` SQLite `acs_devices`.
+    - Jika Built-in ACS aktif, mendaftarkan task `deleteObject` ke antrean CWMP CPE dan memicu `refreshObject`.
+    - Mencatat histori audit trail (`DELETE_CONNECTED_CLIENT`).
+- **Endpoints Controller**:
+  - **`routes/customerPortal.js`**: `POST /customer/delete-connected-client` (Otentikasi sesi pelanggan).
+  - **`routes/adminPortal.js`**: `POST /admin/api/device/:tag/connected-clients/delete` (Otentikasi admin).
+  - **`routes/techPortal.js`**: `POST /tech/api/device/:tag/connected-clients/delete` (Otentikasi teknisi).
+- **User Interface (UI)**:
+  - **`views/dashboard.ejs` (Portal Pelanggan)**: Menambahkan kolom **Aksi** dengan tombol Hapus (ikon tempat sampah merah) pada tabel *Perangkat Terhubung (Live)* beserta konfirmasi interaktif & pembaruan otomatis.
+  - **`views/admin/dashboard.ejs` (Monitoring ONU - Detail Perangkat)**: Menambahkan tombol Hapus pada tiap kartu klien terhubung di modal detail perangkat beserta pemanggilan API dan *live toast notification*.
+
+### 3. Hasil Pengujian & Verifikasi
+- Sintaks JavaScript (`node -c`): **PASSED** (0 Error).
+- Pengujian Otomatis (`npm test`): **PASSED** (100% Lulus).
+
+---
+
 ## [2026-08-16] Perbaikan Fitur Tag / Pelanggan & Connected Clients (Live) pada Built-in ACS Server (TR-069)
 
 ### 1. Deskripsi Permasalahan
