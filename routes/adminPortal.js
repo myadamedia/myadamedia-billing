@@ -4277,31 +4277,36 @@ router.get('/api/devices', requireAdmin, async (req, res) => {
     const result = await customerDevice.listAllDevices(999999);
     const rawDevs = (result && Array.isArray(result.devices)) ? result.devices : [];
     let devices = rawDevs.map(d => {
-      const mapped = customerDevice.mapDeviceData(d, d._tags?.[0] || d._id) || {};
-      const rawTags = Array.isArray(d._tags) ? d._tags.filter(Boolean).map(String) : [];
-      const tagsArr = rawTags.length > 0
-        ? rawTags
-        : (mapped.customerTag ? [mapped.customerTag] : (mapped.phone && mapped.phone !== d._id ? [mapped.phone] : []));
-      return {
-        id: String(d._id || ''),
-        tags: tagsArr,
-        serialNumber: String(mapped.serialNumber || '-'),
-        lastInform: d._lastInform,
-        status: String(mapped.status || 'unknown').toLowerCase(),
-        pppoeIP: String(mapped.pppoeIP || '-'),
-        pppoeUsername: String(mapped.pppoeUsername || '-'),
-        customerName: String(mapped.customerName || '-'),
-        customerPhone: String(mapped.customerPhone || '-'),
-        rxPower: String(mapped.rxPower || '-'),
-        uptime: String(mapped.uptime || '-'),
-        model: String(mapped.model || '-'),
-        softwareVersion: String(mapped.softwareVersion || '-'),
-        userConnected: mapped.totalAssociations ?? '-',
-        ssid: String(mapped.ssid || '-'),
-        acs_server_id: d._acs_server_id || 'legacy',
-        acs_server_name: d._acs_server_name || 'Default ACS'
-      };
-    });
+      try {
+        const mapped = customerDevice.mapDeviceData(d, d._tags?.[0] || d._id) || {};
+        const rawTags = Array.isArray(d._tags) ? d._tags.filter(Boolean).map(String) : [];
+        const tagsArr = rawTags.length > 0
+          ? rawTags
+          : (mapped.customerTag ? [mapped.customerTag] : (mapped.phone && mapped.phone !== d._id ? [mapped.phone] : []));
+        return {
+          id: String(d._id || ''),
+          tags: tagsArr,
+          serialNumber: String(mapped.serialNumber || '-'),
+          lastInform: d._lastInform,
+          status: String(mapped.status || 'unknown').toLowerCase(),
+          pppoeIP: String(mapped.pppoeIP || '-'),
+          pppoeUsername: String(mapped.pppoeUsername || '-'),
+          customerName: String(mapped.customerName || '-'),
+          customerPhone: String(mapped.customerPhone || '-'),
+          rxPower: String(mapped.rxPower || '-'),
+          uptime: String(mapped.uptime || '-'),
+          model: String(mapped.model || '-'),
+          softwareVersion: String(mapped.softwareVersion || '-'),
+          userConnected: mapped.totalAssociations ?? '-',
+          ssid: String(mapped.ssid || '-'),
+          acs_server_id: d._acs_server_id || 'builtin',
+          acs_server_name: d._acs_server_name || 'Built-in ACS'
+        };
+      } catch (err) {
+        logger.error(`[AdminPortal] Error mapping device ${d?._id}: ${err.message}`);
+        return null;
+      }
+    }).filter(Boolean);
     if (search) {
       const s = search.toLowerCase();
       const billingCustomers = customerSvc.getAllCustomers(s);

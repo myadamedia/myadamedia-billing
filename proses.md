@@ -2,25 +2,28 @@
 
 ---
 
-## [2026-08-16] Perbaikan Penanganan Error "Gagal Memuat Data" & Fallback Server pada Tabel Monitoring ONU
+## [2026-08-16] Perbaikan Kestabilan Built-in ACS Server & Pencegahan Error "Gagal Memuat Data"
 
 ### 1. Deskripsi Permasalahan
-Tabel **Daftar Perangkat ONU** pada menu **Monitoring ONU** menampilkan status kesalahan berwarna merah `! Gagal memuat data` ketika server GenieACS eksternal tidak merespons (*timeout / connection refused*) atau ketika antrean pengambil data mengalami kegagalan.
+Ketika mode **Built-in ACS Server** diaktifkan (`use_builtin_acs = true`), antarmuka **Monitoring ONU** menampilkan status kesalahan berwarna merah `! Gagal memuat data`.
 
 ### 2. Penyebab Utama (Root Cause)
-1. **Kegagalan Total (*Hard Fail*) pada `listAllDevices()`**:
-   Jika server ACS eksternal mengalami gangguan koneksi (*connection refused / timeout*), `listAllDevices()` mengembalikan status `{ ok: false, message: 'Gagal mengambil daftar dari GenieACS...' }`.
-2. **Crash Propagasi pada Endpoint `/api/devices`**:
-   Controller `/admin/api/devices` dan `/tech/api/devices` mengembalikan JSON `{ error: result.message }` dengan kode status yang memicu perkondisian `if (data && data.error) throw new Error(...)` di frontend sehingga tabel berhenti memuat data secara penuh (*hard crash*).
+1. **Uncaught Exception pada `inflateParams()` & `builtinRowToDevice()` (`config/genieacs.js`)**:
+   Fungsi `inflateParams()` dan `builtinRowToDevice()` mengalami kegagalan (*uncaught exception*) ketika mengurai data `params` atau `tags` pada tabel SQLite `acs_devices` yang memiliki struktur string tak valid, properti bernilai `null`, atau indeks array tak sesuai.
+2. **Ketiadaan Try-Catch Guard pada Kueri `matchesQuery()`**:
+   Fungsi `matchesQuery()` mengalami kegagalan saat membaca kondisi kueri bertingkat pada objek perangkat yang belum diurai sempurna, sehingga kueri internal `createBuiltinAxiosProxy().get('/devices')` melempar *exception*.
+3. **Mekanisme Fallback & Unhandled Mapping Crash pada Controller**:
+   Ketika salah satu baris `acs_devices` gagal dipetakan di `/api/devices`, siklus `.map()` pada controller terhenti total (*crash*).
 
 ### 3. Solusi & Implementasi Teknis
+- **`config/genieacs.js`**:
+  - **Safe `inflateParams()` Guard**: Menambahkan pengecekan tipe data, *null safety*, serta `try-catch block` di dalam penciptaan hirarki properti TR-069.
+  - **Robust `builtinRowToDevice()`**: Membungkus penguraian JSON `params` dan `tags` serta penetapan `_deviceId` dan `DeviceID` dalam blok `try-catch` sehingga baris data yang cacat tidak menghentikan penguraian perangkat lain.
+  - **Exception-Safe `matchesQuery()`**: Menambahkan penanganan kesalahan internal pada pemfilteran kueri.
 - **`services/customerDeviceService.js`**:
-  - **Local SQLite Fallback**: Diperbarui agar saat kueri ke server ACS eksternal mengembalikan 0 perangkat atau mengalami error, sistem secara otomatis melakukan kueri cadangan (*fallback*) ke tabel lokal `acs_devices` SQLite.
-  - **Always-Safe Response Contract**: `listAllDevices()` dipastikan selalu mengembalikan `{ ok: true, devices: [...] }` agar kegagalan salah satu server remote tidak mematikan antarmuka UI.
+  - Memastikan `listAllDevices()` secara otomatis melakukan *fallback* langsung ke kueri SQLite `acs_devices` dan selalu mengembalikan status aman `{ ok: true, devices: [...] }`.
 - **`routes/adminPortal.js` & `routes/techPortal.js`**:
-  - Memperbarui handler GET `/api/devices` untuk mengekstrak array perangkat secara aman (`const rawDevs = (result && Array.isArray(result.devices)) ? result.devices : []`) sehingga endpoint selalu mengembalikan struktur JSON yang valid `{ devices: [...], total: N }`.
-- **User Experience (UX)**:
-  - Jika tidak ada perangkat yang terdeteksi, antarmuka tabel menampilkan status bersih **"Tidak ada perangkat ditemukan"** tanpa memunculkan pesan *error crash* merah `Gagal memuat data`.
+  - Membungkus pemetaan setiap baris perangkat dengan `try-catch` internal dan `.filter(Boolean)` sehingga jika terdapat 1 perangkat yang korup, tabel tetap dapat menampilkan perangkat lainnya tanpa memicu pesan kesalahan `Gagal memuat data`.
 
 ### 4. Hasil Pengujian & Verifikasi
 - Pengecekan Sintaks JavaScript (`node -c`): **PASSED** (0 Error).

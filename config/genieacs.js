@@ -18,118 +18,147 @@ function isBuiltinAcsEnabled() {
  */
 function inflateParams(flatObj) {
   const result = {};
-  for (const [key, value] of Object.entries(flatObj)) {
-    const parts = key.split('.');
-    let current = result;
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      if (i === parts.length - 1) {
-        current[part] = { _value: value, _type: typeof value === 'number' ? 'xsd:unsignedInt' : 'xsd:string', _timestamp: new Date().toISOString() };
-      } else {
-        if (!current[part] || typeof current[part] !== 'object' || current[part]._value !== undefined) {
-          current[part] = {};
+  if (!flatObj || typeof flatObj !== 'object') return result;
+  try {
+    for (const [key, value] of Object.entries(flatObj)) {
+      if (!key) continue;
+      const parts = key.split('.');
+      let current = result;
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        if (!part) continue;
+        if (i === parts.length - 1) {
+          current[part] = { _value: value, _type: typeof value === 'number' ? 'xsd:unsignedInt' : 'xsd:string', _timestamp: new Date().toISOString() };
+        } else {
+          if (!current[part] || typeof current[part] !== 'object' || current[part]._value !== undefined) {
+            current[part] = {};
+          }
+          current = current[part];
         }
-        current = current[part];
       }
     }
+  } catch (e) {
+    logger.debug(`[BuiltinACS] Error inflating params: ${e.message}`);
   }
   return result;
 }
 
 /** Convert a builtin acs_devices row into GenieACS-compatible device object */
 function builtinRowToDevice(row) {
-  if (!row) return null;
-  let params = {};
-  try { params = JSON.parse(row.params || '{}'); } catch (e) { /* ignore */ }
-  let tags = [];
-  try { tags = JSON.parse(row.tags || '[]'); } catch (e) { /* ignore */ }
-  tags = tags.filter(t => t !== 'bootstrapped');
+  if (!row || typeof row !== 'object') return null;
+  try {
+    let params = {};
+    try {
+      params = typeof row.params === 'string' ? JSON.parse(row.params || '{}') : (row.params || {});
+    } catch (e) { params = {}; }
 
-  const device = inflateParams(params);
-  device._id = row.id;
-  device._tags = tags;
-  device._lastInform = row.last_inform;
-  device._registered = row.created_at;
-  device._acs_server_id = 'builtin';
-  device._acs_server_name = 'Built-in ACS';
+    let tags = [];
+    try {
+      tags = typeof row.tags === 'string' ? JSON.parse(row.tags || '[]') : (row.tags || []);
+    } catch (e) { tags = []; }
+    if (!Array.isArray(tags)) tags = [];
+    tags = tags.filter(t => t !== 'bootstrapped');
 
-  // Set GenieACS special _deviceId root property
-  device._deviceId = {
-    _SerialNumber: row.serial_number || '',
-    _Manufacturer: row.manufacturer || '',
-    _ProductClass: row.product_class || '',
-    _OUI: row.oui || ''
-  };
+    let device = {};
+    try {
+      device = inflateParams(params || {});
+    } catch (e) {
+      device = {};
+    }
 
-  // Set DeviceID structure as strings (GenieACS standard)
-  device.DeviceID = {
-    SerialNumber: row.serial_number || '',
-    Manufacturer: row.manufacturer || '',
-    ProductClass: row.product_class || '',
-    OUI: row.oui || ''
-  };
+    device._id = String(row.id || '');
+    device._tags = tags;
+    device._lastInform = row.last_inform || null;
+    device._registered = row.created_at || null;
+    device._acs_server_id = 'builtin';
+    device._acs_server_name = 'Built-in ACS';
 
-  return device;
+    // Set GenieACS special _deviceId root property
+    device._deviceId = {
+      _SerialNumber: String(row.serial_number || ''),
+      _Manufacturer: String(row.manufacturer || ''),
+      _ProductClass: String(row.product_class || ''),
+      _OUI: String(row.oui || '')
+    };
+
+    // Set DeviceID structure as strings (GenieACS standard)
+    device.DeviceID = {
+      SerialNumber: String(row.serial_number || ''),
+      Manufacturer: String(row.manufacturer || ''),
+      ProductClass: String(row.product_class || ''),
+      OUI: String(row.oui || '')
+    };
+
+    return device;
+  } catch (err) {
+    logger.error(`[BuiltinACS] Error converting row ${row?.id}: ${err.message}`);
+    return null;
+  }
 }
 
 /** Parse GenieACS-style query filter for SQLite */
 function matchesQuery(device, query) {
-  if (!query || Object.keys(query).length === 0) return true;
-  for (const [key, condition] of Object.entries(query)) {
-    if (key === '$or') {
-      if (!Array.isArray(condition)) return false;
-      const anyMatch = condition.some(sub => matchesQuery(device, sub));
-      if (!anyMatch) return false;
-      continue;
-    }
-    if (key === '$and') {
-      if (!Array.isArray(condition)) return false;
-      const allMatch = condition.every(sub => matchesQuery(device, sub));
-      if (!allMatch) return false;
-      continue;
-    }
-    // Get value from nested device object
-    const parts = key.split('.');
-    let val = device;
-    for (const p of parts) {
-      if (val && typeof val === 'object') {
-        val = val[p];
-      } else {
-        val = undefined;
-        break;
+  if (!device) return false;
+  if (!query || typeof query !== 'object' || Object.keys(query).length === 0) return true;
+  try {
+    for (const [key, condition] of Object.entries(query)) {
+      if (key === '$or') {
+        if (!Array.isArray(condition)) return false;
+        const anyMatch = condition.some(sub => matchesQuery(device, sub));
+        if (!anyMatch) return false;
+        continue;
       }
-    }
-    if (val && val._value !== undefined) val = val._value;
-
-    // Handle condition types
-    if (condition && typeof condition === 'object' && !Array.isArray(condition)) {
-      if ('$exists' in condition) {
-        const exists = val !== undefined && val !== null;
-        if (condition.$exists !== exists) return false;
+      if (key === '$and') {
+        if (!Array.isArray(condition)) return false;
+        const allMatch = condition.every(sub => matchesQuery(device, sub));
+        if (!allMatch) return false;
+        continue;
       }
-      if ('$ne' in condition) {
-        if (Array.isArray(condition.$ne) && condition.$ne.length === 0) {
-          if (!Array.isArray(val) || val.length === 0) return false;
-        } else if (val === condition.$ne) return false;
-      }
-      if ('$not' in condition) {
-        if (condition.$not && typeof condition.$not === 'object' && '$size' in condition.$not) {
-          if (Array.isArray(val) && val.length === condition.$not.$size) return false;
+      // Get value from nested device object
+      const parts = key.split('.');
+      let val = device;
+      for (const p of parts) {
+        if (val && typeof val === 'object') {
+          val = val[p];
+        } else {
+          val = undefined;
+          break;
         }
       }
-    } else {
-      // Direct equality (case-insensitive for IDs, tags, and strings)
-      const condStr = String(condition ?? '').toLowerCase().trim();
-      if (key === '_tags') {
-        if (!Array.isArray(device._tags) || !device._tags.some(t => String(t ?? '').toLowerCase().trim() === condStr)) return false;
-      } else if (key === '_id') {
-        if (String(device._id ?? '').toLowerCase().trim() !== condStr) return false;
+      if (val && typeof val === 'object' && val._value !== undefined) val = val._value;
+
+      // Handle condition types
+      if (condition && typeof condition === 'object' && !Array.isArray(condition)) {
+        if ('$exists' in condition) {
+          const exists = val !== undefined && val !== null;
+          if (condition.$exists !== exists) return false;
+        }
+        if ('$ne' in condition) {
+          if (Array.isArray(condition.$ne) && condition.$ne.length === 0) {
+            if (!Array.isArray(val) || val.length === 0) return false;
+          } else if (val === condition.$ne) return false;
+        }
+        if ('$not' in condition) {
+          if (condition.$not && typeof condition.$not === 'object' && '$size' in condition.$not) {
+            if (Array.isArray(val) && val.length === condition.$not.$size) return false;
+          }
+        }
       } else {
-        if (String(val ?? '').toLowerCase().trim() !== condStr) return false;
+        // Direct equality (case-insensitive for IDs, tags, and strings)
+        const condStr = String(condition ?? '').toLowerCase().trim();
+        if (key === '_tags') {
+          if (!Array.isArray(device._tags) || !device._tags.some(t => String(t ?? '').toLowerCase().trim() === condStr)) return false;
+        } else if (key === '_id') {
+          if (String(device._id ?? '').toLowerCase().trim() !== condStr) return false;
+        } else {
+          if (String(val ?? '').toLowerCase().trim() !== condStr) return false;
+        }
       }
     }
+    return true;
+  } catch (e) {
+    return false;
   }
-  return true;
 }
 
 /**
