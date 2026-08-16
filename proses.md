@@ -16,19 +16,26 @@ Pada kartu ringkasan (*Overview Stat Cards*) menu Portal Isolir:
    - Fungsi `getSuspendedCustomers()` pada `services/isolatedPortalService.js` sebelumnya mengeksekusi `SELECT c.isolate_day, c.connection_type, c.auto_isolate FROM customers c`. Pada schema database aktual, kolom yang digunakan adalah `c.isolir_date`, `c.due_date`, dan `c.auto_isolir`. *Exception* SQLite yang terjadi menyebabkan fungsi mengembalikan `[]` (0 Akun).
 
 ### 3. Solusi & Implementasi Teknis
-- **`routes/admin/isolatedPortal.js`**:
-  - Mengganti kueri manual `routers` dengan pemanggilan service terpusat `mikrotikSvc.getAllRouters()` yang aman dan membaca tabel `routers` secara akurat.
+- **`services/customerService.js`**:
+  - Menambahkan kalkulasi subquery `(SELECT COALESCE(SUM(amount), 0) FROM invoices WHERE customer_id=c.id AND status='unpaid') as unpaid_total` pada kueri utama `getAllCustomers()` sehingga nilai total tunggakan konsisten di seluruh aplikasi.
 - **`services/isolatedPortalService.js`**:
-  - Memperbaiki kueri SQL pada `getSuspendedCustomers()` dengan fallback kolom yang tepat: `COALESCE(c.isolir_date, c.due_date, 10) as isolate_day` dan `COALESCE(c.auto_isolir, 1) as auto_isolate`.
-  - Memperbarui `syncAllOverdueCustomers()` agar mengevaluasi `c.auto_isolir` dan tanggal jatuh tempo secara akurat.
+  - Mengintegrasikan `getSuspendedCustomers()` secara langsung dengan `customerService.getAllCustomers()` (*Single Source of Truth*):
+    ```javascript
+    const all = customerSvc.getAllCustomers();
+    return all.filter(c => c.status === 'suspended' || c.status === 'isolated');
+    ```
+    Hal ini menjamin 100% konsistensi data antara Menu Manajemen Pelanggan (`/admin/customers`) dan Menu Portal Isolir (`/admin/isolated-portal`).
+- **`routes/admin/isolatedPortal.js`**:
+  - Menggunakan service terpusat `mikrotikSvc.getAllRouters()` untuk membaca daftar router secara akurat.
 
 ### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`services/customerService.js`](file:///d:/WEBAPP/myadamedia-billing/services/customerService.js): Penambahan field `unpaid_total` di `getAllCustomers()`.
+- `[MODIFY]` [`services/isolatedPortalService.js`](file:///d:/WEBAPP/myadamedia-billing/services/isolatedPortalService.js): Integrasi sumber data terpusat via `customerService.getAllCustomers()`.
 - `[MODIFY]` [`routes/admin/isolatedPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/admin/isolatedPortal.js): Pemanfaatan `mikrotikSvc.getAllRouters()` untuk data router.
-- `[MODIFY]` [`services/isolatedPortalService.js`](file:///d:/WEBAPP/myadamedia-billing/services/isolatedPortalService.js): Penyelarasan kolom schema SQLite `customers` (`isolir_date`, `due_date`, `auto_isolir`).
 
 ### 5. Hasil Pengujian & Verifikasi
 - Pengujian Skrip & Database (`node scratch/test_counts.js`):
-  - **Pelanggan Terisolir**: Terbaca **4 Akun** (100% Sesuai Data Nyata).
+  - **Pelanggan Terisolir**: Terbaca **4 Akun** (100% Sesuai Data Nyata di Menu Pelanggan).
   - **Target Router MikroTik**: Terbaca **1 Router** (100% Sesuai Data Nyata).
 - Unit Test Suite (`npm test`): **PASSED** (100% Lulus).
 

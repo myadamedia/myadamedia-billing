@@ -20,6 +20,7 @@ function getAllCustomers(search = '', sortBy = 'name_asc') {
            o.name as olt_name,
            odp.name as odp_name,
            (SELECT COUNT(*) FROM invoices WHERE customer_id=c.id AND status='unpaid') as unpaid_count,
+           (SELECT COALESCE(SUM(amount), 0) FROM invoices WHERE customer_id=c.id AND status='unpaid') as unpaid_total,
            u.bytes_in, u.bytes_out
     FROM customers c
     LEFT JOIN packages p ON c.package_id = p.id
