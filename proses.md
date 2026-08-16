@@ -2,6 +2,46 @@
 
 ---
 
+## [2026-08-16] Penyempurnaan Skrip MikroTik: Hairpin SRC-NAT (Masquerade), DNS Input Rule, & Dynamic IP/Port Generator
+
+### 1. Deskripsi Permasalahan
+Meskipun interceptor di server Express telah siap, pop-up Captive Portal di smartphone (iOS / Android) masih belum terbuka saat perangkat berada di jaringan nyata.
+
+### 2. Penyebab Utama (Root Cause Network Level)
+1. **Asymmetric Routing / Hairpin NAT Drop**:
+   - Jika Billing Server dan Klien Pelanggan berada pada subnet jaringan lokal yang sama (atau dijembatani bridge MikroTik), paket TCP SYN yang di-DST-NAT oleh MikroTik diteruskan ke Billing Server dengan alamat IP sumber asli klien.
+   - Billing Server merespons (TCP SYN-ACK) secara langsung ke IP klien melalui lokal switch/ARP tanpa melewati MikroTik.
+   - Klien menolak paket balasan tersebut karena klien mengirim SYN ke `captive.apple.com` (port 80), bukan ke IP lokal billing server (port 3001). Akibatnya, TCP handshake gagal dan pop-up tidak pernah terbuka.
+2. **Ketidaksesuaian Port Server Billing (`to-ports`)**:
+   - Skrip MikroTik sebelumnya mengarahkan ke port `80`, padahal aplikasi web Node.js billing berjalan pada port `3001` (sesuai `settings.json`).
+3. **Kueri DNS Lokal Router (Input Chain)**:
+   - Klien yang menggunakan IP Gateway MikroTik sebagai DNS Server mengirim paket DNS ke `chain=input` router, bukan `chain=forward`.
+
+### 3. Solusi & Implementasi Teknis
+- **`services/isolatedPortalService.js` (Hairpin NAT & DNS Input)**:
+  - Menambahkan rule **Hairpin SRC-NAT (Masquerade)**:
+    ```routeros
+    /ip firewall nat add chain=srcnat src-address-list=LIST_ISOLIR dst-address=<host> protocol=tcp dst-port=<port> action=masquerade comment="BILLING_ISOLIR_NAT_SRC"
+    ```
+    Memastikan seluruh koneksi balasan selalu di-un-NAT oleh MikroTik kembali ke alamat tujuan probe asli.
+  - Menambahkan rule izin DNS pada `chain=input` (UDP & TCP port 53).
+  - Mengintegrasikan port dinamis `to-ports=<port>` (default 3001).
+- **`routes/admin/isolatedPortal.js` & `views/admin/isolated_portal.ejs` (Interactive NAT Script Generator)**:
+  - Menyediakan input kontrol **IP Server Billing** dan **Port Web Server** pada Tab 2 dengan generator skrip live/reaktif (`POST /admin/isolated-portal/generate-script`).
+  - Administrator dapat menyesuaikan IP dan Port billing secara instan sebelum menyalin skrip ke Terminal MikroTik.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`services/isolatedPortalService.js`](file:///d:/WEBAPP/myadamedia-billing/services/isolatedPortalService.js): Penambahan rule Hairpin SRC-NAT, Input DNS, dan default port 3001.
+- `[MODIFY]` [`routes/admin/isolatedPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/admin/isolatedPortal.js): Penambahan endpoint `/generate-script` dan passing port dinamis.
+- `[MODIFY]` [`views/admin/isolated_portal.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/isolated_portal.ejs): Form konfigurasi IP/Port reaktif di Tab 2.
+
+### 5. Hasil Pengujian & Verifikasi
+- Pengujian Skrip MikroTik: Rule NAT DST-NAT, SRC-NAT Hairpin, Filter Forward, dan Input DNS **100% Valid**.
+- Unit Test Suite (`npm test`): **PASSED** (100% Lulus).
+- Sintaks Node.js (`node -c`): **PASSED** (0 Error).
+
+---
+
 ## [2026-08-16] Perbaikan Pemicu Pop-Up CNA Apple iOS (iPhone / iPad / macOS / Safari WebSheet)
 
 ### 1. Deskripsi Permasalahan

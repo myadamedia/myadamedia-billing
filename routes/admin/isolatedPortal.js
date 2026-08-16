@@ -37,7 +37,11 @@ router.get('/', (req, res) => {
     const config = isolatedPortalSvc.getIsolatedPortalConfig();
     const suspendedCustomers = isolatedPortalSvc.getSuspendedCustomers();
     const settings = getSettingsWithCache();
-    const billingHost = req.hostname || '192.168.1.100';
+    const billingPort = Number(settings.server_port || 3001);
+    let billingHost = settings.server_host;
+    if (!billingHost || billingHost === 'localhost' || billingHost === '127.0.0.1') {
+      billingHost = req.hostname && req.hostname !== 'localhost' && req.hostname !== '127.0.0.1' ? req.hostname : '192.168.1.100';
+    }
 
     // Ambil daftar router MikroTik dari database
     let routers = [];
@@ -47,7 +51,7 @@ router.get('/', (req, res) => {
       logger.warn(`[IsolatedPortalRoute] Router fetch warn: ${e.message}`);
     }
 
-    const mikrotikScript = isolatedPortalSvc.generateMikrotikIsolatedScript(billingHost, 80);
+    const mikrotikScript = isolatedPortalSvc.generateMikrotikIsolatedScript(billingHost, billingPort);
 
     let msg = null;
     if (req.session._msg) {
@@ -62,6 +66,7 @@ router.get('/', (req, res) => {
       routers,
       mikrotikScript,
       billingHost,
+      billingPort,
       msg,
       cnaProbes: isolatedPortalSvc.CNA_PROBE_USER_AGENTS_AND_PATHS
     });
@@ -147,6 +152,16 @@ router.post('/test-cna', (req, res) => {
     isCnaProbe: isCna,
     simulatedStatus: 200,
     simulatedAction: isCna ? 'Intercepted! Triggering Push Pop-up Window (HTTP 200 OK + /isolated view)' : 'Normal Pass-through'
+  });
+});
+
+// POST /admin/isolated-portal/generate-script - Dapatkan script MikroTik sesuai IP & Port kustom
+router.post('/generate-script', (req, res) => {
+  const { billingHost, billingPort } = req.body;
+  const script = isolatedPortalSvc.generateMikrotikIsolatedScript(billingHost || '192.168.1.100', billingPort || 3001);
+  return res.json({
+    success: true,
+    script
   });
 });
 

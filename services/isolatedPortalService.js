@@ -140,9 +140,10 @@ async function syncAllOverdueCustomers() {
 /**
  * Menghasilkan script MikroTik komprehensif untuk Portal Isolir & CNA Push Popup.
  */
-function generateMikrotikIsolatedScript(billingHost = '192.168.1.100', httpPort = 80) {
+function generateMikrotikIsolatedScript(billingHost = '192.168.1.100', httpPort = 3001) {
   const config = getIsolatedPortalConfig();
   const host = String(billingHost || '192.168.1.100').trim();
+  const port = Number(httpPort || 3001);
 
   const scriptLines = [
     '# =========================================================================',
@@ -154,17 +155,22 @@ function generateMikrotikIsolatedScript(billingHost = '192.168.1.100', httpPort 
     '/ip firewall filter remove [find comment~"BILLING_ISOLIR_"]',
     '/ip firewall nat remove [find comment~"BILLING_ISOLIR_"]',
     '',
-    '# 2. DNS Resolution untuk Pelanggan Terisolir (Wajib izinkan UDP Port 53)',
+    '# 2. DNS Resolution untuk Pelanggan Terisolir (Wajib izinkan UDP & TCP Port 53)',
     '/ip firewall filter add chain=forward src-address-list=LIST_ISOLIR protocol=udp dst-port=53 action=accept comment="BILLING_ISOLIR_DNS_UDP"',
     '/ip firewall filter add chain=forward src-address-list=LIST_ISOLIR protocol=tcp dst-port=53 action=accept comment="BILLING_ISOLIR_DNS_TCP"',
+    '/ip firewall filter add chain=input src-address-list=LIST_ISOLIR protocol=udp dst-port=53 action=accept comment="BILLING_ISOLIR_DNS_INPUT_UDP"',
+    '/ip firewall filter add chain=input src-address-list=LIST_ISOLIR protocol=tcp dst-port=53 action=accept comment="BILLING_ISOLIR_DNS_INPUT_TCP"',
     '',
     '# 3. Izinkan Akses Langsung ke Billing Server',
     `/ip firewall filter add chain=forward src-address-list=LIST_ISOLIR dst-address=${host} action=accept comment="BILLING_ISOLIR_ALLOW_SERVER"`,
     '',
     '# 4. DST-NAT HTTP Traffic Port 80 menuju Billing Server (Memicu CNA Push Pop-Up)',
-    `/ip firewall nat add chain=dstnat protocol=tcp dst-port=80 src-address-list=LIST_ISOLIR action=dst-nat to-addresses=${host} to-ports=${httpPort} comment="BILLING_ISOLIR_NAT_HTTP"`,
+    `/ip firewall nat add chain=dstnat protocol=tcp dst-port=80 src-address-list=LIST_ISOLIR action=dst-nat to-addresses=${host} to-ports=${port} comment="BILLING_ISOLIR_NAT_HTTP"`,
     '',
-    '# 5. Walled Garden Bypass untuk Domain Payment Gateway & WA'
+    '# 5. Hairpin SRC-NAT (PENTING: Mencegah Asymmetric Routing / Timeout jika Server & Klien berada di segmen jaringan yang sama)',
+    `/ip firewall nat add chain=srcnat src-address-list=LIST_ISOLIR dst-address=${host} protocol=tcp dst-port=${port} action=masquerade comment="BILLING_ISOLIR_NAT_SRC"`,
+    '',
+    '# 6. Walled Garden Bypass untuk Domain Payment Gateway & WA'
   ];
 
   config.walled_garden_domains.forEach(domain => {
@@ -172,15 +178,16 @@ function generateMikrotikIsolatedScript(billingHost = '192.168.1.100', httpPort 
   });
 
   scriptLines.push('');
-  scriptLines.push('# 6. Izinkan Forwarding Traffic ke Walled Garden');
+  scriptLines.push('# 7. Izinkan Forwarding Traffic ke Walled Garden');
+  scriptLines.push('/ip firewall filter add chain=forward src-address-list=LIST_ISOLIR dst-address-list=WALLED_GARDEN_ISOLATE action=accept comment="BILLING_ISOLIR_ALLOW_WG"');
   scriptLines.push('');
-  scriptLines.push('# 7. Reject TCP Traffic dengan TCP-Reset agar browser Android/iOS/Windows tidak hang atau menunggu timeout koneksi HTTPS');
+  scriptLines.push('# 8. Reject TCP Traffic dengan TCP-Reset agar browser Android/iOS/Windows tidak hang atau menunggu timeout koneksi HTTPS');
   scriptLines.push('/ip firewall filter add chain=forward src-address-list=LIST_ISOLIR protocol=tcp action=reject reject-with=tcp-reset comment="BILLING_ISOLIR_REJECT_TCP"');
   scriptLines.push('');
-  scriptLines.push('# 8. Blokir Sisa Traffic UDP/ICMP Pelanggan Terisolir');
+  scriptLines.push('# 9. Blokir Sisa Traffic UDP/ICMP Pelanggan Terisolir');
   scriptLines.push('/ip firewall filter add chain=forward src-address-list=LIST_ISOLIR action=drop comment="BILLING_ISOLIR_BLOCK_REST"');
   scriptLines.push('');
-  scriptLines.push('# 9. Contoh PPPoE Profile On-Up Command:');
+  scriptLines.push('# 10. Contoh PPPoE Profile On-Up Command:');
   scriptLines.push('# Set script berikut pada PPPoE Profile On-Up untuk memasukkan IP secara otomatis:');
   scriptLines.push('# /ip firewall address-list add list=LIST_ISOLIR address=$remote-address comment=$user');
 

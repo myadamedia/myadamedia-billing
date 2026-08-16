@@ -484,15 +484,31 @@
     <div id="tab-mikrotik" class="tab-content-panel">
       <div class="card">
         <div class="card-hd">
-          <h6><i class="bi bi-terminal-fill"></i> Script Terminal MikroTik (DST-NAT &amp; Walled Garden)</h6>
+          <h6><i class="bi bi-terminal-fill"></i> Script Terminal MikroTik (DST-NAT, Hairpin &amp; Walled Garden)</h6>
           <button class="btn btn-p btn-sm" onclick="copyScript()">
             <i class="bi bi-clipboard"></i> Salin Script
           </button>
         </div>
         <div class="card-bd">
-          <p class="portal-sub" style="margin-bottom: 12px;">
-            Salin script berikut dan jalankan di Terminal RouterOS MikroTik untuk mengaktifkan pengalihan isolir &amp; push pop-up otomatis:
+          <p class="portal-sub" style="margin-bottom: 16px;">
+            Konfigurasikan alamat IP dan port server billing Anda, lalu salin script di bawah ini ke <strong>Terminal RouterOS MikroTik</strong>:
           </p>
+
+          <div style="display: grid; grid-template-columns: 2fr 1fr auto; gap: 12px; margin-bottom: 16px; background: var(--bg); padding: 14px; border-radius: 12px; border: 1px solid var(--border); align-items: flex-end;">
+            <div class="form-group" style="margin: 0;">
+              <label class="fl">IP Server Billing (Target NAT MikroTik):</label>
+              <input type="text" id="scriptBillingIp" class="fc" value="<%= billingHost %>" placeholder="Contoh: 192.168.1.100 atau 172.99.12.2" oninput="regenerateScript()">
+            </div>
+            <div class="form-group" style="margin: 0;">
+              <label class="fl">Port Web Server:</label>
+              <input type="number" id="scriptBillingPort" class="fc" value="<%= billingPort %>" placeholder="Contoh: 3001 atau 80" oninput="regenerateScript()">
+            </div>
+            <div>
+              <button type="button" class="btn btn-g" onclick="regenerateScript()" style="height: 38px;">
+                <i class="bi bi-arrow-repeat"></i> Update Script
+              </button>
+            </div>
+          </div>
 
           <div class="code-terminal">
             <div class="code-terminal-hd">
@@ -508,13 +524,14 @@
 
           <div style="margin-top: 18px; padding: 14px 16px; background: var(--pdim); border: 1px solid var(--primary); border-radius: 10px;">
             <h6 style="color: var(--primary); font-weight: 700; font-size: 13px; margin: 0 0 8px 0;">
-              <i class="bi bi-info-circle-fill"></i> Cara Kerja Pengalihan MikroTik:
+              <i class="bi bi-info-circle-fill"></i> Arsitektur &amp; Prinsip Kerja Pengalihan MikroTik:
             </h6>
             <ol style="margin: 0; padding-left: 20px; font-size: 12.5px; color: var(--muted); line-height: 1.6;">
               <li>Pelanggan berstatus <code style="color:var(--primary);">suspended</code> didaftarkan ke address-list <code style="color:var(--primary);">LIST_ISOLIR</code>.</li>
-              <li>Rule DST-NAT membelokkan seluruh request HTTP (Port 80) dari <code style="color:var(--primary);">LIST_ISOLIR</code> ke IP Server Billing (<code style="color:var(--primary);"><%= billingHost %></code>).</li>
-              <li>Server Billing menerima request CNA Probe OS (mis. <code style="color:var(--primary);">/generate_204</code>) dan merespons HTTP 200 OK dengan redirect <code style="color:var(--primary);">/isolated</code>.</li>
-              <li>Perangkat pengguna mendeteksi captive network dan <strong>secara otomatis mendorong (push) pop-up</strong> ke layar perangkat pengguna!</li>
+              <li>Rule <strong>DST-NAT Port 80</strong> membelokkan seluruh request HTTP dari <code style="color:var(--primary);">LIST_ISOLIR</code> ke IP Server Billing target.</li>
+              <li>Rule <strong>Hairpin SRC-NAT (Masquerade)</strong> memastikan koneksi balik (*SYN-ACK*) selalu melewati MikroTik dan tidak putus karena *asymmetric routing* saat klien &amp; server berada di segmen jaringan lokal yang sama.</li>
+              <li>Server Billing langsung merespons request probe OS (iOS, Android, Windows) dengan <strong>HTTP 200 OK</strong> dan tampilan portal isolir secara langsung (*Direct CNA Trigger*).</li>
+              <li>Sistem operasi secara otomatis mendeteksi Captive Network dan <strong>membuka pop-up jendela isolir di layar HP pelanggan</strong>!</li>
             </ol>
           </div>
         </div>
@@ -758,6 +775,31 @@
       text.innerText = 'Error: ' + err.message;
     }
   }
+
+  async function regenerateScript() {
+    const ipInput = document.getElementById('scriptBillingIp');
+    const portInput = document.getElementById('scriptBillingPort');
+    const pre = document.getElementById('scriptContent');
+    if (!ipInput || !portInput || !pre) return;
+
+    const host = ipInput.value.trim() || '192.168.1.100';
+    const port = Number(portInput.value.trim() || 3001);
+
+    try {
+      const res = await fetch('/admin/isolated-portal/generate-script', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ billingHost: host, billingPort: port })
+      });
+      const data = await res.json();
+      if (data.success && data.script) {
+        pre.innerText = data.script;
+      }
+    } catch (e) {
+      console.warn('Gagal regenerate script:', e);
+    }
+  }
+
   function filterSuspendedTable() {
     const input = document.getElementById('searchSuspended');
     if (!input) return;
