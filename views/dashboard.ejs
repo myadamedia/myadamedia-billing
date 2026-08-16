@@ -483,6 +483,7 @@
                   <th>Host / Perangkat</th>
                   <th>IP & MAC</th>
                   <th>Status</th>
+                  <th class="text-end">Aksi</th>
                 </tr>
               </thead>
               <tbody>
@@ -513,11 +514,16 @@
                           <%= isDevOnline ? 'ONLINE' : 'OFFLINE' %>
                         </span>
                       </td>
+                      <td class="text-end">
+                        <button class="btn btn-outline-danger btn-sm rounded-circle p-1" style="width: 28px; height: 28px; line-height: 1;" onclick="deleteCustomerConnectedClient('<%= dev.mac || '' %>', '<%= dev.ip || '' %>', '<%= dev.hostname || 'Perangkat' %>')" title="Hapus Perangkat Terhubung">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      </td>
                     </tr>
                   <% }); %>
                 <% } else { %>
                   <tr>
-                    <td colspan="3" class="text-center py-4 text-sub">
+                    <td colspan="4" class="text-center py-4 text-sub">
                       <i class="bi bi-info-circle fs-4 d-block mb-1"></i>
                       Tidak ada perangkat LAN/Wi-Fi yang terdeteksi aktif.
                     </td>
@@ -882,6 +888,26 @@
           }
         })
         .catch(() => {});
+    }
+
+    async function deleteCustomerConnectedClient(mac, ip, hostname) {
+      if (!confirm(`Apakah Anda yakin ingin menghapus perangkat "${hostname}" (${mac || ip}) dari daftar terhubung?`)) return;
+      try {
+        const res = await fetch('/customer/delete-connected-client', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify({ mac, ip })
+        });
+        const data = await res.json();
+        if (data.ok) {
+          alert(data.message || 'Perangkat berhasil dihapus dari daftar terhubung.');
+          window.location.reload();
+        } else {
+          alert('Gagal: ' + (data.message || 'Gagal menghapus perangkat terhubung.'));
+        }
+      } catch (e) {
+        alert('Error: ' + e.message);
+      }
     }
 
     window.onload = function() {

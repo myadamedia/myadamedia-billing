@@ -4278,7 +4278,10 @@ router.get('/api/devices', requireAdmin, async (req, res) => {
     if (!result.ok) return res.json({ error: result.message });
     let devices = result.devices.map(d => {
       const mapped = customerDevice.mapDeviceData(d, d._tags?.[0] || d._id) || {};
-      const tagsArr = Array.isArray(d._tags) ? d._tags.filter(Boolean).map(String) : [];
+      const rawTags = Array.isArray(d._tags) ? d._tags.filter(Boolean).map(String) : [];
+      const tagsArr = rawTags.length > 0
+        ? rawTags
+        : (mapped.customerTag ? [mapped.customerTag] : (mapped.phone && mapped.phone !== d._id ? [mapped.phone] : []));
       return {
         id: String(d._id || ''),
         tags: tagsArr,
@@ -4287,6 +4290,8 @@ router.get('/api/devices', requireAdmin, async (req, res) => {
         status: String(mapped.status || 'unknown').toLowerCase(),
         pppoeIP: String(mapped.pppoeIP || '-'),
         pppoeUsername: String(mapped.pppoeUsername || '-'),
+        customerName: String(mapped.customerName || '-'),
+        customerPhone: String(mapped.customerPhone || '-'),
         rxPower: String(mapped.rxPower || '-'),
         uptime: String(mapped.uptime || '-'),
         model: String(mapped.model || '-'),
@@ -4383,6 +4388,24 @@ router.post('/api/device/:tag/password', requireAdmin, express.json(), async (re
 
 router.post('/api/device/:tag/reboot', requireAdmin, async (req, res) => {
   const result = await customerDevice.requestReboot(req.params.tag);
+  res.json(result);
+});
+
+router.post('/api/device/:tag/connected-clients/delete', requireAdmin, express.json(), async (req, res) => {
+  const { mac, ip } = req.body;
+  if (!mac && !ip) return res.status(400).json({ error: 'MAC Address or IP required' });
+
+  const actor = {
+    type: 'admin',
+    id: req.session.adminId,
+    name: req.session.adminUsername,
+    ip: req.ip || req.headers['x-forwarded-for'] || null,
+    userAgent: req.headers['user-agent'] || null
+  };
+
+  const result = await customerDevice.deleteConnectedClient(req.params.tag, mac, ip, actor);
+  if (!result.ok) return res.status(400).json({ error: result.message });
+
   res.json(result);
 });
 

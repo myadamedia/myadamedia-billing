@@ -2,6 +2,37 @@
 
 ---
 
+## [2026-08-16] Perbaikan Fitur Tag / Pelanggan & Connected Clients (Live) pada Built-in ACS Server (TR-069)
+
+### 1. Deskripsi Permasalahan
+1. **Tag / Pelanggan tidak muncul**: Saat mode Built-in ACS Server diaktifkan, entry perangkat di tabel `acs_devices` belum terasosiasi secara otomatis dengan data pelanggan di basis data `customers`. Payload API `/admin/api/devices` dan `/tech/api/devices` juga tidak mengembalikan `customerName` serta resolusi tag fallback.
+2. **Connected Clients (Live) tidak muncul**: Daftar klien LAN/Wi-Fi yang terhubung ke CPE/ONT tidak muncul di modal detail perangkat (selalu kosong) karena Built-in ACS Server tidak melakukan kueri subtree `InternetGatewayDevice.LANDevice.1.Hosts.Host.` atau `WLANConfiguration.1.AssociatedDevice.` saat bootstrap inform.
+
+### 2. Penyebab Utama (Root Cause)
+1. **Atribut Tags & Customer Resolution**: `upsertDevice()` di `acsServerService.js` menyimpan default `tags = '[]'`, dan API `/api/devices` hanya membaca array `_tags` tanpa melakukan fallback pencocokan ke pelanggan (`pppoe_username`, `genieacs_tag`, `phone`, `serialNumber`).
+2. **Missing Subtree Parameter Requests**: Task bootstrap `queueBootstrapTasksIfNeeded()` hanya mengambil basic info, SSID, PPPoE username/IP, dan RX power, tetapi mengabaikan subtree host `Hosts.Host.` dan `AssociatedDevice.`. Logika `mapDeviceData()` juga tidak menangani fallback `AssociatedDevice` jika `Hosts.Host` tidak tersedia pada firmware ONT tertentu.
+
+### 3. Solusi & Implementasi Teknis
+- **`services/acsServerService.js`**:
+  - Menyertakan pencarian subtree `InternetGatewayDevice.LANDevice.1.Hosts.Host.`, `WLANConfiguration.1.AssociatedDevice.`, `WLANConfiguration.5.AssociatedDevice.` (dan TR-181 `Device.Hosts.Host.`, `WiFi.AccessPoint.1.AssociatedDevice.`) pada `queueBootstrapTasksIfNeeded()`.
+  - Menambahkan fungsi `queueHostRefresh(deviceId)` untuk memicu pendaftaran task pencarian live host ketika detail perangkat dibuka.
+  - Memperbarui `upsertDevice()` agar secara otomatis melakukan pengikatan tag pelanggan (*auto-tag matching*) dari tabel `customers` jika perangkat baru mendaftar atau `tags` dalam keadaan kosong.
+- **`services/customerDeviceService.js`**:
+  - Memperbarui `mapDeviceData()` dengan resolusi pencocokan pelanggan multi-kriteria (`pppoe_username`, `genieacs_tag`, `phone`, `serialNumber`, `_id`).
+  - Menambahkan pengolahan fallback `connectedUsers` dari daftar perangkat terasosiasi Wi-Fi (`AssociatedDevice`) ketika objek `Hosts.Host` kosong.
+  - Memperbarui `getCustomerDeviceData()` untuk memicu `queueHostRefresh()` ketika detail perangkat Built-in ACS diminta.
+- **`routes/adminPortal.js` & `routes/techPortal.js`**:
+  - Memperbarui endpoint `/api/devices` untuk mengembalikan `customerName`, `customerPhone`, serta resolusi `tags` fallback secara akurat.
+- **`views/admin/dashboard.ejs`**:
+  - Memperbarui kolom Tag di tabel monitoring untuk menampilkan Tag dan Nama Pelanggan secara jelas.
+  - Memperbarui modal `showDetail()` untuk merender informasi Tag / Nama Pelanggan serta kartu Connected Clients (Live).
+
+### 4. Hasil Pengujian & Verifikasi
+- Sintaks JavaScript (`node -c`): **PASSED** (0 Error pada seluruh file JS).
+- Pengujian Unit & Integrasi (`npm test`): **PASSED** (100% Lulus).
+
+---
+
 ## [2026-08-14] Perubahan Portal Gateway SSO: Penggantian Portal Agen / Reseller menjadi Portal Investor
 
 ### 1. Deskripsi Perubahan

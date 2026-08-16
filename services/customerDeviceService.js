@@ -519,29 +519,40 @@ function mapDeviceData(device, tag) {
   let connectedUsers = [];
   try {
     const hosts = device?.InternetGatewayDevice?.LANDevice?.['1']?.Hosts?.Host || device?.Device?.Hosts?.Host;
+    
+    // Collect Wi-Fi associated MACs & info if present
+    const wifiAssocMacs = new Set();
+    const wifiAssocMap = new Map();
+    const wlanObj = device?.InternetGatewayDevice?.LANDevice?.['1']?.WLANConfiguration || device?.Device?.WiFi?.AccessPoint;
+    if (wlanObj && typeof wlanObj === 'object') {
+      for (const wKey in wlanObj) {
+        const wlan = wlanObj[wKey];
+        const assoc = wlan?.AssociatedDevice;
+        if (assoc && typeof assoc === 'object') {
+          const assocArr = Array.isArray(assoc) ? assoc : Object.values(assoc).filter(v => v && typeof v === 'object');
+          assocArr.forEach(item => {
+            const m = item?.AssociatedDeviceMACAddress?._value || item?.MACAddress?._value || item?.AssociatedDeviceMACAddress || item?.MACAddress;
+            const ipVal = item?.AssociatedDeviceIPAddress?._value || item?.IPAddress?._value || item?.AssociatedDeviceIPAddress || item?.IPAddress || '-';
+            if (m && typeof m === 'string') {
+              const macClean = m.toLowerCase().trim();
+              wifiAssocMacs.add(macClean);
+              wifiAssocMap.set(macClean, {
+                mac: m.trim(),
+                ip: ipVal,
+                iface: 'Wi-Fi (WLAN)'
+              });
+            }
+          });
+        }
+      }
+    }
+
     if (hosts && typeof hosts === 'object') {
       let hostEntries = [];
       if (Array.isArray(hosts)) {
         hostEntries = hosts;
       } else {
         hostEntries = Object.values(hosts).filter(v => v && typeof v === 'object');
-      }
-
-      // Collect Wi-Fi associated MACs if present
-      const wifiAssocMacs = new Set();
-      const wlanObj = device?.InternetGatewayDevice?.LANDevice?.['1']?.WLANConfiguration || device?.Device?.WiFi?.AccessPoint;
-      if (wlanObj && typeof wlanObj === 'object') {
-        for (const wKey in wlanObj) {
-          const wlan = wlanObj[wKey];
-          const assoc = wlan?.AssociatedDevice;
-          if (assoc && typeof assoc === 'object') {
-            const assocArr = Array.isArray(assoc) ? assoc : Object.values(assoc);
-            assocArr.forEach(item => {
-              const m = item?.AssociatedDeviceMACAddress?._value || item?.MACAddress?._value || item?.AssociatedDeviceMACAddress || item?.MACAddress;
-              if (m && typeof m === 'string') wifiAssocMacs.add(m.toLowerCase().trim());
-            });
-          }
-        }
       }
 
       for (const entry of hostEntries) {
@@ -568,8 +579,21 @@ function mapDeviceData(device, tag) {
           hostname,
           ip,
           mac,
-          iface,
+          iface: wifiAssocMacs.has(macLower) ? 'Wi-Fi (WLAN)' : iface,
           status: isOnline ? 'Online' : 'Offline'
+        });
+      }
+    }
+
+    // Fallback: If Hosts.Host tree was empty/missing, add Wi-Fi associated devices directly
+    if (connectedUsers.length === 0 && wifiAssocMap.size > 0) {
+      for (const [macKey, info] of wifiAssocMap) {
+        connectedUsers.push({
+          hostname: 'Wi-Fi Client',
+          ip: info.ip,
+          mac: info.mac,
+          iface: info.iface,
+          status: 'Online'
         });
       }
     }
@@ -628,20 +652,41 @@ function mapDeviceData(device, tag) {
 
   const db = require('../config/database');
   let dbCustomer = null;
-  if (pppoeUsername && pppoeUsername !== 'N/A') {
-    dbCustomer = db.prepare('SELECT name FROM customers WHERE LOWER(pppoe_username) = ?').get(pppoeUsername.toLowerCase().trim());
+  const pppoeClean = (pppoeUsername && pppoeUsername !== 'N/A') ? pppoeUsername.toLowerCase().trim() : '';
+  const tagClean = tag ? String(tag).toLowerCase().trim() : '';
+  const snClean = (serialNumber && serialNumber !== 'N/A') ? String(serialNumber).toLowerCase().trim() : '';
+  const devIdClean = device?._id ? String(device._id).toLowerCase().trim() : '';
+
+  if (pppoeClean) {
+    dbCustomer = db.prepare('SELECT id, name, phone, genieacs_tag, pppoe_username FROM customers WHERE LOWER(pppoe_username) = ?').get(pppoeClean);
   }
-  if (!dbCustomer && tag) {
-    dbCustomer = db.prepare('SELECT name FROM customers WHERE LOWER(genieacs_tag) = ? OR LOWER(phone) = ?').get(tag.toLowerCase().trim(), tag.toLowerCase().trim());
+  if (!dbCustomer && tagClean) {
+    dbCustomer = db.prepare('SELECT id, name, phone, genieacs_tag, pppoe_username FROM customers WHERE LOWER(genieacs_tag) = ? OR LOWER(phone) = ?').get(tagClean, tagClean);
   }
-  if (!dbCustomer && serialNumber && serialNumber !== 'N/A') {
-    dbCustomer = db.prepare('SELECT name FROM customers WHERE LOWER(genieacs_tag) = ?').get(serialNumber.toLowerCase().trim());
+  if (!dbCustomer && snClean) {
+    dbCustomer = db.prepare('SELECT id, name, phone, genieacs_tag, pppoe_username FROM customers WHERE LOWER(genieacs_tag) = ? OR LOWER(phone) = ?').get(snClean, snClean);
   }
+  if (!dbCustomer && devIdClean) {
+    dbCustomer = db.prepare('SELECT id, name, phone, genieacs_tag, pppoe_username FROM customers WHERE LOWER(genieacs_tag) = ?').get(devIdClean);
+  }
+
   const customerName = dbCustomer ? dbCustomer.name : '-';
+  const customerPhone = dbCustomer ? dbCustomer.phone : '';
+  const customerTag = dbCustomer ? (dbCustomer.genieacs_tag || dbCustomer.phone || dbCustomer.pppoe_username) : '';
+
+  // Auto-sync tags in SQLite if empty for Built-in ACS
+  if (genieacsApi.isBuiltinAcsEnabled() && device?._id && customerTag) {
+    try {
+      db.prepare("UPDATE acs_devices SET tags = ? WHERE id = ? AND (tags IS NULL OR tags = '[]' OR tags = '')")
+        .run(JSON.stringify([customerTag]), device._id);
+    } catch (_) {}
+  }
 
   return {
-    phone: tag,
+    phone: tagClean !== devIdClean ? tag : (customerTag || tag || '-'),
     customerName: customerName,
+    customerPhone: customerPhone,
+    customerTag: customerTag,
     ssid: ssidDisplay,
     status,
     lastInform,
@@ -663,6 +708,14 @@ function mapDeviceData(device, tag) {
 async function getCustomerDeviceData(tag) {
   const base = await resolveDeviceToken(tag);
   if (!base || !base._id) return null;
+  
+  if (genieacsApi.isBuiltinAcsEnabled() && base._acs_server_id === 'builtin') {
+    try {
+      const acsService = require('./acsServerService');
+      acsService.queueHostRefresh(base._id);
+    } catch (_) {}
+  }
+
   const device = await fetchFullDevice(base._id);
   return mapDeviceData(device, tag);
 }
@@ -1085,6 +1138,109 @@ async function updateCustomerTag(oldTag, newTag) {
   }
 }
 
+async function deleteConnectedClient(tag, clientMac, clientIp, actor = null) {
+  try {
+    const macClean = String(clientMac || '').toLowerCase().trim();
+    const ipClean = String(clientIp || '').trim();
+    if (!macClean && !ipClean) {
+      return { ok: false, message: 'MAC Address atau IP Address perangkat harus diisi.' };
+    }
+
+    const device = await resolveDeviceToken(tag);
+    if (!device || !device._id) return { ok: false, message: 'Perangkat ONT/ONU tidak ditemukan.' };
+
+    const db = require('../config/database');
+    const row = db.prepare('SELECT params, tags FROM acs_devices WHERE id = ?').get(device._id);
+    let params = {};
+    if (row && row.params) {
+      try { params = JSON.parse(row.params); } catch (_) {}
+    }
+
+    let removedKeysCount = 0;
+    const instancesToRemove = new Set();
+
+    for (const [key, val] of Object.entries(params)) {
+      const keyLower = key.toLowerCase();
+      const valStr = String(val?._value ?? val ?? '').toLowerCase().trim();
+
+      if (keyLower.includes('.hosts.host.') || keyLower.includes('.associateddevice.')) {
+        if ((macClean && valStr === macClean) || (ipClean && valStr === ipClean)) {
+          const lastDotIdx = key.lastIndexOf('.');
+          if (lastDotIdx > 0) {
+            const instancePath = key.substring(0, lastDotIdx + 1);
+            instancesToRemove.add(instancePath);
+          }
+        }
+      }
+    }
+
+    if (instancesToRemove.size > 0) {
+      for (const [key] of Object.entries(params)) {
+        for (const inst of instancesToRemove) {
+          if (key.startsWith(inst)) {
+            delete params[key];
+            removedKeysCount++;
+          }
+        }
+      }
+    }
+
+    if (row && removedKeysCount > 0) {
+      const now = new Date().toISOString();
+      db.prepare('UPDATE acs_devices SET params = ?, updated_at = ? WHERE id = ?')
+        .run(JSON.stringify(params), now, device._id);
+    }
+
+    if (genieacsApi.isBuiltinAcsEnabled()) {
+      try {
+        const server = genieacsApi.getACSServer('builtin');
+        const instance = genieacsApi.createAxiosInstance(server);
+        const tasksUrl = `/devices/${encodeURIComponent(device._id)}/tasks`;
+
+        for (const instPath of instancesToRemove) {
+          const cleanObj = instPath.endsWith('.') ? instPath.slice(0, -1) : instPath;
+          try {
+            await instance.post(tasksUrl, { name: 'deleteObject', objectName: cleanObj }, { timeout: 15000 });
+          } catch (_) {}
+        }
+        
+        try {
+          await instance.post(tasksUrl, { name: 'refreshObject', objectName: 'InternetGatewayDevice.LANDevice.1.Hosts.Host' }, { timeout: 15000 });
+        } catch (_) {}
+        try {
+          await instance.post(tasksUrl, { name: 'refreshObject', objectName: 'InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.AssociatedDevice' }, { timeout: 15000 });
+        } catch (_) {}
+      } catch (err) {
+        logger.error(`[deleteConnectedClient] Failed to send task: ${err.message}`);
+      }
+    }
+
+    if (actor) {
+      auditTrail.logAuditTrail({
+        action: 'DELETE_CONNECTED_CLIENT',
+        entity_type: 'device',
+        entity_id: tag,
+        actor_type: actor.type || 'unknown',
+        actor_id: actor.id || null,
+        actor_name: actor.name || null,
+        details: {
+          device_id: device._id,
+          mac: clientMac,
+          ip: clientIp,
+          removedInstances: [...instancesToRemove]
+        },
+        ip_address: actor.ip || null,
+        user_agent: actor.userAgent || null
+      });
+    }
+
+    return { ok: true, message: `Perangkat terhubung (${clientMac || clientIp}) berhasil dihapus.` };
+  } catch (e) {
+    logger.error(`[deleteConnectedClient] Error: ${e.message}`);
+    return { ok: false, message: 'Gagal menghapus perangkat terhubung: ' + e.message };
+  }
+}
+
 module.exports = {
   findDeviceByTag,
   findDeviceByPppoe,
@@ -1101,5 +1257,6 @@ module.exports = {
   listAllDevices,
   expandTagCandidates,
   findDeviceWithTagVariants,
-  phoneFromPnJid
+  phoneFromPnJid,
+  deleteConnectedClient
 };

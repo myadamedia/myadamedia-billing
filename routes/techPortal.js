@@ -466,7 +466,7 @@ router.get('/api/devices', requireTechSession, async (req, res) => {
     if (!result.ok) return res.json({ error: result.message });
     
     let devices = result.devices.map(d => {
-      const mapped = customerDevice.mapDeviceData(d, d._tags?.[0] || d._id);
+      const mapped = customerDevice.mapDeviceData(d, d._tags?.[0] || d._id) || {};
       const pu = String(mapped.pppoeUsername || '').trim();
       const puKey = pu && pu !== 'N/A' ? pu.toLowerCase() : '';
       let customer = puKey ? byPppoe.get(puKey) : null;
@@ -476,12 +476,24 @@ router.get('/api/devices', requireTechSession, async (req, res) => {
           if (hit) { customer = hit; break; }
         }
       }
+      if (!customer && mapped.customerTag) {
+        customer = byTag.get(String(mapped.customerTag).trim());
+      }
+      if (!customer && mapped.serialNumber && mapped.serialNumber !== '-') {
+        customer = byTag.get(String(mapped.serialNumber).trim());
+      }
+
+      const rawTags = Array.isArray(d._tags) ? d._tags.filter(Boolean).map(String) : [];
+      const tagsArr = rawTags.length > 0
+        ? rawTags
+        : (mapped.customerTag ? [mapped.customerTag] : (mapped.phone && mapped.phone !== d._id ? [mapped.phone] : []));
+
       return {
         id: d._id, 
-        tags: d._tags || [],
+        tags: tagsArr,
         serialNumber: mapped.serialNumber,
         lastInform: d._lastInform,
-        status: mapped.status.toLowerCase(),
+        status: String(mapped.status || 'unknown').toLowerCase(),
         pppoeIP: mapped.pppoeIP,
         pppoeUsername: mapped.pppoeUsername,
         rxPower: mapped.rxPower,
@@ -491,8 +503,8 @@ router.get('/api/devices', requireTechSession, async (req, res) => {
         userConnected: mapped.totalAssociations,
         ssid: mapped.ssid,
         customerId: customer ? customer.id : null,
-        customerName: customer ? customer.name : '',
-        customerPhone: customer ? customer.phone : '',
+        customerName: customer ? customer.name : (mapped.customerName !== '-' ? mapped.customerName : ''),
+        customerPhone: customer ? customer.phone : (mapped.customerPhone || ''),
         acsServerName: d._acs_server_name || 'Default ACS',
         acsServerId: d._acs_server_id || 'legacy',
         manufacturer: d._deviceId?._Manufacturer || d._deviceId?.Manufacturer || '-'
@@ -599,6 +611,24 @@ router.post('/api/device/:tag/password', requireTechSession, express.json(), asy
 
 router.post('/api/device/:tag/reboot', requireTechSession, async (req, res) => {
   const result = await customerDevice.requestReboot(req.params.tag);
+  res.json(result);
+});
+
+router.post('/api/device/:tag/connected-clients/delete', requireTechSession, express.json(), async (req, res) => {
+  const { mac, ip } = req.body;
+  if (!mac && !ip) return res.status(400).json({ error: 'MAC Address or IP required' });
+
+  const actor = {
+    type: 'tech',
+    id: req.session.techId,
+    name: req.session.techUsername,
+    ip: req.ip || req.headers['x-forwarded-for'] || null,
+    userAgent: req.headers['user-agent'] || null
+  };
+
+  const result = await customerDevice.deleteConnectedClient(req.params.tag, mac, ip, actor);
+  if (!result.ok) return res.status(400).json({ error: result.message });
+
   res.json(result);
 });
 

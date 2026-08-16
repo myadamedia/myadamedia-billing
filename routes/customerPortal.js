@@ -799,7 +799,8 @@ const {
   updateSSID,
   updatePassword,
   requestReboot,
-  updateCustomerTag
+  updateCustomerTag,
+  deleteConnectedClient
 } = customerDevice;
 
 router.get('/login', (req, res) => {
@@ -2198,6 +2199,43 @@ router.post('/reboot', async (req, res) => {
   req.session._msg = r.ok
     ? { type: 'success', text: 'Perintah reboot berhasil dikirim. Perangkat ONT/ONU Anda sedang melakukan restart (1-2 menit).' }
     : { type: 'danger', text: r.message || 'Gagal mengirim perintah reboot ke perangkat.' };
+
+  res.redirect('/customer/dashboard');
+});
+
+router.post('/delete-connected-client', async (req, res) => {
+  const loginId = req.session && req.session.phone;
+  if (!loginId) {
+    if (req.xhr || req.headers.accept?.includes('json')) {
+      return res.status(401).json({ ok: false, message: 'Sesi telah berakhir.' });
+    }
+    return res.redirect('/customer/login');
+  }
+
+  const mac = req.body?.mac || req.body?.clientMac;
+  const ip = req.body?.ip || req.body?.clientIp;
+
+  const pppoeUsername = req.session.pppoe_username || loginId;
+  const profile = findCustomerProfileByLoginId(loginId);
+  const tagToUse = (profile && (profile.genieacs_tag || profile.pppoe_username)) || pppoeUsername || loginId;
+
+  const actor = {
+    type: 'customer',
+    id: profile ? profile.id : null,
+    name: profile ? profile.name : loginId,
+    ip: req.ip || req.headers['x-forwarded-for'] || null,
+    userAgent: req.headers['user-agent'] || null
+  };
+
+  const r = await deleteConnectedClient(tagToUse, mac, ip, actor);
+
+  if (req.xhr || req.headers.accept?.includes('json')) {
+    return res.json(r);
+  }
+
+  req.session._msg = r.ok
+    ? { type: 'success', text: r.message }
+    : { type: 'danger', text: r.message || 'Gagal menghapus perangkat terhubung.' };
 
   res.redirect('/customer/dashboard');
 });

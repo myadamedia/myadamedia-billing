@@ -667,7 +667,8 @@ async function loadDevices() {
     } else {
       tbody.innerHTML = devicesData.map((d, i) => {
         const isOn = d.status === 'online';
-        const tagStr = d.tags.join(', ') || '-';
+        const tagStr = (Array.isArray(d.tags) && d.tags.length > 0) ? d.tags.join(', ') : (d.phone || '-');
+        const custNameStr = d.customerName && d.customerName !== '-' ? d.customerName : '';
         const lastInformStr = d.lastInform ? new Date(d.lastInform).toLocaleString('id-ID', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '-';
         return `<tr>
           <td style="text-align: center;">
@@ -676,7 +677,8 @@ async function loadDevices() {
           <td class="text-muted">${i + 1}</td>
           <td>
             <span class="badge bm">${tagStr}</span>
-            <div style="font-size:11px;color:var(--muted);margin-top:4px" title="Last Inform"><i class="bi bi-clock"></i> ${lastInformStr}</div>
+            ${custNameStr ? `<div style="font-size:11px;color:var(--primary);margin-top:3px;font-weight:600" title="Nama Pelanggan"><i class="bi bi-person"></i> ${custNameStr}</div>` : ''}
+            <div style="font-size:11px;color:var(--muted);margin-top:3px" title="Last Inform"><i class="bi bi-clock"></i> ${lastInformStr}</div>
           </td>
           <td>
             <div class="fw6" style="font-size:13px">${d.model !== '-' ? d.model : I18N.onuDevice}</div>
@@ -789,7 +791,7 @@ async function showDetail(tag) {
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px">
         <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:12px;overflow:hidden">
           <div style="padding:14px 18px;border-bottom:1px solid var(--border);font-weight:700;color:var(--muted)"><i class="bi bi-info-circle"></i> Device Info</div>
-          <div style="display:flex;justify-content:space-between;padding:8px 18px;border-bottom:1px solid rgba(51,65,85,.10)"><span style="color:var(--muted)">Tag</span><span style="font-weight:800">${d.phone || '-'}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:8px 18px;border-bottom:1px solid rgba(51,65,85,.10)"><span style="color:var(--muted)">Tag / Pelanggan</span><span style="font-weight:800">${d.customerName && d.customerName !== '-' ? d.customerName + ' (' + (d.phone || d.customerTag || '-') + ')' : (d.phone || '-')}</span></div>
           <div style="display:flex;justify-content:space-between;padding:8px 18px;border-bottom:1px solid rgba(51,65,85,.10)"><span style="color:var(--muted)">Model</span><span>${d.model || '-'}</span></div>
           <div style="display:flex;justify-content:space-between;padding:8px 18px;border-bottom:1px solid rgba(51,65,85,.10)"><span style="color:var(--muted)">Serial</span><code style="color:var(--info)">${d.serialNumber || '-'}</code></div>
           <div style="display:flex;justify-content:space-between;padding:8px 18px"><span style="color:var(--muted)">SW Version</span><span>${d.softwareVersion || '-'}</span></div>
@@ -826,7 +828,8 @@ async function showDetail(tag) {
                     <div style="font-weight:800">${u.hostname || '-'}</div>
                     <div style="font-size:11px;color:var(--muted)">${u.ip || '-'} | ${u.mac || '-'}</div>
                   </div>
-                  <span class="badge ${isUon ? 'bs' : 'bm'}">${u.status || '-'}</span>
+                  <span class="badge ${isUon ? 'bs' : 'bm'}" style="margin-right:6px">${u.status || '-'}</span>
+                  <button class="btn btn-d btn-icon btn-sm btn-delete-host" title="Hapus Perangkat Terhubung" data-tag="${d.phone || tag}" data-mac="${u.mac || ''}" data-ip="${u.ip || ''}" data-name="${escHtml(u.hostname || 'Device')}"><i class="bi bi-trash"></i></button>
                 </div>
                 <div style="font-size:11px;color:var(--muted)">Interface: ${iface || '-'}</div>
               </div>
@@ -835,7 +838,31 @@ async function showDetail(tag) {
         </div>
       </div>
     `;
+
+    document.getElementById('device-detail').querySelectorAll('.btn-delete-host').forEach(btn => {
+      btn.addEventListener('click', function() {
+        deleteConnectedClientModal(this.getAttribute('data-tag'), this.getAttribute('data-mac'), this.getAttribute('data-ip'), this.getAttribute('data-name'));
+      });
+    });
   } catch(e) { document.getElementById('device-detail').innerHTML = '<p class="text-muted text-center" style="padding:20px">' + I18N.detailLoadFailed + '</p>'; }
+}
+
+async function deleteConnectedClientModal(tag, mac, ip, hostname) {
+  if (!confirm(`Apakah Anda yakin ingin menghapus perangkat "${hostname}" (${mac || ip}) dari daftar terhubung?`)) return;
+  try {
+    const res = await fetch('/admin/api/device/' + encodeURIComponent(tag) + '/connected-clients/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mac, ip })
+    });
+    const data = await res.json();
+    showToast(data.message || (data.ok ? 'Perangkat terhubung dihapus' : 'Gagal menghapus'), data.ok ? 's' : 'd');
+    if (data.ok) {
+      showDetail(tag);
+    }
+  } catch (e) {
+    showToast('Error: ' + e.message, 'd');
+  }
 }
 
 function editSsid(tag, currentSsid) { document.getElementById('edit-tag').value = tag; document.getElementById('new-ssid').value = (currentSsid && currentSsid !== '-') ? currentSsid : ''; openModal('ssidModal'); }

@@ -351,6 +351,20 @@ function buildAddObject(cwmpId, objectName) {
   );
 }
 
+/**
+ * Build DeleteObject SOAP envelope.
+ * @param {string} cwmpId
+ * @param {string} objectName – e.g. "InternetGatewayDevice.LANDevice.1.Hosts.Host.1."
+ */
+function buildDeleteObject(cwmpId, objectName) {
+  return soapEnvelopeWrap(cwmpId,
+    `<cwmp:DeleteObject>
+      <ObjectName>${escapeXml(objectName)}</ObjectName>
+      <ParameterKey></ParameterKey>
+    </cwmp:DeleteObject>`
+  );
+}
+
 function escapeXml(str) {
   if (str == null) return '';
   return String(str)
@@ -393,11 +407,43 @@ function upsertDevice(deviceId, deviceInfo, params, ipAddress) {
   // Check if device exists
   const existing = db.prepare('SELECT id, params, tags FROM acs_devices WHERE id = ?').get(deviceId);
 
+  // Resolution for auto-linking customer tag if tags is empty
+  let autoTags = null;
+  let existingTags = [];
+  if (existing) {
+    try { existingTags = JSON.parse(existing.tags || '[]'); } catch (_) {}
+  }
+  if (!existing || existingTags.length === 0) {
+    try {
+      const pppoeUser = params['InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.Username']
+        || params['Device.PPP.Interface.1.Username'] || '';
+      const sn = deviceInfo.SerialNumber || '';
+      let matchedCust = null;
+      if (pppoeUser) {
+        matchedCust = db.prepare('SELECT genieacs_tag, phone, pppoe_username FROM customers WHERE LOWER(pppoe_username) = ?').get(pppoeUser.toLowerCase().trim());
+      }
+      if (!matchedCust && sn) {
+        matchedCust = db.prepare('SELECT genieacs_tag, phone, pppoe_username FROM customers WHERE LOWER(genieacs_tag) = ? OR LOWER(phone) = ?').get(sn.toLowerCase().trim(), sn.toLowerCase().trim());
+      }
+      if (!matchedCust && deviceId) {
+        matchedCust = db.prepare('SELECT genieacs_tag, phone, pppoe_username FROM customers WHERE LOWER(genieacs_tag) = ?').get(deviceId.toLowerCase().trim());
+      }
+      if (matchedCust) {
+        const tagToUse = matchedCust.genieacs_tag || matchedCust.phone || matchedCust.pppoe_username;
+        if (tagToUse) autoTags = JSON.stringify([tagToUse]);
+      }
+    } catch (err) {
+      logger.debug(`[ACS] Auto-tag resolution info: ${err.message}`);
+    }
+  }
+
   if (existing) {
     // Merge existing params with new params (new values overwrite)
     let mergedParams = {};
     try { mergedParams = JSON.parse(existing.params || '{}'); } catch (_) { /* empty */ }
     Object.assign(mergedParams, params);
+
+    const tagsToSet = autoTags || existing.tags || '[]';
 
     db.prepare(`
       UPDATE acs_devices SET
@@ -411,6 +457,7 @@ function upsertDevice(deviceId, deviceInfo, params, ipAddress) {
         connection_request_url = CASE WHEN ? != '' THEN ? ELSE connection_request_url END,
         connection_request_user = CASE WHEN ? != '' THEN ? ELSE connection_request_user END,
         connection_request_pass = CASE WHEN ? != '' THEN ? ELSE connection_request_pass END,
+        tags = CASE WHEN tags IS NULL OR tags = '[]' OR tags = '' THEN ? ELSE tags END,
         params = ?,
         last_inform = ?,
         updated_at = ?
@@ -426,19 +473,21 @@ function upsertDevice(deviceId, deviceInfo, params, ipAddress) {
       connReqUrl, connReqUrl,
       connReqUser, connReqUser,
       connReqPass, connReqPass,
+      tagsToSet,
       JSON.stringify(mergedParams),
       now,
       now,
       deviceId
     );
   } else {
+    const initialTags = autoTags || '[]';
     db.prepare(`
       INSERT INTO acs_devices
         (id, serial_number, manufacturer, product_class, oui,
          software_version, hardware_version, ip_address,
          connection_request_url, connection_request_user, connection_request_pass,
          tags, params, last_inform, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       deviceId,
       deviceInfo.SerialNumber,
@@ -451,6 +500,7 @@ function upsertDevice(deviceId, deviceInfo, params, ipAddress) {
       connReqUrl,
       connReqUser,
       connReqPass,
+      initialTags,
       JSON.stringify(params),
       now,
       now,
@@ -520,6 +570,9 @@ function queueBootstrapTasksIfNeeded(deviceId, currentParams) {
         groups.push(['Device.XPON.Interface.1.Stats.RXPower']);
         groups.push(['Device.Optical.Interface.1.OpticalSignalLevel']);
         groups.push(['Device.WiFi.AccessPoint.1.AssociatedDeviceNumberOfEntries', 'Device.WiFi.AccessPoint.2.AssociatedDeviceNumberOfEntries', 'Device.Hosts.HostNumberOfEntries']);
+        groups.push(['Device.Hosts.Host.']);
+        groups.push(['Device.WiFi.AccessPoint.1.AssociatedDevice.']);
+        groups.push(['Device.WiFi.AccessPoint.2.AssociatedDevice.']);
       } else {
         // TR-098 (ZTE, Huawei, etc.) - query as safe individual tasks to prevent single-unsupported-path failure
         // Group 1: Basic Info (guaranteed to succeed)
@@ -575,8 +628,11 @@ function queueBootstrapTasksIfNeeded(deviceId, currentParams) {
         // China Unicom (CU) vendor paths
         groups.push(['InternetGatewayDevice.WANDevice.1.X_CU_WANEPONInterfaceConfig.OpticalTransceiver.RXPower']);
         
-        // Active associations
+        // Active associations & Subtrees for Connected Clients (Live)
         groups.push(['InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.TotalAssociations', 'InternetGatewayDevice.LANDevice.1.WLANConfiguration.5.TotalAssociations', 'InternetGatewayDevice.LANDevice.1.Hosts.HostNumberOfEntries']);
+        groups.push(['InternetGatewayDevice.LANDevice.1.Hosts.Host.']);
+        groups.push(['InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.AssociatedDevice.']);
+        groups.push(['InternetGatewayDevice.LANDevice.1.WLANConfiguration.5.AssociatedDevice.']);
       }
 
       // Add 'bootstrapped' tag to prevent infinite bootstrap loops
@@ -612,6 +668,42 @@ function queueBootstrapTasksIfNeeded(deviceId, currentParams) {
     }
   } catch (err) {
     logger.error(`[ACS] Error in queueBootstrapTasksIfNeeded for ${deviceId}: ${err.message}`);
+  }
+}
+
+/**
+ * Queue a host / connected clients subtree refresh task for a device and trigger connection request.
+ */
+function queueHostRefresh(deviceId) {
+  try {
+    const existing = db.prepare('SELECT params FROM acs_devices WHERE id = ?').get(deviceId);
+    if (!existing) return;
+    const currentParams = existing.params ? JSON.parse(existing.params) : {};
+    const isTr181 = Object.keys(currentParams).some(k => k.startsWith('Device.'));
+    const groups = isTr181 ? [
+      ['Device.Hosts.Host.'],
+      ['Device.WiFi.AccessPoint.1.AssociatedDevice.'],
+      ['Device.WiFi.AccessPoint.2.AssociatedDevice.']
+    ] : [
+      ['InternetGatewayDevice.LANDevice.1.Hosts.Host.'],
+      ['InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.AssociatedDevice.'],
+      ['InternetGatewayDevice.LANDevice.1.WLANConfiguration.5.AssociatedDevice.']
+    ];
+
+    const pending = db.prepare("SELECT COUNT(*) as c FROM acs_tasks WHERE device_id = ? AND name = 'getParameterValues' AND status = 'pending' AND (payload LIKE '%Host%' OR payload LIKE '%AssociatedDevice%')").get(deviceId);
+    if (pending && pending.c > 0) return;
+
+    const now = nowLocal();
+    for (const group of groups) {
+      db.prepare(
+        `INSERT INTO acs_tasks (device_id, name, payload, status, created_at, updated_at)
+         VALUES (?, 'getParameterValues', ?, 'pending', ?, ?)`
+      ).run(deviceId, JSON.stringify({ parameterNames: group }), now, now);
+    }
+
+    triggerConnectionRequest(deviceId).catch(() => {});
+  } catch (err) {
+    logger.error(`[ACS] Error in queueHostRefresh for ${deviceId}: ${err.message}`);
   }
 }
 
@@ -686,6 +778,12 @@ function buildTaskSoap(cwmpId, task) {
       const objName = payload.objectName || payload.object || '';
       if (!objName) return null;
       return buildAddObject(cwmpId, objName);
+    }
+
+    case 'deleteObject': {
+      const objName = payload.objectName || payload.object || '';
+      if (!objName) return null;
+      return buildDeleteObject(cwmpId, objName);
     }
 
     default:
@@ -768,6 +866,9 @@ const handleCwmpRequest = async (req, res) => {
     }
     if (hasCwmpMethod(body, 'AddObjectResponse')) {
       return handleAddObjectResponse(body, session, sid, res);
+    }
+    if (hasCwmpMethod(body, 'DeleteObjectResponse')) {
+      return handleTaskResponse(body, session, sid, 'deleteObject', res);
     }
 
     // ── FAULT ──────────────────────────────────────────────────────────────
@@ -1304,4 +1405,5 @@ module.exports = {
   getBuiltinDevices,
   getBuiltinDevice,
   createBuiltinTask,
+  queueHostRefresh,
 };
