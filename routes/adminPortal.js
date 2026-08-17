@@ -1900,25 +1900,6 @@ router.post('/customers/:id/update', requireAdminSession, express.urlencoded({ e
 
     customerSvc.updateCustomer(req.params.id, req.body);
 
-    // Sync status ke MikroTik & RADIUS (PPPoE, Hotspot, Static IP)
-    try {
-      if (req.body.status === 'suspended') {
-        await customerSvc.syncCustomerIsolation(req.params.id);
-      } else if (req.body.status === 'active') {
-        await customerSvc.syncCustomerActivation(req.params.id);
-      } else {
-        if (connectionType === 'pppoe' && req.body.pppoe_username) {
-          const pkg = customerSvc.getPackageById(req.body.package_id);
-          const targetProfile = pkg ? pkg.name : '';
-          if (targetProfile) {
-            await mikrotikService.setPppoeProfile(req.body.pppoe_username, targetProfile, req.body.router_id);
-          }
-        }
-      }
-    } catch (syncErr) {
-      console.error('[AdminPortal] Mikrotik sync error on customer update:', syncErr);
-    }
-
     req.session._msg = { type: 'success', text: 'Data pelanggan berhasil diperbarui.' };
   } catch (e) {
     req.session._msg = { type: 'error', text: 'Gagal memperbarui: ' + e.message };

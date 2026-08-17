@@ -1901,162 +1901,61 @@ async function getLiveActiveSessionsTraffic(routerId) {
   }
 }
 
-
-async function getRouterDetailedInfo(routerId = null) {
-  let conn = null;
-  try {
-    conn = await getConnection(routerId);
-    const [resArr, idArr, rbArr] = await Promise.all([
-      conn.client.menu('/system/resource').get().catch(() => []),
-      conn.client.menu('/system/identity').get().catch(() => []),
-      conn.client.menu('/system/routerboard').get().catch(() => [])
-    ]);
-
-    const resource = resArr[0] || {};
-    const identity = idArr[0] || {};
-    const routerboard = rbArr[0] || {};
-
-    const freeMem = Number(resource['free-memory'] || 0);
-    const totalMem = Number(resource['total-memory'] || 0);
-    const freeHdd = Number(resource['free-hdd-space'] || 0);
-    const totalHdd = Number(resource['total-hdd-space'] || 0);
-
-    return {
-      identity: identity.name || 'MikroTik',
-      uptime: resource.uptime || '-',
-      version: resource.version || '-',
-      buildTime: resource['build-time'] || resource.buildTime || '-',
-      freeMemory: formatBytes(freeMem),
-      totalMemory: formatBytes(totalMem),
-      memoryUsagePercent: totalMem > 0 ? (((totalMem - freeMem) / totalMem) * 100).toFixed(1) : 0,
-      cpuLoad: resource['cpu-load'] !== undefined ? Number(resource['cpu-load']) : 0,
-      cpuCount: resource['cpu-count'] || 1,
-      cpuFrequency: resource['cpu-frequency'] ? `${resource['cpu-frequency']} MHz` : '-',
-      cpuModel: resource.cpu || '-',
-      freeHdd: formatBytes(freeHdd),
-      totalHdd: formatBytes(totalHdd),
-      hddUsagePercent: totalHdd > 0 ? (((totalHdd - freeHdd) / totalHdd) * 100).toFixed(1) : 0,
-      boardName: resource['board-name'] || routerboard.model || '-',
-      architectureName: resource['architecture-name'] || '-',
-      model: routerboard.model || resource['board-name'] || '-',
-      serialNumber: routerboard['serial-number'] || routerboard.serialNumber || '-'
-    };
-  } catch (e) {
-    logger.error(`Error getting detailed router info (routerId=${routerId}):`, e);
-    throw e;
-  } finally {
-    if (conn && conn.api) conn.api.close();
-  }
-}
-
-async function getInterfaceTraffic(routerId, interfaceName) {
-  if (!interfaceName) throw new Error('Nama interface harus diisi');
-  let conn = null;
-  try {
-    conn = await getConnection(routerId);
-    const words = [
-      '/interface/monitor-traffic',
-      `=interface=${interfaceName}`,
-      '=once='
-    ];
-    const res = await conn.api.send(words);
-    const data = Array.isArray(res) && res.length ? res[0] : {};
-    const rxBps = Number(data['rx-bits-per-second'] || 0);
-    const txBps = Number(data['tx-bits-per-second'] || 0);
-    
-    return {
-      name: interfaceName,
-      rxBitsPerSecond: rxBps,
-      txBitsPerSecond: txBps,
-      'rx-bits-per-second': rxBps,
-      'tx-bits-per-second': txBps,
-      rx: rxBps,
-      tx: txBps,
-      rxFormatted: formatBytes(rxBps / 8) + '/s',
-      txFormatted: formatBytes(txBps / 8) + '/s',
-      rxPacketsPerSecond: Number(data['rx-packets-per-second'] || 0),
-      txPacketsPerSecond: Number(data['tx-packets-per-second'] || 0)
-    };
-  } catch (e) {
-    logger.error(`Error monitoring traffic for ${interfaceName} (routerId=${routerId}):`, e);
-    throw e;
-  } finally {
-    if (conn && conn.api) conn.api.close();
-  }
-}
-
-async function toggleInterfaceStatus(routerId, interfaceId, disabled) {
-  if (!interfaceId) throw new Error('ID Interface harus diisi');
-  let conn = null;
-  try {
-    conn = await getConnection(routerId);
-    const isDisabled = disabled === true || String(disabled) === 'true';
-    const action = isDisabled ? '/interface/disable' : '/interface/enable';
-    const words = [action, `=.id=${interfaceId}`];
-    await conn.api.send(words);
-    return { success: true, message: `Interface ${isDisabled ? 'dinonaktifkan' : 'diaktifkan'}` };
-  } catch (e) {
-    logger.error(`Error toggling interface status (id=${interfaceId}, routerId=${routerId}):`, e);
-    throw e;
-  } finally {
-    if (conn && conn.api) conn.api.close();
-  }
-}
-
 /**
- * Mengambil data live traffic rate (tx_bps, rx_bps) dari MikroTik RouterOS API secara realtime
+ * Memperbarui data PPP secret pelanggan di MikroTik (password, profile, remote-address, comment, disabled)
+ * secara aman dan tenang TANPA memutus / kick sesi aktif yang sedang berjalan.
  */
-async function getLiveActiveSessionsTraffic(routerId) {
+async function updatePppoeSecretByName(username, data, routerId = null) {
+  const normalizedUsername = String(username || '').trim();
+  if (!normalizedUsername) {
+    logger.warn('[MikroTik] updatePppoeSecretByName called without username');
+    return false;
+  }
   let conn = null;
   try {
     conn = await getConnection(routerId);
-    const userRates = new Map(); // username/targetIP -> { txBps, rxBps }
-    
-    try {
-      const queues = await withTimeout(
-        conn.api.send(['/queue/simple/print', '=.proplist=name,target,rate,bytes']),
-        4000,
-        'getLiveTrafficQueues'
-      );
-      if (Array.isArray(queues)) {
-        for (const q of queues) {
-          const rawName = String(q.name || '').trim();
-          const rateStr = String(q.rate || '').trim(); // "tx_bps/rx_bps"
-          if (rateStr && rateStr.includes('/')) {
-            const parts = rateStr.split('/');
-            const txBps = Number(parts[0]) || 0; // upload rate
-            const rxBps = Number(parts[1]) || 0; // download rate
-            const rateObj = { txBps, rxBps };
-
-            if (rawName) {
-              const lowerRaw = rawName.toLowerCase();
-              userRates.set(lowerRaw, rateObj);
-
-              // Bersihkan nama queue dari prefix MikroTik (contoh: <pppoe-MDE-0102> -> mde-0102)
-              const cleanName = rawName
-                .replace(/^[<>\-]*pppoe[<>\-]*|^[<>\-]*hotspot[<>\-]*|^[<>\-]*ppp[<>\-]*|[<>]/gi, '')
-                .trim()
-                .toLowerCase();
-
-              if (cleanName) {
-                userRates.set(cleanName, rateObj);
-              }
-            }
-            const target = String(q.target || '').replace(/\/32$/, '').trim();
-            if (target) {
-              userRates.set(target, rateObj);
-            }
-          }
-        }
-      }
-    } catch (qErr) {
-      logger.warn(`[MikroTik] Unable to fetch simple queues for live traffic (routerId=${routerId}): ${qErr.message}`);
+    const secretMenu = conn.client.menu('/ppp/secret');
+    const secrets = await secretMenu.where('name', normalizedUsername).get();
+    if (!secrets || secrets.length === 0) {
+      logger.warn(`[MikroTik] PPPoE secret for ${normalizedUsername} not found for quiet update`);
+      return false;
     }
 
-    return userRates;
+    const secret = secrets[0];
+    const secretId = secret['.id'] || secret.id;
+    if (!secretId) {
+      logger.warn(`[MikroTik] PPPoE secret ID missing for ${normalizedUsername}`);
+      return false;
+    }
+
+    const payload = {};
+    if (data.password !== undefined && data.password !== null && String(data.password).trim() !== '') {
+      payload.password = String(data.password).trim();
+    }
+    if (data.profile !== undefined && data.profile !== null && String(data.profile).trim() !== '') {
+      payload.profile = String(data.profile).trim();
+    }
+    if (data.remoteAddress !== undefined || data['remote-address'] !== undefined) {
+      const rAddr = data.remoteAddress !== undefined ? data.remoteAddress : data['remote-address'];
+      payload['remote-address'] = String(rAddr || '').trim();
+    }
+    if (data.comment !== undefined) {
+      payload.comment = String(data.comment || '');
+    }
+    if (data.disabled !== undefined) {
+      payload.disabled = data.disabled ? 'true' : 'false';
+    }
+
+    if (Object.keys(payload).length > 0) {
+      await secretMenu.set(payload, secretId);
+      listCache.delete(cacheKey(routerId, 'pppoeSecrets'));
+      logger.info(`[MikroTik] Successfully updated PPPoE secret for ${normalizedUsername} without disconnecting active session: ${JSON.stringify(payload)}`);
+    }
+
+    return true;
   } catch (e) {
-    logger.error(`Error fetching live active sessions traffic (routerId=${routerId}):`, e.message);
-    return new Map();
+    logger.warn(`[MikroTik] Failed to quietly update PPPoE secret for ${normalizedUsername}: ${e.message}`);
+    return false;
   } finally {
     if (conn && conn.api) {
       try { conn.api.close(); } catch {}
@@ -2129,6 +2028,7 @@ module.exports = {
   addPppoeSecret,
   createPppoeSecret,
   updatePppoeSecret,
+  updatePppoeSecretByName,
   deletePppoeSecret,
   getHotspotUsers,
   addHotspotUser,

@@ -1513,4 +1513,37 @@ Mengubah tampilan halaman login pelanggan [views/login.ejs](file:///d:/WEBAPP/my
   - Profil PPPoE Secret pelanggan di MikroTik diubah menjadi `isolir` secara otomatis saat status diset ke `suspended`.
   - Apabila profil `isolir` belum ada pada router MikroTik, sistem secara otomatis membuat profil `isolir` baru lengkap dengan script `on-up`/`on-down` penambahan IP ke `LIST_ISOLIR`.
   - Pilihan Profil Isolir pada Form Tambah/Edit Pelanggan dan PSB berhasil menampilkan seluruh opsi profil dari MikroTik dan mempertahankan nilai yang terpilih.
-  - RADIUS CoA Disconnect UDP port 3799 dan MikroTik API Kick dieksekusi secara real-time.ecara real-time.
+
+---
+
+## [2026-08-18] Proteksi Pemutusan Sesi PPPoE Saat Perubahan Data Pelanggan Non-Status
+
+### 1. Deskripsi Masalah & Analisis
+- **Permasalahan**: Setiap kali admin melakukan perubahan/edit data pelanggan yang sedang aktif (misalnya sekadar mengubah nomor telepon, alamat, koordinat lat/lng, ODP, catatan, atau tag ONU), koneksi PPPoE pelanggan langsung terputus (*kicked/disconnected*).
+- **Akar Masalah (*Root Cause*)**:
+  1. Pada handler `POST /customers/:id/update` di [`routes/adminPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/adminPortal.js), terdapat blok sinkronisasi yang secara *unconditional* memanggil `customerSvc.syncCustomerActivation(req.params.id)` setiap kali `req.body.status === 'active'`. Karena form edit pelanggan yang aktif selalu mengirimkan `status: 'active'`, pemanggilan ini selalu dieksekusi meskipun status pelanggan tidak mengalami perubahan.
+  2. `syncCustomerActivation` mengeksekusi RADIUS CoA Disconnect (`disconnectUserByUsername`), `setPppoeProfile` dengan `forceKick: true`, dan `kickPppoeUser`.
+  3. `customerService.js` belum memiliki fungsi quiet-update untuk sinkronisasi PPP secret di MikroTik tanpa melakukan *kick* sesi aktif saat status pelanggan tetap.
+  4. Perubahan ke status `inactive` (nonaktif) belum memiliki handler pemutusan koneksi yang rapi dan terisolasi.
+
+### 2. Solusi & Perubahan yang Diterapkan
+- **`services/mikrotikService.js`**:
+  - Menghapus blok kode duplikat fungsi router monitoring yang menyebabkan potensi konflik sintaks.
+  - Menambahkan fungsi baru `updatePppoeSecretByName(username, data, routerId)` yang memperbarui atribut PPP Secret (`password`, `profile`, `remote-address`, `disabled`) via `/ppp/secret/set` tanpa memutus/kick sesi aktif yang sedang berjalan.
+- **`services/customerService.js`**:
+  - Menyempurnakan `updateCustomer(id, data)` dengan membandingkan `oldStatus` dan `newStatus`. Pemutusan sesi aktif (*kick* / CoA Disconnect) **hanya dieksekusi jika dan hanya jika terjadi perubahan status nyata** (`active` $\leftrightarrow$ `suspended` $\leftrightarrow$ `inactive`).
+  - Apabila status **tidak berubah**, jika terdapat perubahan kredensial/profil PPPoE, sistem memperbarui PPP Secret di MikroTik secara *quiet* (`updatePppoeSecretByName`) tanpa memutus koneksi internet pelanggan yang sedang berlangsung.
+  - Menambahkan fungsi `syncCustomerInactivation(idOrCustomer)` untuk memutus sesi aktif PPPoE / Hotspot / Static IP dan menonaktifkan secret ketika status diubah menjadi `inactive`.
+- **`routes/adminPortal.js`**:
+  - Menghapus blok pemanggilan redundan `syncCustomerIsolation`/`syncCustomerActivation` pada handler `POST /customers/:id/update`, menyerahkan kontrol transisi status seutuhnya ke `customerService.updateCustomer`.
+- **`tests/customerUpdatePppoe.test.js`**:
+  - Menambahkan unit test komprehensif untuk memverifikasi bahwa update data non-status tidak memicu pemutusan koneksi PPPoE, serta memastikan transisi status `suspended`, `active`, dan `inactive` tetap memicu sinkronisasi yang sesuai.
+
+### 3. Hasil Pengujian
+- **Pengujian Unit (`npm test`)**: 10/10 Test Suites PASSED, 192/192 Tests PASSED.
+- **Validasi Alur Kerja**:
+  - Update data umum (nama, telepon, alamat, ODP, catatan): Sesi PPPoE aktif tetap terhubung tanpa gangguan.
+  - Update status ke `suspended`: Sesi aktif diputus dan dialihkan ke profil isolir.
+  - Update status ke `active`: Profil paket diterapkan dan sesi aktif diaktifkan kembali.
+  - Update status ke `inactive`: Sesi aktif diputus dan user dinonaktifkan.
+  - RADIUS CoA Disconnect UDP port 3799 dan MikroTik API Kick dieksekusi secara real-time.

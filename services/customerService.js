@@ -107,7 +107,7 @@ function createCustomer(data) {
 }
 
 function updateCustomer(id, data) {
-  const prev = db.prepare('SELECT status, package_id, pppoe_username, router_id, static_ip, isolir_profile, connection_type, hotspot_username FROM customers WHERE id=?').get(id);
+  const prev = db.prepare('SELECT status, package_id, pppoe_username, pppoe_password, pppoe_remote_address, router_id, static_ip, isolir_profile, connection_type, hotspot_username FROM customers WHERE id=?').get(id);
   const oldStatus = prev ? prev.status : null;
   const newStatus = data.status !== undefined ? data.status : (prev ? prev.status : 'active');
   const newPkgId = data.package_id ? parseInt(data.package_id, 10) : null;
@@ -151,14 +151,51 @@ function updateCustomer(id, data) {
     db.prepare('UPDATE customers SET promo_cycles_used = 0 WHERE id=?').run(id);
   }
 
-  // Trigger MikroTik / RADIUS sync jika terjadi perubahan status atau perubahan data pelanggan terisolir
-  if (oldStatus !== 'suspended' && newStatus === 'suspended') {
-    syncCustomerIsolation(id).catch(err => logger.error(`[updateCustomer] Auto sync isolation error for customer ${id}: ${err.message}`));
-  } else if (oldStatus === 'suspended' && newStatus === 'active') {
-    syncCustomerActivation(id).catch(err => logger.error(`[updateCustomer] Auto sync activation error for customer ${id}: ${err.message}`));
-  } else if (newStatus === 'suspended') {
-    if (prev && (prev.pppoe_username !== (data.pppoe_username || '') || prev.router_id !== (data.router_id ? parseInt(data.router_id) : null) || prev.static_ip !== (data.static_ip || '') || prev.isolir_profile !== (data.isolir_profile || 'isolir'))) {
-      syncCustomerIsolation(id).catch(err => logger.error(`[updateCustomer] Re-sync isolation error for customer ${id}: ${err.message}`));
+  // Trigger MikroTik / RADIUS sync jika dan HANYA JIKA terjadi perubahan status (active <-> suspended <-> inactive)
+  const isStatusChanged = oldStatus && oldStatus !== newStatus;
+
+  if (isStatusChanged) {
+    if (newStatus === 'suspended') {
+      syncCustomerIsolation(id).catch(err => logger.error(`[updateCustomer] Auto sync isolation error for customer ${id}: ${err.message}`));
+    } else if (newStatus === 'active') {
+      syncCustomerActivation(id).catch(err => logger.error(`[updateCustomer] Auto sync activation error for customer ${id}: ${err.message}`));
+    } else if (newStatus === 'inactive') {
+      syncCustomerInactivation(id).catch(err => logger.error(`[updateCustomer] Auto sync inactivation error for customer ${id}: ${err.message}`));
+    }
+  } else {
+    // STATUS TIDAK BERUBAH -> DILARANG MEMUTUS KONEKSI PPPOE!
+    // Jika ada perubahan password / remote address / profile pada PPP Secret di MikroTik,
+    // update data secret di MikroTik secara senyap (quiet) tanpa kick / disconnect session.
+    try {
+      const connType = data.connection_type || (prev ? prev.connection_type : 'pppoe');
+      const pppoeUser = String(data.pppoe_username || (prev ? prev.pppoe_username : '') || '').trim();
+      const rId = data.router_id !== undefined ? (data.router_id ? parseInt(data.router_id) : null) : (prev ? prev.router_id : null);
+      
+      if (connType === 'pppoe' && pppoeUser) {
+        const mikrotikSvc = require('./mikrotikService');
+        const secretPayload = {};
+        
+        if (data.pppoe_password !== undefined && String(data.pppoe_password).trim()) {
+          secretPayload.password = String(data.pppoe_password).trim();
+        }
+        if (data.pppoe_remote_address !== undefined) {
+          secretPayload.remoteAddress = String(data.pppoe_remote_address).trim();
+        }
+        if (pkgChanged && newPkgId) {
+          const pkg = getPackageById(newPkgId);
+          if (pkg && pkg.name && newStatus === 'active') {
+            secretPayload.profile = String(pkg.name).trim();
+          }
+        }
+        
+        if (Object.keys(secretPayload).length > 0) {
+          mikrotikSvc.updatePppoeSecretByName(pppoeUser, secretPayload, rId).catch(err => {
+            logger.warn(`[updateCustomer] Quiet secret sync error for customer ${id}: ${err.message}`);
+          });
+        }
+      }
+    } catch (quietErr) {
+      logger.warn(`[updateCustomer] Quiet secret update caught error: ${quietErr.message}`);
     }
   }
 
@@ -554,6 +591,60 @@ async function syncCustomerActivation(idOrCustomer) {
   return true;
 }
 
+async function syncCustomerInactivation(idOrCustomer) {
+  const customer = (typeof idOrCustomer === 'object' && idOrCustomer !== null)
+    ? idOrCustomer
+    : getCustomerById(idOrCustomer);
+
+  if (!customer) return false;
+
+  const mikrotikSvc = require('./mikrotikService');
+
+  if (customer.connection_type === 'static' && customer.static_ip) {
+    try {
+      await mikrotikSvc.manageStaticIp({
+        ip: customer.static_ip,
+        name: customer.name,
+        limit: '1k/1k',
+        isolate: true
+      }, customer.router_id);
+    } catch (e) {
+      logger.warn(`[syncCustomerInactivation] Static IP inactivation error: ${e.message}`);
+    }
+  } else if (customer.pppoe_username) {
+    // 1. Disconnect RADIUS session
+    try {
+      const radiusCoaService = require('./radiusCoaService');
+      await radiusCoaService.disconnectUserByUsername(customer.pppoe_username);
+    } catch (cErr) {
+      logger.warn(`[syncCustomerInactivation] RADIUS CoA Disconnect user ${customer.pppoe_username}: ${cErr.message}`);
+    }
+
+    // 2. Disable PPP Secret in MikroTik
+    try {
+      await mikrotikSvc.updatePppoeSecretByName(customer.pppoe_username, { disabled: true }, customer.router_id);
+    } catch (dErr) {
+      logger.warn(`[syncCustomerInactivation] updatePppoeSecretByName error: ${dErr.message}`);
+    }
+
+    // 3. Direct kick active session
+    try {
+      await mikrotikSvc.kickPppoeUser(customer.pppoe_username, customer.router_id);
+    } catch (kErr) {
+      logger.warn(`[syncCustomerInactivation] kickPppoeUser error: ${kErr.message}`);
+    }
+  } else if (customer.connection_type === 'hotspot' && customer.hotspot_username) {
+    try {
+      await mikrotikSvc.setHotspotUserDisabled(customer.hotspot_username, true, customer.router_id);
+      await mikrotikSvc.kickHotspotUser(customer.hotspot_username, customer.router_id);
+    } catch (hErr) {
+      logger.warn(`[syncCustomerInactivation] Hotspot inactivation error: ${hErr.message}`);
+    }
+  }
+
+  return true;
+}
+
 async function suspendCustomer(id) {
   const customer = getCustomerById(id);
   if (!customer) throw new Error('Pelanggan tidak ditemukan');
@@ -620,5 +711,5 @@ module.exports = {
   getAllCustomers, getCustomerById, createCustomer, updateCustomer, deleteCustomer, getCustomerStats,
   getAllPackages, getPackageById, createPackage, updatePackage, deletePackage,
   suspendCustomer, activateCustomer, findCustomerByAny, updateCustomerCablePath,
-  resetPromoCyclesUsed, syncCustomerIsolation, syncCustomerActivation
+  resetPromoCyclesUsed, syncCustomerIsolation, syncCustomerActivation, syncCustomerInactivation
 };
