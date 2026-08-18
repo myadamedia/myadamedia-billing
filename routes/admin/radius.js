@@ -206,6 +206,77 @@ function getActiveRouterIds() {
   return Array.from(routerIds);
 }
 
+// Helper untuk mendapatkan mapping pencarian pelanggan berkinerja tinggi (O(1) in-memory lookup)
+function getCustomerLookupHelper() {
+  const customerById = new Map();
+  const customerByFormattedId = new Map();
+  const customerByPppoe = new Map();
+  const customerByHotspot = new Map();
+  const customerByName = new Map();
+
+  try {
+    const customers = db.prepare(`
+      SELECT c.*, p.name as package_name, p.price as package_price 
+      FROM customers c 
+      LEFT JOIN packages p ON c.package_id = p.id
+    `).all();
+
+    customers.forEach(c => {
+      const cid = Number(c.id);
+      customerById.set(cid, c);
+
+      const formattedId = ('MDE-' + String(cid).padStart(4, '0')).toLowerCase();
+      const rawIdStr = ('MDE' + String(cid).padStart(4, '0')).toLowerCase();
+      customerByFormattedId.set(formattedId, c);
+      customerByFormattedId.set(rawIdStr, c);
+
+      if (c.pppoe_username) {
+        customerByPppoe.set(c.pppoe_username.toLowerCase().trim(), c);
+      }
+      if (c.hotspot_username) {
+        customerByHotspot.set(c.hotspot_username.toLowerCase().trim(), c);
+      }
+      if (c.name) {
+        customerByName.set(c.name.toLowerCase().trim(), c);
+      }
+    });
+  } catch (e) {
+    logger.error('Error building customer lookup helper for RADIUS:', e);
+  }
+
+  return function findCustomer(rawUsername) {
+    if (!rawUsername) return null;
+    const u = String(rawUsername).trim().toLowerCase();
+
+    // 1. Prioritas 1: Exact PPPoE username
+    if (customerByPppoe.has(u)) return customerByPppoe.get(u);
+
+    // 2. Prioritas 2: Exact Hotspot username
+    if (customerByHotspot.has(u)) return customerByHotspot.get(u);
+
+    // 3. Prioritas 3: Formatted ID (e.g. MDE-0048, MDE0048)
+    if (customerByFormattedId.has(u)) return customerByFormattedId.get(u);
+
+    // 4. Prioritas 4: Formatted pattern MDE-XXXX / MDE0048 -> ID number
+    const mdeMatch = u.match(/^mde-?0*(\d+)$/i);
+    if (mdeMatch) {
+      const idNum = parseInt(mdeMatch[1], 10);
+      if (customerById.has(idNum)) return customerById.get(idNum);
+    }
+
+    // 5. Prioritas 5: Exact Nama Pelanggan
+    if (customerByName.has(u)) return customerByName.get(u);
+
+    // 6. Prioritas 6: Angka ID murni
+    if (/^\d+$/.test(u)) {
+      const idNum = parseInt(u, 10);
+      if (customerById.has(idNum)) return customerById.get(idNum);
+    }
+
+    return null;
+  };
+}
+
 // ─── 2. MONITORING ACTIVE SESSIONS & LIVE ACCOUNTING ───
 router.get('/sessions', requireAdminSession, async (req, res) => {
   try {
@@ -216,6 +287,8 @@ router.get('/sessions', requireAdminSession, async (req, res) => {
       WHERE acctstoptime IS NULL
       ORDER BY radacctid DESC
     `).all();
+
+    const findCustomer = getCustomerLookupHelper();
 
     let totalInputOctets = 0;
     let totalOutputOctets = 0;
@@ -253,10 +326,17 @@ router.get('/sessions', requireAdminSession, async (req, res) => {
       totalLiveRxBps += rxBps;
       totalLiveTxBps += txBps;
 
+      // Hubungkan dengan profil pelanggan
+      const cust = findCustomer(s.username);
+
       return {
         ...s,
         rxBps,
-        txBps
+        txBps,
+        customer_id: cust ? cust.id : null,
+        customer_name: cust ? cust.name : null,
+        customer_formatted_id: cust ? ('MDE-' + String(cust.id).padStart(4, '0')) : null,
+        package_name: cust ? (cust.package_name || null) : null
       };
     });
 
@@ -286,6 +366,8 @@ router.get('/api/sessions', requireAdminSession, async (req, res) => {
       WHERE acctstoptime IS NULL
       ORDER BY radacctid DESC
     `).all();
+
+    const findCustomer = getCustomerLookupHelper();
 
     // 1. Dapatkan daftar seluruh MikroTik Router ID yang aktif (hanya query API jika live monitoring aktif)
     const isLive = req.query.live !== '0';
@@ -380,11 +462,18 @@ router.get('/api/sessions', requireAdminSession, async (req, res) => {
       totalLiveRxBps += rxBps;
       totalLiveTxBps += txBps;
 
+      // Hubungkan dengan profil pelanggan
+      const cust = findCustomer(s.username);
+
       return {
         ...s,
         rxBps,
         txBps,
-        trafficSource
+        trafficSource,
+        customer_id: cust ? cust.id : null,
+        customer_name: cust ? cust.name : null,
+        customer_formatted_id: cust ? ('MDE-' + String(cust.id).padStart(4, '0')) : null,
+        package_name: cust ? (cust.package_name || null) : null
       };
     });
 
@@ -410,16 +499,9 @@ router.get('/api/customer-detail', requireAdminSession, (req, res) => {
       return res.status(400).json({ success: false, error: 'Username wajib diisi' });
     }
 
-    // 1. Cari data pelanggan berdasarkan pppoe_username, hotspot_username, atau name
-    const customer = db.prepare(`
-      SELECT c.*, p.name as package_name, p.price as package_price
-      FROM customers c
-      LEFT JOIN packages p ON c.package_id = p.id
-      WHERE LOWER(c.pppoe_username) = LOWER(?)
-         OR LOWER(c.hotspot_username) = LOWER(?)
-         OR LOWER(c.name) = LOWER(?)
-      LIMIT 1
-    `).get(rawUsername, rawUsername, rawUsername);
+    // 1. Cari data pelanggan menggunakan helper pencocokan fleksibel
+    const findCustomer = getCustomerLookupHelper();
+    const customer = findCustomer(rawUsername);
 
     // 2. Ambil data sesi aktif RADIUS (jika sedang online)
     const activeSession = db.prepare(`

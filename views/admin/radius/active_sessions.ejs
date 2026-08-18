@@ -338,6 +338,7 @@
           <thead>
             <tr>
               <th>Username</th>
+              <th>Nama Pelanggan</th>
               <th>IP Address</th>
               <th>MAC Address (Calling-ID)</th>
               <th>NAS Router</th>
@@ -349,7 +350,7 @@
           <tbody id="sessionTableBody">
             <% if (!activeSessions || activeSessions.length === 0) { %>
               <tr>
-                <td colspan="7" class="text-center text-muted" style="padding: 24px;">
+                <td colspan="8" class="text-center text-muted" style="padding: 24px;">
                   <i class="bi bi-wifi-off fs-3 d-block mb-2"></i>
                   Belum ada sesi pelanggan PPPoE / Hotspot yang terhubung via RADIUS saat ini.
                 </td>
@@ -368,6 +369,18 @@
                       <i class="bi bi-person-badge text-info me-1"></i><strong><%= s.username %></strong>
                     </a>
                     <span class="badge bs" style="margin-left: 4px;">Online</span>
+                  </td>
+                  <td>
+                    <% if (s.customer_name) { %>
+                      <a href="javascript:void(0)" onclick="showCustomerDetail('<%= s.username %>')" style="color: #f8fafc; font-weight: 700; text-decoration: none;" title="Klik untuk detail pelanggan">
+                        <i class="bi bi-person-fill text-primary me-1"></i><%= s.customer_name %>
+                      </a>
+                      <% if (s.customer_formatted_id) { %>
+                        <span class="badge bm" style="font-size: 10px; margin-left: 4px; padding: 2px 6px;"><%= s.customer_formatted_id %></span>
+                      <% } %>
+                    <% } else { %>
+                      <span class="text-muted" style="font-size: 12px; font-style: italic;">Belum terdaftar</span>
+                    <% } %>
                   </td>
                   <td><code><%= s.framedipaddress || '-' %></code></td>
                   <td><small class="text-muted"><%= s.callingstationid || '-' %></small></td>
@@ -678,7 +691,7 @@ function renderUI() {
   if (activeSessionsData.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="7" class="text-center text-muted" style="padding: 24px;">
+        <td colspan="8" class="text-center text-muted" style="padding: 24px;">
           <i class="bi bi-wifi-off fs-3 d-block mb-2"></i>
           Belum ada sesi pelanggan PPPoE / Hotspot yang terhubung via RADIUS saat ini.
         </td>
@@ -688,6 +701,8 @@ function renderUI() {
 
   tbody.innerHTML = activeSessionsData.map(s => {
     const safeUsername = escapeHtml(s.username);
+    const safeCustomerName = s.customer_name ? escapeHtml(s.customer_name) : '';
+    const safeFormattedId = s.customer_formatted_id ? escapeHtml(s.customer_formatted_id) : '';
     const safeIp = escapeHtml(s.framedipaddress || '-');
     const safeMac = escapeHtml(s.callingstationid || '-');
     const safeNasIp = escapeHtml(s.nasipaddress || '-');
@@ -698,6 +713,12 @@ function renderUI() {
     const rxSpeedStr = formatSpeed(s.rxBps || 0);
     const txSpeedStr = formatSpeed(s.txBps || 0);
 
+    const customerCell = safeCustomerName
+      ? `<a href="javascript:void(0)" onclick="showCustomerDetail('${safeUsername}')" style="color: #f8fafc; font-weight: 700; text-decoration: none;" title="Klik untuk detail pelanggan">
+          <i class="bi bi-person-fill text-primary me-1"></i>${safeCustomerName}
+         </a>${safeFormattedId ? ` <span class="badge bm" style="font-size: 10px; margin-left: 4px; padding: 2px 6px;">${safeFormattedId}</span>` : ''}`
+      : `<span class="text-muted" style="font-size: 12px; font-style: italic;">Belum terdaftar</span>`;
+
     return `
       <tr>
         <td>
@@ -706,6 +727,7 @@ function renderUI() {
           </a>
           <span class="badge bs" style="margin-left: 4px;">Online</span>
         </td>
+        <td>${customerCell}</td>
         <td><code>${safeIp}</code></td>
         <td><small class="text-muted">${safeMac}</small></td>
         <td><code>${safeNasIp}</code></td>

@@ -2,6 +2,51 @@
 
 ---
 
+## [2026-08-18] Penambahan Kolom 'Nama Pelanggan' pada Tabel Pengguna Terhubung Real-Time (Sesi RADIUS)
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pada menu **Monitoring Sesi Aktif RADIUS** (`/admin/radius/sessions`), tabel *Pengguna Terhubung Real-time* sebelumnya hanya menampilkan kolom `USERNAME`, `IP ADDRESS`, `MAC ADDRESS (CALLING-ID)`, `NAS ROUTER`, `WAKTU MULAI`, `UPLOAD / DOWNLOAD`, dan `AKSI (COA)`. Administrator kesulitan mengetahui secara langsung siapa nama pelanggan pemilik sesi aktif tanpa harus mengklik username atau membuka modal profil satu per satu.
+
+### 2. Penyebab & Analisis Teknis
+1. **Pemisahan Entitas Sesi Accounting dan Basis Data Pelanggan**: Sesi aktif disimpan di tabel accounting RADIUS (`radius_acct`) dengan kolom `username`, sementara detail profil pelanggan berada di tabel `customers`.
+2. **Variasi Pola Format Username**:
+   - Di lapangan, username sesi RADIUS dapat berupa format ID terstruktur (`MDE-0048`, `MDE-0110`), format username PPPoE kustom (`MDE0064_Alpiah`, `MDE0010_Arianto`), username Hotspot, atau nomor ID murni.
+   - Diperlukan mekanisme pencocokan fleksibel dengan prioritas bertingkat dan performa $O(1)$ in-memory lookup agar tidak membebani query database saat auto-refresh polling 3 detik.
+
+### 3. Solusi & Implementasi Teknis
+- **`routes/admin/radius.js`**:
+  - Mengimplementasikan helper berkinerja tinggi `getCustomerLookupHelper()` yang membangun in-memory Map terindeks:
+    1. *Exact PPPoE Username* (`customerByPppoe`).
+    2. *Exact Hotspot Username* (`customerByHotspot`).
+    3. *Formatted ID* (`customerByFormattedId`, misal `mde-0048` / `mde0048`).
+    4. *Regex ID Extraction* (Pola `MDE-XXXX` / `MDE-48` $\rightarrow$ ID 48).
+    5. *Exact Nama Pelanggan* (`customerByName`).
+    6. *Numeric ID* (Murni integer ID).
+  - Mengintegrasikan hasil pencarian ke dalam:
+    - Route `GET /admin/radius/sessions` (Server-Side Rendering awal).
+    - Route `GET /admin/radius/api/sessions` (JSON endpoint live polling 3 detik).
+    - Route `GET /admin/radius/api/customer-detail` (Modal interaktif profil pelanggan).
+- **`views/admin/radius/active_sessions.ejs`**:
+  - Menambahkan kolom header `<th>Nama Pelanggan</th>` tepat di samping kolom `<th>Username</th>`.
+  - Merender nama pelanggan dengan tautan interaktif modal profil, ikon profil `<i class="bi bi-person-fill text-primary"></i>`, dan badge kode ID `(MDE-xxxx)`.
+  - Menyediakan penanganan *graceful fallback* (`<span class="text-muted fst-italic">Belum terdaftar</span>`) jika sesi terhubung belum terdaftar di tabel pelanggan.
+  - Memperbarui fungsi JavaScript `renderUI()` untuk auto-refresh real-time dan menyesuaikan `colspan="8"` pada pesan baris kosong.
+- **`tests/radiusCustomerSession.test.js`**:
+  - Menambahkan unit testing otomatis untuk memvalidasi akurasi pencocokan berbagai varian username (PPPoE, Hotspot, Formatted ID, Numeric ID, dan non-existent fallback).
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`routes/admin/radius.js`](file:///d:/WEBAPP/myadamedia-billing/routes/admin/radius.js): Penambahan `getCustomerLookupHelper()` dan integrasi pengayaan data sesi.
+- `[MODIFY]` [`views/admin/radius/active_sessions.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/radius/active_sessions.ejs): Penambahan kolom tabel Nama Pelanggan pada EJS markup dan client-side `renderUI()`.
+- `[NEW]` [`tests/radiusCustomerSession.test.js`](file:///d:/WEBAPP/myadamedia-billing/tests/radiusCustomerSession.test.js): Unit test suite pengujian pencocokan data pelanggan sesi RADIUS.
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md): Pencatatan dokumentasi perubahan sistem.
+
+### 5. Hasil Pengujian & Verifikasi
+- **Unit Test Baru (`tests/radiusCustomerSession.test.js`)**: 5 dari 5 test **PASSED** (100%).
+- **Full Test Suite (`tests/`)**: Seluruh 12 test suites dan 200 tests **PASSED** (100%).
+- **EJS Template Compilation & Syntax**: **PASSED** (0 Error).
+
+---
+
 ## [2026-08-16] Penyempurnaan Skrip MikroTik: Hairpin SRC-NAT (Masquerade), DNS Input Rule, & Dynamic IP/Port Generator
 
 ### 1. Deskripsi Permasalahan
