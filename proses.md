@@ -1547,3 +1547,32 @@ Mengubah tampilan halaman login pelanggan [views/login.ejs](file:///d:/WEBAPP/my
   - Update status ke `active`: Profil paket diterapkan dan sesi aktif diaktifkan kembali.
   - Update status ke `inactive`: Sesi aktif diputus dan user dinonaktifkan.
   - RADIUS CoA Disconnect UDP port 3799 dan MikroTik API Kick dieksekusi secara real-time.
+
+---
+
+## [2026-08-18] Penambahan Fitur Kartu Metrik "Pelanggan Free" pada Dashboard Investor
+
+### 1. Deskripsi & Kebutuhan Fitur
+- **Kebutuhan**: Menambahkan kartu metrik ringkasan **"Pelanggan Free"** pada Dashboard Investor ([`investor/views/dashboard.ejs`](file:///d:/WEBAPP/myadamedia-billing/investor/views/dashboard.ejs)) dengan format visual yang serupa dengan kartu "Pelanggan Aktif" (ikon, rasio terhadap total pelanggan, dan badge penambahan PSB baru bulan berjalan).
+- **Kriteria Sumber Data**:
+  - Data dihitung dari pelanggan aktif yang terhubung dengan paket/profil berstatus Free:
+    - Nama paket mengandung kata `free` atau `gratis` (case-insensitive), ATAU
+    - Harga paket $\le$ 0 (Rp 0), ATAU
+    - Status pelanggan bernilai `free`.
+  - Menghitung jumlah Pasang Baru (PSB) Pelanggan Free yang terdaftar pada bulan berjalan (`freePsbThisMonth`).
+
+### 2. Modul & File yang Diperbarui
+- **`investor/services/investorService.js`**:
+  - Memperbarui fungsi `getExecutiveSummary(period)` untuk menghitung `freeCustomers` dan `freePsbThisMonth`, serta memastikan pelanggan gratis dikecualikan dari `activeCustomers` (pelanggan berbayar).
+  - Menyempurnakan helper `isFreeCust` pada `getMapData` untuk mencakup paket gratis/free dengan harga Rp 0.
+- **`investor/views/dashboard.ejs`**:
+  - Menambahkan komponen kartu KPI **Pelanggan Free** pada grid metrik eksekutif.
+  - Menambahkan chip statistik `Pelanggan Free` pada bar ringkasan statistik peta jaringan interaktif.
+- **`tests/investorService.test.js`**:
+  - Membuat unit test suite untuk menguji agregasi metrik eksekutif `freeCustomers`, `freePsbThisMonth`, serta statistik peta.
+
+### 3. Hasil Pengujian
+- **Pengujian Unit (`npm test`)**: 11/11 Test Suites PASSED, 195/195 Tests PASSED.
+- **Tampilan Dashboard**:
+  - Kartu "Pelanggan Free" tampil rapi dan responsif dengan format `X / Total` dan badge `+N PSB Pelanggan baru bulan ini`.
+

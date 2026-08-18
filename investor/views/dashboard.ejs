@@ -658,6 +658,19 @@
         </div>
       </div>
 
+      <!-- Pelanggan Free -->
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-title">Pelanggan Free</span>
+          <div class="kpi-icon yellow"><i class="bi bi-gift-fill"></i></div>
+        </div>
+        <div class="kpi-value"><%= summary.freeCustomers %> <span style="font-size:16px;color:var(--text-muted);font-weight:400">/ <%= summary.totalCustomers %></span></div>
+        <div class="kpi-footer">
+          <span class="badge-tag purple">+<%= summary.freePsbThisMonth %> PSB</span>
+          <span>Pelanggan baru bulan ini</span>
+        </div>
+      </div>
+
     </div>
 
     <!-- Analytics Charts Section -->
@@ -712,6 +725,10 @@
           <div class="map-stat-chip">
             <span class="lbl">Aktif</span>
             <span class="val" id="st-active" style="color: #10b981;">0</span>
+          </div>
+          <div class="map-stat-chip">
+            <span class="lbl">Pelanggan Free</span>
+            <span class="val" id="st-free" style="color: #a855f7;">0</span>
           </div>
           <div class="map-stat-chip">
             <span class="lbl">Terisolir / Suspended</span>
@@ -949,6 +966,7 @@
                 document.getElementById('st-odp').textContent = data.stats.totalOdps || 0;
                 document.getElementById('st-cust').textContent = data.stats.totalMappedCustomers || 0;
                 document.getElementById('st-active').textContent = data.stats.activeCustomers || 0;
+                if (document.getElementById('st-free')) document.getElementById('st-free').textContent = data.stats.freeCustomers || 0;
                 document.getElementById('st-suspended').textContent = data.stats.suspendedCustomers || 0;
               }
 

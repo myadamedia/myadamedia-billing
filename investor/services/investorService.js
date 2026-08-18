@@ -114,7 +114,7 @@ function getExecutiveSummary(period = 'this_month') {
     `).get();
     const mrr = mrrRow ? mrrRow.mrr : 0;
 
-    // 6. Demografi & Status Pelanggan (Pelanggan Berbayar Aktif)
+    // 6. Demografi & Status Pelanggan (Pelanggan Berbayar Aktif & Pelanggan Free)
     const totalCust = db.prepare(`SELECT COUNT(*) as total FROM customers`).get().total;
     const activeCustRow = db.prepare(`
       SELECT COUNT(c.id) as total 
@@ -122,18 +122,45 @@ function getExecutiveSummary(period = 'this_month') {
       LEFT JOIN packages p ON c.package_id = p.id
       WHERE c.status = 'active'
         AND LOWER(c.status) != 'free'
-        AND (p.name IS NULL OR LOWER(p.name) NOT LIKE '%free%')
+        AND (p.name IS NULL OR (LOWER(p.name) NOT LIKE '%free%' AND LOWER(p.name) NOT LIKE '%gratis%'))
         AND (p.price IS NULL OR p.price > 0)
     `).get();
     const activeCust = activeCustRow ? activeCustRow.total : 0;
     const isolatedCust = db.prepare(`SELECT COUNT(*) as total FROM customers WHERE status IN ('isolated', 'suspended')`).get().total;
+
+    // Pelanggan Free (Paket Free / Gratis / Harga Rp 0 / Status Free)
+    const freeCustRow = db.prepare(`
+      SELECT COUNT(c.id) as total 
+      FROM customers c
+      LEFT JOIN packages p ON c.package_id = p.id
+      WHERE (c.status = 'active' OR LOWER(c.status) = 'free')
+        AND (
+          LOWER(c.status) = 'free'
+          OR LOWER(COALESCE(p.name, '')) LIKE '%free%'
+          OR LOWER(COALESCE(p.name, '')) LIKE '%gratis%'
+          OR (p.price IS NOT NULL AND p.price <= 0)
+        )
+    `).get();
+    const freeCust = freeCustRow ? freeCustRow.total : 0;
     
-    // Pasang Baru (PSB) Bulan Ini
+    // Pasang Baru (PSB) Bulan Ini (Total & Free)
     const nowY = new Date().getFullYear();
     const nowM = String(new Date().getMonth() + 1).padStart(2, '0');
     const psbThisMonth = db.prepare(`
       SELECT COUNT(*) as total FROM customers 
       WHERE strftime('%Y-%m', created_at) = ?
+    `).get(`${nowY}-${nowM}`).total;
+
+    const freePsbThisMonth = db.prepare(`
+      SELECT COUNT(c.id) as total FROM customers c
+      LEFT JOIN packages p ON c.package_id = p.id
+      WHERE strftime('%Y-%m', c.created_at) = ?
+        AND (
+          LOWER(c.status) = 'free'
+          OR LOWER(COALESCE(p.name, '')) LIKE '%free%'
+          OR LOWER(COALESCE(p.name, '')) LIKE '%gratis%'
+          OR (p.price IS NOT NULL AND p.price <= 0)
+        )
     `).get(`${nowY}-${nowM}`).total;
 
     // 7. Average Revenue Per User (ARPU)
@@ -149,8 +176,10 @@ function getExecutiveSummary(period = 'this_month') {
       arpu,
       totalCustomers: totalCust,
       activeCustomers: activeCust,
+      freeCustomers: freeCust,
       isolatedCustomers: isolatedCust,
       psbThisMonth,
+      freePsbThisMonth,
       formattedRevenue: formatRp(grossRevenue),
       formattedExpenses: formatRp(totalExpenses),
       formattedNetProfit: formatRp(netProfit),
@@ -477,7 +506,8 @@ function getMapData() {
 
     const isFreeCust = (c) => (c.status && String(c.status).toLowerCase() === 'free') || 
                              (c.package_name && String(c.package_name).toLowerCase().includes('free')) || 
-                             (c.package_price !== undefined && Number(c.package_price) === 0 && c.package_name);
+                             (c.package_name && String(c.package_name).toLowerCase().includes('gratis')) || 
+                             (c.package_price !== undefined && Number(c.package_price) <= 0 && c.package_name);
 
     const totalOdps = validOdps.length;
     const totalMappedCustomers = validCustomers.length;
