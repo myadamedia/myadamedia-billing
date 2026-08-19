@@ -188,6 +188,19 @@
       text-decoration: underline;
     }
 
+    .customer-name-link {
+      color: var(--text, #e6edf3);
+      text-decoration: none;
+      font-weight: 700;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+    }
+    .customer-name-link:hover {
+      color: #38bdf8;
+      text-decoration: underline;
+    }
+
     /* Custom Modal Overlay & Box Styling */
     .mo {
       display: none;
@@ -372,7 +385,7 @@
                   </td>
                   <td>
                     <% if (s.customer_name) { %>
-                      <a href="javascript:void(0)" onclick="showCustomerDetail('<%= s.username %>')" style="color: #f8fafc; font-weight: 700; text-decoration: none;" title="Klik untuk detail pelanggan">
+                      <a href="javascript:void(0)" onclick="showCustomerDetail('<%= s.username %>')" class="customer-name-link" title="Klik untuk detail profil pelanggan">
                         <i class="bi bi-person-fill text-primary me-1"></i><%= s.customer_name %>
                       </a>
                       <% if (s.customer_formatted_id) { %>
@@ -714,7 +727,7 @@ function renderUI() {
     const txSpeedStr = formatSpeed(s.txBps || 0);
 
     const customerCell = safeCustomerName
-      ? `<a href="javascript:void(0)" onclick="showCustomerDetail('${safeUsername}')" style="color: #f8fafc; font-weight: 700; text-decoration: none;" title="Klik untuk detail pelanggan">
+      ? `<a href="javascript:void(0)" onclick="showCustomerDetail('${safeUsername}')" class="customer-name-link" title="Klik untuk detail profil pelanggan">
           <i class="bi bi-person-fill text-primary me-1"></i>${safeCustomerName}
          </a>${safeFormattedId ? ` <span class="badge bm" style="font-size: 10px; margin-left: 4px; padding: 2px 6px;">${safeFormattedId}</span>` : ''}`
       : `<span class="text-muted" style="font-size: 12px; font-style: italic;">Belum terdaftar</span>`;

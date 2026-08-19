@@ -2,6 +2,56 @@
 
 ---
 
+## [2026-08-19] Perbaikan Pencocokan Nama Pelanggan (Nama Lengkap) & Styling Kontras Kolom pada Sesi Aktif RADIUS
+
+### 1. Deskripsi Permasalahan
+Pada tabel **Pengguna Terhubung Real-time** di halaman Monitoring Sesi RADIUS (`/admin/radius/sessions`), kolom **Nama Pelanggan** menampilkan nama yang salah (misal sesi `MDE-0048` memunculkan nama `MARTIN` dengan badge `MDE-0048`, padahal pelanggan sebenarnya di database adalah `ZULMI` dengan PPPoE username `MDE0048_Zul` / ID 86). Selain itu, teks nama pelanggan pada mode tampilan tema terang (*light mode*) terlihat pudar/hampir putih tidak terbaca.
+
+### 2. Penyebab Utama (Root Cause)
+1. **False Match pada Database Primary Key ID**:
+   - Helper pencocokan `getCustomerLookupHelper()` sebelumnya langsung memetakan angka dari format `MDE-XXXX` atau `MDE-48` ke kolom `customers.id` (primary key).
+   - Di basis data ISP MyAdamedia, kode pelanggan `MDE0048` pada username PPPoE (`MDE0048_Zul`) berbeda dengan `customers.id` (ID auto-increment 86), sedangkan `customers.id = 48` adalah pelanggan lain bernama `MARTIN` dengan username `MDE0078_Martin`.
+   - Akibatnya, sesi `MDE-0048` keliru dipetakan ke pelanggan `MARTIN` (ID 48) alih-alih `ZULMI` (ID 86).
+2. **Hardcoded Text Color pada EJS & Client-Side Script**:
+   - Tag tautan nama pelanggan di-hardcode dengan `style="color: #f8fafc;"`, yang menyebabkan teks nama berwarna putih di atas latar tabel terang.
+
+### 3. Solusi & Implementasi Teknis
+- **`routes/admin/radius.js`**:
+  - Menyempurnakan `getCustomerLookupHelper()` dengan **Multi-Tier Resolution**:
+    1. *Tier 1*: Exact match `pppoe_username` (e.g. `MDE0048_Zul`).
+    2. *Tier 2*: MDE Code & Prefix Matching dari `pppoe_username` dan `genieacs_tag` (`MDE-0048`, `MDE0048`, `0048`, `MyAdamedia_0041` $\rightarrow$ memetakan secara presisi ke pelanggan dengan username `MDE0048_Zul`).
+    3. *Tier 3*: Exact match `hotspot_username`.
+    4. *Tier 4*: Exact match `genieacs_tag`.
+    5. *Tier 5*: Exact match `phone`.
+    6. *Tier 6*: Exact match `name` (Nama Lengkap).
+    7. *Tier 7 (Fallback)*: Formatted ID berdasarkan `customer.id` (`MDE-0086` $\rightarrow$ ID 86).
+    8. *Tier 8 (Fallback)*: Pure integer ID.
+- **`services/radiusService.js`**:
+  - Menambahkan fallback pencarian akun pelanggan PPPoE saat autentikasi UDP port 1812 agar format `MDE-0048` / `MDE0048` tetap dapat diautentikasi jika username di database tersimpan sebagai `MDE0048_Zul`.
+- **`views/admin/radius/active_sessions.ejs`**:
+  - Menambahkan kelas CSS `.customer-name-link` yang adaptif terhadap mode terang/gelap (`color: var(--text, #e6edf3); font-weight: 700;`).
+  - Menerapkan `.customer-name-link` pada render server-side EJS dan client-side dynamic polling `renderUI()`.
+- **`tests/radiusCustomerSession.test.js`**:
+  - Menambahkan unit testing untuk memverifikasi akurasi pencocokan variasi kode MDE (`MDE-0888`, `MDE0888`, `MDE0888_Budi`).
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`routes/admin/radius.js`](file:///d:/WEBAPP/myadamedia-billing/routes/admin/radius.js): Algoritma multi-tier customer lookup.
+- `[MODIFY]` [`services/radiusService.js`](file:///d:/WEBAPP/myadamedia-billing/services/radiusService.js): Fleksibilitas pencarian akun PPPoE saat Access-Request.
+- `[MODIFY]` [`views/admin/radius/active_sessions.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/radius/active_sessions.ejs): Kelas CSS dan markup nama pelanggan kontras tinggi.
+- `[MODIFY]` [`tests/radiusCustomerSession.test.js`](file:///d:/WEBAPP/myadamedia-billing/tests/radiusCustomerSession.test.js): Pengujian unit test varian kode MDE.
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md): Pencatatan dokumentasi sistem.
+
+### 5. Hasil Pengujian & Verifikasi
+- **Unit Test Suite (`tests/radiusCustomerSession.test.js`)**: 6 dari 6 test **PASSED** (100%).
+- **Verifikasi Data Riil SQLite**:
+  - `MDE-0048` $\rightarrow$ **ZULMI** (ID 86, `MDE0048_Zul`) [Valid & Akurat]
+  - `MDE-0078` $\rightarrow$ **MARTIN** (ID 48, `MDE0078_Martin`) [Valid & Akurat]
+  - `MDE-0001` $\rightarrow$ **DONI RISWANDI** (ID 28, `MDE0001`) [Valid & Akurat]
+  - `MDE-0056` $\rightarrow$ **ABDUL GOFUR** (ID 7, `MDE0056_Gopur`) [Valid & Akurat]
+  - `MDE-0068` $\rightarrow$ **MARWAN / IYOY** (ID 49, `MDE0068_Iyoy`) [Valid & Akurat]
+
+---
+
 ## [2026-08-18] Penambahan Kolom 'Nama Pelanggan' pada Tabel Pengguna Terhubung Real-Time (Sesi RADIUS)
 
 ### 1. Deskripsi Permasalahan & Kebutuhan

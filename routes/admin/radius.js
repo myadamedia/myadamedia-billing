@@ -211,8 +211,19 @@ function getCustomerLookupHelper() {
   const customerById = new Map();
   const customerByFormattedId = new Map();
   const customerByPppoe = new Map();
+  const customerByPppoeCode = new Map();
   const customerByHotspot = new Map();
+  const customerByGenieAcs = new Map();
+  const customerByPhone = new Map();
   const customerByName = new Map();
+
+  function extractMdeCode(str) {
+    if (!str) return null;
+    const s = String(str).trim().toLowerCase();
+    const m = s.match(/(?:mde|myadamedia)[-_]?0*(\d+)/i);
+    if (m) return parseInt(m[1], 10);
+    return null;
+  }
 
   try {
     const customers = db.prepare(`
@@ -225,16 +236,41 @@ function getCustomerLookupHelper() {
       const cid = Number(c.id);
       customerById.set(cid, c);
 
-      const formattedId = ('MDE-' + String(cid).padStart(4, '0')).toLowerCase();
-      const rawIdStr = ('MDE' + String(cid).padStart(4, '0')).toLowerCase();
+      const formattedId = ('mde-' + String(cid).padStart(4, '0'));
+      const rawIdStr = ('mde' + String(cid).padStart(4, '0'));
       customerByFormattedId.set(formattedId, c);
       customerByFormattedId.set(rawIdStr, c);
 
       if (c.pppoe_username) {
-        customerByPppoe.set(c.pppoe_username.toLowerCase().trim(), c);
+        const u = c.pppoe_username.toLowerCase().trim();
+        customerByPppoe.set(u, c);
+        const code = extractMdeCode(u);
+        if (code !== null) {
+          customerByPppoeCode.set(code, c);
+          customerByPppoeCode.set('mde' + code, c);
+          customerByPppoeCode.set('mde-' + code, c);
+          customerByPppoeCode.set('mde' + String(code).padStart(4, '0'), c);
+          customerByPppoeCode.set('mde-' + String(code).padStart(4, '0'), c);
+        }
       }
       if (c.hotspot_username) {
         customerByHotspot.set(c.hotspot_username.toLowerCase().trim(), c);
+      }
+      if (c.genieacs_tag) {
+        const tag = c.genieacs_tag.toLowerCase().trim();
+        customerByGenieAcs.set(tag, c);
+        const code = extractMdeCode(tag);
+        if (code !== null && !customerByPppoeCode.has(code)) {
+          customerByPppoeCode.set(code, c);
+          customerByPppoeCode.set('mde' + code, c);
+          customerByPppoeCode.set('mde-' + code, c);
+          customerByPppoeCode.set('mde' + String(code).padStart(4, '0'), c);
+          customerByPppoeCode.set('mde-' + String(code).padStart(4, '0'), c);
+        }
+      }
+      if (c.phone) {
+        const phone = String(c.phone).trim();
+        if (phone) customerByPhone.set(phone, c);
       }
       if (c.name) {
         customerByName.set(c.name.toLowerCase().trim(), c);
@@ -248,26 +284,30 @@ function getCustomerLookupHelper() {
     if (!rawUsername) return null;
     const u = String(rawUsername).trim().toLowerCase();
 
-    // 1. Prioritas 1: Exact PPPoE username
+    // 1. Prioritas 1: Exact PPPoE username (misal 'MDE0048_Zul')
     if (customerByPppoe.has(u)) return customerByPppoe.get(u);
 
-    // 2. Prioritas 2: Exact Hotspot username
+    // 2. Prioritas 2: PPPoE / Tag Code mapping (misal 'MDE-0048', 'MDE0048', '0048' -> cocokkan ke 'MDE0048_Zul')
+    if (customerByPppoeCode.has(u)) return customerByPppoeCode.get(u);
+    const code = extractMdeCode(u);
+    if (code !== null && customerByPppoeCode.has(code)) return customerByPppoeCode.get(code);
+
+    // 3. Prioritas 3: Exact Hotspot username
     if (customerByHotspot.has(u)) return customerByHotspot.get(u);
 
-    // 3. Prioritas 3: Formatted ID (e.g. MDE-0048, MDE0048)
-    if (customerByFormattedId.has(u)) return customerByFormattedId.get(u);
+    // 4. Prioritas 4: Exact GenieACS tag
+    if (customerByGenieAcs.has(u)) return customerByGenieAcs.get(u);
 
-    // 4. Prioritas 4: Formatted pattern MDE-XXXX / MDE0048 -> ID number
-    const mdeMatch = u.match(/^mde-?0*(\d+)$/i);
-    if (mdeMatch) {
-      const idNum = parseInt(mdeMatch[1], 10);
-      if (customerById.has(idNum)) return customerById.get(idNum);
-    }
+    // 5. Prioritas 5: Exact Phone
+    if (customerByPhone.has(u)) return customerByPhone.get(u);
 
-    // 5. Prioritas 5: Exact Nama Pelanggan
+    // 6. Prioritas 6: Exact Nama Pelanggan
     if (customerByName.has(u)) return customerByName.get(u);
 
-    // 6. Prioritas 6: Angka ID murni
+    // 7. Prioritas 7: Formatted ID DB fallback (misal 'MDE-0086' -> id 86)
+    if (customerByFormattedId.has(u)) return customerByFormattedId.get(u);
+
+    // 8. Prioritas 8: Angka ID murni DB
     if (/^\d+$/.test(u)) {
       const idNum = parseInt(u, 10);
       if (customerById.has(idNum)) return customerById.get(idNum);

@@ -205,7 +205,7 @@ function handleAuthPacket(msg, rinfo) {
     // 3. Cek Autentikasi Pengguna di Database
 
     // --- A. Cek Pelanggan PPPoE ---
-    const customer = db.prepare(`
+    let customer = db.prepare(`
       SELECT c.*, p.name as package_name, p.speed_down, p.speed_up, p.mikrotik_rate_limit
       FROM customers c
       LEFT JOIN packages p ON c.package_id = p.id
@@ -213,6 +213,24 @@ function handleAuthPacket(msg, rinfo) {
          OR c.phone = ? OR LOWER(c.name) = LOWER(?)
       LIMIT 1
     `).get(username, cleanUsername, username, username);
+
+    // Fallback: Jika username berupa kode seperti MDE-0048 / MDE0048, cari pelanggan dengan username MDE0048_... atau genieacs_tag
+    if (!customer) {
+      const m = cleanUsername.match(/(?:mde|myadamedia)[-_]?0*(\d+)/i);
+      if (m) {
+        const num = parseInt(m[1], 10);
+        const pad4 = String(num).padStart(4, '0');
+        customer = db.prepare(`
+          SELECT c.*, p.name as package_name, p.speed_down, p.speed_up, p.mikrotik_rate_limit
+          FROM customers c
+          LEFT JOIN packages p ON c.package_id = p.id
+          WHERE c.pppoe_username LIKE ? OR c.pppoe_username LIKE ? OR c.pppoe_username LIKE ?
+             OR c.genieacs_tag LIKE ? OR c.genieacs_tag LIKE ?
+             OR c.id = ?
+          LIMIT 1
+        `).get(`MDE${pad4}%`, `MDE-${pad4}%`, `MyAdamedia_${pad4}%`, `MDE${pad4}%`, `MDE-${pad4}%`, num);
+      }
+    }
 
     if (customer) {
       const expectedPassword = String(customer.pppoe_password || '').trim();
