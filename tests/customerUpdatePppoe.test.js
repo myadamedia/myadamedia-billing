@@ -64,7 +64,9 @@ describe('Customer Update PPPoE Disconnect Isolation Tests', () => {
     expect(coaSpy).not.toHaveBeenCalled();
   });
 
-  test('Changing status to suspended SHOULD trigger syncCustomerIsolation', async () => {
+  test('Changing status to suspended SHOULD trigger syncCustomerIsolation and notifyCustomerIsolated', async () => {
+    const NotificationService = require('../services/notificationService');
+    const notifSpy = jest.spyOn(NotificationService, 'notifyCustomerIsolated').mockResolvedValue(true);
     const kickSpy = jest.spyOn(mikrotikSvc, 'kickPppoeUser').mockResolvedValue(true);
     const profileSpy = jest.spyOn(mikrotikSvc, 'setPppoeProfile').mockResolvedValue(true);
     const hookSpy = jest.spyOn(mikrotikSvc, 'ensurePppProfileIsolirAddressListHook').mockResolvedValue(true);
@@ -84,6 +86,7 @@ describe('Customer Update PPPoE Disconnect Isolation Tests', () => {
     expect(profileSpy).toHaveBeenCalled();
     expect(kickSpy).toHaveBeenCalled();
     expect(coaSpy).toHaveBeenCalledWith('test_pppoe_user_1');
+    expect(notifSpy).toHaveBeenCalledWith(testCustomerId);
   });
 
   test('Changing status from suspended to active SHOULD trigger syncCustomerActivation', async () => {

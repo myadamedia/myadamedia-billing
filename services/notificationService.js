@@ -309,6 +309,114 @@ class NotificationService {
       }
     }
   }
+
+  /**
+   * Kirim notifikasi pemberitahuan isolir ke pelanggan via WhatsApp
+   * @param {number|string|object} customerOrId - Objek pelanggan atau ID pelanggan
+   * @param {object} [options]
+   * @param {boolean} [options.force=false] - Paksa kirim meskipun send_isolir_reminder === 0
+   * @returns {Promise<boolean>}
+   */
+  static async notifyCustomerIsolated(customerOrId, options = {}) {
+    const { force = false } = options;
+    const settings = getSettings();
+
+    if (!settings.whatsapp_enabled) {
+      return false;
+    }
+
+    try {
+      const db = require('../config/database');
+      let customer = (typeof customerOrId === 'object' && customerOrId !== null)
+        ? customerOrId
+        : null;
+
+      if (!customer && customerOrId) {
+        const customerSvc = require('./customerService');
+        customer = customerSvc.getCustomerById(customerOrId);
+      }
+
+      if (!customer) {
+        logger.warn(`[NotificationService] notifyCustomerIsolated: Data pelanggan tidak ditemukan (${JSON.stringify(customerOrId)})`);
+        return false;
+      }
+
+      // Cek preferensi opt-in pelanggan kecuali force = true
+      if (!force && customer.send_isolir_reminder === 0) {
+        logger.info(`[NotificationService] Dilewati: Pelanggan ${customer.name} (ID: ${customer.id}) menonaktifkan pengingat isolir WA.`);
+        return false;
+      }
+
+      const digits = normalizeWaDigits(customer.phone);
+      if (!digits) {
+        logger.warn(`[NotificationService] notifyCustomerIsolated: Nomor HP tidak valid/kosong untuk pelanggan ${customer.name} (ID: ${customer.id})`);
+        return false;
+      }
+
+      // Deduplikasi pencegahan spam (window 30 detik)
+      const dedupKey = `customer:isolir:${customer.id}:${digits}`;
+      if (!shouldSendWa(dedupKey, 30000)) {
+        logger.info(`[NotificationService] notifyCustomerIsolated: Pengiriman diabaikan karena duplikasi window waktu untuk ${digits}`);
+        return false;
+      }
+
+      const { sendWA } = await import('./whatsappBot.mjs');
+
+      // Ambil tagihan yang belum lunas & hitung totalnya
+      const billingSvc = require('./billingService');
+      const unpaidInvoices = (billingSvc && typeof billingSvc.getUnpaidInvoicesByCustomerId === 'function')
+        ? billingSvc.getUnpaidInvoicesByCustomerId(customer.id)
+        : [];
+      const totalTagihan = Array.isArray(unpaidInvoices)
+        ? unpaidInvoices.reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0)
+        : 0;
+      const invoiceAmountToDisplay = totalTagihan > 0
+        ? totalTagihan
+        : (Number(customer.package_price) || 0);
+
+      // Resolusi Link Portal Pelanggan
+      const explicitBaseUrl = String(settings.public_base_url || '').trim();
+      let baseUrl = explicitBaseUrl.replace(/\/+$/, '');
+      if (!baseUrl) {
+        const hostRaw = String(settings.server_host || 'localhost').trim();
+        const port = Number(settings.server_port || 3001);
+        const proto = port === 443 ? 'https' : 'http';
+        const host = /^https?:\/\//i.test(hostRaw) ? hostRaw.replace(/\/+$/, '') : `${proto}://${hostRaw}`;
+        baseUrl = (port === 80 || port === 443) ? host : `${host}:${port}`;
+      }
+      const loginLink = `${baseUrl}/customer/login`;
+      const customerFormattedId = 'MDE-' + String(customer.id).padStart(4, '0');
+      const companyHeader = String(settings.company_header || 'ISP Provider');
+      const packageName = customer.package_name || (customer.package_id ? (require('./customerService').getPackageById(customer.package_id)?.name || '-') : '-');
+      const username = customer.pppoe_username || customer.hotspot_username || customer.name || '-';
+      const isolateDay = customer.isolate_day || settings.isolir_day || 10;
+
+      const defaultIsolir = `Yth. Pelanggan {{nama}} ({{id_pelanggan}}),\n\nLayanan internet Anda (Paket {{paket}}) saat ini ditangguhkan (Terisolir) karena belum melunasi tagihan sebesar *Rp {{tagihan}}*.\n\nSilakan lakukan pembayaran segera melalui portal pelanggan: {{link}}\n\nTerima kasih.`;
+      const template = (db && typeof db.getAppSetting === 'function')
+        ? String(db.getAppSetting('whatsapp_isolir_message', defaultIsolir) || defaultIsolir)
+        : defaultIsolir;
+
+      const formattedMsg = template
+        .replace(/{{id_pelanggan}}/gi, customerFormattedId)
+        .replace(/{{nama}}/gi, customer.name || 'Pelanggan')
+        .replace(/{{paket}}/gi, packageName)
+        .replace(/{{tagihan}}/gi, invoiceAmountToDisplay.toLocaleString('id-ID'))
+        .replace(/{{link}}/gi, loginLink)
+        .replace(/{{jatuh_tempo}}/gi, String(isolateDay))
+        .replace(/{{perusahaan}}|{{company}}/gi, companyHeader)
+        .replace(/{{username}}/gi, username);
+
+      const sendResult = await sendWA(digits, formattedMsg);
+      if (sendResult) {
+        logger.info(`[NotificationService] Notifikasi isolir berhasil dikirim ke pelanggan ${customer.name} (${digits})`);
+      }
+      return Boolean(sendResult);
+    } catch (err) {
+      logger.error(`[NotificationService] notifyCustomerIsolated Error: ${err.message}`);
+      return false;
+    }
+  }
 }
 
 module.exports = NotificationService;
+

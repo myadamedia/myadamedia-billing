@@ -157,6 +157,10 @@ function updateCustomer(id, data) {
   if (isStatusChanged) {
     if (newStatus === 'suspended') {
       syncCustomerIsolation(id).catch(err => logger.error(`[updateCustomer] Auto sync isolation error for customer ${id}: ${err.message}`));
+      if (oldStatus === 'active') {
+        const NotificationService = require('./notificationService');
+        NotificationService.notifyCustomerIsolated(id).catch(err => logger.error(`[updateCustomer] WA isolation notif error for customer ${id}: ${err.message}`));
+      }
     } else if (newStatus === 'active') {
       syncCustomerActivation(id).catch(err => logger.error(`[updateCustomer] Auto sync activation error for customer ${id}: ${err.message}`));
     } else if (newStatus === 'inactive') {
@@ -649,50 +653,13 @@ async function suspendCustomer(id) {
   const customer = getCustomerById(id);
   if (!customer) throw new Error('Pelanggan tidak ditemukan');
   
+  const oldStatus = customer.status;
   updateCustomer(id, { ...customer, status: 'suspended' });
-  await syncCustomerIsolation(customer);
-
-  // WhatsApp Notification
-  if (customer.phone) {
-    try {
-      const { getSetting } = require('../config/settingsManager');
-      if (getSetting('whatsapp_enabled', false)) {
-        const { sendWA, whatsappStatus } = await import('./whatsappBot.mjs');
-        if (whatsappStatus && whatsappStatus.connection === 'open') {
-          const defaultIsolir = `Yth. Pelanggan {{nama}},\n\nLayanan internet Anda (Paket {{paket}}) saat ini ditangguhkan (Terisolir) karena belum melunasi tagihan sebesar *Rp {{tagihan}}*.\n\nSilakan lakukan pembayaran segera melalui portal pelanggan: {{link}}\n\nTerima kasih.`;
-          const template = db.getAppSetting('whatsapp_isolir_message', defaultIsolir);
-
-          // Get unpaid invoices & calculate total amount
-          const billingSvc = require('./billingService');
-          const unpaidInvoices = billingSvc.getUnpaidInvoicesByCustomerId(customer.id);
-          const totalTagihan = unpaidInvoices.reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
-
-          // Generate Login Link
-          const explicitBaseUrl = String(getSetting('public_base_url', '') || '').trim();
-          let baseUrl = explicitBaseUrl.replace(/\/+$/, '');
-          if (!baseUrl) {
-            const hostRaw = String(getSetting('server_host', 'localhost') || 'localhost').trim();
-            const port = Number(getSetting('server_port', 3001) || 3001);
-            const proto = port === 443 ? 'https' : 'http';
-            const host = /^https?:\/\//i.test(hostRaw) ? hostRaw.replace(/\/+$/, '') : `${proto}://${hostRaw}`;
-            baseUrl = (port === 80 || port === 443) ? host : `${host}:${port}`;
-          }
-          const loginLink = `${baseUrl}/customer/login`;
-          const customerFormattedId = 'MDE-' + String(customer.id).padStart(4, '0');
-
-          const formattedMsg = template
-            .replace(/{{id_pelanggan}}/gi, customerFormattedId)
-            .replace(/{{nama}}/gi, customer.name || 'Pelanggan')
-            .replace(/{{paket}}/gi, customer.package_name || '-')
-            .replace(/{{tagihan}}/gi, totalTagihan.toLocaleString('id-ID'))
-            .replace(/{{link}}/gi, loginLink);
-
-          await sendWA(customer.phone, formattedMsg);
-        }
-      }
-    } catch (waErr) {
-      logger.error(`[suspendCustomer] Gagal kirim notif WhatsApp isolir: ${waErr.message}`);
-    }
+  
+  // Jika sebelumnya sudah suspended (tidak memicu isStatusChanged di updateCustomer),
+  // pastikan sync isolir tetap dipastikan ke router
+  if (oldStatus === 'suspended') {
+    await syncCustomerIsolation(customer);
   }
 
   return true;
@@ -702,8 +669,14 @@ async function activateCustomer(id) {
   const customer = getCustomerById(id);
   if (!customer) throw new Error('Pelanggan tidak ditemukan');
   
+  const oldStatus = customer.status;
   updateCustomer(id, { ...customer, status: 'active' });
-  await syncCustomerActivation(customer);
+
+  // Jika sebelumnya sudah active (tidak memicu isStatusChanged di updateCustomer),
+  // pastikan aktivasi router tetap disinkronkan
+  if (oldStatus === 'active') {
+    await syncCustomerActivation(customer);
+  }
   return true;
 }
 

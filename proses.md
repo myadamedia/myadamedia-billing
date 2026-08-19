@@ -1671,3 +1671,51 @@ Mengubah tampilan halaman login pelanggan [views/login.ejs](file:///d:/WEBAPP/my
 - **Tampilan Dashboard**:
   - Kartu "Pelanggan Free" tampil rapi dan responsif dengan format `X / Total` dan badge `+N PSB Pelanggan baru bulan ini`.
 
+---
+
+## [2026-08-19] Otomatisasi Notifikasi WhatsApp Pemberitahuan Isolir pada Transisi Status Pelanggan (Active -> Suspended)
+
+### 1. Deskripsi & Latar Belakang Masalah
+- **Kebutuhan**: Mengirimkan notifikasi WhatsApp pemberitahuan isolir secara otomatis kepada pelanggan saat status layanan berubah dari `active` (aktif) menjadi `suspended` (suspend/terisolir).
+- **Analisis Permasalahan**:
+  - Sebelumnya, pengiriman WhatsApp notifikasi isolir hanya terpasang secara inline di dalam fungsi `suspendCustomer(id)` pada `customerService.js`.
+  - Jika admin mengubah status pelanggan menjadi `suspended` melalui form update data pelanggan (`POST /customers/:id/update`) atau operasi batch/API `updateCustomer(id, data)`, notifikasi WhatsApp isolir **tidak terkirim**.
+  - `suspendCustomer` memiliki redundansi eksekusi sinkronisasi router karena memanggil `updateCustomer` (yang sudah mengeksekusi `syncCustomerIsolation`) dan kemudian memanggil kembali `syncCustomerIsolation`.
+  - Logika pengiriman WhatsApp belum terpusat ke `NotificationService`, belum memiliki deduplikasi proteksi spam (`shouldSendWa`), dan belum mematuhi preferensi opt-in pelanggan (`customer.send_isolir_reminder`).
+
+### 2. Solusi & Arsitektur yang Diterapkan
+- **Pemusatan di `NotificationService` (`services/notificationService.js`)**:
+  - Menambahkan method `notifyCustomerIsolated(customerOrId, options)` dengan fitur:
+    - Verifikasi pengaturan WhatsApp aktif (`settings.whatsapp_enabled`).
+    - Pengecekan preferensi notifikasi per pelanggan (`customer.send_isolir_reminder !== 0`).
+    - Normalisasi nomor telepon ke format internasional (`62xxx`) via `normalizeWaDigits`.
+    - Perlindungan deduplikasi pesan (`shouldSendWa`) dengan window waktu 30 detik untuk mencegah spamming jika terjadi pemanggilan ganda dalam waktu singkat.
+    - Penghitungan total piutang invoice tagihan belum lunas (`billingService.getUnpaidInvoicesByCustomerId`).
+    - Resolusi dinamis tautan login portal pelanggan (`public_base_url` / host & port).
+    - Parsing template pesan WhatsApp (`whatsapp_isolir_message`) dengan dukungan variabel: `{{id_pelanggan}}`, `{{nama}}`, `{{paket}}`, `{{tagihan}}`, `{{link}}`, `{{jatuh_tempo}}`, `{{perusahaan}}`, dan `{{username}}`.
+    - Pengiriman pesan melalui `whatsappBot.sendWA`.
+- **Hook Transisi Status di `customerService.js`**:
+  - Pada `updateCustomer(id, data)`, ditambahkan deteksi transisi status spesifik:
+    ```javascript
+    if (isStatusChanged) {
+      if (newStatus === 'suspended') {
+        syncCustomerIsolation(id).catch(err => logger.error(`[updateCustomer] Auto sync isolation error for customer ${id}: ${err.message}`));
+        if (oldStatus === 'active') {
+          const NotificationService = require('./notificationService');
+          NotificationService.notifyCustomerIsolated(id).catch(err => logger.error(`[updateCustomer] WA isolation notif error for customer ${id}: ${err.message}`));
+        }
+      }
+    }
+    ```
+  - Menyederhanakan `suspendCustomer` dan `activateCustomer` agar mendelegasikan pembaruan status ke `updateCustomer` tanpa mengeksekusi sinkronisasi router secara ganda.
+- **Unit Testing (`tests/notificationService.test.js` & `tests/customerUpdatePppoe.test.js`)**:
+  - Menambahkan pengujian eksekusi `notifyCustomerIsolated`, validasi pematuhan preferensi `send_isolir_reminder === 0`, serta memastikan pemanggilan `NotificationService.notifyCustomerIsolated` saat status berubah dari `active` ke `suspended`.
+
+### 3. Hasil Pengujian & Verifikasi
+- **Pengujian Unit (`npm test`)**: 12/12 Test Suites PASSED, 198/198 Tests PASSED.
+- **Validasi Alur**:
+  - Form edit pelanggan / API `updateCustomer` dari status `active` $\rightarrow$ `suspended` secara otomatis memicu pemutusan sesi router dan pengiriman WhatsApp notifikasi isolir.
+  - Perubahan data non-status pada pelanggan yang sudah `suspended` tidak memicu pesan isolir ganda.
+  - Tombol manual isolir di panel admin, sinkronisasi portal isolir, dan cron job harian isolir otomatis berjalan konsisten dan terintegrasi melalui notifikasi terpusat.
+
+
