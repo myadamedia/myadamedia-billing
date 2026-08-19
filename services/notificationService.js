@@ -388,7 +388,6 @@ class NotificationService {
       const customerFormattedId = 'MDE-' + String(customer.id).padStart(4, '0');
       const companyHeader = String(settings.company_header || 'ISP Provider');
       const packageName = customer.package_name || (customer.package_id ? (require('./customerService').getPackageById(customer.package_id)?.name || '-') : '-');
-      const username = customer.pppoe_username || customer.hotspot_username || customer.name || '-';
       const isolateDay = customer.isolate_day || settings.isolir_day || 10;
 
       const defaultIsolir = `Yth. Pelanggan {{nama}} ({{id_pelanggan}}),\n\nLayanan internet Anda (Paket {{paket}}) saat ini ditangguhkan (Terisolir) karena belum melunasi tagihan sebesar *Rp {{tagihan}}*.\n\nSilakan lakukan pembayaran segera melalui portal pelanggan: {{link}}\n\nTerima kasih.`;
@@ -403,8 +402,7 @@ class NotificationService {
         .replace(/{{tagihan}}/gi, invoiceAmountToDisplay.toLocaleString('id-ID'))
         .replace(/{{link}}/gi, loginLink)
         .replace(/{{jatuh_tempo}}/gi, String(isolateDay))
-        .replace(/{{perusahaan}}|{{company}}/gi, companyHeader)
-        .replace(/{{username}}/gi, username);
+        .replace(/{{perusahaan}}|{{company}}/gi, companyHeader);
 
       const sendResult = await sendWA(digits, formattedMsg);
       if (sendResult) {

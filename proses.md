@@ -1692,7 +1692,7 @@ Mengubah tampilan halaman login pelanggan [views/login.ejs](file:///d:/WEBAPP/my
     - Perlindungan deduplikasi pesan (`shouldSendWa`) dengan window waktu 30 detik untuk mencegah spamming jika terjadi pemanggilan ganda dalam waktu singkat.
     - Penghitungan total piutang invoice tagihan belum lunas (`billingService.getUnpaidInvoicesByCustomerId`).
     - Resolusi dinamis tautan login portal pelanggan (`public_base_url` / host & port).
-    - Parsing template pesan WhatsApp (`whatsapp_isolir_message`) dengan dukungan variabel: `{{id_pelanggan}}`, `{{nama}}`, `{{paket}}`, `{{tagihan}}`, `{{link}}`, `{{jatuh_tempo}}`, `{{perusahaan}}`, dan `{{username}}`.
+    - Parsing template pesan WhatsApp (`whatsapp_isolir_message`) dengan dukungan variabel: `{{id_pelanggan}}`, `{{nama}}`, `{{paket}}`, `{{tagihan}}`, `{{link}}`, `{{jatuh_tempo}}`, dan `{{perusahaan}}`.
     - Pengiriman pesan melalui `whatsappBot.sendWA`.
 - **Hook Transisi Status di `customerService.js`**:
   - Pada `updateCustomer(id, data)`, ditambahkan deteksi transisi status spesifik:
