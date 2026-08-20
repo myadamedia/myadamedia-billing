@@ -2,6 +2,40 @@
 
 ---
 
+## [2026-08-21] Implementasi Tema Dinamis (Dark / Light Mode) pada Portal SSO Gateway & Seluruh Halaman Login (/sso, /admin/login, /tech/login, /collector/login, /investor/login)
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna membutuhkan dukungan Pilihan Tema Dinamis (*Dark Mode* / *Light Mode*) yang konsisten pada seluruh gerbang login dan portal SSO utama aplikasi:
+1. `http://localhost:3001/sso` (Single Sign-On Gateway)
+2. `http://localhost:3001/admin/login` (Portal Administrator)
+3. `http://localhost:3001/tech/login` (Portal Teknisi)
+4. `http://localhost:3001/collector/login` (Portal Kolektor)
+5. `http://localhost:3001/investor/login` (Portal Investor)
+
+### 2. Solusi & Implementasi Teknis
+- **Skrip Anti-Flicker `<head>`**: Ditambahkan pada kelima berkas EJS untuk membaca `localStorage.getItem('theme')` atau *system preference* (`prefers-color-scheme`) sebelum render pertama halaman.
+- **CSS Custom Properties & Kontras Tinggi**:
+  - Mengonversi warna latar belakang, kartu portal, input form, label, dan tombol submit menggunakan variabel warna adaptif (`var(--bg-dark)`, `var(--card-bg)`, `var(--text-main)`, `var(--text-sub)`, `var(--input-bg)`, `var(--input-color)`).
+  - Memastikan warna teks 100% terbaca dengan sangat jelas di Mode Terang maupun Gelap tanpa ada teks putih di atas latar putih.
+- **Tombol Sakelar Tema (`#themeToggleBtn`)**:
+  - Menambahkan tombol sakelar tema yang responsif dengan ikon Matahari (<i class="bi bi-sun-fill text-warning"></i>) dan Bulan (<i class="bi bi-moon-stars-fill text-primary"></i>) pada header `/sso` serta pada kartu login `/admin/login`, `/tech/login`, `/collector/login`, dan `/investor/login`.
+  - Mengintegrasikan handler event `click` yang menyimpan preferensi tema ke `localStorage`.
+
+### 3. Komponen & File Yang Diubah
+- `[MODIFY]` [`views/sso.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/sso.ejs): Penambahan skrip anti-flicker, variabel CSS tema, sakelar tema header, dan event listener `localStorage`.
+- `[MODIFY]` [`views/admin/login.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/login.ejs): Sakelar tema pada kartu login admin, variabel CSS adaptif, dan form control kontras tinggi.
+- `[MODIFY]` [`views/tech/login.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/tech/login.ejs): Sakelar tema pada kartu login teknisi dan penyesuaian gaya form.
+- `[MODIFY]` [`views/collector/login.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/collector/login.ejs): Sakelar tema pada kartu login kolektor dan penyesuaian gaya form.
+- `[MODIFY]` [`investor/views/login.ejs`](file:///d:/WEBAPP/myadamedia-billing/investor/views/login.ejs): Sakelar tema pada kartu login investor dan penyesuaian CSS variabel tema terang.
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md): Pencatatan dokumentasi perbaikan sistem.
+
+### 4. Hasil Pengujian & Verifikasi
+- **Sintaks EJS & Express Routes**: Seluruh 5 halaman berhasil di-render tanpa error.
+- **Verifikasi Kontras Visual**: Teks, judul, ikon, dan input form pada kelima portal terbaca 100% jernih dan berkontras tinggi baik saat tema gelap maupun terang aktif.
+- **Pengujian Jest**: 12 Test Suites / 204 Tests Passed (100%).
+
+---
+
 ## [2026-08-21] Perbaikan Masalah Tampilan Layout Kartu Bertabrakan (Connected Devices & Billing History) pada Dashboard Pelanggan
 
 ### 1. Deskripsi Permasalahan & Kebutuhan

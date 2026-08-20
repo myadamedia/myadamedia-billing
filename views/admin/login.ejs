@@ -8,29 +8,107 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="/css/admin.css?v=2">
   <link rel="manifest" href="/admin/manifest.webmanifest">
+  <script>
+    (function () {
+      try {
+        const savedTheme = localStorage.getItem('theme');
+        const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const theme = savedTheme || (systemPrefersDark ? 'dark' : 'light');
+        document.documentElement.setAttribute('data-theme', theme);
+      } catch (e) {}
+    })();
+  </script>
+
   <style>
+    :root, [data-theme="dark"] {
+      --bg-radial: radial-gradient(circle at top right, #1e1b4b, #0d1117);
+      --card-bg: rgba(22, 27, 34, 0.85);
+      --card-border: rgba(255, 255, 255, 0.1);
+      --text-main: #ffffff;
+      --text-sub: #cbd5e1;
+      --text-muted: #8b949e;
+      --input-bg: rgba(13, 17, 23, 0.7);
+      --input-border: rgba(255, 255, 255, 0.15);
+      --input-color: #ffffff;
+      --btn-secondary-bg: rgba(255, 255, 255, 0.08);
+      --btn-secondary-border: rgba(255, 255, 255, 0.12);
+      --icon-sun: inline-block;
+      --icon-moon: none;
+    }
+
+    [data-theme="light"] {
+      --bg-radial: radial-gradient(circle at top right, #e0e7ff, #f1f5f9);
+      --card-bg: rgba(255, 255, 255, 0.94);
+      --card-border: rgba(226, 232, 240, 0.9);
+      --text-main: #0f172a;
+      --text-sub: #334155;
+      --text-muted: #64748b;
+      --input-bg: #ffffff;
+      --input-border: #cbd5e1;
+      --input-color: #0f172a;
+      --btn-secondary-bg: #e2e8f0;
+      --btn-secondary-border: #cbd5e1;
+      --icon-sun: none;
+      --icon-moon: inline-block;
+    }
+
+    * {
+      box-sizing: border-box;
+      transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease;
+    }
+
     body {
-      background: radial-gradient(circle at top right, #1e1b4b, #0d1117);
+      background: var(--bg-radial);
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 20px;
+      min-height: 100vh;
+      color: var(--text-main);
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
     }
 
     .login-box {
       width: 100%;
-      max-width: 400px;
+      max-width: 420px;
       animation: fadeIn 0.6s ease-out;
     }
 
     .login-card {
-      background: rgba(22, 27, 34, 0.8);
-      backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 20px;
+      background: var(--card-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--card-border);
+      border-radius: 24px;
       padding: 40px 32px;
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.2);
+      position: relative;
     }
+
+    .btn-theme-toggle {
+      position: absolute;
+      top: 18px;
+      right: 18px;
+      border: 1px solid var(--btn-secondary-border);
+      color: var(--text-main);
+      background: var(--btn-secondary-bg);
+      border-radius: 20px;
+      padding: 4px 10px;
+      font-weight: 600;
+      font-size: 11px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-theme-toggle:hover {
+      opacity: 0.85;
+    }
+
+    .sun-icon { display: var(--icon-sun); color: #f59e0b; }
+    .moon-icon { display: var(--icon-moon); color: #818cf8; }
 
     .login-head {
       text-align: center;
@@ -40,26 +118,39 @@
     .login-icon {
       width: 64px;
       height: 64px;
-      background: linear-gradient(135deg, var(--primary), #818cf8);
-      border-radius: 16px;
+      background: linear-gradient(135deg, #6366f1, #818cf8);
+      border-radius: 18px;
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 28px;
+      color: #ffffff;
       margin: 0 auto 20px;
       box-shadow: 0 10px 20px rgba(99, 102, 241, 0.3);
     }
 
     .login-title {
-      font-size: 20px;
-      font-weight: 700;
-      color: #fff;
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text-main);
       margin-bottom: 4px;
     }
 
     .login-sub {
       font-size: 13px;
-      color: var(--muted);
+      color: var(--text-muted);
+    }
+
+    .fc {
+      background: var(--input-bg) !important;
+      border: 1px solid var(--input-border) !important;
+      color: var(--input-color) !important;
+      border-radius: 12px;
+    }
+
+    .fl {
+      color: var(--text-sub) !important;
+      font-weight: 600;
     }
 
     @keyframes fadeIn {
@@ -67,7 +158,6 @@
         opacity: 0;
         transform: translateY(20px);
       }
-
       to {
         opacity: 1;
         transform: translateY(0);
@@ -75,11 +165,11 @@
     }
 
     .alert-d {
-      background: rgba(248, 81, 73, 0.1);
-      color: #ff7b72;
-      border: 1px solid rgba(248, 81, 73, 0.2);
+      background: rgba(248, 81, 73, 0.12);
+      color: #f87171;
+      border: 1px solid rgba(248, 81, 73, 0.3);
       padding: 12px;
-      border-radius: 10px;
+      border-radius: 12px;
       font-size: 13px;
       margin-bottom: 20px;
       display: flex;
@@ -92,13 +182,13 @@
       text-align: center;
       margin-top: 24px;
       font-size: 12px;
-      color: var(--muted);
+      color: var(--text-muted);
       text-decoration: none;
       transition: color 0.2s;
     }
 
     .back-btn:hover {
-      color: var(--primary);
+      color: #6366f1;
     }
   </style>
 </head>
@@ -107,6 +197,12 @@
 
   <div class="login-box">
     <div class="login-card">
+      <button id="themeToggleBtn" type="button" class="btn-theme-toggle" aria-label="Pilih Tema">
+        <i class="bi bi-sun-fill sun-icon"></i>
+        <i class="bi bi-moon-stars-fill moon-icon"></i>
+        <span>Tema</span>
+      </button>
+
       <div class="login-head">
         <div class="login-icon">
           <i class="bi bi-shield-lock-fill"></i>
@@ -128,7 +224,7 @@
             <div class="fg">
               <label class="fl"><%= t('admin.login.username', 'Username') %></label>
               <div style="position:relative">
-                <i class="bi bi-person" style="position:absolute;left:13px;top:10px;color:var(--muted)"></i>
+                <i class="bi bi-person" style="position:absolute;left:13px;top:10px;color:var(--text-muted)"></i>
                 <input class="fc" name="username" placeholder="admin" required style="padding-left:40px">
               </div>
             </div>
@@ -136,7 +232,7 @@
             <div class="fg" style="margin-bottom:24px">
               <label class="fl"><%= t('admin.login.password', 'Password') %></label>
               <div style="position:relative">
-                <i class="bi bi-key" style="position:absolute;left:13px;top:10px;color:var(--muted)"></i>
+                <i class="bi bi-key" style="position:absolute;left:13px;top:10px;color:var(--text-muted)"></i>
                 <input class="fc" type="password" name="password" placeholder="••••••••" required
                   style="padding-left:40px">
               </div>
@@ -148,7 +244,7 @@
           </form>
 
           <a href="/sso" class="back-btn">
-            <i class="bi bi-arrow-left"></i>Kembali ke SSO</a>
+            <i class="bi bi-arrow-left me-1"></i> Kembali ke SSO</a>
     </div>
   </div>
 
@@ -165,6 +261,19 @@
         navigator.serviceWorker.register('/sw.js', { scope: '/admin/' }).catch(() => {});
       });
     }
+
+    // Theme Toggle Handler
+    document.addEventListener('DOMContentLoaded', () => {
+      const themeToggleBtn = document.getElementById('themeToggleBtn');
+      if (themeToggleBtn) {
+        themeToggleBtn.addEventListener('click', () => {
+          const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+          const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+          document.documentElement.setAttribute('data-theme', newTheme);
+          localStorage.setItem('theme', newTheme);
+        });
+      }
+    });
   </script>
 </body>
 
