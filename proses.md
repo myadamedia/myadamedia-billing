@@ -2,6 +2,137 @@
 
 ---
 
+## [2026-08-21] Perbaikan Masalah Tampilan Layout Kartu Bertabrakan (Connected Devices & Billing History) pada Dashboard Pelanggan
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Kartu **Perangkat Terhubung (Live)** dan **Riwayat Tagihan** pada Dashboard Pelanggan (`/customer/dashboard`) bertabrakan (*layout overlapping*) dan menumpuk secara horisontal.
+
+### 2. Penyebab Utama (Root Cause)
+Terjadi duplikasi tag pembuka `<div class="col-12 col-lg-6" id="devices-section">` dan `<div class="glass-card p-4">` di dalam blok EJS `views/dashboard.ejs`. Hal ini menyebabkan hirarki elemen DOM menjadi *unclosed nesting* sehingga kartu **Riwayat Tagihan** (`#billing-section`) ter-render di dalam kartu **Perangkat Terhubung** (`#devices-section`).
+
+### 3. Solusi & Implementasi Teknis
+- Membuang duplikasi pembuka `<div class="col-12 col-lg-6" id="devices-section">` dan `<div class="glass-card p-4">` pada file `views/dashboard.ejs` (baris 645-648).
+- Memastikan kedua kartu berdiri sejajar secara independen di dalam kontainer `<div class="row g-4 mb-4">` Bootstrap 5 responsive grid (`col-12 col-lg-6`).
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`views/dashboard.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/dashboard.ejs): Menghapus duplikasi tag div HTML.
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md): Pencatatan dokumentasi perbaikan sistem.
+
+---
+
+## [2026-08-21] Perbaikan Kontras & Warna Teks Mode Terang (Light Mode) pada Dashboard Pelanggan (/customer/dashboard)
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Saat beralih ke Mode Terang (*Light Mode*), banyak elemen teks di halaman **Dashboard Pelanggan** (`/customer/dashboard`) tidak terlihat (*unreadable*) atau memudar. Hal ini mencakup judul seksi (*section titles*), angka pengukur kecepatan (*traffic gauges*), tombol fitur mandiri, header dan isi tabel perangkat/tagihan, serta form modal.
+
+### 2. Penyebab Utama (Root Cause)
+1. **Hardcoded Class `text-white` & Style Inline**: Banyak elemen HTML di-hardcode menggunakan kelas `text-white` atau style inline `color: #ffffff;` / `color: #cbd5e1;` yang memaksa warna teks tetap putih atau abu-abu terang meskipun latar belakang kartu (*card background*) berubah menjadi putih (`#ffffff` / `#f8fafc`).
+2. **Hardcoded Card Box Inner Background**: Kotak kontainer dalam (*gauge boxes* dan *signal metrics*) menggunakan `background: rgba(255,255,255,0.03)` yang menjadi tidak berkontras di atas kartu putih.
+
+### 3. Solusi & Implementasi Teknis
+- **Refactoring CSS Custom Variables (`views/dashboard.ejs`)**:
+  - Menambahkan `--hero-bg`, `--hero-text`, `--hero-sub`, `--box-inner-bg`, dan `--table-border` untuk kedua tema.
+  - Hero Banner diisolasi dengan latar belakang gradien indigo-slate kontras tinggi (`.hero-banner-card`) yang menjamin teks pahlawan selalu tajam dan mudah dibaca pada kedua tema.
+- **Penggantian Kelas Hardcoded**:
+  - Mengganti seluruh penggunaan `text-white` dan `color: #ffffff` pada judul seksi (`h5`), label fitur mandiri, gauge download/upload (`.gauge-val-num`), dan tabel dengan variabel warna adaptif `var(--text-main)` dan `var(--text-sub)`.
+  - Mengubah background kontainer dalam menjadi `.box-inner` yang menggunakan `var(--box-inner-bg)` adaptif.
+  - Memperbarui gaya elemen modal (`.modal-content-dark`) dan form control agar memiliki latar belakang dan warna teks kontras tinggi sesuai tema aktif.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`views/dashboard.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/dashboard.ejs): Perbaikan variabel CSS dan pembaruan kelas HTML adaptif kontras tinggi.
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md): Pencatatan dokumentasi perbaikan sistem.
+
+### 5. Hasil Pengujian & Verifikasi
+- **Sintaks EJS**: Terverifikasi valid tanpa error.
+- **Verifikasi Kontras Visual**: 100% elemen teks (Hero Banner, Gauge Kecepatan, Fitur Mandiri, Perangkat Terhubung, Riwayat Tagihan, dan Modal) terbaca dengan sangat jelas baik pada Mode Gelap maupun Mode Terang.
+
+---
+
+## [2026-08-21] Penambahan Fitur Tema Dinamis (Dark / Light Mode) pada Login & Dashboard Pelanggan (/customer/login & /customer/dashboard)
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pelanggan membutuhkan fleksibilitas tampilan antarmuka saat mengakses halaman **Login Pelanggan** (`/customer/login`) dan **Dashboard Pelanggan** (`/customer/dashboard`) dengan adanya pilihan tema terang (*Light Mode*) dan gelap (*Dark Mode*) yang tersimpan secara otomatis (*persistent*).
+
+### 2. Penyebab Utama (Root Cause)
+Halaman login dan dashboard sebelumnya menggunakan warna dasar statis tema gelap tanpa variabel warna dinamis dan tanpa tombol sakelar tema.
+
+### 3. Solusi & Implementasi Teknis
+- **`views/login.ejs`**:
+  - Mengintegrasikan sistem CSS Custom Properties (`:root`, `[data-theme="dark"]`, `[data-theme="light"]`).
+  - Menambahkan skrip inisialisasi anti-flicker pada bagian `<head>` untuk mengeksekusi penetapan atribut `data-theme` sebelum halaman di-render.
+  - Menambahkan tombol sakelar tema `#themeToggleBtn` pada header kartu login beserta event handler pembaruan `localStorage.setItem('theme', ...)`.
+- **`views/dashboard.ejs`**:
+  - Menambahkan CSS Custom Properties untuk komponen navbar, kartu status, grafik pemantauan lalu lintas (*traffic gauge*), tabel, dan modal.
+  - Menambahkan sakelar tema pada top navbar (`.portal-nav`) bersebelahan dengan tombol keluar/status akun.
+- **`views/partials/customer_bottom_nav.ejs`**:
+  - Menyesuaikan warna latar belakang dan perbatasan bilah navigasi bawah (*mobile bottom nav*) menggunakan `var(--nav-bg)` dan `var(--card-border)` agar selaras dengan tema yang dipilih.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`views/login.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/login.ejs): Penambahan CSS variabel tema dinamis, tombol sakelar tema, dan skrip `localStorage`.
+- `[MODIFY]` [`views/dashboard.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/dashboard.ejs): Integrasi sakelar tema di top navbar dan variabel CSS tema dinamis.
+- `[MODIFY]` [`views/partials/customer_bottom_nav.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/partials/customer_bottom_nav.ejs): Penyesuaian variabel navigasi bawah mobile.
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md): Pencatatan dokumentasi sistem.
+
+### 5. Hasil Pengujian & Verifikasi
+- **Sintaks & Kompilasi View**: Terverifikasi valid tanpa error.
+- **Fungsionalitas**: Beralih tema Dark/Light Mode secara instan pada login dan dashboard pelanggan, serta persisten setelah refresh/akses ulang.
+
+---
+
+## [2026-08-21] Redesain Modern UI/UX & Penambahan Fitur Dark/Light Mode Theme Toggle (/customer/check-billing)
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Halaman publik **Cek Tagihan** (`/customer/check-billing`) memerlukan perombakan estetika antarmuka (*redesign*) agar berpenampilan lebih modern, bersih, dan berstandar *production-ready*. Selain itu, pengguna memerlukan fitur untuk beralih antara tema gelap (*Dark Mode*) dan terang (*Light Mode*) secara dinamis.
+
+### 2. Penyebab Utama (Root Cause)
+- Tampilan sebelumnya masih menggunakan styling CSS statis tema gelap tanpa variabel warna dinamis.
+- Belum ada komponen sakelar tema (*theme toggle button*) dan logika penyimpan state preferensi tema di client-side (`localStorage`).
+
+### 3. Solusi & Implementasi Teknis
+- **Typography & Desain Sistem (`views/public_check_billing.ejs`)**:
+  - Mengintegrasikan Google Font `Plus Jakarta Sans` untuk bobot teks 400-800 yang presisi dan modern.
+  - Membangun CSS Custom Variables pada `:root`, `[data-theme="dark"]`, dan `[data-theme="light"]` yang mencakup warna latar belakang (*mesh background*), kontras teks, *card glassmorphism*, input form, serta tombol accent gradient.
+- **Skrip Anti-Flicker & Persistensi Tema**:
+  - Menambahkan skrip inisialisasi di `<head>` untuk mengeksekusi penetapan atribut `data-theme` sebelum render DOM pertama berdasarkan `localStorage.getItem('theme')` atau `window.matchMedia('(prefers-color-scheme: dark)')`.
+  - Menambahkan event listener pada sakelar tombol `#themeToggleBtn` di baris header untuk beralih antara tema gelap dan terang secara instan beserta penyimpanan preferensi pengguna.
+- **Penyempurnaan Visual Komponen**:
+  - Efek *glassmorphism* `backdrop-filter: blur(16px)` dengan perbatasan transparan halus.
+  - Penataan ulang grid metode pembayaran dengan efek elevasi hover, *ring focus glow*, serta chip informasi yang responsif terhadap mode terang/gelap.
+  - Menjaga 100% kompatibilitas fungsi pembayaran, tagihan, dan teks petunjuk `Bisa pakai: Nomor WhatsApp & ID pelanggan.`.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`views/public_check_billing.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/public_check_billing.ejs): Redesain tampilan CSS, variasi tema Dark/Light, dan skrip sakelar tema.
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md): Pencatatan riwayat dokumentasi sistem.
+
+### 5. Hasil Pengujian & Verifikasi
+- **Sintaks EJS & Kompilasi View**: 0 Error.
+- **Pengujian Fungsionalitas Tema**: Sakelar Dark/Light Mode berfungsi mulus, adaptif pada layar desktop/mobile, dan tersimpan secara persisten pada `localStorage`.
+
+---
+
+## [2026-08-21] Pembaruan Teks Petunjuk Pencarian Cek Tagihan Publik (/customer/check-billing)
+
+### 1. Deskripsi Permasalahan
+Pada halaman publik Cek Tagihan (`/customer/check-billing`), teks petunjuk bawah kolom input pencarian sebelumnya menampilkan deskripsi yang terlalu panjang (`Bisa pakai: Nama pelanggan, Nomor WhatsApp, PPPoE Username, GenieACS Tag, atau ID pelanggan.`). Diperlukan penyederhanaan teks agar lebih ringkas, ramah pengguna, serta fokus pada metode pencarian utama.
+
+### 2. Penyebab Utama (Root Cause)
+Teks bantuan di-hardcode pada template EJS `views/public_check_billing.ejs` dengan daftar opsi pencarian yang panjang.
+
+### 3. Solusi & Implementasi Teknis
+- **`views/public_check_billing.ejs`**:
+  - Mengubah elemen petunjuk `<div class="muted small mt-2">` menjadi: `Bisa pakai: Nomor WhatsApp & ID pelanggan.`
+  - Memperbarui atribut `placeholder` elemen input `<input class="form-control" name="q">` menjadi: `Masukkan nomor WhatsApp / ID pelanggan`.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`views/public_check_billing.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/public_check_billing.ejs): Penyederhanaan teks bantuan dan placeholder input.
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md): Pencatatan riwayat perubahan sistem.
+
+### 5. Hasil Pengujian & Verifikasi
+- **Sintaks EJS & Markup HTML**: Terverifikasi valid tanpa tag terputus.
+- **Tampilan UI**: Teks petunjuk dan placeholder berhasil diperbarui sesuai instruksi.
+
+---
+
 ## [2026-08-19] Perbaikan Pencocokan Nama Pelanggan (Nama Lengkap) & Styling Kontras Kolom pada Sesi Aktif RADIUS
 
 ### 1. Deskripsi Permasalahan
