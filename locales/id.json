@@ -52,7 +52,7 @@
       "active_routers": "Router Status Aktif",
       "inactive_routers": "Router Status Nonaktif",
       "router_list_title": "Daftar Router MikroTik",
-      "onu_status_title": "Status ONU",
+      "onu_status_title": "MONITORING ONU",
       "total_onu": "Total ONU",
       "onu_registered": "Perangkat terdaftar",
       "online": "Online",

@@ -2,6 +2,27 @@
 
 ---
 
+## [2026-08-21] Perubahan Judul Section "Status ONU" Menjadi "MONITORING ONU" pada Dashboard Admin (/admin)
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna meminta agar nama judul section **Status ONU** (Status ONU / Perangkat Optik) pada halaman **Dashboard Admin** (`http://localhost:3001/admin`) diubah secara konsisten menjadi **MONITORING ONU**.
+
+### 2. Solusi & Implementasi Teknis
+- **Update Template EJS & Translation Key**:
+  - `views/admin/dashboard.ejs`: Mengubah teks fallback header section dan header kartu Donut chart menjadi `MONITORING ONU`.
+  - `locales/id.json`: Mengubah nilai `onu_status_title` dari `"Status ONU"` menjadi `"MONITORING ONU"`.
+
+### 3. Komponen & File Yang Diubah
+- `[MODIFY]` [`views/admin/dashboard.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/dashboard.ejs)
+- `[MODIFY]` [`locales/id.json`](file:///d:/WEBAPP/myadamedia-billing/locales/id.json)
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md)
+
+### 4. Hasil Pengujian & Verifikasi
+- **Pengujian Tampilan**: Judul section dan header Donut Chart pada Dashboard Admin kini resmi menggunakan teks **MONITORING ONU**.
+- **Pengujian Jest**: 12 Test Suites / 204 Tests Passed (100%).
+
+---
+
 ## [2026-08-21] Penambahan Fitur Baru "Monitoring Pelanggan" di Bawah Status ONU pada Dashboard Admin (/admin)
 
 ### 1. Deskripsi Permasalahan & Kebutuhan
