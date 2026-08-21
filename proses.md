@@ -2,6 +2,34 @@
 
 ---
 
+## [2026-08-21] Pengecualian Blur Privasi pada Kartu Monitoring ONU
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna melaporkan bahwa saat fitur privasi sensor nominal uang (`.hide-money`) diaktifkan, kartu **MONITORING ONU** (grafik doughnut persentase online/offline) ikut ter-blur padahal nilai tersebut bukan berupa nominal Rupiah/keuangan.
+
+### 2. Penyebab Utama Masalah
+- Di CSS `admin.css`, selektor `.hide-money canvas` memburamkan seluruh elemen `<canvas>` secara generik tanpa membedakan grafik keuangan dengan grafik perangkat/network (seperti `#donutChart` pada Monitoring ONU).
+
+### 3. Solusi & Implementasi Teknis
+- **Aturan CSS Privasi (`public/css/admin.css`)**:
+  - Mengubah selektor blur canvas dari `.hide-money canvas` menjadi `.hide-money canvas.money-chart` dan `.hide-money #revenueChart`.
+  - Menambahkan aturan pengecualian tegas (`filter: none !important`) untuk grafik non-keuangan: `#donutChart`, `#donut-wrap`, dan elemen berkelas `.no-blur`.
+- **Tampilan Dashboard (`views/admin/dashboard.ejs`)**:
+  - Menambahkan kelas `no-blur` pada kontainer kartu **MONITORING ONU**.
+- **Tampilan Laporan Keuangan (`views/admin/reports.ejs`)**:
+  - Menambahkan kelas `money-chart` pada canvas `#revenueChart` agar tetap ter-blur secara aman saat mode privasi aktif.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`public/css/admin.css`](file:///d:/WEBAPP/myadamedia-billing/public/css/admin.css)
+- `[MODIFY]` [`views/admin/dashboard.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/dashboard.ejs)
+- `[MODIFY]` [`views/admin/reports.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/reports.ejs)
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md)
+
+### 5. Hasil Pengujian & Verifikasi
+- **Pengujian Visual Privasi**: Kartu **MONITORING ONU** dan grafik persentase tetap tajam & dapat dibaca 100% saat mode privasi aktif, sementara nominal keuangan tetap ter-sensor rapi. Pengujian Jest 12 Test Suites / 204 Tests Passed (100%).
+
+---
+
 ## [2026-08-21] Penyederhanaan Sidebar Menu Tanpa Dropdown (Flat Sidebar Navigation)
 
 ### 1. Deskripsi Permasalahan & Kebutuhan

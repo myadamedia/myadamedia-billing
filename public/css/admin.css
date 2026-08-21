@@ -376,14 +376,24 @@ html,body{width:100%}
   user-select: auto !important;
 }
 .hide-money #revenueChart,
-.hide-money canvas {
+.hide-money canvas.money-chart {
   filter: blur(10px) !important;
   pointer-events: none !important;
   user-select: none !important;
   transition: filter 0.2s ease-in-out !important;
 }
 .hide-money #revenueChart:hover,
-.hide-money canvas:hover {
+.hide-money canvas.money-chart:hover {
   filter: none !important;
   pointer-events: auto !important;
+}
+
+/* Pengecualian Grafik Non-Keuangan (Monitoring ONU, Traffic, CPU/Memory, dll) */
+.hide-money #donutChart,
+.hide-money #donut-wrap,
+.hide-money .no-blur,
+.hide-money .no-blur canvas {
+  filter: none !important;
+  pointer-events: auto !important;
+  user-select: auto !important;
 }
