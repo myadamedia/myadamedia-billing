@@ -8,6 +8,24 @@
   <link rel="manifest" href="/admin/manifest.webmanifest">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="/css/admin.css?v=2">
+  <style>
+    .menu-select-pill {
+      background: var(--bg3);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 6px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+    .menu-select-pill:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--pdim);
+    }
+  </style>
 </head>
 <body>
 <%- include('partials/sidebar', { activePage: 'sidebar_settings', company }) %>
@@ -24,59 +42,77 @@
   </div>
 
   <div class="page">
+    <!-- HERO BANNER -->
+    <div class="card mb-4" style="background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); border: 1px solid rgba(99,102,241,0.5); border-radius: 20px; padding: 22px 24px; position: relative; overflow: hidden; margin-bottom: 20px; box-shadow: 0 12px 36px rgba(79,70,229,0.25);">
+      <div style="position: absolute; right: -15px; bottom: -20px; font-size: 140px; color: rgba(255,255,255,0.08); pointer-events: none;">
+        <i class="bi bi-layout-sidebar-inset"></i>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; position: relative; z-index: 1;">
+        <div>
+          <div style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 14px; border-radius: 20px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.35); color: #ffffff; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">
+            <i class="bi bi-sliders"></i> KONFIGURASI NAVIGASI PANEL ADMIN
+          </div>
+          <h2 style="font-size: 22px; font-weight: 800; color: #ffffff; margin: 0 0 4px 0;">
+            Kelola Status Visibilitas & Penguncian Menu Sidebar
+          </h2>
+          <p style="font-size: 13px; color: rgba(255,255,255,0.92); margin: 0; max-width: 620px; font-weight: 500;">
+            Atur status setiap item menu menjadi <strong>Tampil</strong>, <strong>Sembunyikan</strong> (menyembunyikan menu & proteksi akses URL), atau <strong>Kunci</strong> (menampilkan penanda Kunci di sidebar).
+          </p>
+        </div>
+      </div>
+    </div>
+
     <% if (msg) { %>
-      <div class="alert alert-<%= msg.type === 'success' ? 's' : 'd' %>">
+      <div class="alert alert-<%= msg.type === 'success' ? 's' : 'd' %>" style="margin-bottom:20px">
         <i class="bi bi-<%= msg.type === 'success' ? 'check-circle' : 'exclamation-circle' %>"></i>
         <%= msg.text %>
       </div>
     <% } %>
 
-    <div style="display:grid;gap:16px">
+    <div style="display:grid;gap:20px">
       <div class="card">
         <div class="card-hd" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
-          <h6 style="margin:0"><i class="bi bi-grid-3x3-gap"></i> Status Semua Menu Sidebar</h6>
+          <h6 style="margin:0"><i class="bi bi-grid-3x3-gap"></i> Status Pengaturan Menu Sidebar (<%= menuConfigs.length %> Menu)</h6>
           <% if (canManageSidebar) { %>
-            <span class="badge badge-success" style="background:rgba(34,197,94,.18);color:#bbf7d0;padding:6px 10px;border-radius:999px">Admin dapat mengubah semua menu</span>
+            <span class="badge bs"><i class="bi bi-shield-check"></i> Hak Akses Admin Utama</span>
           <% } else { %>
-            <span class="badge badge-warning" style="background:rgba(245,158,11,.18);color:#fde68a;padding:6px 10px;border-radius:999px">Mode baca saja untuk akun ini</span>
+            <span class="badge bw"><i class="bi bi-eye"></i> Mode Baca Saja</span>
           <% } %>
         </div>
         <div class="card-bd">
-          <p class="hint" style="margin-top:0">
-            Setiap menu bisa diatur menjadi <strong>Tampil</strong>, <strong>Sembunyikan</strong>, atau <strong>Kunci</strong>.
-          </p>
-
           <% if (canManageSidebar) { %>
             <form method="POST" action="/admin/sidebar-settings">
               <div class="tbl-wrap">
                 <table class="dtbl">
                   <thead>
                     <tr>
-                      <th>Menu</th>
-                      <th>Section</th>
-                      <th>Role</th>
-                      <th>Status</th>
+                      <th style="width:35%">Menu Navigasi</th>
+                      <th style="width:20%">Kategori Section</th>
+                      <th style="width:25%">Akses Role</th>
+                      <th style="width:20%">Status Menu</th>
                     </tr>
                   </thead>
                   <tbody>
                     <% menuConfigs.forEach((menu) => { %>
                       <tr>
                         <td>
-                          <div style="display:flex;align-items:center;gap:10px">
-                            <i class="<%= menu.icon %>"></i>
+                          <div style="display:flex;align-items:center;gap:12px">
+                            <div style="width:36px;height:36px;border-radius:10px;background:var(--pdim);color:var(--primary);display:grid;place-items:center;font-size:16px;flex-shrink:0">
+                              <i class="<%= menu.icon %>"></i>
+                            </div>
                             <div>
-                              <div style="font-weight:700"><%= menu.labelKey ? t(menu.labelKey, menu.labelDefault) : menu.labelDefault %></div>
-                              <div class="hint mono"><%= menu.href %></div>
+                              <div style="font-weight:700;color:var(--text);font-size:13px"><%= menu.labelKey ? t(menu.labelKey, menu.labelDefault) : menu.labelDefault %></div>
+                              <div style="font-size:11px;color:var(--muted);font-family:monospace"><%= menu.href %></div>
                             </div>
                           </div>
                         </td>
-                        <td><span class="hint"><%= menu.sectionLabelKey ? t(menu.sectionLabelKey, menu.sectionLabel) : menu.sectionLabel %></span></td>
-                        <td><span class="hint"><%= menu.roleLabel %></span></td>
-                        <td style="min-width:180px">
-                          <select class="fs" name="menu_state[<%= menu.key %>]">
-                            <option value="visible" <%= menu.state === 'visible' ? 'selected' : '' %>>Tampil</option>
-                            <option value="hidden" <%= menu.state === 'hidden' ? 'selected' : '' %>>Sembunyikan</option>
-                            <option value="locked" <%= menu.state === 'locked' ? 'selected' : '' %>>Kunci</option>
+                        <td><span class="badge bp" style="font-size:10px"><%= menu.sectionLabelKey ? t(menu.sectionLabelKey, menu.sectionLabel) : menu.sectionLabel %></span></td>
+                        <td><span style="font-size:12px;color:var(--muted)"><%= menu.roleLabel %></span></td>
+                        <td>
+                          <select class="menu-select-pill" name="menu_state[<%= menu.key %>]">
+                            <option value="visible" <%= menu.state === 'visible' ? 'selected' : '' %>>🟢 Tampil</option>
+                            <option value="hidden" <%= menu.state === 'hidden' ? 'selected' : '' %>>🔴 Sembunyikan</option>
+                            <option value="locked" <%= menu.state === 'locked' ? 'selected' : '' %>>🔒 Kunci</option>
                           </select>
                         </td>
                       </tr>
@@ -84,9 +120,9 @@
                   </tbody>
                 </table>
               </div>
-              <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px;flex-wrap:wrap">
-                <button type="submit" class="btn btn-p">
-                  <i class="bi bi-save"></i> Simpan Pengaturan Sidebar
+              <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;flex-wrap:wrap">
+                <button type="submit" class="btn btn-p" style="padding:10px 20px;font-weight:700">
+                  <i class="bi bi-save-fill"></i> Simpan Pengaturan Sidebar
                 </button>
               </div>
             </form>
@@ -99,16 +135,23 @@
       </div>
       <div class="card">
         <div class="card-hd">
-          <h6 style="margin:0"><i class="bi bi-lightbulb"></i> Catatan</h6>
+          <h6 style="margin:0"><i class="bi bi-lightbulb-fill"></i> Panduan Pengaturan Visibilitas Menu</h6>
         </div>
         <div class="card-bd">
-          <div class="alert alert-s" style="margin-bottom:12px">
-            <i class="bi bi-info-circle"></i> Jika menu berstatus <strong>Kunci</strong> diklik dari sidebar, sistem akan menolak akses hingga statusnya diubah kembali menjadi <strong>Tampil</strong>.
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));gap:14px">
+            <div style="padding:14px;border-radius:12px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25)">
+              <div style="font-weight:700;color:#34d399;margin-bottom:4px;display:flex;align-items:center;gap:6px">🟢 Status Tampil</div>
+              <div style="font-size:12px;color:var(--muted)">Menu akan muncul normal di sidebar dan dapat diakses sepenuhnya oleh pengguna sesuai peran.</div>
+            </div>
+            <div style="padding:14px;border-radius:12px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25)">
+              <div style="font-weight:700;color:#f87171;margin-bottom:4px;display:flex;align-items:center;gap:6px">🔴 Status Sembunyikan</div>
+              <div style="font-size:12px;color:var(--muted)">Menu dihilangkan dari sidebar dan akses rute URL langsung akan ditolak sistem secara aman.</div>
+            </div>
+            <div style="padding:14px;border-radius:12px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25)">
+              <div style="font-weight:700;color:#fbbf24;margin-bottom:4px;display:flex;align-items:center;gap:6px">🔒 Status Kunci</div>
+              <div style="font-size:12px;color:var(--muted)">Menu tetap terlihat di sidebar dengan badge "Kunci", namun saat diklik akan memunculkan pemberitahuan modal.</div>
+            </div>
           </div>
-          <ul style="margin:0;padding-left:18px;display:grid;gap:8px">
-            <li>Status <strong>Sembunyikan</strong> akan menghilangkan menu dari sidebar dan menolak akses URL langsung.</li>
-            <li>Status <strong>Kunci</strong> tetap menampilkan menu di sidebar, tetapi tidak bisa dibuka sampai statusnya diubah kembali di halaman ini.</li>
-          </ul>
         </div>
       </div>
     </div>
@@ -116,3 +159,4 @@
 </div>
 </body>
 </html>
+

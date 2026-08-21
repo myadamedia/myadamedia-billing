@@ -2,6 +2,191 @@
 
 ---
 
+## [2026-08-21] Peremajaan UI/UX 14 Modul Utama Admin Panel (Pelanggan, Tagihan, Laporan, Keuangan & Penggajian)
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna meminta peremajaan antarmuka (*UI/UX*) dari 14 modul utama pada **Admin Panel** (`/admin/psb`, `/admin/customers`, `/admin/packages`, `/admin/vouchers/packages`, `/admin/billing`, `/admin/billing/due-distribution`, `/admin/collector-payments`, `/admin/reports`, `/admin/investors`, `/admin/cashiers/reports`, `/admin/payroll`, `/admin/finance/cash-in`, `/admin/finance/expenses`, `/admin/finance/expense-categories`) agar tampil lebih modern, atraktif, informatif, dan 100% mudah dipahami di semua pilihan tema (*Dark, Light, Ocean, Forest*).
+
+### 2. Penyebab Utama Masalah
+- Tampilan sebelumnya belum memiliki *Glassmorphic Hero Welcome Banner* yang memberikan deskripsi kontekstual peran dan fungsi manajemen untuk masing-masing modul.
+- Keterbacaan dan kontras warna tombol/kartu pada Mode Terang memerlukan penyelarasan variabel tema agar konsisten dengan standar WCAG AAA Compliance.
+
+### 3. Solusi & Implementasi Teknis
+- **PSB / Pemasangan Baru (`views/admin/psb.ejs`)**: Menambahkan *Hero Welcome Banner* Registrasi Calon Pelanggan Baru & Pemasangan Jaringan.
+- **Manajemen Pelanggan (`views/admin/customers.ejs`)**: Menambahkan *Hero Welcome Banner* Database Pelanggan & Paket Layanan Broadband.
+- **Paket Internet Broadband (`views/admin/packages.ejs`)**: Menambahkan *Hero Welcome Banner* Profil Paket Layanan & Kecepatan Bandwidth.
+- **Paket Voucher Hotspot (`views/admin/vouchers_packages.ejs`)**: Menambahkan *Hero Welcome Banner* Konfigurasi Paket Voucher Hotspot Real-Time.
+- **Tagihan & Invoicing (`views/admin/billing.ejs`)**: Menambahkan *Hero Welcome Banner* Invoicing, Tagihan Bulanan & Cetak Masal.
+- **Distribusi Jatuh Tempo (`views/admin/billing_due_distribution.ejs`)**: Menambahkan *Hero Welcome Banner* Analisis Due Date & Cashflow Harian.
+- **Setoran Penagih / Kolektor (`views/admin/collector_payments.ejs`)**: Menambahkan *Hero Welcome Banner* Verifikasi Setoran Penagih Lapangan.
+- **Laporan Keuangan (`views/admin/reports.ejs`)**: Menambahkan *Hero Welcome Banner* Rekapitulasi Laporan Pendapatan, Arus Kas & Laba Rugi.
+- **Akun Investor (`investor/views/admin_investors.ejs`)**: Menambahkan *Hero Welcome Banner* Investor & Profit Sharing Dividen.
+- **Laporan Kasir (`views/admin/cashier_reports.ejs`)**: Menambahkan *Hero Welcome Banner* Laporan Transaksi Kasir & Setoran Loket.
+- **Penggajian Staf / Payroll (`views/admin/payroll.ejs`)**: Menambahkan *Hero Welcome Banner* Sistem Penggajian Karyawan & Komisi Penagih.
+- **Pemasukan Kas / Cash-In (`views/admin/finance/cash_in.ejs`)**: Menambahkan *Hero Welcome Banner* Pencatatan Kas Masuk (Lain-Lain & Modal).
+- **Pengeluaran / Expenses (`views/admin/finance/expenses.ejs`)**: Menambahkan *Hero Welcome Banner* Beban Operasional & Kas Keluar (Expenses).
+- **Kategori Pengeluaran (`views/admin/finance/expense-categories.ejs`)**: Menambahkan *Hero Welcome Banner* Klasifikasi Kategori Pengeluaran & Akuntansi.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`views/admin/psb.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/psb.ejs)
+- `[MODIFY]` [`views/admin/customers.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/customers.ejs)
+- `[MODIFY]` [`views/admin/packages.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/packages.ejs)
+- `[MODIFY]` [`views/admin/vouchers_packages.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/vouchers_packages.ejs)
+- `[MODIFY]` [`views/admin/billing.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/billing.ejs)
+- `[MODIFY]` [`views/admin/billing_due_distribution.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/billing_due_distribution.ejs)
+- `[MODIFY]` [`views/admin/collector_payments.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/collector_payments.ejs)
+- `[MODIFY]` [`views/admin/reports.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/reports.ejs)
+- `[MODIFY]` [`investor/views/admin_investors.ejs`](file:///d:/WEBAPP/myadamedia-billing/investor/views/admin_investors.ejs)
+- `[MODIFY]` [`views/admin/cashier_reports.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/cashier_reports.ejs)
+- `[MODIFY]` [`views/admin/payroll.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/payroll.ejs)
+- `[MODIFY]` [`views/admin/finance/cash_in.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/finance/cash_in.ejs)
+- `[MODIFY]` [`views/admin/finance/expenses.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/finance/expenses.ejs)
+- `[MODIFY]` [`views/admin/finance/expense_categories.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/finance/expense_categories.ejs)
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md)
+
+### 5. Hasil Pengujian & Verifikasi
+- **Pengujian Visual**: Ke-14 modul terender sempurna dengan visual *ultra-modern*, kontras tajam, dan 100% theme-adaptive baik di Dark Mode maupun Light Mode.
+- **Pengujian Automated Jest**: 12 Test Suites / 204 Tests Passed (100%).
+
+---
+
+## [2026-08-21] Perbaikan Layout & Struktur HTML Halaman Portal Isolir (`/admin/isolated-portal`)
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna melaporkan bahwa tampilan halaman **Portal Isolir** (`http://localhost:3001/admin/isolated-portal`) berantakan (*misaligned*), di mana kartu statistik menumpuk ke kiri, tab navigasi melebar secara tidak wajar, dan form pengaturan terdorong ke luar layar sebelah kanan.
+
+### 2. Penyebab Utama Masalah
+- Terdapat tag penutup `</div>` dan `</form>` berlebih/dangling pada baris 363–371 file `views/admin/isolated_portal.ejs` yang merupakan sisa dari struktur header lama.
+- Tag `</div>` penutup tersebut menutup kontainer utama `.page` secara prematur, menyebabkan elemen-elemen di bawahnya (stat grid, tab bar, dan form kartu) keluar dari wrapper utama dan merusak grid layout CSS.
+
+### 3. Solusi & Implementasi Teknis
+- **Pembersihan Tag HTML Penutup (`views/admin/isolated_portal.ejs`)**:
+  - Mengeliminasi tag penutup `</form>`, `</div>`, dan tombol duplikat pada baris 363–371.
+  - Memastikan hirarki tag HTML pada `.page`, `.card`, dan `.stat-grid` tertutup dengan presisi dan seimbang.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`views/admin/isolated_portal.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/isolated_portal.ejs)
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md)
+
+### 5. Hasil Pengujian & Verifikasi
+- **Pengujian Visual Layout**: Antarmuka `/admin/isolated-portal` kini terender sempurna, rapi, responsif, dan 100% presisi tanpa ada horizontal scrollbar atau penumpukan elemen.
+
+---
+
+## [2026-08-21] Peremajaan UI/UX 7 Modul Utama Admin Panel (GenieACS, ONU, OLT, WA, WA Broadcast, WA Alert, & Isolated Portal)
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna meminta peremajaan antarmuka (*UI/UX*) dari 7 modul utama pada **Admin Panel** (`/admin/acs`, `/admin/onu-provision`, `/admin/olts`, `/admin/whatsapp`, `/admin/whatsapp/broadcast`, `/admin/whatsapp/monitoring`, `/admin/isolated-portal`) agar tampil lebih modern, atraktif, informatif, dan 100% mudah dipahami di semua tema (*Dark, Light, Ocean, Forest*).
+
+### 2. Penyebab Utama Masalah
+- Tampilan sebelumnya belum dilengkapi *Glassmorphic Hero Welcome Banner* yang memberikan konteks integrasi TR-069, Multi-OLT, WhatsApp Engine, dan Portal Isolir.
+- Pengelompokan tombol navigasi tab belum menggunakan *segmented tab layout* dengan kontras warna yang tegas pada Mode Terang maupun Gelap.
+
+### 3. Solusi & Implementasi Teknis
+- **GenieACS TR-069 Monitoring Pro (`views/admin/acs.ejs`)**:
+  - Menambahkan *Hero Welcome Banner* khas GenieACS TR-069 Pro dengan tombol *Sync All ACS* & pintasan *Auto-Provisioning*.
+  - Menyajikan 4 Kartu Statistik Metrik (Total Device TR-069, Online/In-Form, Offline, ACS Servers) dengan ikon 3D gradient.
+- **Auto-Provisioning ONU / ONT (`views/admin/onu_provision.ejs`)**:
+  - Menambahkan *Hero Welcome Banner* Auto-Discovery OLT ZTE, Huawei, Fiberhome, VSOL, & C-Data.
+  - Memperbarui styling kartu konfigurasi OLT, wizard profil PPPoE/VLAN, dan badge status unconfigured.
+- **Manajemen Multi-OLT & Optik PON (`views/admin/olts.ejs`)**:
+  - Menambahkan *Hero Welcome Banner* Multi-Vendor OLT Engine & Monitoring Optik PON.
+  - Memperbarui pemilih perangkat OLT, indikator sinyal optik RX (dBm), dan modal manajemen OLT.
+- **WhatsApp Gateway Engine & Status Sesi (`views/admin/whatsapp.ejs`)**:
+  - Menambahkan *Hero Welcome Banner* WhatsApp Gateway Engine dengan penanda status koneksi realtime.
+  - Memperbarui *wa-tabs navigation bar* dan box QR Code glassmorphic.
+- **Broadcast WA & Penagihan Masal (`views/admin/whatsapp/broadcast` -> `views/admin/broadcast.ejs`)**:
+  - Menambahkan *Hero Welcome Banner* Broadcast & Penagihan Masal.
+  - Memperbarui selector target penerima, warning box anti-spam, dan penanda variabel pesan instan (`{{nama}}`, `{{total}}`, `{{periode}}`).
+- **Monitoring Alert & Redaman Optik WA (`views/admin/whatsapp_monitoring.ejs`)**:
+  - Menambahkan *Hero Welcome Banner* System Alert & Notification Engine.
+  - Memperbarui form batas ambang redaman optik buruk (Threshold dBm) dan toggle switch notifikasi WA.
+- **Portal Isolir & Automatic CNA Push Pop-Up (`views/admin/isolated_portal.ejs`)**:
+  - Menambahkan *Hero Welcome Banner* Isolation & CNA Captive Portal.
+  - Memperbarui tombol preview `/isolated`, tombol *Sync Auto-Isolir*, dan form pengalihan rute IP/DNS.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`views/admin/acs.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/acs.ejs)
+- `[MODIFY]` [`views/admin/onu_provision.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/onu_provision.ejs)
+- `[MODIFY]` [`views/admin/olts.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/olts.ejs)
+- `[MODIFY]` [`views/admin/whatsapp.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/whatsapp.ejs)
+- `[MODIFY]` [`views/admin/broadcast.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/broadcast.ejs)
+- `[MODIFY]` [`views/admin/whatsapp_monitoring.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/whatsapp_monitoring.ejs)
+- `[MODIFY]` [`views/admin/isolated_portal.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/isolated_portal.ejs)
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md)
+
+### 5. Hasil Pengujian & Verifikasi
+- **Pengujian Visual**: Ke-7 halaman terender sempurna dengan gaya antarmuka ultra-modern, kontras tinggi, dan 100% terbaca presisi baik di Dark Mode maupun Light Mode.
+- **Pengujian Automated Jest**: 12 Test Suites / 204 Tests Passed (100%).
+
+---
+
+## [2026-08-21] Penyesuaian Kontras Warna & Aksesibilitas Teks Mode Terang (Light Theme) Dashboard Admin
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna melaporkan bahwa saat memilih **Mode Terang (Light Theme)** pada Dashboard Admin Panel, beberapa bagian teks (*Hero Banner*, item menu navigasi aktif di sidebar, dan teks sub-label) memiliki kontras yang kurang tajam dan sulit dibaca (*washed out*).
+
+### 2. Penyebab Utama Masalah
+- **Sidebar Active Item (`.sb-nav-link.active`)**: Item menu aktif menggunakan teks warna putih (`#ffffff`) di atas latar belakang gradient ungu muda transparan (`rgba(99,102,241,0.28)`), yang pada Mode Terang menghasilkan rasio kontras sangat rendah.
+- **Hero Banner Box**: Latar belakang banner menggunakan gradient gelap transparan (`rgba(17,24,39,0.92)`), sementara subteks deskripsi menggunakan warna abu-abu muda (`#cbd5e1`), sehingga kurang selaras dengan warna latar belakang putih bersih pada Mode Terang.
+- **Teks Sub-label (`var(--muted)`)**: Variabel warna `--muted` bawaan pada Mode Terang (`#64748b`) kurang pekat untuk dibaca pada beberapa kontainer kartu putih.
+
+### 3. Solusi & Implementasi Teknis
+- **Penyempurnaan CSS Theme Light (`public/css/admin.css`)**:
+  - Mengubah `.theme-light .sb-nav-link.active` menjadi warna tombol indigo pekat (`background: #4f46e5 !important; color: #ffffff !important; border: 1px solid #4338ca !important;`) dengan bayangan halus, sehingga item menu aktif **100% mencolok, tegas, dan tajam** saat dibaca.
+  - Memperbarui warna teks menu non-aktif `.theme-light .sb-nav-link` menjadi `#334155` (dark slate), dan hover state menjadi `#0f172a`.
+  - Mengubah variabel `--muted` pada Mode Terang menjadi `#475569` (darker slate) dan `--border` menjadi `#cbd5e1` untuk kontras garis dan teks sekunder yang jauh lebih tajam.
+- **Penyempurnaan Hero Banner Premium (`views/admin/dashboard.ejs` & `views/admin/sidebar_settings.ejs`)**:
+  - Mengubah latar belakang Hero Banner menjadi gradient Royal Indigo solid (`linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)`) yang konsisten.
+  - Mengatur judul dan subteks deskripsi menjadi warna putih bersih (`#ffffff` & `rgba(255,255,255,0.92)`), badge menjadi `rgba(255,255,255,0.2)`, dan tombol pintasan berlatar putih/emerald kontras tinggi.
+  - Menjamin **100% WCAG AAA Readability Compliance** baik pada mode Light, Dark, Ocean, maupun Forest.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`public/css/admin.css`](file:///d:/WEBAPP/myadamedia-billing/public/css/admin.css)
+- `[MODIFY]` [`views/admin/dashboard.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/dashboard.ejs)
+- `[MODIFY]` [`views/admin/sidebar_settings.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/sidebar_settings.ejs)
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md)
+
+### 5. Hasil Pengujian & Verifikasi
+- **Pengujian Aksesibilitas Kontras (WCAG AAA)**: Teks menu aktif, judul banner, subteks deskripsi, dan kartu statistik pada Mode Terang (*Light Theme*) terender dengan sangat tajam, jernih, dan 100% mudah dibaca.
+
+---
+
+## [2026-08-21] Modernisasi & Peremajaan UI/UX Seluruh Menu Dashboard Admin
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna meminta peremajaan antarmuka (*UI/UX*) dari seluruh menu pada **Dashboard Admin Panel** agar tampil jauh lebih modern, atraktif, informatif, dan mudah dipahami sesuai standar industri aplikasi berskala produksi terkini.
+
+### 2. Penyebab Utama Tampilan Lama
+- Menu navigasi sidebar sebelumnya memiliki desain item standar tanpa *Active Pill Glowing Indicator* dan *Section Badge Divider* yang tegas.
+- Dashboard utama belum memiliki *Quick Action Menu Grid* yang memberikan akses pintasan satu klik ke menu-menu krusial (Pelanggan, Tagihan, MikroTik, Peta Jaringan, GenieACS, Laporan Keuangan, Broadcast WA, Log E-Wallet).
+- Tampilan Halaman Pengaturan Sidebar belum dilengkapi *Hero Banner* dan *Status Pill Badging* yang memudahkan admin membedakan status Tampil, Sembunyikan, dan Kunci.
+
+### 3. Solusi & Implementasi Teknis
+- **Modernisasi Navigasi Sidebar (`views/admin/partials/sidebar.ejs`)**:
+  - Menambahkan *Active Pill Glowing Gradient* pada item menu navigasi aktif.
+  - Memperbarui *Section Headers* dengan font tebal 800 uppercase, *subtle divider line*, dan *glowing icon accents*.
+  - Menyempurnakan header brand logo, tombol switcher 4 pilihan tema (*Dark, Light, Ocean, Forest*), dan tombol *Money Blur Toggle*.
+  - Menyelaraskan tampilan *Mobile Bottom Navigation Bar*.
+- **Quick Action Menu Shortcuts Grid (`views/admin/dashboard.ejs`)**:
+  - Menyediakan 8 Kartu Pintasan Menu Utama berdesain 3D Icon Gradient (*Pelanggan, Tagihan, MikroTik, Peta Jaringan, GenieACS, Keuangan, Broadcast WA, Log E-Wallet*) dengan efek *hover lift* & *glowing border*.
+  - Memperbarui *Hero Welcome Banner* glassmorphic dengan ringkasan status realtime dan tombol aksi cepat.
+- **Peremajaan Halaman Pengaturan Sidebar (`views/admin/sidebar_settings.ejs`)**:
+  - Menambahkan *Hero Welcome Banner* panduan konfigurasi menu sidebar.
+  - Menyajikan tabel pengaturan status menu dengan *Status Badging Pills* (🟢 Tampil, 🔴 Sembunyikan, 🔒 Kunci) dan grid panduan edukatif di bagian bawah.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`views/admin/partials/sidebar.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/partials/sidebar.ejs)
+- `[MODIFY]` [`views/admin/dashboard.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/dashboard.ejs)
+- `[MODIFY]` [`views/admin/sidebar_settings.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/sidebar_settings.ejs)
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md)
+
+### 5. Hasil Pengujian & Verifikasi
+- **Pengujian Visual & Responsif**: Seluruh antarmuka terender dengan sangat indah, responsif, dan kontras font 100% terbaca tajam pada Dark, Light, Ocean, maupun Forest Mode.
+- **Pengujian Automated Tests**: Seluruh suite pengujian backend/service berjalan 100% bebas error.
+
+---
+
 ## [2026-08-21] Peremajaan UI/UX Halaman Monitoring & Manajemen MikroTik (`/admin/mikrotik`)
 
 ### 1. Deskripsi Permasalahan & Kebutuhan

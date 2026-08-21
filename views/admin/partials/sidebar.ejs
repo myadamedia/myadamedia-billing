@@ -20,6 +20,120 @@
     }
   })();
 </script>
+
+<style>
+  /* ── MODERN SIDEBAR CUSTOM STYLING ── */
+  .sidebar {
+    background: var(--bg2);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-right: 1px solid var(--border);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .sb-brand {
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.02);
+  }
+  .sb-icon-wrap {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    font-size: 18px;
+    box-shadow: 0 6px 16px rgba(99, 102, 241, 0.35);
+    flex-shrink: 0;
+  }
+  .sb-section-hdr {
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--muted);
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    padding: 16px 18px 6px 18px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    opacity: 0.85;
+  }
+  .sb-section-hdr::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+    margin-left: 6px;
+    opacity: 0.5;
+  }
+  .sb-nav-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    margin: 2px 10px;
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 12px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+  }
+  .sb-nav-link:hover {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.06);
+    transform: translateX(3px);
+  }
+  .sb-nav-link.active {
+    color: #ffffff;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.28) 0%, rgba(79, 70, 229, 0.28) 100%);
+    border: 1px solid rgba(99, 102, 241, 0.45);
+    font-weight: 700;
+    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.2);
+  }
+  .sb-nav-link.active i {
+    color: #818cf8;
+    transform: scale(1.1);
+  }
+  .sb-nav-link i {
+    font-size: 16px;
+    width: 22px;
+    text-align: center;
+    transition: transform 0.2s ease, color 0.2s ease;
+  }
+  .sb-nav-link .badge-lock {
+    margin-left: auto;
+    padding: 2px 8px;
+    border-radius: 20px;
+    background: rgba(245, 158, 11, 0.18);
+    color: #fde68a;
+    font-size: 10px;
+    font-weight: 700;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+  }
+  .sb-nav-link.logout-link {
+    color: var(--danger);
+    margin-top: 8px;
+  }
+  .sb-nav-link.logout-link:hover {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+  }
+  .sb-nav-link.logout-link i {
+    color: var(--danger);
+  }
+  .theme-btn-group {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin-top: 8px;
+    position: relative;
+  }
+</style>
+
 <!-- views/admin/partials/sidebar.ejs -->
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 <aside class="sidebar" id="sidebar">
@@ -27,69 +141,69 @@
     <% const hasLogo = typeof settings !== 'undefined' && settings && settings.company_logo; %>
     <% if (hasLogo) { %>
       <div style="flex:1">
-        <div class="sb-logo-wrap" style="display:flex;align-items:center;width:100%;margin-bottom:6px">
-          <img src="<%= settings.company_logo %>" alt="<%= company %>" class="sb-logo-img" style="max-height:60px;width:100%;max-width:100%;object-fit:contain;display:block">
+        <div class="sb-logo-wrap" style="display:flex;align-items:center;width:100%;margin-bottom:8px">
+          <img src="<%= settings.company_logo %>" alt="<%= company %>" class="sb-logo-img" style="max-height:54px;width:100%;max-width:100%;object-fit:contain;display:block">
         </div>
-        <div class="sb-sub"><%= t('admin.panel', 'Admin Panel') %></div>
-        <div style="margin-top:8px;display:flex;gap:6px;align-items:center;position:relative">
-          <a href="/lang/id" class="btn btn-g btn-sm" style="padding:4px 8px">ID</a>
-          <a href="/lang/en" class="btn btn-g btn-sm" style="padding:4px 8px">EN</a>
+        <div class="sb-sub" style="font-weight:800;letter-spacing:0.8px"><%= t('admin.panel', 'Admin Panel') %></div>
+        <div class="theme-btn-group">
+          <a href="/lang/id" class="btn btn-g btn-sm" style="padding:3px 8px;font-size:11px">ID</a>
+          <a href="/lang/en" class="btn btn-g btn-sm" style="padding:3px 8px;font-size:11px">EN</a>
           
           <!-- Money Blur Toggle -->
-          <button class="btn btn-g btn-sm" id="moneyToggleBtn" onclick="toggleMoneyVisibility(event)" style="padding:4px 8px;margin-left:auto" title="Sembunyikan/Tampilkan Nilai Uang">
-            <i class="bi bi-eye-slash" id="moneyToggleIcon" style="margin:0"></i>
+          <button class="btn btn-g btn-sm" id="moneyToggleBtn" onclick="toggleMoneyVisibility(event)" style="padding:3px 8px;margin-left:auto" title="Sembunyikan/Tampilkan Nilai Uang">
+            <i class="bi bi-eye-slash" id="moneyToggleIcon" style="margin:0;font-size:12px"></i>
           </button>
           
           <!-- Theme Selection Dropdown -->
-          <button class="btn btn-g btn-sm" id="themeBtn" onclick="toggleThemeMenu(event)" style="padding:4px 8px" title="Ubah Tema">
-            <i class="bi bi-palette" style="margin:0"></i>
+          <button class="btn btn-g btn-sm" id="themeBtn" onclick="toggleThemeMenu(event)" style="padding:3px 8px" title="Ubah Tema Warna">
+            <i class="bi bi-palette" style="margin:0;font-size:12px"></i>
           </button>
-          <div id="themeMenu" style="display:none;position:absolute;right:0;top:32px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.5);z-index:999;width:120px;padding:4px 0">
-            <button onclick="setTheme('dark')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 12px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-moon-fill" style="color:#6366f1"></i> Dark</button>
-            <button onclick="setTheme('light')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 12px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-sun-fill" style="color:#f59e0b"></i> Light</button>
-            <button onclick="setTheme('ocean')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 12px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-water" style="color:#00b4d8"></i> Ocean</button>
-            <button onclick="setTheme('forest')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 12px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-tree-fill" style="color:#a7c957"></i> Forest</button>
+          <div id="themeMenu" style="display:none;position:absolute;right:0;top:32px;background:var(--bg2);backdrop-filter:blur(16px);border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,0.5);z-index:999;width:130px;padding:6px 0">
+            <button onclick="setTheme('dark')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-moon-fill" style="color:#6366f1"></i> Dark Mode</button>
+            <button onclick="setTheme('light')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-sun-fill" style="color:#f59e0b"></i> Light Mode</button>
+            <button onclick="setTheme('ocean')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-water" style="color:#00b4d8"></i> Ocean Mode</button>
+            <button onclick="setTheme('forest')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-tree-fill" style="color:#a7c957"></i> Forest Mode</button>
           </div>
         </div>
       </div>
     <% } else { %>
-      <div class="sb-icon"><i class="bi bi-wifi"></i></div>
-      <div style="flex:1">
-        <div class="sb-name">
+      <div class="sb-icon-wrap"><i class="bi bi-wifi"></i></div>
+      <div style="flex:1;min-width:0">
+        <div class="sb-name" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
           <%= company %>
         </div>
-        <div class="sb-sub"><%= t('admin.panel', 'Admin Panel') %></div>
-        <div style="margin-top:8px;display:flex;gap:6px;align-items:center;position:relative">
-          <a href="/lang/id" class="btn btn-g btn-sm" style="padding:4px 8px">ID</a>
-          <a href="/lang/en" class="btn btn-g btn-sm" style="padding:4px 8px">EN</a>
+        <div class="sb-sub" style="font-weight:800;letter-spacing:0.8px"><%= t('admin.panel', 'Admin Panel') %></div>
+        <div class="theme-btn-group">
+          <a href="/lang/id" class="btn btn-g btn-sm" style="padding:3px 8px;font-size:11px">ID</a>
+          <a href="/lang/en" class="btn btn-g btn-sm" style="padding:3px 8px;font-size:11px">EN</a>
           
           <!-- Money Blur Toggle -->
-          <button class="btn btn-g btn-sm" id="moneyToggleBtn" onclick="toggleMoneyVisibility(event)" style="padding:4px 8px;margin-left:auto" title="Sembunyikan/Tampilkan Nilai Uang">
-            <i class="bi bi-eye-slash" id="moneyToggleIcon" style="margin:0"></i>
+          <button class="btn btn-g btn-sm" id="moneyToggleBtn" onclick="toggleMoneyVisibility(event)" style="padding:3px 8px;margin-left:auto" title="Sembunyikan/Tampilkan Nilai Uang">
+            <i class="bi bi-eye-slash" id="moneyToggleIcon" style="margin:0;font-size:12px"></i>
           </button>
           
           <!-- Theme Selection Dropdown -->
-          <button class="btn btn-g btn-sm" id="themeBtn" onclick="toggleThemeMenu(event)" style="padding:4px 8px" title="Ubah Tema">
-            <i class="bi bi-palette" style="margin:0"></i>
+          <button class="btn btn-g btn-sm" id="themeBtn" onclick="toggleThemeMenu(event)" style="padding:3px 8px" title="Ubah Tema Warna">
+            <i class="bi bi-palette" style="margin:0;font-size:12px"></i>
           </button>
-          <div id="themeMenu" style="display:none;position:absolute;right:0;top:32px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.5);z-index:999;width:120px;padding:4px 0">
-            <button onclick="setTheme('dark')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 12px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-moon-fill" style="color:#6366f1"></i> Dark</button>
-            <button onclick="setTheme('light')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 12px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-sun-fill" style="color:#f59e0b"></i> Light</button>
-            <button onclick="setTheme('ocean')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 12px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-water" style="color:#00b4d8"></i> Ocean</button>
-            <button onclick="setTheme('forest')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 12px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-tree-fill" style="color:#a7c957"></i> Forest</button>
+          <div id="themeMenu" style="display:none;position:absolute;right:0;top:32px;background:var(--bg2);backdrop-filter:blur(16px);border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,0.5);z-index:999;width:130px;padding:6px 0">
+            <button onclick="setTheme('dark')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-moon-fill" style="color:#6366f1"></i> Dark Mode</button>
+            <button onclick="setTheme('light')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-sun-fill" style="color:#f59e0b"></i> Light Mode</button>
+            <button onclick="setTheme('ocean')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-water" style="color:#00b4d8"></i> Ocean Mode</button>
+            <button onclick="setTheme('forest')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-tree-fill" style="color:#a7c957"></i> Forest Mode</button>
           </div>
         </div>
       </div>
     <% } %>
-    <button class="sb-close btn-g btn-sm" onclick="toggleSidebar()"><i class="bi bi-x-lg"></i></button>
+    <button class="sb-close btn-g btn-sm" onclick="toggleSidebar()" style="padding:4px 8px"><i class="bi bi-x-lg"></i></button>
   </div>
-  <nav class="sb-nav">
+  <nav class="sb-nav" style="padding-bottom:50px">
     <% (sidebarSections || []).forEach((section) => { %>
-      <div class="sb-section"><%= section.labelKey ? t(section.labelKey, section.labelDefault) : section.labelDefault %></div>
+      <div class="sb-section-hdr"><%= section.labelKey ? t(section.labelKey, section.labelDefault) : section.labelDefault %></div>
       <% section.items.forEach((item) => { %>
         <a
           href="<%= item.hrefResolved %>"
-          class="sb-item <%= (item.activePages || []).includes(activePage) ? 'active' : '' %>"
+          class="sb-nav-link <%= (item.activePages || []).includes(activePage) ? 'active' : '' %>"
           <% if (item.locked) { %>
             onclick='return showLockedMenuNotice(<%- JSON.stringify(item.lockedMessage) %>)'
           <% } %>
@@ -97,59 +211,59 @@
           <i class="<%= item.icon %>"></i>
           <span><%= item.labelKey ? t(item.labelKey, item.labelDefault) : item.labelDefault %></span>
           <% if (item.locked) { %>
-            <span style="margin-left:auto;padding:2px 8px;border-radius:999px;background:rgba(245,158,11,.18);color:#fde68a;font-size:11px">Kunci</span>
+            <span class="badge-lock">Kunci</span>
           <% } %>
         </a>
       <% }) %>
     <% }) %>
 
-    <div class="sb-section">KONTROL</div>
-    <a href="/admin/sidebar-settings" class="sb-item <%= activePage==='sidebar_settings' ? 'active' : '' %>">
+    <div class="sb-section-hdr">KONTROL SISTEM</div>
+    <a href="/admin/sidebar-settings" class="sb-nav-link <%= activePage==='sidebar_settings' ? 'active' : '' %>">
       <i class="bi bi-layout-sidebar-inset"></i><span>Pengaturan Sidebar</span>
     </a>
 
-    <a href="/admin/logout" class="sb-item logout">
+    <a href="/admin/logout" class="sb-nav-link logout-link">
       <i class="bi bi-box-arrow-left"></i><span><%= t('common.logout', 'Logout') %></span>
     </a>
-    <div class="mt-4 px-3 py-2 text-center" style="border-top: 1px solid rgba(255,255,255,0.1);">
+    <div class="mt-4 px-3 py-3 text-center" style="border-top: 1px solid var(--border);margin-top:20px">
       <a href="#" onclick="return false;"
-        style="color: #94a3b8; font-size: 11px; text-decoration: none; font-weight: 600;">
+        style="color: var(--muted); font-size: 11px; text-decoration: none; font-weight: 700; letter-spacing: 0.5px;">
         <%= (typeof settings !== 'undefined' && settings && settings.company_header) ? settings.company_header.toUpperCase() : (typeof company !== 'undefined' ? String(company).toUpperCase() : 'BILLING SYSTEM') %>
       </a>
     </div>
   </nav>
 </aside>
 
-<div id="lockedMenuModal" style="display:none;position:fixed;inset:0;z-index:1200;background:rgba(2,6,23,.72);backdrop-filter:blur(4px);padding:16px;align-items:center;justify-content:center">
-  <div style="width:min(100%,420px);background:linear-gradient(180deg,rgba(15,23,42,.98),rgba(30,41,59,.98));border:1px solid rgba(148,163,184,.18);border-radius:18px;box-shadow:0 24px 60px rgba(2,6,23,.45);overflow:hidden">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;border-bottom:1px solid rgba(148,163,184,.14)">
-      <div style="display:flex;align-items:center;gap:10px">
-        <div style="width:40px;height:40px;border-radius:12px;background:rgba(245,158,11,.16);color:#fde68a;display:grid;place-items:center;font-size:18px">
+<div id="lockedMenuModal" style="display:none;position:fixed;inset:0;z-index:1200;background:rgba(2,6,23,.75);backdrop-filter:blur(6px);padding:16px;align-items:center;justify-content:center">
+  <div style="width:min(100%,420px);background:var(--bg2);backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:20px;box-shadow:0 24px 60px rgba(0,0,0,.5);overflow:hidden">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 20px;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="width:42px;height:42px;border-radius:12px;background:rgba(245,158,11,.16);color:#fde68a;display:grid;place-items:center;font-size:20px">
           <i class="bi bi-lock-fill"></i>
         </div>
         <div>
-          <div style="font-weight:800;color:#f8fafc">Menu Terkunci</div>
-          <div style="font-size:12px;color:#94a3b8">Menu ini saat ini berstatus terkunci</div>
+          <div style="font-weight:800;color:var(--text);font-size:15px">Menu Terkunci</div>
+          <div style="font-size:12px;color:var(--muted)">Menu ini saat ini berstatus terkunci</div>
         </div>
       </div>
       <button type="button" class="btn btn-g btn-sm" onclick="hideLockedMenuNotice()" style="padding:6px 10px">
         <i class="bi bi-x-lg"></i>
       </button>
     </div>
-    <div style="padding:18px">
-      <div id="lockedMenuModalMessage" style="color:#e2e8f0;line-height:1.6">
+    <div style="padding:20px">
+      <div id="lockedMenuModalMessage" style="color:var(--text);line-height:1.6;font-size:13px">
         Menu ini sedang terkunci.
       </div>
-      <div style="margin-top:16px;padding:12px 14px;border-radius:14px;background:rgba(59,130,246,.12);border:1px solid rgba(59,130,246,.22);color:#bfdbfe;font-size:13px">
+      <div style="margin-top:16px;padding:12px 14px;border-radius:14px;background:rgba(59,130,246,.12);border:1px solid rgba(59,130,246,.25);color:#bfdbfe;font-size:12px;line-height:1.5">
         Anda dapat mengubah status menu ini menjadi Tampil melalui menu Pengaturan Sidebar.
       </div>
-      <div style="margin-top:14px">
+      <div style="margin-top:16px">
         <a href="/admin/sidebar-settings" class="btn btn-g" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px" onclick="hideLockedMenuNotice()">
           <i class="bi bi-layout-sidebar-inset"></i> Buka Pengaturan Sidebar
         </a>
       </div>
     </div>
-    <div style="display:flex;justify-content:flex-end;gap:10px;padding:0 18px 18px 18px">
+    <div style="display:flex;justify-content:flex-end;gap:10px;padding:0 20px 20px 20px">
       <button type="button" class="btn btn-p" onclick="hideLockedMenuNotice()">
         <i class="bi bi-check2-circle"></i> Mengerti
       </button>
@@ -161,8 +275,8 @@
   function toggleSidebar() {
     const sb = document.getElementById('sidebar');
     const ov = document.getElementById('sidebarOverlay');
-    sb.classList.toggle('open');
-    ov.classList.toggle('show');
+    if (sb) sb.classList.toggle('open');
+    if (ov) ov.classList.toggle('show');
   }
 
   function showLockedMenuNotice(message) {
@@ -187,9 +301,9 @@
   }
 
   function toggleThemeMenu(e) {
-    e.stopPropagation();
+    if (e) e.stopPropagation();
     const menu = document.getElementById('themeMenu');
-    menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+    if (menu) menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
   }
 
   function setTheme(theme) {
@@ -282,3 +396,4 @@
     }
   })();
 </script>
+
