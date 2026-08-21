@@ -970,8 +970,9 @@ router.post('/api/odps/:id/cable-path', requireAdminSession, (req, res) => {
 
 router.post('/odps', requireAdminSession, restrictToRoles(['noc', 'teknisi']), express.urlencoded({ extended: true }), (req, res) => {
   try {
+    const nodeType = (req.body.type && String(req.body.type).toUpperCase() === 'ODC') ? 'ODC' : 'ODP';
     odpSvc.createOdp(req.body);
-    req.session._msg = { type: 'success', text: 'ODP berhasil ditambahkan.' };
+    req.session._msg = { type: 'success', text: `${nodeType} berhasil ditambahkan.` };
   } catch (e) {
     req.session._msg = { type: 'error', text: 'Gagal: ' + e.message };
   }
@@ -980,8 +981,9 @@ router.post('/odps', requireAdminSession, restrictToRoles(['noc', 'teknisi']), e
 
 router.post('/odps/:id/update', requireAdminSession, restrictToRoles(['noc', 'teknisi']), express.urlencoded({ extended: true }), (req, res) => {
   try {
+    const nodeType = (req.body.type && String(req.body.type).toUpperCase() === 'ODC') ? 'ODC' : 'ODP';
     odpSvc.updateOdp(req.params.id, req.body);
-    req.session._msg = { type: 'success', text: 'ODP berhasil diperbarui.' };
+    req.session._msg = { type: 'success', text: `${nodeType} berhasil diperbarui.` };
   } catch (e) {
     req.session._msg = { type: 'error', text: 'Gagal: ' + e.message };
   }
@@ -991,7 +993,7 @@ router.post('/odps/:id/update', requireAdminSession, restrictToRoles(['noc', 'te
 router.post('/odps/:id/delete', requireAdminSession, restrictToRoles(['noc', 'teknisi']), (req, res) => {
   try {
     odpSvc.deleteOdp(req.params.id);
-    req.session._msg = { type: 'success', text: 'ODP berhasil dihapus.' };
+    req.session._msg = { type: 'success', text: 'Perangkat ODP/ODC berhasil dihapus.' };
   } catch (e) {
     req.session._msg = { type: 'error', text: 'Gagal: ' + e.message };
   }

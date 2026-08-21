@@ -883,7 +883,7 @@
       "empty_no_onu": "Tidak ada data ONU ditemukan."
     },
     "map": {
-      "add_odp": "Tambah ODP",
+      "add_odp": "Tambah ODC/ODP",
       "stats": {
         "total_odp": "Total ODP",
         "active_customers": "Pelanggan Aktif",

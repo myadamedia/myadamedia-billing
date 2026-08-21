@@ -878,7 +878,7 @@
       "empty_no_onu": "No ONU data found."
     },
     "map": {
-      "add_odp": "Add ODP",
+      "add_odp": "Add ODC/ODP",
       "stats": {
         "total_odp": "Total ODP",
         "active_customers": "Active Customers",

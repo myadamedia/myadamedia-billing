@@ -1105,7 +1105,7 @@ try {
   console.error('Failed to migrate packages is_hidden:', e);
 }
 
-// Safe migration: tambah kolom parent_odp_id ke tabel odps
+// Safe migration: tambah kolom parent_odp_id, cable_path, dan type ke tabel odps
 try {
   const odpCols = db.prepare("PRAGMA table_info(odps)").all();
   if (!odpCols.find(c => c.name === 'parent_odp_id')) {
@@ -1114,8 +1114,11 @@ try {
   if (!odpCols.find(c => c.name === 'cable_path')) {
     db.exec("ALTER TABLE odps ADD COLUMN cable_path TEXT");
   }
+  if (!odpCols.find(c => c.name === 'type')) {
+    db.exec("ALTER TABLE odps ADD COLUMN type TEXT DEFAULT 'ODP'");
+  }
 } catch(e) {
-  console.error('Failed to migrate odps parent_odp_id / cable_path:', e);
+  console.error('Failed to migrate odps columns (parent_odp_id / cable_path / type):', e);
 }
 
 // Safe migration: tambah kolom installation_fee ke tabel customers

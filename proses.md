@@ -2,6 +2,127 @@
 
 ---
 
+## [2026-08-21] Peremajaan UI/UX Halaman Monitoring & Manajemen MikroTik (`/admin/mikrotik`)
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna meminta peremajaan antarmuka (*UI/UX*) dari halaman **Monitoring & Manajemen MikroTik** (`http://localhost:3001/admin/mikrotik`) agar tampil jauh lebih modern, atraktif, informatif, dan nyaman dipandang mata sesuai standar antarmuka aplikasi berskala produksi terkini.
+
+### 2. Penyebab Utama Tampilan Lama
+- Tampilan sebelumnya memiliki desain kartu statis sederhana tanpa meter indikator visual (beban CPU & sisa memori RAM).
+- Kurangnya *Hero Welcome Banner* yang memberikan konteks integrasi RouterOS API & status konektivitas secara visual.
+- Navigasi tab masih menggunakan styling teks datar sederhana tanpa efek *segmented pill tabs*.
+
+### 3. Solusi & Implementasi Teknis
+- **Hero Welcome Banner (`views/admin/mikrotik.ejs`)**:
+  - Menambahkan banner header modern bergradasi dengan aksen radial glow, judul interaktif, dan badge status live API router.
+- **Router Resource Progress Meters**:
+  - Menambahkan visualisasi *Animated Progress Bar Meters* untuk **CPU Load** (dengan perubah warna otomatis: Biru ➔ Amber jika >50% ➔ Merah jika >80%), **Free Memory (RAM)**, dan **Router Uptime**.
+- **Glassmorphic Stat Cards Grid (5 Kartu Indikator)**:
+  - **PPPoE Online** (Royal Blue Glow Card + Ikon Ethernet)
+  - **PPPoE Offline** (Warm Amber Card + Ikon Plug)
+  - **Total Secrets** (Indigo Card + Ikon People)
+  - **Hotspot Online** (Emerald Green Glow Card + Ikon WiFi)
+  - **Total Hotspot** (Purple Cabinet Card + Ikon Badge)
+  - Setiap kartu dilengkapi efek hover lift (`translateY(-3px)`), bayangan lembut, dan border glow.
+- **Segmented Pill Navigation Tabs**:
+  - Desain ulang tab navigasi utama (`PPPoE Secrets`, `Hotspot Users`, `PPPoE Profiles`, `Hotspot Profiles`) menggunakan struktur pill modern bergradasi dengan aksen aktif biru bersinar.
+- **Data Tables & Status Badging**:
+  - Badging status real-time dengan efek *Soft Background Glow* (`Online` = Emerald Pill + Pulse Dot, `Offline` = Slate Pill, `Disabled` = Red Pill).
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`views/admin/mikrotik.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/mikrotik.ejs)
+- `[MODIFY]` [`implementation_plan.md`](file:///C:/Users/iwanw/.gemini/antigravity-ide/brain/1dabf660-c61a-40ea-8b08-a2719a8629f3/implementation_plan.md)
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md)
+
+### 5. Hasil Pengujian & Verifikasi
+- **Pengujian Visual**: Tampilan antarmuka `/admin/mikrotik` terender dengan sangat indah, responsif, dan dinamis pada mode gelap maupun terang.
+- **Pengujian Automated Jest**: 12 Test Suites / 204 Tests Passed (100%).
+
+---
+
+## [2026-08-21] Penambahan Fitur ODC (Optical Distribution Cabinet), Pemisahan Ikon ODP vs ODC & Peremajaan Ikon Pelanggan Ultra-Modern (`/admin/map` & `/tech/map`)
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna meminta penambahan fitur **ODC (Optical Distribution Cabinet)** pada Peta Jaringan (`http://localhost:3001/admin/map`), pemisahan ikon visual secara kontras antara ODP (*Optical Distribution Point*) dengan ODC, serta mengubah ikon pelanggan (Berbayar, Free, Isolir) agar tampil jauh lebih menarik, modern, dan presisi.
+
+### 2. Solusi & Implementasi Teknis
+- **Database Schema Migration (`config/database.js`)**:
+  - Menambahkan kolom `type` (`TEXT DEFAULT 'ODP'`) pada tabel `odps` melalui skrip *Safe Migration* tanpa merusak data lama.
+- **Backend & Data Service (`services/odpService.js` & `routes/adminPortal.js`)**:
+  - Memperbarui fungsi `createOdp` dan `updateOdp` untuk menerima atribut `type` (`ODC` atau `ODP`).
+  - Mengatur default kapasitas port otomatis (48 port untuk ODC, 16 port untuk ODP) dan memperbarui respon umpan balik pesan sukses pengguna.
+- **Frontend Map Visualizations & DivIcon Engine (`views/admin/map.ejs` & `views/tech/map.ejs`)**:
+  - **ODC Marker**: Menampilkan ikon kabinet rack violet/indigo (`#8b5cf6` ➔ `#7c3aed`) berukuran `32x32px` dengan badge mikro "ODC", efek border putih 2px, serta neon purple glow shadow.
+  - **ODP Marker**: Menampilkan ikon box pembagi amber/gold (`#f59e0b` ➔ `#d97706`) berukuran `28x28px` dengan badge mikro "ODP" dan amber glow shadow.
+  - **Ikon Pelanggan Modern Glassmorphic Pin**:
+    - **Berbayar (Active)**: Teardrop Glassmorphic Pin Royal Blue (`#38bdf8` ➔ `#1d4ed8`) dengan *Pulsing Neon Ring* biru, ikon `bi-house-check-fill`.
+    - **Paket Free**: Teardrop Glassmorphic Pin Emerald Green (`#34d399` ➔ `#047857`) dengan *Pulsing Neon Ring* hijau, ikon `bi-gift-fill`.
+    - **Isolir (Suspended)**: Teardrop Glassmorphic Pin Crimson Red (`#f87171` ➔ `#b91c1c`) dengan *Pulsing Neon Ring* merah, ikon `bi-house-x-fill`.
+- **UI Controls, Legend Bar & Stat Cards**:
+  - Menambahkan 5 Kartu Statistik (Total ODC, Total ODP, Berbayar, Free, Isolir).
+  - Menambahkan 5 Checkbox Filter Layer pada Legend Bar (`#toggle-odc`, `#toggle-odp`, `#toggle-active`, `#toggle-free`, `#toggle-suspended`) yang tersimpan di `localStorage`.
+  - Menambahkan opsi **Jenis Perangkat (ODP vs ODC)** pada Modal Tambah dan Modal Edit Perangkat dengan penyesuaian kapasitas port otomatis.
+
+### 3. Komponen & File Yang Diubah
+- `[MODIFY]` [`config/database.js`](file:///d:/WEBAPP/myadamedia-billing/config/database.js)
+- `[MODIFY]` [`services/odpService.js`](file:///d:/WEBAPP/myadamedia-billing/services/odpService.js)
+- `[MODIFY]` [`routes/adminPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/adminPortal.js)
+- `[MODIFY]` [`views/admin/map.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/map.ejs) (Update label tombol menjadi **Tambah ODC/ODP**)
+- `[MODIFY]` [`views/tech/map.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/tech/map.ejs)
+- `[MODIFY]` [`locales/id.json`](file:///d:/WEBAPP/myadamedia-billing/locales/id.json) & [`locales/en.json`](file:///d:/WEBAPP/myadamedia-billing/locales/en.json)
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md)
+
+### 4. Hasil Pengujian & Verifikasi
+- **Pengujian Tampilan & Visual**: Ikon ODC (Purple Rack Cabinet), ODP (Amber Box), dan Pelanggan Pin Teardrop dengan pulse ring terender sempurna pada mode Satelit, OpenStreetMap, maupun CartoDB Dark Mode.
+- **Pengujian Database & CRUD**: Berhasil menambah dan mengedit ODC/ODP dengan kapasitas port serta jalur kabel yang presisi.
+- **Pengujian Automated Jest**: 12 Test Suites / 204 Tests Passed (100%).
+
+---
+
+## [2026-08-21] Penambahan Fitur Tile Map Dark Mode (CartoDB) pada Peta Jaringan Admin (/admin/map) & Peta Teknisi (/tech/map)
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna meminta penambahan fitur **Map Dark Mode** (*CartoDB Dark Tile Layer*) pada peta jaringan `http://localhost:3001/admin/map` dan `http://localhost:3001/tech/map` sama seperti yang ada pada dashboard investor.
+
+### 2. Solusi & Implementasi Teknis
+- **Integrasi CartoDB Dark Tile Layer**:
+  - Mengintegrasikan layer peta CartoDB `https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png` ke dalam opsi `baseMaps` kontrol Leaflet pada `views/admin/map.ejs` dan `views/tech/map.ejs`.
+  - Membaca tema aktif dari `document.documentElement` / `localStorage` secara otomatis; jika aplikasi berada dalam mode gelap (*Dark Mode*), maka layer **Dark Mode (CartoDB)** akan langsung aktif secara default saat peta dibuka.
+  - Tetap menyediakan pilihan switcher layer manual antara **Dark Mode (CartoDB)**, **Satelit (Hybrid)**, dan **OpenStreetMap**.
+
+### 3. Komponen & File Yang Diubah
+- `[MODIFY]` [`views/admin/map.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/map.ejs)
+- `[MODIFY]` [`views/tech/map.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/tech/map.ejs)
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md)
+
+### 4. Hasil Pengujian & Verifikasi
+- **Pengujian Visual**: Opsi layer `Dark Mode (CartoDB)` kini tersedia di switcher Leaflet dan aktif secara default ketika tema gelap digunakan.
+- **Pengujian Jest**: 12 Test Suites / 204 Tests Passed (100%).
+
+---
+
+## [2026-08-21] Peremajaan UI/UX Halaman Peta Jaringan & Topologi Fiber Optik Admin (/admin/map)
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna meminta agar tampilan antarmuka (*UI/UX*) dari halaman **Peta Jaringan & Topologi Fiber Optik** (`http://localhost:3001/admin/map` / `https://bill.myadamedia.web.id/admin/map`) diperbarui menjadi jauh lebih menarik, modern, elegan, dan nyaman dipandang mata sesuai standar antarmuka aplikasi terkini.
+
+### 2. Solusi & Implementasi Teknis
+- **Hero Welcome Banner**: Menambahkan banner eksekutif bergradien dinamis dengan lencana status *GIS Topo Engine*, deskripsi fitur pemetaan interaktif, dan tombol aksi cepat *Tambah ODP*.
+- **Stat Cards Grid & Metrik Visual**: Memodernisasi 4 kartu statistik (*Total ODP*, *Pelanggan Berbayar*, *Paket Free*, dan *Pelanggan Isolir/Nonaktif*) dengan efek *Glassmorphism*, latar belakang semi-transparan, bayangan halus, dan animasi hover elevation.
+- **Legend & Toggle Bar Modern**: Menyempurnakan filter tombol toggle per layer (*ODP*, *Pelanggan Berbayar*, *Pelanggan Free*, *Pelanggan Isolir*) menjadi kartu pill kontras tinggi yang responsif di berbagai perangkat.
+- **Container Peta Leaflet (`#map`)**: Menyesuaikan tinggi kontainer peta `calc(100vh - 220px)` (min-height `520px`), sudut melengkung `18px`, border transparan, dan elevasi bayangan 3D.
+- **Panel Tabel Daftar ODP (`.odps-panel`)**: Memperbarui kartu daftar ODP dengan header *sticky*, input pencarian `#odpSearch`, koordinat berwarna kontras tinggi, dan tombol aksi yang rapi.
+
+### 3. Komponen & File Yang Diubah
+- `[MODIFY]` [`views/admin/map.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/map.ejs)
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md)
+
+### 4. Hasil Pengujian & Verifikasi
+- **Pengujian Visual**: Halaman `/admin/map` kini tampil sangat modern, profesional, fleksibel pada tema gelap/terang, dan kaya fitur visualisasi spasial.
+- **Pengujian Jest**: 12 Test Suites / 204 Tests Passed (100%).
+
+---
+
 ## [2026-08-21] Peremajaan UI/UX Halaman Manajemen RADIUS NAS Router (/admin/radius) & Monitoring Sesi Aktif (/admin/radius/sessions)
 
 ### 1. Deskripsi Permasalahan & Kebutuhan

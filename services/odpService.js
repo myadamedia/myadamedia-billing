@@ -20,26 +20,29 @@ function getOdpById(id) {
 }
 
 function createOdp(data) {
+  const typeVal = (data.type && String(data.type).toUpperCase() === 'ODC') ? 'ODC' : 'ODP';
   const stmt = db.prepare(`
-    INSERT INTO odps (name, olt_id, pon_port, port_capacity, lat, lng, description, parent_odp_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO odps (name, olt_id, pon_port, port_capacity, lat, lng, description, parent_odp_id, type)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   return stmt.run(
     data.name,
     data.olt_id ? parseInt(data.olt_id) : null,
     data.pon_port || '',
-    data.port_capacity !== undefined && data.port_capacity !== null ? parseInt(data.port_capacity) : 16,
+    data.port_capacity !== undefined && data.port_capacity !== null ? parseInt(data.port_capacity) : (typeVal === 'ODC' ? 48 : 16),
     data.lat || '',
     data.lng || '',
     data.description || '',
-    data.parent_odp_id ? parseInt(data.parent_odp_id) : null
+    data.parent_odp_id ? parseInt(data.parent_odp_id) : null,
+    typeVal
   );
 }
 
 function updateOdp(id, data) {
+  const typeVal = (data.type && String(data.type).toUpperCase() === 'ODC') ? 'ODC' : 'ODP';
   const stmt = db.prepare(`
     UPDATE odps 
-    SET name = ?, olt_id = ?, pon_port = ?, port_capacity = ?, lat = ?, lng = ?, description = ?, parent_odp_id = ?
+    SET name = ?, olt_id = ?, pon_port = ?, port_capacity = ?, lat = ?, lng = ?, description = ?, parent_odp_id = ?, type = ?
     WHERE id = ?
   `);
   return stmt.run(
@@ -51,6 +54,7 @@ function updateOdp(id, data) {
     data.lng || '',
     data.description || '',
     data.parent_odp_id ? parseInt(data.parent_odp_id) : null,
+    typeVal,
     id
   );
 }

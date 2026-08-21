@@ -20,10 +20,83 @@
   .lc i { width: 10px; height: 10px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5); }
   .lc span { font-size: 11px; font-weight: 700; color: #f1f5f9; }
 
-  .marker-odp { color: #f59e0b; font-size: 16px; text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff; }
-  .marker-cust-active { color: #3b82f6; font-size: 18px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff; }
-  .marker-cust-free { color: #10b981; font-size: 18px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff; }
-  .marker-cust-suspended { color: #ef4444; font-size: 18px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff; }
+  /* Custom Leaflet DivIcon Styling */
+  .custom-div-icon { background: none !important; border: none !important; }
+
+  /* ODC Marker Styling */
+  .marker-odc-box {
+    background: linear-gradient(135deg, #a78bfa 0%, #7c3aed 100%);
+    border: 2px solid #ffffff;
+    box-shadow: 0 0 14px rgba(167, 139, 250, 0.8), 0 4px 10px rgba(0,0,0,0.4);
+    border-radius: 9px;
+    width: 30px; height: 30px;
+    display: flex; align-items: center; justify-content: center;
+    color: #ffffff; font-size: 15px;
+    position: relative;
+  }
+  .marker-odc-tag {
+    position: absolute; bottom: -7px;
+    background: #4c1d95; color: #ede9fe;
+    font-size: 7.5px; font-weight: 900; padding: 1px 4px;
+    border-radius: 4px; border: 1px solid #c4b5fd;
+    white-space: nowrap; line-height: 1; letter-spacing: 0.5px;
+  }
+
+  /* ODP Marker Styling */
+  .marker-odp-box {
+    background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%);
+    border: 2px solid #ffffff;
+    box-shadow: 0 0 12px rgba(251, 191, 36, 0.8), 0 4px 10px rgba(0,0,0,0.4);
+    border-radius: 8px;
+    width: 26px; height: 26px;
+    display: flex; align-items: center; justify-content: center;
+    color: #ffffff; font-size: 13px;
+    position: relative;
+  }
+  .marker-odp-tag {
+    position: absolute; bottom: -7px;
+    background: #78350f; color: #fef3c7;
+    font-size: 7.5px; font-weight: 900; padding: 1px 4px;
+    border-radius: 4px; border: 1px solid #fde68a;
+    white-space: nowrap; line-height: 1; letter-spacing: 0.5px;
+  }
+
+  /* Tech Modern Customer Pins */
+  .cust-pin-wrapper {
+    position: relative;
+    width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .cust-pin-pulse {
+    position: absolute;
+    top: -3px; left: -3px;
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    pointer-events: none;
+    animation: pulse-ring 2.2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+  }
+  .pulse-active { border: 2px solid rgba(56, 189, 248, 0.7); }
+  .pulse-free { border: 2px solid rgba(52, 211, 153, 0.7); }
+  .pulse-suspended { border: 2px solid rgba(248, 113, 113, 0.7); }
+
+  @keyframes pulse-ring {
+    0% { transform: scale(0.6); opacity: 1; }
+    80%, 100% { transform: scale(1.4); opacity: 0; }
+  }
+
+  .cust-pin {
+    width: 26px; height: 26px;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    display: flex; align-items: center; justify-content: center;
+    border: 2px solid #ffffff;
+    position: relative;
+  }
+  .cust-pin i { transform: rotate(45deg); font-size: 13px; color: #ffffff; }
+  .cust-pin-active { background: linear-gradient(135deg, #38bdf8 0%, #1d4ed8 100%); box-shadow: 0 0 10px rgba(56, 189, 248, 0.7); }
+  .cust-pin-free { background: linear-gradient(135deg, #34d399 0%, #047857 100%); box-shadow: 0 0 10px rgba(52, 211, 153, 0.7); }
+  .cust-pin-suspended { background: linear-gradient(135deg, #f87171 0%, #b91c1c 100%); box-shadow: 0 0 10px rgba(248, 113, 113, 0.7); }
+
   .popup-dark { color: #1e293b; }
   .popup-dark h6 { margin: 0 0 5px 0; border-bottom: 1px solid #ddd; padding-bottom: 5px; font-weight: bold; }
   .btn-wa { background: #25d366; color: white; border: none; padding: 5px 10px; border-radius: 5px; text-decoration: none; display: inline-block; margin-top: 8px; font-size: 12px; }
@@ -39,15 +112,21 @@
 </style>
 
 <%
+  const odcList = odps.filter(o => o.type === 'ODC');
+  const odpList = odps.filter(o => !o.type || o.type === 'ODP');
   const isFreeCust = (c) => (c.status && String(c.status).toLowerCase() === 'free') || (c.package_name && String(c.package_name).toLowerCase().includes('free')) || (c.package_price !== undefined && c.package_price !== null && Number(c.package_price) === 0 && c.package_name);
   const freeCount = customers.filter(isFreeCust).length;
   const activeCount = customers.filter(c => c.status === 'active' && !isFreeCust(c)).length;
   const suspendedCount = customers.filter(c => c.status !== 'active' && !isFreeCust(c)).length;
 %>
 
-<div class="tech-stats" style="grid-template-columns: repeat(4, 1fr);">
+<div class="tech-stats" style="grid-template-columns: repeat(5, 1fr);">
+  <div class="tsc" style="border-bottom: 3px solid #a78bfa;">
+    <span class="val"><%= odcList.length %></span>
+    <span class="lbl">ODC</span>
+  </div>
   <div class="tsc tsc-w">
-    <span class="val"><%= odps.length %></span>
+    <span class="val"><%= odpList.length %></span>
     <span class="lbl">ODP</span>
   </div>
   <div class="tsc" style="border-bottom: 3px solid #3b82f6;">
@@ -64,7 +143,12 @@
   </div>
 </div>
 
-<div class="legend-grid" style="grid-template-columns: repeat(5, 1fr);">
+<div class="legend-grid" style="grid-template-columns: repeat(6, 1fr);">
+  <label class="lc" style="cursor:pointer; user-select:none; margin-bottom:0; padding: 6px;">
+    <input type="checkbox" id="toggle-odc" checked onchange="toggleLayers()" style="width:14px;height:14px;cursor:pointer">
+    <i style="background: #a78bfa;"></i>
+    <span>ODC</span>
+  </label>
   <label class="lc" style="cursor:pointer; user-select:none; margin-bottom:0; padding: 6px;">
     <input type="checkbox" id="toggle-odp" checked onchange="toggleLayers()" style="width:14px;height:14px;cursor:pointer">
     <i style="background: #f59e0b;"></i>
@@ -72,17 +156,17 @@
   </label>
   <label class="lc" style="cursor:pointer; user-select:none; margin-bottom:0; padding: 6px;">
     <input type="checkbox" id="toggle-active" checked onchange="toggleLayers()" style="width:14px;height:14px;cursor:pointer">
-    <i style="background: #3b82f6;"></i>
+    <i style="background: #38bdf8;"></i>
     <span>Aktif</span>
   </label>
   <label class="lc" style="cursor:pointer; user-select:none; margin-bottom:0; padding: 6px;">
     <input type="checkbox" id="toggle-free" checked onchange="toggleLayers()" style="width:14px;height:14px;cursor:pointer">
-    <i style="background: #10b981;"></i>
+    <i style="background: #34d399;"></i>
     <span>Free</span>
   </label>
   <label class="lc" style="cursor:pointer; user-select:none; margin-bottom:0; padding: 6px;">
     <input type="checkbox" id="toggle-suspended" checked onchange="toggleLayers()" style="width:14px;height:14px;cursor:pointer">
-    <i style="background: #ef4444;"></i>
+    <i style="background: #f87171;"></i>
     <span>Isolir</span>
   </label>
   <label class="lc" style="cursor:pointer; user-select:none; margin-bottom:0; padding: 6px;" title="Tiket Gangguan Aktif">
@@ -125,17 +209,29 @@
     attribution: '© Google Sat'
   });
 
-  osm.addTo(map); // Default set to OSM first
-  googleHybrid.addTo(map); // Then overlay satellite
+  const darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19,
+    subdomains: 'abcd',
+    attribution: '© CARTO'
+  });
+
+  const activeTheme = (document.documentElement.getAttribute('data-theme') || localStorage.getItem('theme') || 'dark');
+  if (activeTheme === 'dark') {
+    darkLayer.addTo(map);
+  } else {
+    googleHybrid.addTo(map);
+  }
 
   const baseMaps = {
+    "Dark Mode": darkLayer,
     "Satelit": googleHybrid,
-    "Standard": osm
+    "Standard (OSM)": osm
   };
 
   L.control.layers(baseMaps).addTo(map);
 
-  // Layer Groups for ODP and Customers
+  // Layer Groups for ODC, ODP, and Customers
+  const odcGroup = L.layerGroup().addTo(map);
   const odpGroup = L.layerGroup().addTo(map);
   const activeCustGroup = L.layerGroup().addTo(map);
   const freeCustGroup = L.layerGroup().addTo(map);
@@ -186,28 +282,41 @@
     }
   });
 
-  // Add ODP Markers
+  // Add ODP & ODC Markers
   const odpMarkers = {};
   odps.forEach(odp => {
     if (odp.lat && odp.lng) {
       const odpLat = parseFloat(odp.lat);
       const odpLng = parseFloat(odp.lng);
       odpMarkers[odp.id] = [odpLat, odpLng];
+
+      const isOdc = odp.type === 'ODC';
+      const targetGroup = isOdc ? odcGroup : odpGroup;
+
+      const iconHtml = isOdc
+        ? `<div class="marker-odc-box" title="${odp.name} (ODC)"><i class="bi bi-hdd-rack-fill"></i><span class="marker-odc-tag">ODC</span></div>`
+        : `<div class="marker-odp-box" title="${odp.name} (ODP)"><i class="bi bi-box-seam-fill"></i><span class="marker-odp-tag">ODP</span></div>`;
+
       const marker = L.marker([odpLat, odpLng], {
         icon: L.divIcon({
-          html: '<i class="bi bi-box-seam-fill marker-odp"></i>',
+          html: iconHtml,
           className: 'custom-div-icon',
-          iconSize: [16, 16],
-          iconAnchor: [8, 8]
+          iconSize: isOdc ? [30, 30] : [26, 26],
+          iconAnchor: isOdc ? [15, 15] : [13, 13]
         })
-      }).addTo(odpGroup);
+      }).addTo(targetGroup);
       
+      const nodeLabel = isOdc ? 'ODC Cabinet' : 'ODP Box';
       marker.bindPopup(`
         <div class="popup-dark">
-          <h6>${odp.name}</h6>
+          <div class="d-flex align-items-center justify-content-between mb-1">
+            <h6>${odp.name}</h6>
+            <span class="badge ${isOdc ? 'bg-purple' : 'bg-warning'}" style="font-size:10px; ${isOdc ? 'background:#7c3aed;' : ''}">${nodeLabel}</span>
+          </div>
           <div style="font-size:11px">
             <b>OLT:</b> ${odp.olt_name || '-'}<br>
             <b>Port:</b> ${odp.pon_port || '-'}<br>
+            <b>Kapasitas:</b> ${odp.port_capacity || (isOdc ? 48 : 16)} Port<br>
             <b>Ket:</b> ${odp.description || '-'}
           </div>
           <a href="https://www.google.com/maps/dir/?api=1&destination=${odp.lat},${odp.lng}" target="_blank" class="btn btn-wa w-100 text-center mt-2" style="background:#3b82f6">
@@ -266,6 +375,8 @@
     if (odp.lat && odp.lng) {
       let pathCoords;
       let lineLabel;
+      const isOdc = odp.type === 'ODC';
+      const nodeGroup = isOdc ? odcGroup : odpGroup;
       
       if (odp.parent_odp_id && odpMarkers[odp.parent_odp_id]) {
         const parentCoords = odpMarkers[odp.parent_odp_id];
@@ -273,20 +384,20 @@
           [parseFloat(odp.lat), parseFloat(odp.lng)],
           parentCoords
         ];
-        lineLabel = `Kabel Uplink ODP: ${odp.name} ↔ ${odp.parent_name || 'Uplink'} (PON: ${odp.pon_port || '-'})`;
+        lineLabel = `Kabel Uplink ${odp.type || 'ODP'}: ${odp.name} ↔ ${odp.parent_name || 'Uplink'} (PON: ${odp.pon_port || '-'})`;
       } else {
         pathCoords = [
           [parseFloat(odp.lat), parseFloat(odp.lng)],
           [officeCoords.lat, officeCoords.lng]
         ];
-        lineLabel = `Kabel Utama (Feeder): Kantor Pusat ↔ ${odp.name} (PON: ${odp.pon_port || '-'})`;
+        lineLabel = `Kabel Feeder: Kantor Pusat ↔ ${odp.name} (PON: ${odp.pon_port || '-'})`;
       }
       
       // Determine line color from the ODP's PON port
-      let ponColor = '#94a3b8'; // Default slate gray if no PON port
+      let ponColor = isOdc ? '#a78bfa' : '#94a3b8';
       if (odp.olt_id && odp.pon_port && odp.pon_port.trim() !== '') {
         const key = `${odp.olt_id}_${odp.pon_port.trim()}`;
-        ponColor = ponColorMap[key] || '#94a3b8';
+        ponColor = ponColorMap[key] || (isOdc ? '#a78bfa' : '#94a3b8');
       }
 
       if (odp.cable_path) {
@@ -304,10 +415,10 @@
 
       L.polyline(pathCoords, {
         color: ponColor,
-        weight: 4,
+        weight: isOdc ? 5 : 4,
         opacity: 0.9,
         className: 'odp-cable-line'
-      }).addTo(odpGroup).bindTooltip(lineLabel, { sticky: true });
+      }).addTo(nodeGroup).bindTooltip(lineLabel, { sticky: true });
     }
   });
 
@@ -319,17 +430,23 @@
                       (cust.package_price !== undefined && cust.package_price !== null && Number(cust.package_price) === 0 && cust.package_name);
       const is_active = cust.status === 'active' || is_free;
 
-      let iconClass = 'marker-cust-suspended';
-      let cableColor = '#ef4444';
+      let iconClass = 'cust-pin-suspended';
+      let pulseClass = 'pulse-suspended';
+      let custIcon = 'bi-house-x-fill';
+      let cableColor = '#f87171';
       let targetGroup = suspendedCustGroup;
 
       if (is_free) {
-        iconClass = 'marker-cust-free';
-        cableColor = '#10b981';
+        iconClass = 'cust-pin-free';
+        pulseClass = 'pulse-free';
+        custIcon = 'bi-gift-fill';
+        cableColor = '#34d399';
         targetGroup = freeCustGroup;
       } else if (is_active) {
-        iconClass = 'marker-cust-active';
-        cableColor = '#3b82f6';
+        iconClass = 'cust-pin-active';
+        pulseClass = 'pulse-active';
+        custIcon = 'bi-house-check-fill';
+        cableColor = '#38bdf8';
         targetGroup = activeCustGroup;
       }
 
@@ -366,12 +483,21 @@
         }).addTo(targetGroup);
       }
 
+      const markerHtml = `
+        <div class="cust-pin-wrapper" title="${cust.name}">
+          <div class="cust-pin-pulse ${pulseClass}"></div>
+          <div class="cust-pin ${iconClass}">
+            <i class="bi ${custIcon}"></i>
+          </div>
+        </div>
+      `;
+
       const marker = L.marker([custLat, custLng], {
         icon: L.divIcon({
-          html: `<i class="bi bi-person-fill ${iconClass}"></i>`,
+          html: markerHtml,
           className: 'custom-div-icon',
-          iconSize: [18, 18],
-          iconAnchor: [9, 9]
+          iconSize: [28, 28],
+          iconAnchor: [14, 14]
         })
       }).addTo(targetGroup);
 
@@ -432,11 +558,20 @@
   }
 
   window.toggleLayers = function() {
-    const showOdp = document.getElementById('toggle-odp').checked;
-    const showActive = document.getElementById('toggle-active').checked;
+    const showOdc = document.getElementById('toggle-odc') ? document.getElementById('toggle-odc').checked : true;
+    const showOdp = document.getElementById('toggle-odp') ? document.getElementById('toggle-odp').checked : true;
+    const showActive = document.getElementById('toggle-active') ? document.getElementById('toggle-active').checked : true;
     const showFree = document.getElementById('toggle-free') ? document.getElementById('toggle-free').checked : true;
-    const showSuspended = document.getElementById('toggle-suspended').checked;
-    const showTickets = document.getElementById('toggle-tickets').checked;
+    const showSuspended = document.getElementById('toggle-suspended') ? document.getElementById('toggle-suspended').checked : true;
+    const showTickets = document.getElementById('toggle-tickets') ? document.getElementById('toggle-tickets').checked : true;
+
+    if (showOdc) {
+      if (!map.hasLayer(odcGroup)) map.addLayer(odcGroup);
+      localStorage.setItem('map_show_odc', 'true');
+    } else {
+      if (map.hasLayer(odcGroup)) map.removeLayer(odcGroup);
+      localStorage.setItem('map_show_odc', 'false');
+    }
 
     if (showOdp) {
       if (!map.hasLayer(odpGroup)) map.addLayer(odpGroup);
@@ -480,18 +615,21 @@
   };
 
   // Load preferences
+  const prefOdc = localStorage.getItem('map_show_odc') !== 'false';
   const prefOdp = localStorage.getItem('map_show_odp') !== 'false';
   const prefActive = localStorage.getItem('map_show_active') !== 'false';
   const prefFree = localStorage.getItem('map_show_free') !== 'false';
   const prefSuspended = localStorage.getItem('map_show_suspended') !== 'false';
   const prefTickets = localStorage.getItem('map_show_tickets') !== 'false';
 
+  if (document.getElementById('toggle-odc')) document.getElementById('toggle-odc').checked = prefOdc;
   if (document.getElementById('toggle-odp')) document.getElementById('toggle-odp').checked = prefOdp;
   if (document.getElementById('toggle-active')) document.getElementById('toggle-active').checked = prefActive;
   if (document.getElementById('toggle-free')) document.getElementById('toggle-free').checked = prefFree;
   if (document.getElementById('toggle-suspended')) document.getElementById('toggle-suspended').checked = prefSuspended;
   if (document.getElementById('toggle-tickets')) document.getElementById('toggle-tickets').checked = prefTickets;
 
+  if (!prefOdc) map.removeLayer(odcGroup);
   if (!prefOdp) map.removeLayer(odpGroup);
   if (!prefActive) map.removeLayer(activeCustGroup);
   if (!prefFree) map.removeLayer(freeCustGroup);
