@@ -6,6 +6,11 @@
 const express = require('express');
 const router = express.Router();
 const investorService = require('../services/investorService');
+const { getSetting } = require('../../config/settingsManager');
+
+function company() {
+  return getSetting('company_header', 'Billing System');
+}
 
 /**
  * Middleware untuk memastikan user sudah terotentikasi sebagai Investor
@@ -24,7 +29,7 @@ router.get('/login', (req, res) => {
   if (req.session && req.session.investor) {
     return res.redirect('/investor/dashboard');
   }
-  res.render('../investor/views/login', { error: null });
+  res.render('../investor/views/login', { error: null, company: company() });
 });
 
 /**
@@ -34,12 +39,12 @@ router.post('/login', (req, res) => {
   try {
     const { username, password } = req.body;
     if (!username || !password) {
-      return res.render('../investor/views/login', { error: 'Username dan Password wajib diisi.' });
+      return res.render('../investor/views/login', { error: 'Username dan Password wajib diisi.', company: company() });
     }
 
     const investor = investorService.authenticateInvestor(username, password);
     if (!investor) {
-      return res.render('../investor/views/login', { error: 'Username atau Password salah / akun non-aktif.' });
+      return res.render('../investor/views/login', { error: 'Username atau Password salah / akun non-aktif.', company: company() });
     }
 
     // Set Session Investor
@@ -47,7 +52,7 @@ router.post('/login', (req, res) => {
     return res.redirect('/investor/dashboard');
   } catch (err) {
     console.error('[Investor Router] Login error:', err.message);
-    return res.render('../investor/views/login', { error: 'Terjadi kesalahan sistem saat login.' });
+    return res.render('../investor/views/login', { error: 'Terjadi kesalahan sistem saat login.', company: company() });
   }
 });
 
@@ -78,6 +83,7 @@ router.get('/dashboard', requireInvestor, (req, res) => {
 
     res.render('../investor/views/dashboard', {
       investor: currentInvestor,
+      company: company(),
       summary,
       dividendInfo,
       pkgDist,

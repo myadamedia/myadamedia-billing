@@ -63,6 +63,34 @@
   </div>
 
   <div class="page">
+    <!-- HERO BANNER -->
+    <div class="card mb-4" style="background: linear-gradient(135deg, rgba(99,102,241,0.25) 0%, rgba(17,24,39,0.9) 100%); border: 1px solid rgba(99,102,241,0.35); border-radius: 20px; padding: 22px 24px; position: relative; overflow: hidden; margin-bottom: 20px;">
+      <div style="position: absolute; right: -20px; bottom: -25px; font-size: 150px; color: rgba(99,102,241,0.06); pointer-events: none;">
+        <i class="bi bi-speedometer2"></i>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; position: relative; z-index: 1;">
+        <div>
+          <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 20px; background: rgba(16,185,129,0.2); border: 1px solid rgba(16,185,129,0.4); color: #34d399; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">
+            <i class="bi bi-shield-check"></i> MONITORING SISTEM REALTIME
+          </div>
+          <h2 style="font-size: 22px; font-weight: 800; color: #ffffff; margin: 0 0 4px 0; letter-spacing: -0.5px;">
+            Halo, <%= (typeof session !== 'undefined' && session.isCashier) ? 'Kasir Operasional' : 'Administrator' %>!
+          </h2>
+          <p style="font-size: 13px; color: #cbd5e1; margin: 0;">
+            Pantau performa router MikroTik, status ONU/OLT, billing tagihan, dan aksi cepat pengelolaan sistem.
+          </p>
+        </div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <a href="/admin/customers" class="btn btn-p btn-sm" style="border-radius: 12px; font-weight: 700; padding: 8px 16px;">
+            <i class="bi bi-people-fill me-1"></i> Data Pelanggan
+          </a>
+          <a href="/admin/routers" class="btn btn-g btn-sm" style="border-radius: 12px; font-weight: 700; padding: 8px 16px; background: rgba(255,255,255,0.12); color: #fff; border-color: rgba(255,255,255,0.2);">
+            <i class="bi bi-hdd-network me-1"></i> Kelola Router
+          </a>
+        </div>
+      </div>
+    </div>
+
     <!-- TAB NAVIGATION -->
     <div class="tab-bar">
       <button class="tab-btn active" id="tab-dash" onclick="showTab('dashboard')">
@@ -80,12 +108,12 @@
 
       <!-- MikroTik Stats & List -->
       <% const routerList = (typeof routers !== 'undefined' && Array.isArray(routers)) ? routers : []; %>
-      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">
-        <i class="bi bi-hdd-network"></i> <%= t('admin.dashboard.mikrotik_status_title', 'Status MikroTik') %>
+      <div style="font-size:12px;color:var(--text);font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+        <i class="bi bi-hdd-network" style="color:var(--primary);font-size:16px;"></i> <%= t('admin.dashboard.mikrotik_status_title', 'Status MikroTik') %>
       </div>
       
       <!-- Summary Grid Router MikroTik -->
-      <div class="stat-grid" style="margin-bottom: 16px;">
+      <div class="stat-grid" style="margin-bottom: 20px;">
         <div class="sc p" style="cursor:pointer" onclick="location.href='/admin/routers'">
           <i class="bi bi-hdd-network sc-icon"></i>
           <div class="sc-label"><%= t('admin.dashboard.total_routers', 'Total Router MikroTik') %></div>
@@ -107,7 +135,7 @@
       </div>
 
       <!-- Daftar Router MikroTik Table Card -->
-      <div class="card" style="margin-bottom: 20px;">
+      <div class="card" style="margin-bottom: 22px;">
         <div class="card-hd" style="display:flex; justify-content:space-between; align-items:center;">
           <h6><i class="bi bi-hdd-network"></i> <%= t('admin.dashboard.router_list_title', 'Daftar Router MikroTik') %> (<%= routerList.length %>)</h6>
           <a href="/admin/routers" class="btn btn-g btn-sm"><i class="bi bi-gear"></i> Kelola Router</a>
@@ -187,10 +215,10 @@
       </div>
 
       <!-- ONU Stats -->
-      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">
-        <i class="bi bi-router"></i> <%= t('admin.dashboard.onu_status_title', 'Status ONU') %>
+      <div style="font-size:12px;color:var(--text);font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+        <i class="bi bi-router" style="color:var(--primary);font-size:16px;"></i> <%= t('admin.dashboard.onu_status_title', 'Status ONU / Perangkat Optik') %>
       </div>
-      <div class="stat-grid">
+      <div class="stat-grid" style="margin-bottom: 22px;">
         <div class="sc p">
           <i class="bi bi-router sc-icon"></i>
           <div class="sc-label"><%= t('admin.dashboard.total_onu', 'Total ONU') %></div>
@@ -219,10 +247,10 @@
 
       <!-- Billing Stats -->
       <% if (typeof billing !== 'undefined' && billing) { %>
-      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin:20px 0 10px">
-        <i class="bi bi-receipt"></i> <%= t('admin.dashboard.billing_summary_month', 'Ringkasan Billing Bulan Ini') %>
+      <div style="font-size:12px;color:var(--text);font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:24px 0 12px;display:flex;align-items:center;gap:8px;">
+        <i class="bi bi-receipt" style="color:var(--primary);font-size:16px;"></i> <%= t('admin.dashboard.billing_summary_month', 'Ringkasan Billing & Financial Analytics') %>
       </div>
-      <div class="stat-grid">
+      <div class="stat-grid" style="margin-bottom: 24px;">
         <div class="sc s" style="cursor:pointer" onclick="location.href='/admin/billing'">
           <i class="bi bi-cash-stack sc-icon"></i>
           <div class="sc-label"><%= t('admin.dashboard.revenue_month', 'Pendapatan Bulan Ini') %></div>

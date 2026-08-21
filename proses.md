@@ -2,6 +2,72 @@
 
 ---
 
+## [2026-08-21] Dinamisasi Nama Aplikasi / Perusahaan (`settings.company_header`) di Seluruh Tampilan Sistem & Layanan
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna meminta agar seluruh teks nama aplikasi/perusahaan (seperti *"MyAdamedia Billing System"*, *"MyAdamedia BILLING SYSTEM"*, *"MyAdamedia WEBPORTAL"*, *"MyAdamedia Digital Ekosistem"*, *"Billing Management System"*) diambil secara dinamis dari **Pengaturan Nama Aplikasi / Perusahaan** (`settings.company_header`). Apabila nama di menu Pengaturan (`/admin/settings`) diubah, maka seluruh teks pada semua portal, footer, header, halaman login, notifikasi, dan skrip otomatis akan menyesuaikan secara real-time.
+
+### 2. Solusi & Implementasi Teknis
+- **Visual & Template EJS**:
+  - `views/admin/partials/sidebar.ejs`: Mengganti teks footer sidebar menjadi `<%= settings.company_header.toUpperCase() %>`.
+  - `views/tech/login.ejs` & `views/collector/login.ejs`: Mengganti sub-header login portal menjadi `<%= company %>`.
+  - `investor/views/login.ejs` & `investor/views/dashboard.ejs`: Mengganti teks footer investor portal menjadi `<%= company %>`.
+  - `views/otp.ejs` & `views/admin/license_activate.ejs`: Mengganti footer dan title tag lisensi menjadi `<%= company %>`.
+- **Portal Router & Services**:
+  - `investor/routes/investorPortal.js`: Mengintegrasikan `company: getSetting('company_header')` pada semua render login dan dashboard investor.
+  - `routes/adminPortal.js`, `routes/customerPortal.js`, `routes/admin/isolatedPortal.js`: Mengamankan fallback default `company_header` menggunakan `getSetting('company_header', 'Billing System')`.
+  - `services/whatsappBot.mjs`, `services/isolatedPortalService.js`, `services/mikrotikService.js`: Mengonversi string komentar skrip dan header notifikasi ke `getSetting('company_header')`.
+
+### 3. Komponen & File Yang Diubah
+- `[MODIFY]` [`views/admin/partials/sidebar.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/partials/sidebar.ejs)
+- `[MODIFY]` [`views/tech/login.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/tech/login.ejs)
+- `[MODIFY]` [`views/collector/login.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/collector/login.ejs)
+- `[MODIFY]` [`investor/views/login.ejs`](file:///d:/WEBAPP/myadamedia-billing/investor/views/login.ejs)
+- `[MODIFY]` [`investor/views/dashboard.ejs`](file:///d:/WEBAPP/myadamedia-billing/investor/views/dashboard.ejs)
+- `[MODIFY]` [`investor/routes/investorPortal.js`](file:///d:/WEBAPP/myadamedia-billing/investor/routes/investorPortal.js)
+- `[MODIFY]` [`views/otp.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/otp.ejs)
+- `[MODIFY]` [`views/admin/license_activate.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/license_activate.ejs)
+- `[MODIFY]` [`routes/adminPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/adminPortal.js)
+- `[MODIFY]` [`routes/customerPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/customerPortal.js)
+- `[MODIFY]` [`services/whatsappBot.mjs`](file:///d:/WEBAPP/myadamedia-billing/services/whatsappBot.mjs)
+- `[MODIFY]` [`services/isolatedPortalService.js`](file:///d:/WEBAPP/myadamedia-billing/services/isolatedPortalService.js)
+- `[MODIFY]` [`services/mikrotikService.js`](file:///d:/WEBAPP/myadamedia-billing/services/mikrotikService.js)
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md)
+
+### 4. Hasil Pengujian & Verifikasi
+- **Pengujian Pengubahan Nama**: Saat field *Nama Aplikasi / Perusahaan* diubah di `/admin/settings`, seluruh footer sidebar, portal SSO, login teknisi, login kolektor, login investor, dan invoice cetak langsung berubah mengikuti input baru.
+- **Pengujian Jest**: 12 Test Suites / 204 Tests Passed (100%).
+
+---
+
+## [2026-08-21] Peremajaan Tampilan UI/UX & Layout Halaman Dashboard Admin (/admin) Menjadi Modern, Intuitive, dan Ultra-Responsive
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna menginginkan tampilan antarmuka (*UI/UX*) halaman **Dashboard Admin** (`http://localhost:3001/admin`) diperbarui agar terlihat lebih modern, menarik, mudah dipahami, dan nyaman dipandang mata, dengan syarat **tetap menampilkan 100% seluruh fitur, data statistik, tabel monitoring, dan menu yang ada**.
+
+### 2. Solusi & Implementasi Teknis
+- **Font & Tipografi Modern**: Mengintegrasikan font Google *Plus Jakarta Sans* dipadukan dengan *Inter* untuk hierarki judul dan teks yang sangat bersih dan profesional.
+- **Hero Welcome Banner**: Menambahkan kartu sambutan eksekutif pada bagian atas dashboard yang menyapa Administrator / Kasir dengan lencana status real-time (*Monitoring Sistem Realtime*), ringkasan deskripsi, dan tombol navigasi cepat.
+- **Pengelompokan Visual Stat Grids**: Menata ulang kartu metrik menjadi 3 section ber-ikon yang sangat terstruktur:
+  1. **Status MikroTik** (Total, Router Aktif, Router Nonaktif).
+  2. **Status ONU / Perangkat Optik** (Total, Online, Offline, Warning).
+  3. **Ringkasan Billing & Financial Analytics** (Pendapatan Bulan Ini, Pelanggan Aktif, Tagihan Belum Bayar, Total Piutang).
+- **Desain Glassmorphism & Micro-Animations**:
+  - Memberikan efek *backdrop blur* (`backdrop-filter: blur(20px)`), sudut melengkung modern (`border-radius: 16px - 20px`), bayangan halus (`box-shadow`), dan efek *glowing border hover* pada stat card dan tabel router.
+- **Preservasi 100% Fitur & Menu**:
+  - Mempertahankan tab navigasi (*Dashboard* & *Monitoring ONU*), pengujian tes koneksi router MikroTik, dropdown monitoring live traffic interface, Donut Chart status ONU, GenieACS modal settings, dan seluruh elemen menu sidebar.
+
+### 3. Komponen & File Yang Diubah
+- `[MODIFY]` [`public/css/admin.css`](file:///d:/WEBAPP/myadamedia-billing/public/css/admin.css): Pengimporan font Google Plus Jakarta Sans, perbaikan token Glassmorphism, animasi stat card hover, dan styling tabel/tombol modern.
+- `[MODIFY]` [`views/admin/dashboard.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/dashboard.ejs): Penambahan Hero Welcome Banner, penataan ulang section title header, dan modernisasi stat card.
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md): Pencatatan dokumentasi perubahan antarmuka.
+
+### 4. Hasil Pengujian & Verifikasi
+- **Verifikasi Visual**: Tampilan Admin Dashboard terlihat sangat mewah, modern, rapi, dan mudah dibaca dalam berbagai mode tema (*Dark, Light, Ocean, Forest*).
+- **Pengujian Jest**: 12 Test Suites / 204 Tests Passed (100%).
+
+---
+
 ## [2026-08-21] Implementasi Tema Dinamis (Dark / Light Mode) pada Portal SSO Gateway & Seluruh Halaman Login (/sso, /admin/login, /tech/login, /collector/login, /investor/login)
 
 ### 1. Deskripsi Permasalahan & Kebutuhan

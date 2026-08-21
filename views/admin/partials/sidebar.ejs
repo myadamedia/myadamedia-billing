@@ -112,9 +112,9 @@
       <i class="bi bi-box-arrow-left"></i><span><%= t('common.logout', 'Logout') %></span>
     </a>
     <div class="mt-4 px-3 py-2 text-center" style="border-top: 1px solid rgba(255,255,255,0.1);">
-      <a href="https://myadamedia.net" target="_blank"
+      <a href="#" onclick="return false;"
         style="color: #94a3b8; font-size: 11px; text-decoration: none; font-weight: 600;">
-        MyAdamedia BILLING SYSTEM
+        <%= (typeof settings !== 'undefined' && settings && settings.company_header) ? settings.company_header.toUpperCase() : (typeof company !== 'undefined' ? String(company).toUpperCase() : 'BILLING SYSTEM') %>
       </a>
     </div>
   </nav>

@@ -159,7 +159,7 @@
           </button>
         </form>
         <div class="text-center footer-text">
-          &copy; <%= new Date().getFullYear() %> MyAdamedia Digital Ekosistem
+          &copy; <%= new Date().getFullYear() %> <%= (typeof company !== 'undefined' && company) ? company : (typeof settings !== 'undefined' && settings && settings.company_header ? settings.company_header : 'Digital Ekosistem') %>
         </div>
       </div>
     </div>

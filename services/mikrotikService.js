@@ -2,7 +2,7 @@ const dns = require('dns');
 const net = require('net');
 const { URL } = require('url');
 const { RouterOSClient } = require('routeros-client');
-const { getSettingsWithCache } = require('../config/settingsManager');
+const { getSettingsWithCache, getSetting } = require('../config/settingsManager');
 const { logger } = require('../config/logger');
 const db = require('../config/database');
 
@@ -1402,7 +1402,7 @@ async function ensurePppProfileIsolirAddressListHook(profileName, routerId = nul
           'rate-limit': '512k/512k',
           'on-up': hookUp,
           'on-down': hookDown,
-          comment: 'Profil Isolir Otomatis MyAdaMedia'
+          comment: `Profil Isolir Otomatis ${getSetting('company_header', 'Billing System')}`
         });
         const recheckRows = await menu.get();
         prof = (Array.isArray(recheckRows) ? recheckRows : []).find((r) => String(r.name || '') === name);

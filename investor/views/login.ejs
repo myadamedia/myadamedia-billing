@@ -315,7 +315,7 @@
     </div>
 
     <div class="login-footer">
-      <p>&copy; <%= new Date().getFullYear() %> Billing Management System • Standalone Portal Investor</p>
+      <p>&copy; <%= new Date().getFullYear() %> <%= (typeof company !== 'undefined' && company) ? company : (typeof settings !== 'undefined' && settings && settings.company_header ? settings.company_header : 'Billing System') %> • Standalone Portal Investor</p>
     </div>
   </div>
 

@@ -2328,7 +2328,7 @@ router.get('/billing/:id/print', requireAdminSession, (req, res) => {
   res.render('admin/print_invoice', {
     invoice: inv,
     customer,
-    company: settings.company_header || 'MyAdamedia Digital Ekosistem',
+    company: settings.company_header || 'Billing System',
     settings
   });
 });
@@ -2363,7 +2363,7 @@ router.get('/billing/print-batch', requireAdminSession, (req, res) => {
       invoicesData: invoicesWithCustomer,
       month,
       year,
-      company: settings.company_header || 'MyAdamedia Digital Ekosistem',
+      company: settings.company_header || 'Billing System',
       settings,
       lang: req.query.lang || 'id',
       formatDateLocal,
@@ -5850,7 +5850,7 @@ router.post('/whatsapp/test-notification', requireAdminSession, async (req, res)
     const adminPhone = '085179966227';
     const msg =
       `🧪 *TEST NOTIFIKASI WHATSAPP*\n\n` +
-      `✅ Jika pesan ini masuk, berarti notifikasi WhatsApp dari Billing MyAdamedia System sudah berfungsi.\n` +
+      `✅ Jika pesan ini masuk, berarti notifikasi WhatsApp dari ${getSetting('company_header', 'Billing System')} sudah berfungsi.\n` +
       `📅 Waktu: ${getNowLocal()}`;
     const ok = await sendWA(adminPhone, msg);
     if (!ok) throw new Error('Gagal mengirim pesan test (sendWA=false).');

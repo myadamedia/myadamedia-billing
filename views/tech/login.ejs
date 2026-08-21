@@ -175,7 +175,7 @@
 
     <div class="brand-icon"><i class="bi bi-tools"></i></div>
     <h3 class="mb-1 fw-bold" style="color: var(--text-main);">Portal Teknisi</h3>
-    <p class="mb-4 small" style="color: var(--text-muted);">MyAdamedia WEBPORTAL</p>
+    <p class="mb-4 small" style="color: var(--text-muted);"><%= (typeof company !== 'undefined' && company) ? company : (typeof settings !== 'undefined' && settings && settings.company_header ? settings.company_header : 'WEBPORTAL') %></p>
 
     <% if (error) { %>
       <div class="alert alert-danger py-2 small rounded-3">

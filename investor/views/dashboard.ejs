@@ -826,7 +826,7 @@
 
     <!-- Footer Note -->
     <div class="footer-note">
-      <p>&copy; <%= new Date().getFullYear() %> Billing Management System • Executed Standalone Investor Portal</p>
+      <p>&copy; <%= new Date().getFullYear() %> <%= (typeof company !== 'undefined' && company) ? company : (typeof settings !== 'undefined' && settings && settings.company_header ? settings.company_header : 'Billing System') %> • Executed Standalone Investor Portal</p>
     </div>
 
   </main>

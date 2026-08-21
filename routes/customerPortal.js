@@ -2879,7 +2879,7 @@ router.get('/billing/:id/print', async (req, res) => {
     res.render('admin/print_invoice', {
       invoice: inv,
       customer,
-      company: settings.company_header || 'MyAdamedia Digital Ekosistem',
+      company: settings.company_header || 'Billing System',
       settings
     });
   } catch (e) {
