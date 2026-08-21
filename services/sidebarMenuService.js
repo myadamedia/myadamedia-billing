@@ -45,11 +45,11 @@ const MENU_DEFINITIONS = [
 
   { key: 'cashier_attendance', section: 'cashier', href: '/admin/cashiers/attendance', icon: 'bi bi-calendar-check', labelKey: 'admin.nav.cashier_attendance', labelDefault: 'Absensi Saya', roles: ['cashier', 'finance'], activePages: ['cashier_attendance'] },
 
-  { key: 'technicians', section: 'user_management', href: '/admin/technicians', icon: 'bi bi-person-gear', labelKey: 'admin.nav.technicians', labelDefault: 'Teknisi', roles: ['superadmin'], activePages: ['technicians'] },
-  { key: 'cashiers', section: 'user_management', href: '/admin/cashiers', icon: 'bi bi-person-vcard', labelKey: 'admin.nav.cashiers', labelDefault: 'Kasir', roles: ['superadmin', 'finance'], activePages: ['cashiers'] },
-  { key: 'collectors', section: 'user_management', href: '/admin/collectors', icon: 'bi bi-person-badge', labelKey: 'admin.nav.collectors', labelDefault: 'Kolektor', roles: ['superadmin', 'finance'], activePages: ['collectors'] },
-  { key: 'agents', section: 'user_management', href: '/admin/agents', icon: 'bi bi-person-badge', labelKey: 'admin.nav.agents', labelDefault: 'Agent', roles: ['superadmin', 'finance'], activePages: ['agents'] },
-  { key: 'agents_reports', section: 'user_management', href: '/admin/agents/reports', icon: 'bi bi-journal-text', labelKey: 'admin.nav.agent_reports', labelDefault: 'Laporan Agent', roles: ['superadmin', 'finance'], activePages: ['agents_reports'] },
+  { key: 'staff', section: 'user_management', href: '/admin/staff', icon: 'bi bi-person-workspace', labelKey: 'admin.nav.staff', labelDefault: 'Staff / Karyawan', roles: ['superadmin', 'finance'], activePages: ['staff', 'technicians', 'cashiers', 'collectors'] },
+  { key: 'technicians', section: 'user_management', parentKey: 'staff', href: '/admin/technicians', icon: 'bi bi-person-gear', labelKey: 'admin.nav.technicians', labelDefault: 'Teknisi', roles: ['superadmin'], activePages: ['technicians'] },
+  { key: 'cashiers', section: 'user_management', parentKey: 'staff', href: '/admin/cashiers', icon: 'bi bi-person-vcard', labelKey: 'admin.nav.cashiers', labelDefault: 'Kasir', roles: ['superadmin', 'finance'], activePages: ['cashiers'] },
+  { key: 'collectors', section: 'user_management', parentKey: 'staff', href: '/admin/collectors', icon: 'bi bi-person-badge', labelKey: 'admin.nav.collectors', labelDefault: 'Kolektor', roles: ['superadmin', 'finance'], activePages: ['collectors'] },
+  { key: 'agents', section: 'user_management', href: '/admin/agents', icon: 'bi bi-person-badge-fill', labelKey: 'admin.nav.agents', labelDefault: 'Agent', roles: ['superadmin', 'finance'], activePages: ['agents', 'agents_reports'] },
 
   { key: 'update', section: 'system', href: '/admin/update', icon: 'bi bi-cloud-arrow-down', labelKey: 'admin.nav.update', labelDefault: 'Update GitHub', roles: ['superadmin'], activePages: ['update'] },
   { key: 'settings', section: 'system', href: '/admin/settings', icon: 'bi bi-gear', labelKey: 'admin.nav.settings', labelDefault: 'Pengaturan', roles: ['superadmin'], activePages: ['settings'] },
@@ -91,11 +91,11 @@ const DEFAULT_MENU_STATES = {
   expenses: STATE_VISIBLE,
   expense_categories: STATE_VISIBLE,
   cashier_attendance: STATE_VISIBLE,
+  staff: STATE_VISIBLE,
   technicians: STATE_VISIBLE,
   cashiers: STATE_VISIBLE,
   collectors: STATE_VISIBLE,
   agents: STATE_VISIBLE,
-  agents_reports: STATE_VISIBLE,
   update: STATE_VISIBLE,
   settings: STATE_VISIBLE,
   ewallet_logs: STATE_VISIBLE,
@@ -203,11 +203,26 @@ function enrichMenu(menu, states) {
 function getSidebarSections(session) {
   const states = getStoredMenuStates();
   return SECTION_DEFINITIONS.map((section) => {
-    const items = MENU_DEFINITIONS
+    const rawItems = MENU_DEFINITIONS
       .filter((menu) => menu.section === section.key)
       .filter((menu) => isMenuAllowedForSession(menu, session))
       .map((menu) => enrichMenu(menu, states))
       .filter((menu) => !menu.hidden);
+
+    const items = [];
+    const itemMap = {};
+
+    rawItems.forEach((item) => {
+      itemMap[item.key] = { ...item, subItems: [] };
+    });
+
+    rawItems.forEach((item) => {
+      if (item.parentKey && itemMap[item.parentKey]) {
+        itemMap[item.parentKey].subItems.push(itemMap[item.key]);
+      } else if (!item.parentKey) {
+        items.push(itemMap[item.key]);
+      }
+    });
 
     return {
       ...section,

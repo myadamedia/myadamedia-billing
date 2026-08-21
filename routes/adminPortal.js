@@ -1000,6 +1000,11 @@ router.post('/odps/:id/delete', requireAdminSession, restrictToRoles(['noc', 'te
   res.redirect('/admin/map');
 });
 
+// --- STAFF / KARYAWAN MANAGEMENT ---
+router.get('/staff', requireAdminSession, (req, res) => {
+  res.redirect('/admin/technicians');
+});
+
 // --- TECHNICIAN MANAGEMENT ---
 router.get('/technicians', requireAdminSession, requireSidebarMenuAccess('technicians'), restrictToAdmin, (req, res) => {
   const technicians = adminSvc.getAllTechnicians();
@@ -1572,7 +1577,7 @@ router.post('/agents/:id/topup', requireAdminSession, express.urlencoded({ exten
   res.redirect('/admin/agents');
 });
 
-router.get('/agents/reports', requireAdminSession, requireSidebarMenuAccess('agents_reports'), restrictToRoles(['finance']), (req, res) => {
+router.get('/agents/reports', requireAdminSession, requireSidebarMenuAccess('agents'), restrictToRoles(['finance']), (req, res) => {
   const agents = agentSvc.getAllAgents();
   const agentId = req.query.agentId ? Number(req.query.agentId) : null;
   const txs = agentSvc.listAgentTransactions({ agentId, limit: 500 });

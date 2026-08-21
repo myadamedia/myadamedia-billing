@@ -2,6 +2,76 @@
 
 ---
 
+## [2026-08-21] Penggabungan Menu Laporan Agent ke Menu Utama Agent
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna meminta penggabungan menu **Laporan Agent** (`http://localhost:3001/admin/agents/reports`) ke dalam menu utama **Agent** (`http://localhost:3001/admin/agents`) agar navigasi sidebar Admin Panel lebih ringkas dan terstruktur.
+
+### 2. Penyebab Utama Masalah
+- Sebelumnya `Laporan Agent` berdiri sebagai item menu terpisah di bagian MANAJEMEN USER.
+
+### 3. Solusi & Implementasi Teknis
+- **Struktur Menu Sidebar (`services/sidebarMenuService.js`)**:
+  - Menghapus `agents_reports` sebagai menu terpisah di sidebar.
+  - Memperbarui menu `agents` agar memiliki `activePages: ['agents', 'agents_reports']`, sehingga saat halaman Laporan Agent dibuka, menu Agent di sidebar tetap ter-highlight.
+- **Proteksi Rute Backend (`routes/adminPortal.js`)**:
+  - Mengubah proteksi rute `/admin/agents/reports` agar menggunakan izin akses menu `agents`.
+- **Halaman Modul Agent (`agents.ejs`, `agent_reports.ejs`)**:
+  - Menambahkan *Segmented Tab Bar Navigasi Agent* di bagian atas halaman (👤 **Daftar Agent**, 📑 **Laporan & Transaksi Agent**) untuk perpindahan antarmuka yang cepat.
+  - Menambahkan *Glassmorphic Hero Welcome Banner* modern pada kedua halaman.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`services/sidebarMenuService.js`](file:///d:/WEBAPP/myadamedia-billing/services/sidebarMenuService.js)
+- `[MODIFY]` [`routes/adminPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/adminPortal.js)
+- `[MODIFY]` [`views/admin/agents.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/agents.ejs)
+- `[MODIFY]` [`views/admin/agent_reports.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/agent_reports.ejs)
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md)
+
+### 5. Hasil Pengujian & Verifikasi
+- **Pengujian Navigasi Sidebar & Tab**: Sidebar hanya menampilkan 1 menu Agent yang rapi, tab navigasi berfungsi secara responsif, dan pengujian Jest 12 Test Suites / 204 Tests Passed (100%).
+
+---
+
+## [2026-08-21] Pengelompokan & Pembuatan Menu Staff / Karyawan di MANAJEMEN USER
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna meminta pembuatan menu **Staff / Karyawan** (`/admin/staff`) di bagian grup **MANAJEMEN USER** pada sidebar Admin Panel, serta memindahkan 3 modul pengguna ke dalamnya:
+- **Teknisi** (`http://localhost:3001/admin/technicians`)
+- **Kasir** (`http://localhost:3001/admin/cashiers`)
+- **Kolektor** (`http://localhost:3001/admin/collectors`)
+
+### 2. Penyebab Utama Masalah
+- Sebelumnya menu Teknisi, Kasir, dan Kolektor berdiri sendiri sebagai item terpisah di bagian MANAJEMEN USER, sehingga navigasi sidebar kurang terstruktur dengan rapi.
+
+### 3. Solusi & Implementasi Teknis
+- **Struktur Menu Sidebar (`services/sidebarMenuService.js`)**:
+  - Menambahkan menu utama `staff` (`/admin/staff`, ikon `bi bi-person-workspace`) di bagian `MANAJEMEN USER`.
+  - Menandai item `technicians`, `cashiers`, dan `collectors` dengan `parentKey: 'staff'`.
+  - Memperbarui `getSidebarSections` untuk secara otomatis mengelompokkan item ber-`parentKey` ke dalam array `subItems` pada parent-nya.
+- **Tampilan Sidebar (`views/admin/partials/sidebar.ejs`)**:
+  - Mengimplementasikan sub-menu dropdown yang otomatis terbuka (*expanded*) dan ter-highlight saat pengguna berada pada halaman Teknisi, Kasir, atau Kolektor.
+  - Menambahkan fungsi JavaScript `toggleSubMenu(e, key)` untuk mendukung animasi expand/collapse yang mulus.
+- **Routing Server (`routes/adminPortal.js`)**:
+  - Menambahkan rute GET `/admin/staff` yang meredirect pengguna ke `/admin/technicians`.
+- **Halaman Modul Staff (`technicians.ejs`, `cashiers.ejs`, `collectors.ejs`)**:
+  - Menambahkan *Segmented Tab Bar Navigasi Staff* di bagian atas halaman (🔧 Teknisi, 💳 Kasir, 💵 Kolektor) untuk perpindahan halaman yang lebih cepat dan intuitif.
+  - Menambahkan *Glassmorphic Hero Welcome Banner* modern pada ketiga halaman tersebut.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`services/sidebarMenuService.js`](file:///d:/WEBAPP/myadamedia-billing/services/sidebarMenuService.js)
+- `[MODIFY]` [`views/admin/partials/sidebar.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/partials/sidebar.ejs)
+- `[MODIFY]` [`routes/adminPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/adminPortal.js)
+- `[MODIFY]` [`views/admin/technicians.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/technicians.ejs)
+- `[MODIFY]` [`views/admin/cashiers.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/cashiers.ejs)
+- `[MODIFY]` [`views/admin/collectors.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/collectors.ejs)
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md)
+
+### 5. Hasil Pengujian & Verifikasi
+- **Pengujian Navigasi Sidebar & Rute**: Menu **Staff / Karyawan** terender rapi di bagian MANAJEMEN USER, sub-menu dapat di-expand/collapse dengan lancar, dan rute `/admin/staff` meredirect dengan tepat.
+- **Pengujian Automated Jest**: 12 Test Suites / 204 Tests Passed (100%).
+
+---
+
 ## [2026-08-21] Peremajaan UI/UX 8 Modul Utama Admin Panel (Support, Inventaris, Absensi, Pengaturan, Log E-Wallet, Backup, Monitoring & Audit Logs)
 
 ### 1. Deskripsi Permasalahan & Kebutuhan
