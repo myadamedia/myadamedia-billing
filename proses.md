@@ -13,25 +13,24 @@ Pengguna meminta peremajaan antarmuka (*UI/UX*) dari halaman **Monitoring & Mana
 - Navigasi tab masih menggunakan styling teks datar sederhana tanpa efek *segmented pill tabs*.
 
 ### 3. Solusi & Implementasi Teknis
-- **Hero Welcome Banner (`views/admin/mikrotik.ejs`)**:
-  - Menambahkan banner header modern bergradasi dengan aksen radial glow, judul interaktif, dan badge status live API router.
-- **Router Resource Progress Meters**:
-  - Menambahkan visualisasi *Animated Progress Bar Meters* untuk **CPU Load** (dengan perubah warna otomatis: Biru ➔ Amber jika >50% ➔ Merah jika >80%), **Free Memory (RAM)**, dan **Router Uptime**.
-- **Glassmorphic Stat Cards Grid (5 Kartu Indikator)**:
-  - **PPPoE Online** (Royal Blue Glow Card + Ikon Ethernet)
-  - **PPPoE Offline** (Warm Amber Card + Ikon Plug)
-  - **Total Secrets** (Indigo Card + Ikon People)
-  - **Hotspot Online** (Emerald Green Glow Card + Ikon WiFi)
-  - **Total Hotspot** (Purple Cabinet Card + Ikon Badge)
-  - Setiap kartu dilengkapi efek hover lift (`translateY(-3px)`), bayangan lembut, dan border glow.
-- **Segmented Pill Navigation Tabs**:
-  - Desain ulang tab navigasi utama (`PPPoE Secrets`, `Hotspot Users`, `PPPoE Profiles`, `Hotspot Profiles`) menggunakan struktur pill modern bergradasi dengan aksen aktif biru bersinar.
-- **Data Tables & Status Badging**:
-  - Badging status real-time dengan efek *Soft Background Glow* (`Online` = Emerald Pill + Pulse Dot, `Offline` = Slate Pill, `Disabled` = Red Pill).
+- **Pembersihan Tag Style Berulang (`views/admin/mikrotik.ejs`)**:
+  - Mengeliminasi duplikasi tag `</style>` pada bagian `<head>` file `views/admin/mikrotik.ejs` yang menyebabkan teks kode CSS `@keyframes spin...` terekspos langsung ke dalam DOM HTML browser dan merusak tata letak layout.
+- **Sistem CSS Theme-Adaptive (`var(--card-bg)`, `var(--border)`, `var(--text)`, `var(--muted)`)**:
+  - Memperbarui seluruh styling elemen kartu, tab, badge, dan hero banner pada `views/admin/mikrotik.ejs`, `views/admin/vouchers.ejs`, dan `views/admin/routers.ejs` agar menggunakan variabel CSS tema bawaan.
+  - Memastikan kontras warna teks/font **100% jelas, tajam, dan terbaca presisi** baik saat aplikasi berada dalam **Mode Terang (Light Mode)** maupun **Mode Gelap (Dark Mode)**.
+- **Penyelarasan Desain Tab Voucher Hotspot (`views/admin/vouchers.ejs`)**:
+  - Menambahkan *Hero Welcome Banner* khas Voucher & Batch Hotspot.
+  - Meremajakan 4 Kartu Statistik (Total Batch, Total Voucher, Voucher Terpakai, Belum Terpakai) berdesain *Glassmorphic Stat Cards Grid* dengan aksen warna ungu, biru, hijau, dan amber.
+- **Penyelarasan Desain Tab Router (`views/admin/routers.ejs`)**:
+  - Menambahkan *Hero Welcome Banner* khas Manajemen Multi-Router.
+  - Meremajakan 3 Kartu Statistik Router (Total Router, Status Aktif, Status Nonaktif).
+- **Hero Welcome Banner & Resource Progress Meters (`views/admin/mikrotik.ejs`)**:
+  - Visualisasi *Animated Progress Bar Meters* untuk **CPU Load** (dengan perubah warna otomatis: Biru ➔ Amber jika >50% ➔ Merah jika >80%), **Free Memory (RAM)**, dan **Router Uptime**.
 
 ### 4. Komponen & File Yang Diubah
-- `[MODIFY]` [`views/admin/mikrotik.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/mikrotik.ejs)
-- `[MODIFY]` [`implementation_plan.md`](file:///C:/Users/iwanw/.gemini/antigravity-ide/brain/1dabf660-c61a-40ea-8b08-a2719a8629f3/implementation_plan.md)
+- `[MODIFY]` [`views/admin/mikrotik.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/mikrotik.ejs) (Theme adaptive contrast CSS & resource progress meters)
+- `[MODIFY]` [`views/admin/vouchers.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/vouchers.ejs) (Hero banner & modern stat cards grid)
+- `[MODIFY]` [`views/admin/routers.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/routers.ejs) (Hero banner & modern stat cards grid)
 - `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md)
 
 ### 5. Hasil Pengujian & Verifikasi
