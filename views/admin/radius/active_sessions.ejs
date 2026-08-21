@@ -316,6 +316,15 @@
   </div>
 
   <div class="page">
+    <!-- RADIUS TAB NAVIGATION -->
+    <div style="display: flex; gap: 8px; margin-bottom: 20px; background: var(--bg2); padding: 6px; border-radius: 14px; border: 1px solid var(--border); width: fit-content;">
+      <a href="/admin/radius" style="display: flex; align-items: center; gap: 8px; padding: 8px 18px; border-radius: 10px; font-size: 13px; font-weight: 600; text-decoration: none; color: var(--muted); transition: 0.2s;">
+        <i class="bi bi-shield-check"></i> Router NAS (RADIUS Client)
+      </a>
+      <a href="/admin/radius/sessions" style="display: flex; align-items: center; gap: 8px; padding: 8px 18px; border-radius: 10px; font-size: 13px; font-weight: 700; text-decoration: none; background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); color: #ffffff; box-shadow: 0 4px 12px rgba(79,70,229,0.3);">
+        <i class="bi bi-person-check-fill"></i> Sesi RADIUS Aktif & Traffic Realtime
+      </a>
+    </div>
 
     <% if (msg) { %>
       <div class="alert <%= msg.type === 'error' ? 'd' : 's' %>" style="margin-bottom:20px; border-radius:12px;"><%= msg.text %></div>

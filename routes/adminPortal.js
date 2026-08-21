@@ -5385,7 +5385,7 @@ router.post('/whatsapp/templates', requireAdminSession, express.urlencoded({ ext
   res.redirect('/admin/whatsapp/templates');
 });
 
-router.get('/whatsapp/monitoring', requireAdminSession, requireSidebarMenuAccess('whatsapp_monitoring'), (req, res) => {
+router.get('/whatsapp/monitoring', requireAdminSession, requireSidebarMenuAccess('whatsapp'), (req, res) => {
   const settings = getSettings();
   res.render('admin/whatsapp_monitoring', {
     title: 'Alert Monitoring WA',
@@ -5424,7 +5424,7 @@ router.post('/whatsapp/monitoring', requireAdminSession, restrictToAdmin, expres
   res.redirect('/admin/whatsapp/monitoring');
 });
 
-router.get('/whatsapp/broadcast', requireAdminSession, requireSidebarMenuAccess('broadcast'), (req, res) => {
+router.get('/whatsapp/broadcast', requireAdminSession, requireSidebarMenuAccess('whatsapp'), (req, res) => {
   const comp = company();
   const defaultAutoBillingMsg =
     `Yth. Pelanggan {{nama}},\n\n` +

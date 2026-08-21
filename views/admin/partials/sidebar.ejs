@@ -201,54 +201,19 @@
     <% (sidebarSections || []).forEach((section) => { %>
       <div class="sb-section-hdr"><%= section.labelKey ? t(section.labelKey, section.labelDefault) : section.labelDefault %></div>
       <% section.items.forEach((item) => { %>
-        <% if (item.subItems && item.subItems.length > 0) { %>
-          <% const isGroupActive = item.subItems.some(sub => (sub.activePages || []).includes(activePage)) || (item.activePages || []).includes(activePage); %>
-          <div class="sb-menu-group <%= isGroupActive ? 'expanded' : '' %>" style="margin: 2px 10px;">
-            <div
-              class="sb-nav-link sb-parent-link <%= isGroupActive ? 'active' : '' %>"
-              onclick="toggleSubMenu(event, '<%= item.key %>')"
-              style="cursor: pointer; justify-content: space-between; margin: 0;"
-            >
-              <div style="display: flex; align-items: center; gap: 12px;">
-                <i class="<%= item.icon %>"></i>
-                <span><%= item.labelKey ? t(item.labelKey, item.labelDefault) : item.labelDefault %></span>
-              </div>
-              <i class="bi bi-chevron-down sb-chevron" id="chevron-<%= item.key %>" style="font-size: 11px; transition: transform 0.2s; <%= isGroupActive ? 'transform: rotate(180deg);' : '' %>"></i>
-            </div>
-            <div class="sb-sub-menu" id="sub-menu-<%= item.key %>" style="display: <%= isGroupActive ? 'block' : 'none' %>; padding-left: 12px; margin-top: 4px;">
-              <% item.subItems.forEach((sub) => { %>
-                <a
-                  href="<%= sub.hrefResolved %>"
-                  class="sb-nav-link <%= (sub.activePages || []).includes(activePage) ? 'active' : '' %>"
-                  style="font-size: 12.5px; padding: 8px 14px;"
-                  <% if (sub.locked) { %>
-                    onclick='return showLockedMenuNotice(<%- JSON.stringify(sub.lockedMessage) %>)'
-                  <% } %>
-                >
-                  <i class="<%= sub.icon %>" style="font-size: 13px;"></i>
-                  <span><%= sub.labelKey ? t(sub.labelKey, sub.labelDefault) : sub.labelDefault %></span>
-                  <% if (sub.locked) { %>
-                    <span class="badge-lock">Kunci</span>
-                  <% } %>
-                </a>
-              <% }) %>
-            </div>
-          </div>
-        <% } else { %>
-          <a
-            href="<%= item.hrefResolved %>"
-            class="sb-nav-link <%= (item.activePages || []).includes(activePage) ? 'active' : '' %>"
-            <% if (item.locked) { %>
-              onclick='return showLockedMenuNotice(<%- JSON.stringify(item.lockedMessage) %>)'
-            <% } %>
-          >
-            <i class="<%= item.icon %>"></i>
-            <span><%= item.labelKey ? t(item.labelKey, item.labelDefault) : item.labelDefault %></span>
-            <% if (item.locked) { %>
-              <span class="badge-lock">Kunci</span>
-            <% } %>
-          </a>
-        <% } %>
+        <a
+          href="<%= item.hrefResolved %>"
+          class="sb-nav-link <%= (item.activePages || []).includes(activePage) ? 'active' : '' %>"
+          <% if (item.locked) { %>
+            onclick='return showLockedMenuNotice(<%- JSON.stringify(item.lockedMessage) %>)'
+          <% } %>
+        >
+          <i class="<%= item.icon %>"></i>
+          <span><%= item.labelKey ? t(item.labelKey, item.labelDefault) : item.labelDefault %></span>
+          <% if (item.locked) { %>
+            <span class="badge-lock">Kunci</span>
+          <% } %>
+        </a>
       <% }) %>
     <% }) %>
 

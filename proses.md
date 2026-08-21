@@ -2,6 +2,96 @@
 
 ---
 
+## [2026-08-21] Penyederhanaan Sidebar Menu Tanpa Dropdown (Flat Sidebar Navigation)
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna meminta penghapusan seluruh fitur dropdown / sub-menu pada sidebar Admin Panel. Setiap grup menu cukup diwakili oleh 1 menu utama yang bersih di sidebar, sedangkan konsolidasi antar sub-halaman diakses melalui *Segmented Tab Bar Navigasi* di bagian atas halaman.
+
+### 2. Penyebab Utama Masalah
+- Sub-menu dropdown pada sidebar membuat tampilan sidebar terasa terlalu ramai dan memerlukan tindakan klik tambahan untuk membuka accordion.
+
+### 3. Solusi & Implementasi Teknis
+- **Struktur Menu Sidebar (`services/sidebarMenuService.js`)**:
+  - Menghapus item sub-menu tersendiri dari `MENU_DEFINITIONS` dan mengembalikan fungsi `getSidebarSections` ke struktur flat list.
+  - Setiap menu utama berikut mengkonsolidasikan seluruh sub-halamannya dalam daftar `activePages`:
+    - 👥 **Staff / Karyawan** (`/admin/staff` -> `technicians`, `cashiers`, `collectors`)
+    - 🛡️ **RADIUS Server** (`/admin/radius` -> `radius_server`, `radius_nas`, `radius_sessions`)
+    - 👤 **Agent** (`/admin/agents` -> `agents`, `agents_reports`)
+    - 📱 **WhatsApp** (`/admin/whatsapp` -> `whatsapp`, `broadcast`, `whatsapp_monitoring`, `whatsapp_templates`)
+- **Tampilan Navigation Bar (`sidebar.ejs`)**:
+  - Menghapus markup accordion `sb-menu-group`, chevron icons, dan event listener `toggleSubMenu`.
+  - Rendering sidebar kini murni menggunakan tag `<a>` flat `sb-nav-link` yang ringkas & cepat.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`services/sidebarMenuService.js`](file:///d:/WEBAPP/myadamedia-billing/services/sidebarMenuService.js)
+- `[MODIFY]` [`views/admin/partials/sidebar.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/partials/sidebar.ejs)
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md)
+
+### 5. Hasil Pengujian & Verifikasi
+- **Pengujian Navigasi Flat Sidebar**: Tampilan sidebar kembali bersih, flat, tanpa dropdown accordion, dengan highlight aktif presisi pada seluruh sub-halaman, dan pengujian Jest 12 Test Suites / 204 Tests Passed (100%).
+
+---
+
+## [2026-08-21] Pembuatan Menu RADIUS SERVER & Pengelompokan Sub-Menu RADIUS
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna meminta pembuatan menu baru di sidebar dengan nama **RADIUS SERVER** (`/admin/radius`), serta mengonsolidasikan 2 menu RADIUS ke dalamnya:
+- **RADIUS NAS** (`http://localhost:3001/admin/radius`)
+- **Sesi RADIUS** (`http://localhost:3001/admin/radius/sessions`)
+
+### 2. Penyebab Utama Masalah
+- Sebelumnya menu RADIUS NAS dan Sesi RADIUS berdiri sendiri sebagai item terpisah di section UTAMA sidebar, sehingga navigasi kurang terkelompok secara hierarkis.
+
+### 3. Solusi & Implementasi Teknis
+- **Struktur Menu Sidebar (`services/sidebarMenuService.js`)**:
+  - Menambahkan menu utama `radius_server` (`/admin/radius`, ikon `bi bi-database-fill-gear`) di section `UTAMA`.
+  - Menandai item `radius_nas` dan `radius_sessions` dengan `parentKey: 'radius_server'`.
+  - Sub-menu akan otomatis di-expand dan ter-highlight saat pengguna membuka rute RADIUS NAS atau Sesi RADIUS.
+- **Segmented Tab Bar Navigasi RADIUS (`nas_management.ejs`, `active_sessions.ejs`)**:
+  - Menambahkan *Segmented Tab Bar Navigasi RADIUS* di bagian atas halaman (🛡️ **Router NAS**, ⚡ **Sesi RADIUS Aktif & Traffic Realtime**) untuk kemudahan navigasi antar fitur.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`services/sidebarMenuService.js`](file:///d:/WEBAPP/myadamedia-billing/services/sidebarMenuService.js)
+- `[MODIFY]` [`views/admin/radius/nas_management.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/radius/nas_management.ejs)
+- `[MODIFY]` [`views/admin/radius/active_sessions.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/radius/active_sessions.ejs)
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md)
+
+### 5. Hasil Pengujian & Verifikasi
+- **Pengujian Navigasi Sidebar & Tab**: Menu **RADIUS SERVER** terender rapi dengan sub-menu dropdown, navigasi tab berjalan lancar, dan pengujian Jest 12 Test Suites / 204 Tests Passed (100%).
+
+---
+
+## [2026-08-21] Penyederhanaan Sidebar Menu WhatsApp Gateway
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna meminta penghapusan 2 item menu terpisah di sidebar:
+- **Broadcast WA** (`http://localhost:3001/admin/whatsapp/broadcast`)
+- **Alert Monitoring WA** (`http://localhost:3001/admin/whatsapp/monitoring`)
+
+Seluruh fitur tersebut diakses dan dikonsolidasikan melalui satu menu utama yaitu **WhatsApp Gateway** (`http://localhost:3001/admin/whatsapp`).
+
+### 2. Penyebab Utama Masalah
+- Sebelumnya menu Broadcast WA dan Alert Monitoring WA berdiri sebagai item terpisah di sidebar, sehingga membuat daftar menu sidebar tampak terlalu panjang dan redundan.
+
+### 3. Solusi & Implementasi Teknis
+- **Struktur Menu Sidebar (`services/sidebarMenuService.js`)**:
+  - Menghapus item `broadcast` dan `whatsapp_monitoring` sebagai menu terpisah di sidebar.
+  - Memperbarui menu `whatsapp` agar memiliki `activePages: ['whatsapp', 'broadcast', 'whatsapp_monitoring', 'whatsapp_templates']`, sehingga saat rute Broadcast atau Monitoring dibuka, menu WhatsApp Gateway di sidebar tetap aktif dan ter-highlight.
+- **Proteksi Rute Backend (`routes/adminPortal.js`)**:
+  - Mengubah proteksi rute `/admin/whatsapp/broadcast` dan `/admin/whatsapp/monitoring` agar menggunakan izin akses menu `whatsapp`.
+- **Segmented Tab Bar Navigasi**:
+  - Pengguna dapat berpindah dengan mudah antar fitur WhatsApp (Status Sesi, Broadcast & Pengingat, Template Pesan, dan Monitoring Alert) melalui Tab Navigasi di bagian atas antarmuka.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`services/sidebarMenuService.js`](file:///d:/WEBAPP/myadamedia-billing/services/sidebarMenuService.js)
+- `[MODIFY]` [`routes/adminPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/adminPortal.js)
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md)
+
+### 5. Hasil Pengujian & Verifikasi
+- **Pengujian Navigasi Sidebar & Rute**: Sidebar hanya menampilkan 1 menu WhatsApp Gateway yang ringkas, navigasi tab berjalan sempurna, dan pengujian Jest 12 Test Suites / 204 Tests Passed (100%).
+
+---
+
 ## [2026-08-21] Penggabungan Menu Laporan Agent ke Menu Utama Agent
 
 ### 1. Deskripsi Permasalahan & Kebutuhan

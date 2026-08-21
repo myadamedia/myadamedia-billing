@@ -11,15 +11,12 @@ const VALID_STATES = new Set([STATE_VISIBLE, STATE_HIDDEN, STATE_LOCKED]);
 const MENU_DEFINITIONS = [
   { key: 'dashboard', section: 'main', href: '/admin', icon: 'bi bi-speedometer2', labelKey: 'admin.nav.dashboard', labelDefault: 'Dashboard', roles: ['superadmin', 'finance', 'teknisi', 'kolektor', 'noc'], bottomNav: true, activePages: ['dashboard'] },
   { key: 'mikrotik', section: 'main', href: '/admin/mikrotik', icon: 'bi bi-router', labelKey: 'admin.nav.mikrotik', labelDefault: 'MikroTik', roles: ['superadmin', 'teknisi', 'noc'], bottomNav: true, activePages: ['mikrotik'] },
-  { key: 'radius_nas', section: 'main', href: '/admin/radius', icon: 'bi bi-shield-check', labelKey: 'admin.nav.radius_nas', labelDefault: 'RADIUS NAS', roles: ['superadmin', 'noc'], activePages: ['radius_nas'] },
-  { key: 'radius_sessions', section: 'main', href: '/admin/radius/sessions', icon: 'bi bi-person-check-fill', labelKey: 'admin.nav.radius_sessions', labelDefault: 'Sesi RADIUS', roles: ['superadmin', 'noc'], activePages: ['radius_sessions'] },
+  { key: 'radius_server', section: 'main', href: '/admin/radius', icon: 'bi bi-database-fill-gear', labelKey: 'admin.nav.radius_server', labelDefault: 'RADIUS Server', roles: ['superadmin', 'noc'], activePages: ['radius_server', 'radius_nas', 'radius_sessions'] },
   { key: 'map', section: 'main', href: '/admin/map', icon: 'bi bi-map', labelKey: 'admin.nav.network_map', labelDefault: 'Peta Jaringan', roles: ['superadmin', 'teknisi', 'noc'], activePages: ['map'] },
   { key: 'acs_pro', section: 'main', href: '/admin/acs', icon: 'bi bi-hdd-network', labelKey: 'admin.nav.acs_pro', labelDefault: 'GenieACS Pro', roles: ['superadmin', 'noc'], activePages: ['acs_pro'] },
   { key: 'onu_provision', section: 'main', href: '/admin/onu-provision', icon: 'bi bi-hdd-network-fill', labelKey: 'admin.nav.onu_provision', labelDefault: 'ONU Provision', roles: ['superadmin', 'teknisi', 'noc'], activePages: ['onu_provision'] },
   { key: 'olts', section: 'main', href: '/admin/olts', icon: 'bi bi-hdd-fill', labelKey: 'admin.nav.olt_management', labelDefault: 'Manajemen OLT', roles: ['superadmin', 'noc'], activePages: ['olts'] },
-  { key: 'whatsapp', section: 'main', href: '/admin/whatsapp', icon: 'bi bi-whatsapp', labelKey: 'admin.nav.whatsapp', labelDefault: 'WhatsApp', roles: ['superadmin', 'noc'], activePages: ['whatsapp'] },
-  { key: 'broadcast', section: 'main', href: '/admin/whatsapp/broadcast', icon: 'bi bi-megaphone', labelKey: 'admin.broadcast.title', labelDefault: 'Broadcast WhatsApp', roles: ['superadmin', 'finance'], activePages: ['broadcast'] },
-  { key: 'whatsapp_monitoring', section: 'main', href: '/admin/whatsapp/monitoring', icon: 'bi bi-bell-fill', labelKey: 'admin.nav.whatsapp_monitoring', labelDefault: 'Alert Monitoring WA', roles: ['superadmin', 'noc'], activePages: ['whatsapp_monitoring'] },
+  { key: 'whatsapp', section: 'main', href: '/admin/whatsapp', icon: 'bi bi-whatsapp', labelKey: 'admin.nav.whatsapp', labelDefault: 'WhatsApp', roles: ['superadmin', 'noc', 'finance'], activePages: ['whatsapp', 'broadcast', 'whatsapp_monitoring', 'whatsapp_templates'] },
   { key: 'isolated_portal', section: 'main', href: '/admin/isolated-portal', icon: 'bi bi-shield-slash-fill', labelKey: 'admin.nav.isolated_portal', labelDefault: 'Portal Isolir', roles: ['superadmin', 'teknisi', 'noc', 'finance'], activePages: ['isolated_portal'] },
 
   { key: 'psb', section: 'billing', href: '/admin/psb', icon: 'bi bi-person-plus', labelKey: 'admin.nav.psb', labelDefault: 'PSB', roles: ['superadmin', 'finance', 'teknisi', 'noc'], activePages: ['psb'] },
@@ -46,9 +43,6 @@ const MENU_DEFINITIONS = [
   { key: 'cashier_attendance', section: 'cashier', href: '/admin/cashiers/attendance', icon: 'bi bi-calendar-check', labelKey: 'admin.nav.cashier_attendance', labelDefault: 'Absensi Saya', roles: ['cashier', 'finance'], activePages: ['cashier_attendance'] },
 
   { key: 'staff', section: 'user_management', href: '/admin/staff', icon: 'bi bi-person-workspace', labelKey: 'admin.nav.staff', labelDefault: 'Staff / Karyawan', roles: ['superadmin', 'finance'], activePages: ['staff', 'technicians', 'cashiers', 'collectors'] },
-  { key: 'technicians', section: 'user_management', parentKey: 'staff', href: '/admin/technicians', icon: 'bi bi-person-gear', labelKey: 'admin.nav.technicians', labelDefault: 'Teknisi', roles: ['superadmin'], activePages: ['technicians'] },
-  { key: 'cashiers', section: 'user_management', parentKey: 'staff', href: '/admin/cashiers', icon: 'bi bi-person-vcard', labelKey: 'admin.nav.cashiers', labelDefault: 'Kasir', roles: ['superadmin', 'finance'], activePages: ['cashiers'] },
-  { key: 'collectors', section: 'user_management', parentKey: 'staff', href: '/admin/collectors', icon: 'bi bi-person-badge', labelKey: 'admin.nav.collectors', labelDefault: 'Kolektor', roles: ['superadmin', 'finance'], activePages: ['collectors'] },
   { key: 'agents', section: 'user_management', href: '/admin/agents', icon: 'bi bi-person-badge-fill', labelKey: 'admin.nav.agents', labelDefault: 'Agent', roles: ['superadmin', 'finance'], activePages: ['agents', 'agents_reports'] },
 
   { key: 'update', section: 'system', href: '/admin/update', icon: 'bi bi-cloud-arrow-down', labelKey: 'admin.nav.update', labelDefault: 'Update GitHub', roles: ['superadmin'], activePages: ['update'] },
@@ -68,8 +62,6 @@ const DEFAULT_MENU_STATES = {
   onu_provision: STATE_VISIBLE,
   olts: STATE_VISIBLE,
   whatsapp: STATE_VISIBLE,
-  broadcast: STATE_VISIBLE,
-  whatsapp_monitoring: STATE_VISIBLE,
   isolated_portal: STATE_VISIBLE,
   psb: STATE_VISIBLE,
   customers: STATE_VISIBLE,
@@ -79,6 +71,7 @@ const DEFAULT_MENU_STATES = {
   due_distribution: STATE_VISIBLE,
   reports: STATE_VISIBLE,
   investors: STATE_VISIBLE,
+  radius_server: STATE_VISIBLE,
   radius_nas: STATE_VISIBLE,
   radius_sessions: STATE_VISIBLE,
   cashiers_reports: STATE_VISIBLE,
@@ -203,26 +196,11 @@ function enrichMenu(menu, states) {
 function getSidebarSections(session) {
   const states = getStoredMenuStates();
   return SECTION_DEFINITIONS.map((section) => {
-    const rawItems = MENU_DEFINITIONS
+    const items = MENU_DEFINITIONS
       .filter((menu) => menu.section === section.key)
       .filter((menu) => isMenuAllowedForSession(menu, session))
       .map((menu) => enrichMenu(menu, states))
       .filter((menu) => !menu.hidden);
-
-    const items = [];
-    const itemMap = {};
-
-    rawItems.forEach((item) => {
-      itemMap[item.key] = { ...item, subItems: [] };
-    });
-
-    rawItems.forEach((item) => {
-      if (item.parentKey && itemMap[item.parentKey]) {
-        itemMap[item.parentKey].subItems.push(itemMap[item.key]);
-      } else if (!item.parentKey) {
-        items.push(itemMap[item.key]);
-      }
-    });
 
     return {
       ...section,
