@@ -2,6 +2,37 @@
 
 ---
 
+## [2026-08-21] Peremajaan UI/UX Halaman Manajemen RADIUS NAS Router (/admin/radius) & Monitoring Sesi Aktif (/admin/radius/sessions)
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna meminta agar tampilan antarmuka (*UI/UX*) dari 2 halaman manajemen RADIUS:
+- `http://localhost:3001/admin/radius` (**Manajemen RADIUS NAS**)
+- `http://localhost:3001/admin/radius/sessions` (**Monitoring Sesi Aktif RADIUS**)
+diperbarui menjadi jauh lebih menarik, modern, intuitif, dan nyaman dipandang mata sesuai standar desain sistem terkini.
+
+### 2. Solusi & Implementasi Teknis
+- **Manajemen RADIUS NAS (`/admin/radius`)**:
+  - **Hero Welcome Banner**: Menambahkan banner eksekutif bergradien dinamis dengan lencana status *Centralized Auth*, deskripsi sistem, dan tombol aksi cepat *Tambah NAS Router*.
+  - **Stat Grids & Icon Accents**: Memodernisasi 4 kartu metrik (*Total NAS Router*, *NAS Aktif*, *Port Authentication UDP 1812*, *Port Accounting UDP 1813*) dengan efek Glassmorphism, bayangan halus, dan animasi hover.
+  - **Live Filter Input Search**: Menambahkan kotak pencarian instan `#searchNasInput` untuk memfilter data NAS secara langsung tanpa reload halaman.
+  - **Tabel & Modal Modern**: Memperbarui gaya tabel dengan font *Plus Jakarta Sans*, lencana status kontras tinggi, serta modal setup script RouterOS yang dilengkapi umpan balik satu-klik *Copy to Clipboard*.
+
+- **Monitoring Sesi Aktif RADIUS (`/admin/radius/sessions`)**:
+  - **Hero Banner & Engine Indicator**: Menambahkan banner utama berikon `bi-broadcast-pin` dan badge *Live Engine*.
+  - **Live Bandwidth Monitoring Widget**: Memperbarui widget pemantauan kecepatan *Download (RX Speed)* dan *Upload (TX Speed)* dengan typography rapi `28px`, efek glowing border hover, dan akumulator total volume bandwidth.
+  - **Live Filter Input Search & High-Contrast User Link**: Menambahkan pencarian instan `#searchSessionInput` untuk memfilter username/pelanggan/IP, serta menyempurnakan kontras warna nama pelanggan (*Light & Dark theme proof*).
+
+### 3. Komponen & File Yang Diubah
+- `[MODIFY]` [`views/admin/radius/nas_management.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/radius/nas_management.ejs)
+- `[MODIFY]` [`views/admin/radius/active_sessions.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/radius/active_sessions.ejs)
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md)
+
+### 4. Hasil Pengujian & Verifikasi
+- **Pengujian Visual**: Kedua halaman `/admin/radius` dan `/admin/radius/sessions` tampil sangat modern, konsisten dengan antarmuka Admin Dashboard, ultra-responsive, dan memiliki pencarian live yang cepat.
+- **Pengujian Jest**: 12 Test Suites / 204 Tests Passed (100%).
+
+---
+
 ## [2026-08-21] Perubahan Judul Section "Status ONU" Menjadi "MONITORING ONU" pada Dashboard Admin (/admin)
 
 ### 1. Deskripsi Permasalahan & Kebutuhan

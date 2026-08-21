@@ -6,20 +6,48 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="/css/admin.css?v=2">
   <style>
+    .hero-banner {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(99, 102, 241, 0.12) 50%, rgba(56, 189, 248, 0.15) 100%);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      border-radius: 20px;
+      padding: 24px;
+      margin-bottom: 24px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    }
+    .hero-banner::after {
+      content: '';
+      position: absolute;
+      top: -50%; right: -10%;
+      width: 250px; height: 250px;
+      background: radial-gradient(circle, rgba(16, 185, 129, 0.25) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-title {
+      font-size: 20px; font-weight: 800; color: var(--text);
+      display: flex; align-items: center; gap: 10px; margin-bottom: 6px;
+    }
+    .hero-subtitle {
+      font-size: 13px; color: var(--muted); max-width: 680px; line-height: 1.5;
+    }
+
     /* Styling Presisi Live Bandwidth Monitoring Component */
     .live-monitoring-card {
-      background: var(--bg2, #1e293b);
-      border: 1px solid var(--border, #334155);
-      border-radius: 14px;
-      padding: 16px 20px;
-      margin-bottom: 20px;
-      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.3);
+      background: var(--bg2, rgba(17, 24, 39, 0.85));
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+      border-radius: 16px;
+      padding: 20px 24px;
+      margin-bottom: 22px;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.25);
     }
     .live-monitoring-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 14px;
+      margin-bottom: 16px;
     }
     .live-monitoring-title {
       font-size: 13px;
@@ -39,6 +67,10 @@
       font-weight: 800;
       color: #10b981;
       letter-spacing: 1px;
+      background: rgba(16, 185, 129, 0.12);
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid rgba(16, 185, 129, 0.3);
     }
     .badge-live-pulse .dot {
       width: 8px;
@@ -50,6 +82,8 @@
     }
     .badge-live-pulse.paused {
       color: #94a3b8;
+      background: var(--bg3);
+      border-color: var(--border);
     }
     .badge-live-pulse.paused .dot {
       background-color: #64748b;
@@ -72,14 +106,14 @@
       align-items: center;
       gap: 8px;
       background: var(--bg3, #0f172a);
-      padding: 5px 12px;
+      padding: 6px 14px;
       border-radius: 20px;
-      border: 1px solid var(--border, #334155);
+      border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
     }
     .toggle-live-switch label {
       font-size: 11px;
       font-weight: 700;
-      color: #94a3b8;
+      color: var(--muted, #94a3b8);
       cursor: pointer;
       margin: 0;
       user-select: none;
@@ -126,33 +160,33 @@
     }
 
     .traffic-block {
-      border-radius: 10px;
-      padding: 16px 20px;
+      border-radius: 14px;
+      padding: 18px 22px;
       text-align: center;
-      transition: all 0.2s ease-in-out;
+      transition: all 0.25s ease-in-out;
     }
     .traffic-block.download {
-      background: rgba(16, 185, 129, 0.04);
+      background: rgba(16, 185, 129, 0.05);
       border: 1px solid rgba(16, 185, 129, 0.3);
     }
     .traffic-block.download:hover {
       border-color: #10b981;
-      box-shadow: 0 0 16px rgba(16, 185, 129, 0.15);
+      box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
     }
     .traffic-block.upload {
-      background: rgba(59, 130, 246, 0.04);
+      background: rgba(59, 130, 246, 0.05);
       border: 1px solid rgba(59, 130, 246, 0.3);
     }
     .traffic-block.upload:hover {
       border-color: #3b82f6;
-      box-shadow: 0 0 16px rgba(59, 130, 246, 0.15);
+      box-shadow: 0 0 20px rgba(59, 130, 246, 0.2);
     }
 
     .traffic-label {
       font-size: 12px;
       font-weight: 800;
       letter-spacing: 0.5px;
-      margin-bottom: 4px;
+      margin-bottom: 6px;
       text-transform: uppercase;
     }
     .traffic-block.download .traffic-label { color: #10b981; }
@@ -163,7 +197,7 @@
       font-weight: 900;
       line-height: 1.15;
       margin-bottom: 4px;
-      font-family: system-ui, -apple-system, sans-serif;
+      font-family: 'Plus Jakarta Sans', sans-serif;
     }
     .traffic-block.download .traffic-speed { color: #10b981; }
     .traffic-block.upload .traffic-speed { color: #60a5fa; }
@@ -171,7 +205,7 @@
     .traffic-total {
       font-size: 12px;
       font-weight: 600;
-      color: #94a3b8;
+      color: var(--muted, #94a3b8);
     }
 
     /* Interactive Username Link & Modal Styling */
@@ -189,7 +223,7 @@
     }
 
     .customer-name-link {
-      color: var(--text, #e6edf3);
+      color: var(--text, #f8fafc);
       text-decoration: none;
       font-weight: 700;
       transition: all 0.2s ease;
@@ -201,14 +235,24 @@
       text-decoration: underline;
     }
 
+    .search-box-wrap {
+      position: relative; min-width: 240px;
+    }
+    .search-box-wrap i {
+      position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted);
+    }
+    .search-box-wrap input {
+      padding-left: 36px; border-radius: 12px; font-size: 13px; background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+    }
+
     /* Custom Modal Overlay & Box Styling */
     .mo {
       display: none;
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
       background: rgba(15, 23, 42, 0.85);
-      backdrop-filter: blur(6px);
-      -webkit-backdrop-filter: blur(6px);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
       z-index: 9999;
       align-items: center;
       justify-content: center;
@@ -220,7 +264,7 @@
     .mo .mb {
       background: var(--bg2, #1e293b);
       border: 1px solid var(--border, #334155);
-      border-radius: 16px;
+      border-radius: 18px;
       width: 100%;
       box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
       overflow: hidden;
@@ -231,7 +275,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 16px 20px;
+      padding: 18px 22px;
       border-bottom: 1px solid var(--border, #334155);
     }
     .mo .mt {
@@ -264,12 +308,17 @@
       <i class="bi bi-person-check-fill text-success"></i>
       <span>Monitoring Sesi Aktif RADIUS</span>
     </div>
+    <div class="tb-right">
+      <a href="/admin/radius" class="btn btn-g btn-sm" style="border-radius:12px; font-weight:700;">
+        <i class="bi bi-shield-check me-1" style="color:var(--primary);"></i> Router NAS
+      </a>
+    </div>
   </div>
 
   <div class="page">
 
     <% if (msg) { %>
-      <div class="alert <%= msg.type === 'error' ? 'd' : 's' %>"><%= msg.text %></div>
+      <div class="alert <%= msg.type === 'error' ? 'd' : 's' %>" style="margin-bottom:20px; border-radius:12px;"><%= msg.text %></div>
     <% } %>
 
     <%
@@ -295,7 +344,30 @@
       const safeTxOctets = (typeof totalInputOctets !== 'undefined') ? totalInputOctets : ((typeof locals !== 'undefined' && typeof locals.totalInputOctets !== 'undefined') ? locals.totalInputOctets : 0);
     %>
 
-    <!-- Widget Live Bandwidth Monitoring (Presisi Gambar UI) -->
+    <!-- HERO WELCOME BANNER -->
+    <div class="hero-banner">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
+        <div>
+          <div class="hero-title">
+            <i class="bi bi-broadcast-pin" style="color: #10b981; font-size: 24px;"></i>
+            Monitoring Sesi Aktif RADIUS Real-time
+            <span class="adm-badge" style="background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.3); color: #10b981;">
+              <i class="bi bi-lightning-charge-fill"></i> Live Engine
+            </span>
+          </div>
+          <p class="hero-subtitle">
+            Pantau seluruh koneksi aktif PPPoE & Hotspot yang diautentikasi oleh RADIUS Server secara real-time beserta penggunaan bandwidth download & upload.
+          </p>
+        </div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <a href="/admin/radius" class="btn btn-g btn-sm" style="border-radius: 12px; font-weight: 700; padding: 10px 18px;">
+            <i class="bi bi-gear-fill me-1"></i> Kelola Router NAS
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Widget Live Bandwidth Monitoring -->
     <div class="live-monitoring-card">
       <div class="live-monitoring-header">
         <div class="live-monitoring-title">
@@ -318,110 +390,116 @@
       <div class="traffic-grid">
         <!-- DOWNLOAD (RX SPEED) -->
         <div class="traffic-block download">
-          <div class="traffic-label">DOWNLOAD (RX SPEED)</div>
+          <div class="traffic-label"><i class="bi bi-arrow-down-circle-fill me-1"></i> DOWNLOAD (RX SPEED)</div>
           <div class="traffic-speed" id="liveRxSpeed"><%= fmtSpeed(safeLiveRxBps) %></div>
-          <div class="traffic-total" id="liveRxTotal">Total: <%= fmtBytes(safeRxOctets) %></div>
+          <div class="traffic-total" id="liveRxTotal">Total Volume: <%= fmtBytes(safeRxOctets) %></div>
         </div>
 
         <!-- UPLOAD (TX SPEED) -->
         <div class="traffic-block upload">
-          <div class="traffic-label">UPLOAD (TX SPEED)</div>
+          <div class="traffic-label"><i class="bi bi-arrow-up-circle-fill me-1"></i> UPLOAD (TX SPEED)</div>
           <div class="traffic-speed" id="liveTxSpeed"><%= fmtSpeed(safeLiveTxBps) %></div>
-          <div class="traffic-total" id="liveTxTotal">Total: <%= fmtBytes(safeTxOctets) %></div>
+          <div class="traffic-total" id="liveTxTotal">Total Volume: <%= fmtBytes(safeTxOctets) %></div>
         </div>
       </div>
     </div>
 
     <!-- Card Tabel Pengguna Terhubung Real-time -->
     <div class="card">
-      <div class="card-hd" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+      <div class="card-hd" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
         <h6>
           <i class="bi bi-person-check-fill" style="color:#10b981;"></i> Pengguna Terhubung Real-time 
-          <span class="badge bs" id="sessionCount" style="margin-left: 6px;"><%= (activeSessions || []).length %></span>
+          <span class="badge bs" id="sessionCount" style="margin-left: 6px; font-weight:700;"><%= (activeSessions || []).length %></span>
         </h6>
-        <div>
-          <button class="btn btn-g btn-sm" onclick="fetchLiveSessions()">
+        <div style="display:flex; gap:10px; align-items:center;">
+          <div class="search-box-wrap">
+            <i class="bi bi-search"></i>
+            <input type="text" id="searchSessionInput" class="fc" placeholder="Cari User / Pelanggan / IP..." onkeyup="filterSessionTable()">
+          </div>
+          <button class="btn btn-g btn-sm" onclick="fetchLiveSessions()" style="border-radius:12px; font-weight:600;">
             <i class="bi bi-arrow-clockwise"></i> Refresh Data
           </button>
         </div>
       </div>
 
-      <div class="tbl-wrap">
-        <table class="dtbl">
-          <thead>
-            <tr>
-              <th>Username</th>
-              <th>Nama Pelanggan</th>
-              <th>IP Address</th>
-              <th>MAC Address (Calling-ID)</th>
-              <th>NAS Router</th>
-              <th>Waktu Mulai</th>
-              <th>Upload / Download</th>
-              <th style="text-align: right;">Aksi (CoA)</th>
-            </tr>
-          </thead>
-          <tbody id="sessionTableBody">
-            <% if (!activeSessions || activeSessions.length === 0) { %>
-              <tr>
-                <td colspan="8" class="text-center text-muted" style="padding: 24px;">
-                  <i class="bi bi-wifi-off fs-3 d-block mb-2"></i>
-                  Belum ada sesi pelanggan PPPoE / Hotspot yang terhubung via RADIUS saat ini.
-                </td>
+      <div class="card-bd" style="padding:0;">
+        <div class="tbl-wrap" style="overflow-x:auto;">
+          <table class="tbl" id="sessionTable" style="width:100%; border-collapse:collapse;">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border); background:var(--bg3); text-align:left; font-size:12px; text-transform:uppercase; letter-spacing:0.5px;">
+                <th style="padding:14px 18px;">Username</th>
+                <th style="padding:14px 18px;">Nama Pelanggan</th>
+                <th style="padding:14px 18px;">IP Address</th>
+                <th style="padding:14px 18px;">MAC Address (Calling-ID)</th>
+                <th style="padding:14px 18px;">NAS Router</th>
+                <th style="padding:14px 18px;">Waktu Mulai</th>
+                <th style="padding:14px 18px;">Upload / Download</th>
+                <th style="padding:14px 18px; text-align: right;">Aksi (CoA)</th>
               </tr>
-            <% } else { %>
-              <% activeSessions.forEach(s => { %>
-                <%
-                  const upMb = (Number(s.acctinputoctets || 0) / 1048576).toFixed(2);
-                  const downMb = (Number(s.acctoutputoctets || 0) / 1048576).toFixed(2);
-                  const txBpsStr = fmtSpeed(s.txBps || 0);
-                  const rxBpsStr = fmtSpeed(s.rxBps || 0);
-                %>
+            </thead>
+            <tbody id="sessionTableBody">
+              <% if (!activeSessions || activeSessions.length === 0) { %>
                 <tr>
-                  <td>
-                    <a href="javascript:void(0)" onclick="showCustomerDetail('<%= s.username %>')" class="user-detail-link" title="Klik untuk lihat detail pelanggan">
-                      <i class="bi bi-person-badge text-info me-1"></i><strong><%= s.username %></strong>
-                    </a>
-                    <span class="badge bs" style="margin-left: 4px;">Online</span>
-                  </td>
-                  <td>
-                    <% if (s.customer_name) { %>
-                      <a href="javascript:void(0)" onclick="showCustomerDetail('<%= s.username %>')" class="customer-name-link" title="Klik untuk detail profil pelanggan">
-                        <i class="bi bi-person-fill text-primary me-1"></i><%= s.customer_name %>
-                      </a>
-                      <% if (s.customer_formatted_id) { %>
-                        <span class="badge bm" style="font-size: 10px; margin-left: 4px; padding: 2px 6px;"><%= s.customer_formatted_id %></span>
-                      <% } %>
-                    <% } else { %>
-                      <span class="text-muted" style="font-size: 12px; font-style: italic;">Belum terdaftar</span>
-                    <% } %>
-                  </td>
-                  <td><code><%= s.framedipaddress || '-' %></code></td>
-                  <td><small class="text-muted"><%= s.callingstationid || '-' %></small></td>
-                  <td><code><%= s.nasipaddress %></code></td>
-                  <td><small><%= new Date(s.acctstarttime).toLocaleString('id-ID') %></small></td>
-                  <td>
-                    <div style="font-weight: 700;">
-                      <span style="color: #34d399;" title="Upload Speed & Total Volume">
-                        <i class="bi bi-arrow-up"></i> <%= txBpsStr %> <small class="text-muted">(<%= upMb %> MB)</small>
-                      </span>
-                      <span class="text-muted mx-1">/</span>
-                      <span style="color: #60a5fa;" title="Download Speed & Total Volume">
-                        <i class="bi bi-arrow-down"></i> <%= rxBpsStr %> <small class="text-muted">(<%= downMb %> MB)</small>
-                      </span>
-                    </div>
-                  </td>
-                  <td style="text-align: right;">
-                    <form action="/admin/radius/sessions/<%= encodeURIComponent(s.username) %>/disconnect" method="POST" style="display: inline-block;" onsubmit="return confirm('Disconnect/Kick user <%= s.username %>?')">
-                      <button type="submit" class="btn btn-d btn-sm">
-                        <i class="bi bi-power"></i> Kick (CoA)
-                      </button>
-                    </form>
+                  <td colspan="8" class="text-center text-muted" style="padding: 32px 18px;">
+                    <i class="bi bi-wifi-off" style="font-size: 28px; display:block; margin-bottom: 8px; color:var(--muted);"></i>
+                    Belum ada sesi pelanggan PPPoE / Hotspot yang terhubung via RADIUS saat ini.
                   </td>
                 </tr>
-              <% }) %>
-            <% } %>
-          </tbody>
-        </table>
+              <% } else { %>
+                <% activeSessions.forEach(s => { %>
+                  <%
+                    const upMb = (Number(s.acctinputoctets || 0) / 1048576).toFixed(2);
+                    const downMb = (Number(s.acctoutputoctets || 0) / 1048576).toFixed(2);
+                    const txBpsStr = fmtSpeed(s.txBps || 0);
+                    const rxBpsStr = fmtSpeed(s.rxBps || 0);
+                  %>
+                  <tr class="session-row-item" style="border-bottom:1px solid var(--border); transition: background 0.2s;">
+                    <td style="padding:14px 18px;">
+                      <a href="javascript:void(0)" onclick="showCustomerDetail('<%= s.username %>')" class="user-detail-link" title="Klik untuk lihat detail pelanggan">
+                        <i class="bi bi-person-badge text-info me-1"></i><strong><%= s.username %></strong>
+                      </a>
+                      <span class="badge bs" style="margin-left: 6px; padding:3px 8px; border-radius:4px; font-size:11px; font-weight:700;">Online</span>
+                    </td>
+                    <td style="padding:14px 18px;">
+                      <% if (s.customer_name) { %>
+                        <a href="javascript:void(0)" onclick="showCustomerDetail('<%= s.username %>')" class="customer-name-link" title="Klik untuk detail profil pelanggan">
+                          <i class="bi bi-person-fill text-primary me-1"></i><%= s.customer_name %>
+                        </a>
+                        <% if (s.customer_formatted_id) { %>
+                          <span class="badge bm" style="font-size: 10px; margin-left: 4px; padding: 2px 6px;"><%= s.customer_formatted_id %></span>
+                        <% } %>
+                      <% } else { %>
+                        <span class="text-muted" style="font-size: 12px; font-style: italic;">Belum terdaftar</span>
+                      <% } %>
+                    </td>
+                    <td style="padding:14px 18px;"><code style="font-size:13px; font-weight:600; color:#38bdf8;"><%= s.framedipaddress || '-' %></code></td>
+                    <td style="padding:14px 18px;"><small class="text-muted"><%= s.callingstationid || '-' %></small></td>
+                    <td style="padding:14px 18px;"><code style="font-size:12px;"><%= s.nasipaddress %></code></td>
+                    <td style="padding:14px 18px;"><small style="color:var(--muted);"><%= new Date(s.acctstarttime).toLocaleString('id-ID') %></small></td>
+                    <td style="padding:14px 18px;">
+                      <div style="font-weight: 700; font-size:13px;">
+                        <span style="color: #34d399;" title="Upload Speed & Total Volume">
+                          <i class="bi bi-arrow-up"></i> <%= txBpsStr %> <small class="text-muted">(<%= upMb %> MB)</small>
+                        </span>
+                        <span class="text-muted mx-1">/</span>
+                        <span style="color: #60a5fa;" title="Download Speed & Total Volume">
+                          <i class="bi bi-arrow-down"></i> <%= rxBpsStr %> <small class="text-muted">(<%= downMb %> MB)</small>
+                        </span>
+                      </div>
+                    </td>
+                    <td style="padding:14px 18px; text-align: right;">
+                      <form action="/admin/radius/sessions/<%= encodeURIComponent(s.username) %>/disconnect" method="POST" style="display: inline-block;" onsubmit="return confirm('Disconnect/Kick user <%= s.username %>?')">
+                        <button type="submit" class="btn btn-d btn-sm" style="border-radius:8px; font-weight:600; font-size:12px;">
+                          <i class="bi bi-power me-1"></i> Kick (CoA)
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                <% }) %>
+              <% } %>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -542,7 +620,7 @@ async function showCustomerDetail(username) {
 
       modalFooter.innerHTML = `
         <button class="btn btn-g btn-sm" onclick="closeModal('customerDetailModal')">Tutup</button>
-        <a href="/admin/customers/new?username=${encodeURIComponent(username)}" class="btn btn-p btn-sm"><i class="bi bi-person-plus-fill"></i> Tambah Pelanggan Baru</a>`;
+        <a href="/admin/customers/new?username=${encodeURIComponent(username)}" class="btn btn-p btn-sm"><i class="bi bi-person-plus-fill me-1"></i> Tambah Pelanggan Baru</a>`;
       return;
     }
 
@@ -563,7 +641,7 @@ async function showCustomerDetail(username) {
       <div class="customer-profile-card">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid var(--border,#334155); padding-bottom:12px; margin-bottom:14px;">
           <div>
-            <h5 style="margin:0; font-weight:800; color:#f8fafc;">${escapeHtml(c.name)}</h5>
+            <h5 style="margin:0; font-weight:800; color:var(--text, #f8fafc);">${escapeHtml(c.name)}</h5>
             <small class="text-muted">ID Pelanggan: #${c.id} • ${escapeHtml(c.connection_type)}</small>
           </div>
           <div>${statusBadge}</div>
@@ -619,8 +697,8 @@ async function showCustomerDetail(username) {
     modalFooter.innerHTML = `
       <button class="btn btn-g btn-sm" onclick="closeModal('customerDetailModal')">Tutup</button>
       <div style="display:flex; gap:6px;">
-        ${cleanPhone ? `<a href="${waUrl}" target="_blank" class="btn btn-s btn-sm"><i class="bi bi-whatsapp"></i> Chat WhatsApp</a>` : ''}
-        <a href="/admin/customers?search=${encodeURIComponent(c.name)}" class="btn btn-p btn-sm"><i class="bi bi-person-bounding-box"></i> Lihat Detail Pelanggan</a>
+        ${cleanPhone ? `<a href="${waUrl}" target="_blank" class="btn btn-s btn-sm"><i class="bi bi-whatsapp me-1"></i> Chat WA</a>` : ''}
+        <a href="/admin/customers?search=${encodeURIComponent(c.name)}" class="btn btn-p btn-sm"><i class="bi bi-person-bounding-box me-1"></i> Lihat Detail Pelanggan</a>
       </div>`;
 
   } catch (err) {
@@ -694,8 +772,8 @@ function renderUI() {
   // Top Card Live Bandwidth Speed & Totals
   document.getElementById('liveRxSpeed').innerText = formatSpeed(serverLiveRxBps);
   document.getElementById('liveTxSpeed').innerText = formatSpeed(serverLiveTxBps);
-  document.getElementById('liveRxTotal').innerText = 'Total: ' + formatBytes(totalRxBytes);
-  document.getElementById('liveTxTotal').innerText = 'Total: ' + formatBytes(totalTxBytes);
+  document.getElementById('liveRxTotal').innerText = 'Total Volume: ' + formatBytes(totalRxBytes);
+  document.getElementById('liveTxTotal').innerText = 'Total Volume: ' + formatBytes(totalTxBytes);
 
   // 2. Session Count & Table Body
   document.getElementById('sessionCount').innerText = activeSessionsData.length;
@@ -704,8 +782,8 @@ function renderUI() {
   if (activeSessionsData.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="8" class="text-center text-muted" style="padding: 24px;">
-          <i class="bi bi-wifi-off fs-3 d-block mb-2"></i>
+        <td colspan="8" class="text-center text-muted" style="padding: 32px 18px;">
+          <i class="bi bi-wifi-off" style="font-size: 28px; display:block; margin-bottom: 8px; color:var(--muted);"></i>
           Belum ada sesi pelanggan PPPoE / Hotspot yang terhubung via RADIUS saat ini.
         </td>
       </tr>`;
@@ -733,20 +811,20 @@ function renderUI() {
       : `<span class="text-muted" style="font-size: 12px; font-style: italic;">Belum terdaftar</span>`;
 
     return `
-      <tr>
-        <td>
+      <tr class="session-row-item" style="border-bottom:1px solid var(--border); transition: background 0.2s;">
+        <td style="padding:14px 18px;">
           <a href="javascript:void(0)" onclick="showCustomerDetail('${safeUsername}')" class="user-detail-link" title="Klik untuk lihat detail pelanggan">
             <i class="bi bi-person-badge text-info me-1"></i><strong>${safeUsername}</strong>
           </a>
-          <span class="badge bs" style="margin-left: 4px;">Online</span>
+          <span class="badge bs" style="margin-left: 6px; padding:3px 8px; border-radius:4px; font-size:11px; font-weight:700;">Online</span>
         </td>
-        <td>${customerCell}</td>
-        <td><code>${safeIp}</code></td>
-        <td><small class="text-muted">${safeMac}</small></td>
-        <td><code>${safeNasIp}</code></td>
-        <td><small>${startTime}</small></td>
-        <td>
-          <div style="font-weight: 700;">
+        <td style="padding:14px 18px;">${customerCell}</td>
+        <td style="padding:14px 18px;"><code style="font-size:13px; font-weight:600; color:#38bdf8;">${safeIp}</code></td>
+        <td style="padding:14px 18px;"><small class="text-muted">${safeMac}</small></td>
+        <td style="padding:14px 18px;"><code style="font-size:12px;">${safeNasIp}</code></td>
+        <td style="padding:14px 18px;"><small style="color:var(--muted);">${startTime}</small></td>
+        <td style="padding:14px 18px;">
+          <div style="font-weight: 700; font-size:13px;">
             <span style="color: #34d399;" title="Upload Real-time Speed & Volume">
               <i class="bi bi-arrow-up"></i> ${txSpeedStr} <small class="text-muted">(${upMb} MB)</small>
             </span>
@@ -756,13 +834,24 @@ function renderUI() {
             </span>
           </div>
         </td>
-        <td style="text-align: right;">
+        <td style="padding:14px 18px; text-align: right;">
           <form action="/admin/radius/sessions/${encodeURIComponent(s.username)}/disconnect" method="POST" style="display: inline-block;" onsubmit="return confirm('Disconnect/Kick user ${s.username}?')">
-            <button type="submit" class="btn btn-d btn-sm"><i class="bi bi-power"></i> Kick (CoA)</button>
+            <button type="submit" class="btn btn-d btn-sm" style="border-radius:8px; font-weight:600; font-size:12px;"><i class="bi bi-power me-1"></i> Kick (CoA)</button>
           </form>
         </td>
       </tr>`;
   }).join('');
+
+  filterSessionTable();
+}
+
+function filterSessionTable() {
+  const query = (document.getElementById('searchSessionInput')?.value || '').toLowerCase().trim();
+  const rows = document.querySelectorAll('.session-row-item');
+  rows.forEach(r => {
+    const text = r.innerText.toLowerCase();
+    r.style.display = text.includes(query) ? '' : 'none';
+  });
 }
 
 // Inisialisasi awal toggle state live monitoring dari localStorage
