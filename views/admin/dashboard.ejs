@@ -106,31 +106,66 @@
     <!-- ═══════════════════════════════════════════════════════ -->
     <div id="dashboard-section">
 
-      <!-- MikroTik Stats & List -->
       <% const routerList = (typeof routers !== 'undefined' && Array.isArray(routers)) ? routers : []; %>
+
+      <!-- ONU Stats (Moved to Top) -->
       <div style="font-size:12px;color:var(--text);font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
-        <i class="bi bi-hdd-network" style="color:var(--primary);font-size:16px;"></i> <%= t('admin.dashboard.mikrotik_status_title', 'Status MikroTik') %>
+        <i class="bi bi-router" style="color:var(--primary);font-size:16px;"></i> <%= t('admin.dashboard.onu_status_title', 'Status ONU / Perangkat Optik') %>
       </div>
-      
-      <!-- Summary Grid Router MikroTik -->
-      <div class="stat-grid" style="margin-bottom: 20px;">
-        <div class="sc p" style="cursor:pointer" onclick="location.href='/admin/routers'">
-          <i class="bi bi-hdd-network sc-icon"></i>
-          <div class="sc-label"><%= t('admin.dashboard.total_routers', 'Total Router MikroTik') %></div>
-          <div class="sc-val"><%= routerList.length %></div>
-          <div class="sc-sub">Router terdaftar</div>
+      <div class="stat-grid" style="margin-bottom: 22px;">
+        <div class="sc p">
+          <i class="bi bi-router sc-icon"></i>
+          <div class="sc-label"><%= t('admin.dashboard.total_onu', 'Total ONU') %></div>
+          <div class="sc-val" id="stat-total"><span class="text-muted" style="font-size:16px">...</span></div>
+          <div class="sc-sub"><%= t('admin.dashboard.onu_registered', 'Perangkat terdaftar') %></div>
         </div>
-        <div class="sc s" style="cursor:pointer" onclick="location.href='/admin/routers'">
-          <i class="bi bi-check-circle sc-icon"></i>
-          <div class="sc-label"><%= t('admin.dashboard.active_routers', 'Router Status Aktif') %></div>
-          <div class="sc-val"><%= routerList.filter(r => r.is_active).length %></div>
-          <div class="sc-sub">Siap digunakan</div>
+        <div class="sc s">
+          <i class="bi bi-wifi sc-icon"></i>
+          <div class="sc-label"><%= t('admin.dashboard.online', 'Online') %></div>
+          <div class="sc-val" id="stat-online"><span class="text-muted" style="font-size:16px">...</span></div>
+          <div class="sc-sub"><%= t('admin.dashboard.active_now', 'Aktif saat ini') %></div>
         </div>
-        <div class="sc w" style="cursor:pointer" onclick="location.href='/admin/routers'">
-          <i class="bi bi-dash-circle sc-icon"></i>
-          <div class="sc-label"><%= t('admin.dashboard.inactive_routers', 'Router Status Nonaktif') %></div>
-          <div class="sc-val"><%= routerList.filter(r => !r.is_active).length %></div>
-          <div class="sc-sub">Di-nonaktifkan</div>
+        <div class="sc d">
+          <i class="bi bi-wifi-off sc-icon"></i>
+          <div class="sc-label"><%= t('admin.dashboard.offline', 'Offline') %></div>
+          <div class="sc-val" id="stat-offline"><span class="text-muted" style="font-size:16px">...</span></div>
+          <div class="sc-sub"><%= t('admin.dashboard.no_response', 'Tidak merespons') %></div>
+        </div>
+        <div class="sc w">
+          <i class="bi bi-exclamation-triangle sc-icon"></i>
+          <div class="sc-label"><%= t('admin.dashboard.warning', 'Warning') %></div>
+          <div class="sc-val" id="stat-warning"><span class="text-muted" style="font-size:16px">...</span></div>
+          <div class="sc-sub"><%= t('admin.dashboard.needs_attention', 'Perlu perhatian') %></div>
+        </div>
+      </div>
+
+      <!-- Monitoring Pelanggan (Fitur Baru) -->
+      <div style="font-size:12px;color:var(--text);font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+        <i class="bi bi-people-fill" style="color:var(--primary);font-size:16px;"></i> Monitoring Pelanggan
+      </div>
+      <div class="stat-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 22px;">
+        <!-- User Aktif (total pppoe aktif) -->
+        <div class="sc p" style="cursor:pointer" onclick="location.href='/admin/customers?status=active'">
+          <i class="bi bi-ethernet sc-icon"></i>
+          <div class="sc-label">User Aktif</div>
+          <div class="sc-val" id="stat-pppoe-active"><span class="text-muted" style="font-size:16px">...</span></div>
+          <div class="sc-sub">Total PPPoE Active / Online</div>
+        </div>
+
+        <!-- User Suspend (total user dengan Profil suspend) -->
+        <div class="sc w" style="cursor:pointer" onclick="location.href='/admin/customers?status=suspended'">
+          <i class="bi bi-person-x-fill sc-icon"></i>
+          <div class="sc-label">User Suspend</div>
+          <div class="sc-val" id="stat-pppoe-suspended"><span class="text-muted" style="font-size:16px">...</span></div>
+          <div class="sc-sub">Total Profil Suspend / Terisolir</div>
+        </div>
+
+        <!-- User Offline (pppoe offline) -->
+        <div class="sc d" style="cursor:pointer" onclick="location.href='/admin/customers'">
+          <i class="bi bi-plug-fill sc-icon"></i>
+          <div class="sc-label">User Offline</div>
+          <div class="sc-val" id="stat-pppoe-offline"><span class="text-muted" style="font-size:16px">...</span></div>
+          <div class="sc-sub">PPPoE Offline / Terputus</div>
         </div>
       </div>
 
@@ -211,37 +246,6 @@
               </table>
             </div>
           <% } %>
-        </div>
-      </div>
-
-      <!-- ONU Stats -->
-      <div style="font-size:12px;color:var(--text);font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
-        <i class="bi bi-router" style="color:var(--primary);font-size:16px;"></i> <%= t('admin.dashboard.onu_status_title', 'Status ONU / Perangkat Optik') %>
-      </div>
-      <div class="stat-grid" style="margin-bottom: 22px;">
-        <div class="sc p">
-          <i class="bi bi-router sc-icon"></i>
-          <div class="sc-label"><%= t('admin.dashboard.total_onu', 'Total ONU') %></div>
-          <div class="sc-val" id="stat-total"><span class="text-muted" style="font-size:16px">...</span></div>
-          <div class="sc-sub"><%= t('admin.dashboard.onu_registered', 'Perangkat terdaftar') %></div>
-        </div>
-        <div class="sc s">
-          <i class="bi bi-wifi sc-icon"></i>
-          <div class="sc-label"><%= t('admin.dashboard.online', 'Online') %></div>
-          <div class="sc-val" id="stat-online"><span class="text-muted" style="font-size:16px">...</span></div>
-          <div class="sc-sub"><%= t('admin.dashboard.active_now', 'Aktif saat ini') %></div>
-        </div>
-        <div class="sc d">
-          <i class="bi bi-wifi-off sc-icon"></i>
-          <div class="sc-label"><%= t('admin.dashboard.offline', 'Offline') %></div>
-          <div class="sc-val" id="stat-offline"><span class="text-muted" style="font-size:16px">...</span></div>
-          <div class="sc-sub"><%= t('admin.dashboard.no_response', 'Tidak merespons') %></div>
-        </div>
-        <div class="sc w">
-          <i class="bi bi-exclamation-triangle sc-icon"></i>
-          <div class="sc-label"><%= t('admin.dashboard.warning', 'Warning') %></div>
-          <div class="sc-val" id="stat-warning"><span class="text-muted" style="font-size:16px">...</span></div>
-          <div class="sc-sub"><%= t('admin.dashboard.needs_attention', 'Perlu perhatian') %></div>
         </div>
       </div>
 
@@ -627,6 +631,16 @@ async function loadStats() {
     document.getElementById('stat-online').textContent  = online;
     document.getElementById('stat-offline').textContent = offline;
     document.getElementById('stat-warning').textContent = d.warning || 0;
+
+    // Customer / PPPoE stats
+    if (d.customerStats) {
+      const pActive = document.getElementById('stat-pppoe-active');
+      const pSusp = document.getElementById('stat-pppoe-suspended');
+      const pOff = document.getElementById('stat-pppoe-offline');
+      if (pActive) pActive.textContent = d.customerStats.active ?? 0;
+      if (pSusp) pSusp.textContent = d.customerStats.suspended ?? 0;
+      if (pOff) pOff.textContent = d.customerStats.offline ?? 0;
+    }
 
     // Monitoring mini stats
     document.getElementById('m-total').textContent  = total;

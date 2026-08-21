@@ -2,6 +2,55 @@
 
 ---
 
+## [2026-08-21] Penambahan Fitur Baru "Monitoring Pelanggan" di Bawah Status ONU pada Dashboard Admin (/admin)
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna meminta penambahan fitur baru bernama **Monitoring Pelanggan** yang diletakkan persis di bawah section **Status ONU** pada Dashboard Admin (`http://localhost:3001/admin`). Fitur ini wajib menampilkan 3 kartu metrik:
+1. **User Aktif**: Total user / PPPoE yang sedang online/aktif.
+2. **User Suspend**: Total user dengan profil suspend / terisolir.
+3. **User Offline**: Total user PPPoE yang sedang offline / terputus.
+
+### 2. Solusi & Implementasi Teknis
+- **Visual & UI Grid**:
+  - `views/admin/dashboard.ejs`: Menambahkan section header `Monitoring Pelanggan` berikon `bi-people-fill` dan 3 stat card (`.sc p`, `.sc w`, `.sc d`) berstruktur 3 kolom responsive (`grid-template-columns: repeat(3, 1fr)`).
+  - Setiap kartu dilengkapi dengan tautan navigasi langsung ke filter pelanggan di `/admin/customers`.
+- **Backend API & Realtime Polling**:
+  - `routes/adminPortal.js`: Memperbarui endpoint `/api/stats` untuk mengambil data `customerStats` (`active`, `suspended`, `offline`, `totalCustomers`) secara real-time dari MikroTik active session & database `customerSvc.getCustomerStats()`.
+  - `views/admin/dashboard.ejs`: Memperbarui fungsi `loadStats()` untuk memperbarui elemen `stat-pppoe-active`, `stat-pppoe-suspended`, dan `stat-pppoe-offline` secara otomatis saat interval polling berjalan.
+
+### 3. Komponen & File Yang Diubah
+- `[MODIFY]` [`views/admin/dashboard.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/dashboard.ejs): Menambahkan grid Monitoring Pelanggan dan skrip pembaruan real-time.
+- `[MODIFY]` [`routes/adminPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/adminPortal.js): Menambahkan kalkulasi statistik pelanggan pada endpoint `/api/stats`.
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md): Pencatatan dokumentasi fitur baru.
+
+### 4. Hasil Pengujian & Verifikasi
+- **Pengujian Tampilan**: Section **Monitoring Pelanggan** kini muncul rapi persis di bawah *Status ONU*, menampilkan statistik *User Aktif*, *User Suspend*, dan *User Offline* secara dinamis.
+- **Pengujian Jest**: 12 Test Suites / 204 Tests Passed (100%).
+
+---
+
+## [2026-08-21] Penataan Ulang Layout Dashboard Admin (/admin): Memindahkan Status ONU ke Posisi Atas & Menghilangkan Ringkasan Stat MikroTik
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna meminta agar ringkasan statistik *Status MikroTik* pada halaman **Dashboard Admin** (`http://localhost:3001/admin`) dihilangkan, dan posisi kartu ringkasan **Status ONU** (Total ONU, Online, Offline, Warning) dipindahkan ke posisi teratas menggantikan lokasi *Status MikroTik*.
+
+### 2. Solusi & Implementasi Teknis
+- **Pembersihan Ringkasan Status MikroTik**: Menghapus blok kartu ringkasan *Status MikroTik* (`.stat-grid` yang berisi *Total Router MikroTik*, *Router Status Aktif*, dan *Router Status Nonaktif*).
+- **Pemindahan Ringkasan Status ONU**: Memindahkan blok kartu *Status ONU / Perangkat Optik* ke bagian paling atas di bawah *Hero Welcome Banner*.
+- **Preservasi Elemen Penting**:
+  - Tetap mempertahankan elemen ID (`stat-total`, `stat-online`, `stat-offline`, `stat-warning`) agar pembaruan data real-time via skrip JavaScript tidak terganggu.
+  - Kartu tabel **Daftar Router MikroTik** & modul pemantauan *Live Traffic Interface* tetap dipertahankan di bawah kartu Status ONU.
+
+### 3. Komponen & File Yang Diubah
+- `[MODIFY]` [`views/admin/dashboard.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/dashboard.ejs): Menghapus stat-grid MikroTik dan memindahkan stat-grid ONU ke posisi atas.
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md): Pencatatan dokumentasi perubahan layout.
+
+### 4. Hasil Pengujian & Verifikasi
+- **Verifikasi Tampilan**: Kartu *Status ONU* (Total ONU, Online, Offline, Warning) kini tampil secara elegan di bagian teratas Dashboard Admin, diikuti oleh tabel *Daftar Router MikroTik* dan *Ringkasan Billing*.
+- **Pengujian Jest**: 12 Test Suites / 204 Tests Passed (100%).
+
+---
+
 ## [2026-08-21] Dinamisasi Nama Aplikasi / Perusahaan (`settings.company_header`) di Seluruh Tampilan Sistem & Layanan
 
 ### 1. Deskripsi Permasalahan & Kebutuhan

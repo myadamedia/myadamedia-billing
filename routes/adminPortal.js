@@ -4246,7 +4246,33 @@ router.get('/api/stats', requireAdmin, async (req, res) => {
       if (d._lastInform && (now - new Date(d._lastInform).getTime()) < 15 * 60 * 1000) online++;
       else offline++;
     });
-    res.json({ total, online, offline, warning: 0, lastUpdate: getNowLocalISO() });
+
+    const custStats = customerSvc.getCustomerStats();
+    let pppoeActiveCount = custStats.active || 0;
+    let pppoeOfflineCount = custStats.inactive || 0;
+    try {
+      const activeSessions = await mikrotikService.getPppoeActive();
+      if (Array.isArray(activeSessions)) {
+        pppoeActiveCount = activeSessions.length;
+        pppoeOfflineCount = Math.max(0, custStats.active - pppoeActiveCount);
+      }
+    } catch (mErr) {
+      // fallback to customerSvc
+    }
+
+    res.json({
+      total,
+      online,
+      offline,
+      warning: 0,
+      lastUpdate: getNowLocalISO(),
+      customerStats: {
+        active: pppoeActiveCount,
+        suspended: custStats.suspended || 0,
+        offline: pppoeOfflineCount,
+        totalCustomers: custStats.total || 0
+      }
+    });
   } catch (e) {
     res.status(500).json({ error: 'Failed to get stats', detail: e.message });
   }
