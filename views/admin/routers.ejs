@@ -931,6 +931,9 @@ function openInterfaceTrafficModal(ifaceName) {
   document.getElementById('traffic-rx-total').textContent = iface.rxBytesFormatted || '-';
   document.getElementById('traffic-tx-total').textContent = iface.txBytesFormatted || '-';
 
+  document.getElementById('traffic-rx-rate').textContent = '0.00 Mbps';
+  document.getElementById('traffic-tx-rate').textContent = '0.00 Mbps';
+
   initLiveTrafficChart();
   openModal('interfaceTrafficModal');
   startTrafficStream();
@@ -1067,11 +1070,13 @@ async function fetchTrafficPoint() {
     const data = await res.json();
     if (data.success && data.traffic) {
       const t = data.traffic;
-      const rxMbps = parseFloat((t.rxBitsPerSecond / 1000000).toFixed(2));
-      const txMbps = parseFloat((t.txBitsPerSecond / 1000000).toFixed(2));
+      const rxBps = Number(t.rxBitsPerSecond || t['rx-bits-per-second'] || t.rx || 0);
+      const txBps = Number(t.txBitsPerSecond || t['tx-bits-per-second'] || t.tx || 0);
+      const rxMbps = parseFloat((rxBps / 1000000).toFixed(2));
+      const txMbps = parseFloat((txBps / 1000000).toFixed(2));
 
-      document.getElementById('traffic-rx-rate').textContent = t.rxFormatted;
-      document.getElementById('traffic-tx-rate').textContent = t.txFormatted;
+      document.getElementById('traffic-rx-rate').textContent = rxMbps.toFixed(2) + ' Mbps';
+      document.getElementById('traffic-tx-rate').textContent = txMbps.toFixed(2) + ' Mbps';
       document.getElementById('traffic-rx-packets').textContent = t.rxPacketsPerSecond.toLocaleString() + ' pkts/s';
       document.getElementById('traffic-tx-packets').textContent = t.txPacketsPerSecond.toLocaleString() + ' pkts/s';
 

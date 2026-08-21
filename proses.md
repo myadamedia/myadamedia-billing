@@ -13,8 +13,11 @@ Pengguna meminta peremajaan antarmuka (*UI/UX*) dari halaman **Monitoring & Mana
 - Navigasi tab masih menggunakan styling teks datar sederhana tanpa efek *segmented pill tabs*.
 
 ### 3. Solusi & Implementasi Teknis
+- **Format Kecepatan Bandwidth Mbps (`views/admin/routers.ejs`)**:
+  - Mengubah format tampilan metrik real-time **Download (Rx Rate)** dan **Upload (Tx Rate)** pada popup modal *Live Traffic Realtime* agar secara penuh disajikan dalam satuan bit rate **Mbps** (`(rxBitsPerSecond / 1000000).toFixed(2) + ' Mbps'`).
+  - Menyelaraskan tampilan kartu metrik teratas dengan grafik garis *Realtime Traffic Bandwidth Chart* yang juga berbasis **Mbps**.
 - **Pembersihan Tag Style Berulang (`views/admin/mikrotik.ejs`)**:
-  - Mengeliminasi duplikasi tag `</style>` pada bagian `<head>` file `views/admin/mikrotik.ejs` yang menyebabkan teks kode CSS `@keyframes spin...` terekspos langsung ke dalam DOM HTML browser dan merusak tata letak layout.
+  - Mengeliminasi duplikasi tag `</style>` pada bagian `<head>` file `views/admin/mikrotik.ejs` yang menyebabkan teks kode CSS `@keyframes spin...` terekspos langsung ke dalam DOM HTML browser.
 - **Sistem CSS Theme-Adaptive (`var(--card-bg)`, `var(--border)`, `var(--text)`, `var(--muted)`)**:
   - Memperbarui seluruh styling elemen kartu, tab, badge, dan hero banner pada `views/admin/mikrotik.ejs`, `views/admin/vouchers.ejs`, dan `views/admin/routers.ejs` agar menggunakan variabel CSS tema bawaan.
   - Memastikan kontras warna teks/font **100% jelas, tajam, dan terbaca presisi** baik saat aplikasi berada dalam **Mode Terang (Light Mode)** maupun **Mode Gelap (Dark Mode)**.
