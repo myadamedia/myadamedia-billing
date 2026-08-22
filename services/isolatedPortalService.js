@@ -7,6 +7,7 @@ const SETTINGS_KEY_PORTAL_ISOLATED = 'isolated_portal_config';
 const DEFAULT_CONFIG = {
   enabled: true,
   cna_push_enabled: true,
+  template: 'default',
   custom_title: 'Layanan Terisolir',
   custom_message: 'Layanan internet Anda sementara terisolir karena terdapat administrasi tagihan yang belum diselesaikan.',
   custom_wa_message: 'Halo Admin, akun internet saya terisolir. Mohon info pembayaran.',
@@ -58,10 +59,14 @@ function saveIsolatedPortalConfig(newConfig = {}) {
       cleanWalledGarden = newConfig.walled_garden_domains.map(d => String(d).trim().toLowerCase()).filter(Boolean);
     }
 
+    const validTemplates = ['default', 'red_alert', 'clean_light', 'corporate_navy'];
+    const chosenTemplate = newConfig.template && validTemplates.includes(newConfig.template) ? newConfig.template : (current.template || 'default');
+
     const updated = {
       ...current,
       enabled: newConfig.enabled !== undefined ? (newConfig.enabled === 'true' || newConfig.enabled === 'on' || newConfig.enabled === true) : current.enabled,
       cna_push_enabled: newConfig.cna_push_enabled !== undefined ? (newConfig.cna_push_enabled === 'true' || newConfig.cna_push_enabled === 'on' || newConfig.cna_push_enabled === true) : current.cna_push_enabled,
+      template: chosenTemplate,
       custom_title: newConfig.custom_title !== undefined ? String(newConfig.custom_title || current.custom_title).trim() : current.custom_title,
       custom_message: newConfig.custom_message !== undefined ? String(newConfig.custom_message || current.custom_message).trim() : current.custom_message,
       custom_wa_message: newConfig.custom_wa_message !== undefined ? String(newConfig.custom_wa_message || current.custom_wa_message).trim() : current.custom_wa_message,

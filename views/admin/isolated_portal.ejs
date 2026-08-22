@@ -277,6 +277,80 @@
       line-height: 1.4;
     }
 
+    /* ── Template Cards ── */
+    .template-card {
+      background: var(--bg3);
+      border: 2px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      position: relative;
+    }
+    .template-card:hover {
+      border-color: var(--primary);
+      transform: translateY(-2px);
+    }
+    .template-card.active {
+      border-color: var(--primary);
+      background: var(--pdim);
+      box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
+    }
+    .template-card.active::after {
+      content: '\F26B';
+      font-family: 'bootstrap-icons';
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      color: var(--primary);
+      font-size: 16px;
+    }
+    .template-preview {
+      height: 105px;
+      border-radius: 10px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .default-preview { background: #0b1329; }
+    .red-preview { background: #1f0707; border-color: rgba(239,68,68,0.3); }
+    .light-preview { background: #f8fafc; border-color: #cbd5e1; }
+    .navy-preview { background: #0a192f; border-color: rgba(245,158,11,0.3); }
+
+    .template-title { font-weight: 700; font-size: 13.5px; color: var(--text); margin-bottom: 4px; }
+    .template-desc { font-size: 11.5px; color: var(--muted); line-height: 1.4; }
+
+    .mini-badge { font-size: 8.5px; font-weight: 800; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; }
+    .dark-badge { background: rgba(239,68,68,0.2); color: #f87171; }
+    .red-badge { background: #dc2626; color: #ffffff; }
+    .light-badge { background: #e2e8f0; color: #0f172a; }
+    .navy-badge { background: #b45309; color: #ffffff; }
+
+    .template-mini-body { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .mini-icon { width: 22px; height: 22px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 11px; }
+    .dark-icon { background: rgba(239,68,68,0.2); color: #ef4444; }
+    .red-icon { background: rgba(239,68,68,0.3); color: #f87171; }
+    .light-icon { background: #3b82f6; color: #ffffff; }
+    .navy-icon { background: #f59e0b; color: #0a192f; }
+
+    .mini-line { height: 4px; width: 60%; border-radius: 2px; }
+    .dark-line { background: rgba(255,255,255,0.2); }
+    .red-line { background: rgba(248,113,113,0.3); }
+    .light-line { background: #cbd5e1; }
+    .navy-line { background: rgba(245,158,11,0.3); }
+
+    .mini-btn { font-size: 8px; font-weight: 700; padding: 3px 8px; border-radius: 4px; color: #fff; text-align: center; }
+    .dark-btn { background: linear-gradient(135deg, #25d366, #128c7e); }
+    .red-btn { background: #dc2626; }
+    .light-btn { background: #2563eb; }
+    .navy-btn { background: linear-gradient(135deg, #d97706, #b45309); }
+
     /* ── Toast notification ── */
     #copyToast {
       position: fixed;
@@ -445,6 +519,91 @@
                 </div>
               </div>
 
+            </div>
+
+            <!-- Section Pilihan Template Portal Isolir -->
+            <div class="form-group-custom mb-4" style="background: var(--bg2); border: 1px solid var(--border); border-radius: 16px; padding: 20px; margin-bottom: 22px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+                <div>
+                  <label class="form-label fw-bold mb-1" style="font-size: 14px;"><i class="bi bi-palette-fill text-primary me-1"></i> Pilihan Template Tampilan Portal Isolir</label>
+                  <div class="hint-text" style="margin: 0;">Pilih desain visual halaman <code>http://localhost:3001/isolated</code> yang akan dilihat pelanggan terisolir.</div>
+                </div>
+                <a href="/isolated" target="_blank" class="btn btn-g btn-sm" style="border-radius: 10px;">
+                  <i class="bi bi-box-arrow-up-right me-1"></i> Pratinjau Live /isolated
+                </a>
+              </div>
+
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;">
+                
+                <!-- Template 1: Modern Dark Glassmorphism -->
+                <label class="template-card <%= (!config.template || config.template === 'default') ? 'active' : '' %>" onclick="selectIsolatedTemplate('default', this)">
+                  <input type="radio" name="template" value="default" <%= (!config.template || config.template === 'default') ? 'checked' : '' %> style="display: none;">
+                  <div class="template-preview default-preview">
+                    <div class="template-mini-header"><span class="mini-badge dark-badge">Layanan Terisolir</span></div>
+                    <div class="template-mini-body">
+                      <div class="mini-icon dark-icon"><i class="bi bi-shield-lock-fill"></i></div>
+                      <div class="mini-line dark-line"></div>
+                      <div class="mini-btn dark-btn">WA Admin</div>
+                    </div>
+                  </div>
+                  <div class="template-info">
+                    <div class="template-title">🌙 Modern Dark Glassmorphism</div>
+                    <div class="template-desc">Tema gelap modern dengan aksen glassmorphism, gradasi darurat &amp; tombol WA.</div>
+                  </div>
+                </label>
+
+                <!-- Template 2: Emergency Red Alert -->
+                <label class="template-card <%= config.template === 'red_alert' ? 'active' : '' %>" onclick="selectIsolatedTemplate('red_alert', this)">
+                  <input type="radio" name="template" value="red_alert" <%= config.template === 'red_alert' ? 'checked' : '' %> style="display: none;">
+                  <div class="template-preview red-preview">
+                    <div class="template-mini-header"><span class="mini-badge red-badge">EMERGENCY ALERT</span></div>
+                    <div class="template-mini-body">
+                      <div class="mini-icon red-icon"><i class="bi bi-exclamation-octagon-fill"></i></div>
+                      <div class="mini-line red-line"></div>
+                      <div class="mini-btn red-btn">Bayar Tagihan</div>
+                    </div>
+                  </div>
+                  <div class="template-info">
+                    <div class="template-title">🚨 Emergency Red Alert</div>
+                    <div class="template-desc">Tema peringatan darurat dengan banner merah tegas &amp; header khusus.</div>
+                  </div>
+                </label>
+
+                <!-- Template 3: Clean Minimalist Light -->
+                <label class="template-card <%= config.template === 'clean_light' ? 'active' : '' %>" onclick="selectIsolatedTemplate('clean_light', this)">
+                  <input type="radio" name="template" value="clean_light" <%= config.template === 'clean_light' ? 'checked' : '' %> style="display: none;">
+                  <div class="template-preview light-preview">
+                    <div class="template-mini-header"><span class="mini-badge light-badge">Informasi Layanan</span></div>
+                    <div class="template-mini-body">
+                      <div class="mini-icon light-icon"><i class="bi bi-info-circle-fill"></i></div>
+                      <div class="mini-line light-line"></div>
+                      <div class="mini-btn light-btn">Cek Tagihan</div>
+                    </div>
+                  </div>
+                  <div class="template-info">
+                    <div class="template-title">☀️ Clean Minimalist Light</div>
+                    <div class="template-desc">Tema mode terang bersih dengan kontras tinggi &amp; kartu minimalis.</div>
+                  </div>
+                </label>
+
+                <!-- Template 4: Corporate Navy -->
+                <label class="template-card <%= config.template === 'corporate_navy' ? 'active' : '' %>" onclick="selectIsolatedTemplate('corporate_navy', this)">
+                  <input type="radio" name="template" value="corporate_navy" <%= config.template === 'corporate_navy' ? 'checked' : '' %> style="display: none;">
+                  <div class="template-preview navy-preview">
+                    <div class="template-mini-header"><span class="mini-badge navy-badge">CORPORATE PORTAL</span></div>
+                    <div class="template-mini-body">
+                      <div class="mini-icon navy-icon"><i class="bi bi-building-fill-lock"></i></div>
+                      <div class="mini-line navy-line"></div>
+                      <div class="mini-btn navy-btn">Hubungi Support</div>
+                    </div>
+                  </div>
+                  <div class="template-info">
+                    <div class="template-title">🏢 Corporate Navy &amp; Gold</div>
+                    <div class="template-desc">Tema elegan profesional bernuansa biru navy, emas, &amp; batas institusional.</div>
+                  </div>
+                </label>
+
+              </div>
             </div>
 
             <div class="form-row mb16">
@@ -812,6 +971,15 @@
       const text = row.innerText.toLowerCase();
       row.style.display = text.includes(filter) ? '' : 'none';
     });
+  }
+
+  function selectIsolatedTemplate(val, cardEl) {
+    document.querySelectorAll('.template-card').forEach(c => c.classList.remove('active'));
+    if (cardEl) {
+      cardEl.classList.add('active');
+      const radio = cardEl.querySelector('input[type="radio"]');
+      if (radio) radio.checked = true;
+    }
   }
 </script>
 
