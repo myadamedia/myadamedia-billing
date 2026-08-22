@@ -1941,6 +1941,7 @@ router.get('/customers/export', requireAdminSession, (req, res) => {
     const data = customers.map(c => ({
       'ID': c.id,
       'Nama': c.name,
+      'NIK/SIM': c.nik_sim || '',
       'Telepon': c.phone,
       'Email': c.email || '',
       'Alamat': c.address,
@@ -2007,6 +2008,7 @@ router.post('/customers/import', requireAdminSession, upload.single('file'), asy
 
       const data = {
         name: name,
+        nik_sim: cleanRow['NIK/SIM'] || cleanRow['nik_sim'] || cleanRow['NIK'] || cleanRow['SIM'] || '',
         phone: cleanRow['Telepon'] || cleanRow['phone'] || cleanRow['Phone'],
         email: cleanRow['Email'] || cleanRow['email'] || cleanRow['email_address'],
         address: cleanRow['Alamat'] || cleanRow['address'] || cleanRow['Address'],

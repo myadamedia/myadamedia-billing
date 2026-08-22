@@ -373,36 +373,8 @@
       </div>
       <% } %>
 
-      <!-- Row: Donut + Recent Devices -->
-      <div class="dash-main-grid">
-
-        <!-- Donut Chart -->
-        <div class="card no-blur">
-          <div class="card-hd"><h6><i class="bi bi-pie-chart"></i> <%= t('admin.dashboard.onu_status_title', 'MONITORING ONU') %></h6></div>
-          <div class="card-bd" style="display:flex;flex-direction:column;align-items:center;gap:16px">
-            <div id="donut-wrap">
-              <canvas id="donutChart"></canvas>
-              <div class="donut-center">
-                <div class="donut-num" id="donut-pct">-</div>
-                <div class="donut-lbl"><%= t('admin.dashboard.online', 'Online') %></div>
-              </div>
-            </div>
-            <div style="width:100%;display:flex;flex-direction:column;gap:8px">
-              <div style="display:flex;justify-content:space-between;font-size:12px">
-                <span><span class="dot dot-on"></span><%= t('admin.dashboard.online', 'Online') %></span>
-                <span id="leg-online" class="fw6" style="color:var(--success)">-</span>
-              </div>
-              <div style="display:flex;justify-content:space-between;font-size:12px">
-                <span><span class="dot dot-off"></span><%= t('admin.dashboard.offline', 'Offline') %></span>
-                <span id="leg-offline" class="fw6" style="color:var(--danger)">-</span>
-              </div>
-            </div>
-            <div style="font-size:11px;color:var(--muted);text-align:center" id="last-update-time">—</div>
-          </div>
-        </div>
-
-        <!-- Quick Actions & ONU Summary -->
-        <div style="display:flex;flex-direction:column;gap:14px">
+      <!-- Quick Actions & Recent Offline Devices -->
+      <div style="display:flex;flex-direction:column;gap:18px;margin-top:4px">
           <!-- Quick Actions -->
           <div class="card">
             <div class="card-hd"><h6><i class="bi bi-lightning-charge"></i> <%= t('admin.dashboard.quick_actions', 'Aksi Cepat') %></h6></div>
@@ -444,7 +416,6 @@
               <div class="text-center text-muted" style="padding:24px;font-size:13px"><%= t('common.loading', 'Memuat data...') %></div>
             </div>
           </div>
-        </div>
       </div>
     </div>
 
@@ -740,10 +711,14 @@ async function loadStats() {
     document.getElementById('m-pct').textContent    = pct + '%';
 
     // Donut
-    document.getElementById('donut-pct').textContent  = pct + '%';
-    document.getElementById('leg-online').textContent  = online;
-    document.getElementById('leg-offline').textContent = offline;
-    document.getElementById('last-update-time').textContent = I18N.updatePrefix + ' ' + new Date().toLocaleTimeString('id-ID', { timeZone: '<%= settings.timezone %>' });
+    const donutPct = document.getElementById('donut-pct');
+    const legOnline = document.getElementById('leg-online');
+    const legOffline = document.getElementById('leg-offline');
+    const lastUpdate = document.getElementById('last-update-time');
+    if (donutPct) donutPct.textContent = pct + '%';
+    if (legOnline) legOnline.textContent = online;
+    if (legOffline) legOffline.textContent = offline;
+    if (lastUpdate) lastUpdate.textContent = I18N.updatePrefix + ' ' + new Date().toLocaleTimeString('id-ID', { timeZone: '<%= settings.timezone %>' });
 
     updateDonut(online, offline);
   } catch(e) { console.error('Stats error:', e); }
@@ -752,6 +727,7 @@ async function loadStats() {
 // ── DONUT CHART ────────────────────────────────────────────────
 function updateDonut(online, offline) {
   const ctx = document.getElementById('donutChart');
+  if (!ctx) return;
   if (donutChart) { donutChart.data.datasets[0].data = [online, offline]; donutChart.update(); return; }
   donutChart = new Chart(ctx, {
     type: 'doughnut',

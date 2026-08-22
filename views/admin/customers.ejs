@@ -237,9 +237,12 @@
       <div class="mbody">
         <div class="form-row">
           <div class="fg"><label class="fl">Nama Lengkap *</label><input class="fc" name="name" required placeholder="John Doe"></div>
-          <div class="fg"><label class="fl">No. Telepon / WA</label><input class="fc" name="phone" placeholder="08xxx"></div>
+          <div class="fg"><label class="fl">NIK / No. SIM (Opsional)</label><input class="fc" name="nik_sim" placeholder="3201xxxxxxxxxxxx"></div>
         </div>
-        <div class="fg"><label class="fl">Email (Untuk Notifikasi Payment)</label><input class="fc" name="email" type="email" placeholder="customer@example.com"></div>
+        <div class="form-row">
+          <div class="fg"><label class="fl">No. Telepon / WA</label><input class="fc" name="phone" placeholder="08xxx"></div>
+          <div class="fg"><label class="fl">Email (Untuk Notifikasi Payment)</label><input class="fc" name="email" type="email" placeholder="customer@example.com"></div>
+        </div>
         <div class="fg"><label class="fl">Alamat</label><textarea class="fc" name="address" placeholder="Jl. Example..."></textarea></div>
         <div class="form-row">
           <div class="fg">
@@ -482,9 +485,12 @@
       <div class="mbody">
         <div class="form-row">
           <div class="fg"><label class="fl">Nama Lengkap *</label><input class="fc" name="name" id="e_name" required></div>
-          <div class="fg"><label class="fl">No. Telepon / WA</label><input class="fc" name="phone" id="e_phone"></div>
+          <div class="fg"><label class="fl">NIK / No. SIM (Opsional)</label><input class="fc" name="nik_sim" id="e_nik_sim" placeholder="3201xxxxxxxxxxxx"></div>
         </div>
-        <div class="fg"><label class="fl">Email (Untuk Notifikasi Payment)</label><input class="fc" name="email" id="e_email" type="email"></div>
+        <div class="form-row">
+          <div class="fg"><label class="fl">No. Telepon / WA</label><input class="fc" name="phone" id="e_phone"></div>
+          <div class="fg"><label class="fl">Email (Untuk Notifikasi Payment)</label><input class="fc" name="email" id="e_email" type="email"></div>
+        </div>
         <div class="fg"><label class="fl">Alamat</label><textarea class="fc" name="address" id="e_address"></textarea></div>
         <div class="form-row">
           <div class="fg">
@@ -979,6 +985,7 @@ function editCust(idx) {
   document.getElementById('editModalCustomerId').textContent = c.id ? `(MDE-${String(c.id).padStart(4, '0')})` : '';
   document.getElementById('editForm').action='/admin/customers/'+c.id+'/update';
   document.getElementById('e_name').value=c.name||'';
+  if (document.getElementById('e_nik_sim')) document.getElementById('e_nik_sim').value=c.nik_sim||'';
   document.getElementById('e_phone').value=c.phone||'';
   document.getElementById('e_email').value=c.email||'';
   document.getElementById('e_address').value=c.address||'';

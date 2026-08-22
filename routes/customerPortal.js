@@ -1530,16 +1530,19 @@ router.get('/register', (req, res) => {
 router.post('/register', async (req, res) => {
   const settings = getSettingsWithCache();
   const packages = customerSvc.getAllPackages().filter(p => p.is_active !== 0 && p.is_hidden !== 1);
-  const { name, phone, email, address, package_id, lat, lng } = req.body;
+  const { name, nik_sim, phone, email, address, package_id, lat, lng } = req.body;
 
   try {
     if (!name || !phone || !address || !package_id) {
       throw new Error('Semua field wajib diisi.');
     }
 
+    const nikSimStr = String(nik_sim || '').trim();
+
     // Buat pelanggan dengan status inactive (menunggu survei/pemasangan)
     customerSvc.createCustomer({
       name,
+      nik_sim: nikSimStr,
       phone,
       email,
       address,
@@ -1555,8 +1558,9 @@ router.post('/register', async (req, res) => {
       const { sendWA } = await import('../services/whatsappBot.mjs');
       const selectedPkg = packages.find(p => p.id.toString() === package_id.toString());
       const pkgName = selectedPkg ? selectedPkg.name : 'Tidak diketahui';
+      const nikLine = nikSimStr ? `\n🪪 *NIK/SIM:* ${nikSimStr}` : '';
       
-      const adminMsg = `🔔 *PENDAFTARAN BARU*\n\nAda calon pelanggan baru yang mendaftar via web:\n\n👤 *Nama:* ${name}\n📞 *WA:* ${phone}\n📍 *Alamat:* ${address}\n📦 *Paket:* ${pkgName}\n\nSilakan cek di panel Admin untuk menindaklanjuti.`;
+      const adminMsg = `🔔 *PENDAFTARAN BARU*\n\nAda calon pelanggan baru yang mendaftar via web:\n\n👤 *Nama:* ${name}${nikLine}\n📞 *WA:* ${phone}\n📍 *Alamat:* ${address}\n📦 *Paket:* ${pkgName}\n\nSilakan cek di panel Admin untuk menindaklanjuti.`;
       const latStr = String(lat || '').trim();
       const lngStr = String(lng || '').trim();
       const mapLine = (latStr && lngStr) ? `\n🗺️ *Lokasi:* https://maps.google.com/?q=${encodeURIComponent(latStr)},${encodeURIComponent(lngStr)}` : '';

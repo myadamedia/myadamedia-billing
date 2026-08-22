@@ -82,6 +82,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS customers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
+    nik_sim TEXT DEFAULT '',
     phone TEXT DEFAULT '',
     address TEXT DEFAULT '',
     package_id INTEGER REFERENCES packages(id) ON DELETE SET NULL,
@@ -677,6 +678,9 @@ try {
 } catch (e) { /* ignore if already exists */ }
 try {
   db.exec("ALTER TABLE customers ADD COLUMN send_isolir_reminder INTEGER DEFAULT 1");
+} catch (e) { /* ignore if already exists */ }
+try {
+  db.exec("ALTER TABLE customers ADD COLUMN nik_sim TEXT DEFAULT ''");
 } catch (e) { /* ignore if already exists */ }
 try {
   db.exec("ALTER TABLE collectors ADD COLUMN auto_approve INTEGER DEFAULT 0");

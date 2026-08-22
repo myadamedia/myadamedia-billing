@@ -2,6 +2,169 @@
 
 ---
 
+## [2026-08-22] Penambahan Poin Keunggulan "Harga Flat & Transparan" pada Halaman Registrasi (/customer/register)
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna meminta penambahan poin keunggulan **Harga Flat & Transparan** pada *Hero Showcase* bagian kiri halaman pendaftaran pelanggan (`http://localhost:3001/customer/register`).
+
+### 2. Penyebab Utama
+Daftar keunggulan fitur sebelumnya hanya berisi 3 poin (*Fiber Optik*, *Bebas FUP*, *Dukungan 24/7*) dan belum menyajikan keunggulan garansi tarif flat bulanan.
+
+### 3. Solusi & Implementasi Teknis
+- Menambahkan poin fitur baru `Harga Flat & Transparan` dengan ikon `bi-credit-card-2-front-fill` pada elemen `.feature-list` di `views/register.ejs`.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`views/register.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/register.ejs)
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md)
+
+### 5. Hasil Pengujian & Verifikasi
+- Poin keunggulan **Harga Flat & Transparan** tampil secara estetis, rapi, dan responsif pada daftar fitur hero section di sebelah kiri.
+
+---
+
+## [2026-08-22] Penghapusan Baris Teks Kecepatan pada Kartu Paket Registrasi Pelanggan (/customer/register)
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna meminta penghapusan baris teks kecepatan (seperti "Up to 60000 Mbps" / "Up to 100000 Mbps") dari kartu pilihan paket pada halaman registrasi pelanggan (`http://localhost:3001/customer/register`).
+
+### 2. Penyebab Utama
+Nilai kecepatan `speed_down` pada database disimpan dalam satuan Kbps sehingga format default menampilkan angka yang terlalu besar dan tidak perlu ditampilkan pada kartu paket interaktif.
+
+### 3. Solusi & Implementasi Teknis
+- Menghapus blok elemen `<div class="package-card-speed">` pada iterasi kartu paket di `views/register.ejs`. Kartu paket kini tampil lebih ringkas dan bersih, hanya menyajikan **Nama Paket** dan **Harga per Bulan**.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`views/register.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/register.ejs)
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md)
+
+### 5. Hasil Pengujian & Verifikasi
+- Kartu pilihan paket pada `http://localhost:3001/customer/register` kini hanya menampilkan nama paket & nominal harga secara bersih dan rapi.
+
+---
+
+## [2026-08-22] Penambahan Fitur Dark Mode & Light Mode pada Halaman Registrasi (/customer/register)
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna meminta penambahan pilihan saklar tema **Dark Mode / Light Mode** pada halaman pendaftaran pelanggan publik (`http://localhost:3001/customer/register`).
+
+### 2. Penyebab Utama & Tantangan
+- Sebelumnya halaman registrasi hanya menyediakan 1 mode tema gelap (Dark Mode). Diperlukan dukungan mode terang (Light Mode) yang bersih dengan kontras tinggi serta penyimpanan preferensi pengguna yang persisten.
+
+### 3. Solusi & Implementasi Teknis
+- **Dual-Theme CSS Variables (`[data-theme="dark"]` & `[data-theme="light"]`)**:
+  - Mendefinisikan variabel warna CSS ganda untuk latar belakang, kartu *glassmorphism*, warna teks, input form, kartu paket, modal peta, dan tombol.
+- **Tombol Toggle Floating Interaktif**:
+  - Menambahkan tombol saklar di sudut kanan atas halaman dengan ikon Matahari (`bi-sun-fill`) / Bulan (`bi-moon-stars-fill`) dan teks petunjuk mode.
+- **Persistence & Fast Initialization**:
+  - Skrip inisialisasi pada `<head>` membaca `localStorage.getItem('customer_theme')` untuk mencegah adanya efek *flash* visual saat pertama kali dimuat.
+  - Fungsi `toggleTheme()` menyimpan pilihan pengguna ke `localStorage` secara *real-time*.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`views/register.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/register.ejs)
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md)
+
+### 5. Hasil Pengujian & Verifikasi
+- **Pengujian Saklar Tema**: Tombol saklar berpindah dari Dark Mode ke Light Mode (dan sebaliknya) secara cepat & mulus, seluruh elemen visual terbaca dengan kontras sempurna, dan preferensi tema bertahan setelah refresh halaman.
+
+---
+
+## [2026-08-22] Redesain Modern UI/UX Halaman Registrasi Pelanggan Publik (/customer/register)
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna meminta pembaruan tampilan antarmuka pada halaman registrasi pelanggan publik (`http://localhost:3001/customer/register`) agar berpenampilan lebih modern, menarik, intuitif, mudah dimengerti, dan responsif.
+
+### 2. Penyebab Utama & Tantangan
+- Tampilan `register.ejs` sebelumnya menggunakan kartu form tunggal konvensional dengan bidang `<select>` paket internet standar yang kurang informatif dan estetika visual yang belum memanfaatkan standar modern (seperti typography `Plus Jakarta Sans`, *glassmorphism*, *glow effects*, serta kartu pilihan paket interaktif).
+
+### 3. Solusi & Implementasi Teknis
+- **Typography & Font**: Mengintegrasikan Google Fonts `Plus Jakarta Sans` untuk menyajikan hirarki teks yang elegan dan sangat nyaman dibaca di layar HP maupun Komputer.
+- **Tata Letak Hero & Split Form**:
+  - **Layar Desktop**: Tampilan Split Card 2 Kolom. Kolom kiri berupa *Hero Showcase* dengan logo bisnis, keunggulan fitur (*Fiber Optik*, *Bebas FUP*, *Support 24/7*), dan badge kepercayaan. Kolom kanan berisi form pendaftaran interaktif.
+  - **Layar Mobile**: Layout yang otomatis bertumpuk secara alami (*responsive stack*) sehingga tetap ringan dan cepat diakses di Smartphone.
+- **Kartu Pemilihan Paket Interaktif (Interactive Package Cards)**:
+  - Mengubah cara memilih paket internet dari `<select>` biasa menjadi kartu visual interaktif yang menampilkan nama paket, harga per bulan, highlight kecepatan (`Up to XX Mbps`), serta indikator centang bercahaya saat dipilih.
+  - Tetap menyinkronkan nilai pilihan paket ke elemen `<select name="package_id">` secara *real-time* untuk menjaga kompatibilitas 100% dengan backend Express.js.
+- **Micro-interactions & Animasi**:
+  - Menambahkan *Glassmorphism Container* dengan efek `backdrop-filter: blur(20px)`.
+  - Input field dengan ikon `bi-icon`, badge penanda field opsional vs wajib, serta status koordinat GPS yang informatif.
+  - Tombol submit bergradasi `Primary Gradient` dengan animasi indikator loading spinner saat pendaftaran dikirimkan.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`views/register.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/register.ejs)
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md)
+
+### 5. Hasil Pengujian & Verifikasi
+- **Pengujian Tampilan & Responsivitas**: Halaman `http://localhost:3001/customer/register` tampil memukau pada resolusi Desktop maupun Mobile View. Interaksi klik pada kartu paket, pemilihar peta Leaflet, dan pengiriman form berjalan lancar.
+
+---
+
+## [2026-08-22] Penambahan Kolom NIK/SIM (Opsional) pada Form Pelanggan
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna meminta penambahan kolom **NIK / No. SIM** pada:
+1. Form Tambah & Edit Pelanggan Admin di halaman `http://localhost:3001/admin/customers`.
+2. Form Registrasi Pelanggan Publik di halaman `http://localhost:3001/customer/register`.
+3. Kolom NIK/SIM ini bersifat **opsional (tidak wajib diisi)**.
+
+### 2. Penyebab Utama & Tantangan
+- Sebelumnya tabel `customers` belum memiliki kolom khusus untuk menyimpan nomor identitas (NIK / SIM).
+- Diperlukan mekanisme migrasi skema SQLite yang aman tanpa merusak database yang sedang berjalan di produksi.
+- Diperlukan integrasi data di seluruh lapisan aplikasi (database, service CRUD, rute controller, EJS view modal/form, serta fitur Export/Import Excel).
+
+### 3. Solusi & Implementasi Teknis
+- **Skema Database (`config/database.js`)**:
+  - Menambahkan kolom `nik_sim TEXT DEFAULT ''` pada struktur DDL `CREATE TABLE IF NOT EXISTS customers`.
+  - Menambahkan blok migrasi otomatis: `try { db.exec("ALTER TABLE customers ADD COLUMN nik_sim TEXT DEFAULT ''"); } catch (e) {}` untuk database SQLite yang sudah ada.
+- **Service Pelanggan (`services/customerService.js`)**:
+  - Pembaruan fungsi `createCustomer` dan `updateCustomer` untuk menerima dan menyimpan properti `nik_sim`.
+  - Pembaruan fungsi `getAllCustomers` agar pencarian kata kunci (*search query*) juga mencocokkan kolom `nik_sim`.
+- **Portal Registrasi Publik (`routes/customerPortal.js` & `views/register.ejs`)**:
+  - Menambahkan field input `NIK / No. SIM (Opsional)` pada form pendaftaran pelanggan publik.
+  - Memproses input `nik_sim` pada handler `POST /register` dan menyertakannya pada notifikasi WhatsApp ke Admin jika diisi.
+- **Panel Admin Pelanggan (`routes/adminPortal.js` & `views/admin/customers.ejs`)**:
+  - Menambahkan field input `NIK / No. SIM (Opsional)` pada Modal Tambah Pelanggan (`#addModal`) dan Modal Edit Pelanggan (`#editModal`).
+  - Memperbarui fungsi JavaScript `editCust(idx)` untuk mengisi nilai `#e_nik_sim` secara otomatis saat modal edit dibuka.
+  - Memperbarui handler rute `GET /customers/export` dan `POST /customers/import` agar kolom `NIK/SIM` didukung pada file laporan Excel.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`config/database.js`](file:///d:/WEBAPP/myadamedia-billing/config/database.js)
+- `[MODIFY]` [`services/customerService.js`](file:///d:/WEBAPP/myadamedia-billing/services/customerService.js)
+- `[MODIFY]` [`routes/customerPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/customerPortal.js)
+- `[MODIFY]` [`views/register.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/register.ejs)
+- `[MODIFY]` [`routes/adminPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/adminPortal.js)
+- `[MODIFY]` [`views/admin/customers.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/customers.ejs)
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md)
+
+### 5. Hasil Pengujian & Verifikasi
+- **Pemeriksaan Sintaks**: `node --check` pada seluruh file JavaScript yang diubah berjalan sukses (Exit code: 0).
+- **Pengujian Pengisian Form**: Form registrasi publik `/customer/register` dan modal admin `/admin/customers` dapat disubmit baik saat NIK/SIM diisi maupun saat dikosongkan.
+
+---
+
+## [2026-08-21] Penghapusan Kartu Donut Monitoring ONU dari Dashboard Admin
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna meminta penghapusan kartu **MONITORING ONU** (grafik doughnut persentase online/offline) dari antarmuka Dashboard Admin (`http://localhost:3001/admin`).
+
+### 2. Penyebab Utama Masalah
+- Kartu grafik Donut Monitoring ONU pada halaman utama dashboard dianggap redundan oleh pengguna dan memakan area visual.
+
+### 3. Solusi & Implementasi Teknis
+- **Tampilan Dashboard Admin (`views/admin/dashboard.ejs`)**:
+  - Menghapus komponen HTML kartu **MONITORING ONU** (`card no-blur` dengan canvas `#donutChart`, `#donut-pct`, legenda online/offline, dan `last-update-time`).
+  - Menyesuaikan kontainer tata letak (*layout container*) agar kartu **Aksi Cepat** dan **Ringkasan Perangkat ONU Offline Terbaru** dapat memenuhi area tampilan dashboard secara simetris dan penuh (*full-width*).
+- **Penyesuaian JavaScript (`views/admin/dashboard.ejs`)**:
+  - Menambahkan pengecekan aman (*null-check*) pada fungsi `loadStats()` dan `updateDonut()` agar proses pembaruan data statistik otomatis di latar belakang berjalan lancar tanpa melempar error pada DOM.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`views/admin/dashboard.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/dashboard.ejs)
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md)
+
+### 5. Hasil Pengujian & Verifikasi
+- **Pengujian Visual Dashboard**: Kartu Donut Monitoring ONU telah terhapus total dari Dashboard Admin (`/admin`), area Aksi Cepat & Perangkat Offline Terbaru kini tampil rapi dan simetris, serta pengujian Jest 12 Test Suites / 204 Tests Passed (100%).
+
+---
+
 ## [2026-08-21] Pengecualian Blur Privasi pada Kartu Monitoring ONU
 
 ### 1. Deskripsi Permasalahan & Kebutuhan

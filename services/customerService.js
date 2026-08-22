@@ -46,7 +46,7 @@ function getAllCustomers(search = '', sortBy = 'name_asc') {
 
   if (search) {
     const s = `%${search}%`;
-    return db.prepare(base + ` WHERE ('MDE-' || printf('%04d', c.id)) LIKE ? OR c.name LIKE ? OR c.phone LIKE ? OR c.genieacs_tag LIKE ? OR c.address LIKE ? ORDER BY ${orderClause}`).all(s, s, s, s, s);
+    return db.prepare(base + ` WHERE ('MDE-' || printf('%04d', c.id)) LIKE ? OR c.name LIKE ? OR c.nik_sim LIKE ? OR c.phone LIKE ? OR c.genieacs_tag LIKE ? OR c.address LIKE ? ORDER BY ${orderClause}`).all(s, s, s, s, s, s);
   }
   return db.prepare(base + ` ORDER BY ${orderClause}`).all();
 }
@@ -74,10 +74,10 @@ function getCustomerById(id) {
 
 function createCustomer(data) {
   return db.prepare(`
-    INSERT INTO customers (name, phone, email, address, package_id, router_id, olt_id, odp_id, pon_port, lat, lng, genieacs_tag, pppoe_username, pppoe_password, pppoe_remote_address, isolir_profile, status, install_date, notes, auto_isolate, isolate_day, connection_type, static_ip, mac_address, hotspot_username, hotspot_password, hotspot_profile, collector_id, installation_fee, send_billing_reminder, send_isolir_reminder)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO customers (name, nik_sim, phone, email, address, package_id, router_id, olt_id, odp_id, pon_port, lat, lng, genieacs_tag, pppoe_username, pppoe_password, pppoe_remote_address, isolir_profile, status, install_date, notes, auto_isolate, isolate_day, connection_type, static_ip, mac_address, hotspot_username, hotspot_password, hotspot_profile, collector_id, installation_fee, send_billing_reminder, send_isolir_reminder)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    data.name, data.phone || '', data.email || '', data.address || '',
+    data.name, data.nik_sim || '', data.phone || '', data.email || '', data.address || '',
     data.package_id ? parseInt(data.package_id) : null,
     data.router_id ? parseInt(data.router_id) : null,
     data.olt_id ? parseInt(data.olt_id) : null,
@@ -114,10 +114,10 @@ function updateCustomer(id, data) {
   const pkgChanged = prev && Number(prev.package_id || 0) !== Number(newPkgId || 0);
 
   const result = db.prepare(`
-    UPDATE customers SET name=?, phone=?, email=?, address=?, package_id=?, router_id=?, olt_id=?, odp_id=?, pon_port=?, lat=?, lng=?, genieacs_tag=?, pppoe_username=?, pppoe_password=?, pppoe_remote_address=?, isolir_profile=?, status=?, install_date=?, notes=?, auto_isolate=?, isolate_day=?, cable_path=?, connection_type=?, static_ip=?, mac_address=?, hotspot_username=?, hotspot_password=?, hotspot_profile=?, collector_id=?, installation_fee=?, send_billing_reminder=?, send_isolir_reminder=?
+    UPDATE customers SET name=?, nik_sim=?, phone=?, email=?, address=?, package_id=?, router_id=?, olt_id=?, odp_id=?, pon_port=?, lat=?, lng=?, genieacs_tag=?, pppoe_username=?, pppoe_password=?, pppoe_remote_address=?, isolir_profile=?, status=?, install_date=?, notes=?, auto_isolate=?, isolate_day=?, cable_path=?, connection_type=?, static_ip=?, mac_address=?, hotspot_username=?, hotspot_password=?, hotspot_profile=?, collector_id=?, installation_fee=?, send_billing_reminder=?, send_isolir_reminder=?
     WHERE id=?
   `).run(
-    data.name, data.phone || '', data.email || '', data.address || '',
+    data.name, data.nik_sim || '', data.phone || '', data.email || '', data.address || '',
     data.package_id ? parseInt(data.package_id) : null,
     data.router_id ? parseInt(data.router_id) : null,
     data.olt_id ? parseInt(data.olt_id) : null,
