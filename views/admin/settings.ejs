@@ -146,6 +146,23 @@
                 <button type="button" class="btn btn-g" onclick="syncTelegram()" title="<%= t('admin.settings.telegram.sync_title', 'Sinkronkan / Hapus Webhook Lama') %>"><i class="bi bi-arrow-repeat"></i> <%= t('admin.settings.telegram.sync', 'Sinkronkan') %></button>
               </div>
             </div>
+
+            <div class="form-row" style="margin-top:12px">
+              <div class="fg">
+                <label class="fl">Notifikasi PPPoE Offline</label>
+                <select class="fs" name="telegram_pppoe_notify_enabled">
+                  <option value="true" <%= (settings.telegram_pppoe_notify_enabled !== false && settings.telegram_pppoe_notify_enabled !== 'false') ? 'selected' : '' %>>Aktif (Kirim Alert Putus)</option>
+                  <option value="false" <%= (settings.telegram_pppoe_notify_enabled === false || settings.telegram_pppoe_notify_enabled === 'false') ? 'selected' : '' %>>Nonaktif</option>
+                </select>
+              </div>
+              <div class="fg">
+                <label class="fl">Notifikasi PPPoE Recovery</label>
+                <select class="fs" name="telegram_pppoe_notify_recovery">
+                  <option value="true" <%= (settings.telegram_pppoe_notify_recovery !== false && settings.telegram_pppoe_notify_recovery !== 'false') ? 'selected' : '' %>>Aktif (Kirim Alert Online Kembali)</option>
+                  <option value="false" <%= (settings.telegram_pppoe_notify_recovery === false || settings.telegram_pppoe_notify_recovery === 'false') ? 'selected' : '' %>>Nonaktif</option>
+                </select>
+              </div>
+            </div>
           </div>
         </div>
 

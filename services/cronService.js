@@ -8,8 +8,10 @@ const { logger } = require('../config/logger');
 const customerSvc = require('./customerService');
 const mikrotikService = require('./mikrotikService');
 const usageSvc = require('./usageService');
-const { getSetting, getCurrentDateInTimezone } = require('../config/settingsManager');
+const { getSetting, getCurrentDateInTimezone, getNowLocal } = require('../config/settingsManager');
 const db = require('../config/database');
+const telegramBot = require('./telegramBot');
+const oltService = require('./oltService');
 
 // Helper: Random delay generator untuk smart rate limiting
 function getRandomDelay(baseDelayMs, varianceMs = 3000) {
@@ -725,6 +727,191 @@ function startCronJobs() {
       }
     } catch (err) {
       logger.error(`[CRON] Error GenieACS Monitoring: ${err.message}`);
+    }
+  });
+
+  // 9. PPPoE Disconnected & Recovery Monitoring (Telegram Notification) - Setiap 2 Menit
+  const pppoeUserStates = new Map();
+
+  cron.schedule('*/2 * * * *', async () => {
+    const notifyEnabled = getSetting('telegram_pppoe_notify_enabled', true);
+    const tgEnabled = getSetting('telegram_enabled', false);
+    if (!notifyEnabled || !tgEnabled) return;
+
+    logger.info('[CRON] Menjalankan pemantauan status PPPoE untuk notifikasi Telegram...');
+    try {
+      let secrets, active;
+      try {
+        [secrets, active] = await Promise.all([
+          mikrotikService.getPppoeSecrets(),
+          mikrotikService.getPppoeActive()
+        ]);
+      } catch (err) {
+        logger.warn(`[CRON] Gagal mengambil data PPPoE dari MikroTik (Skip Notifikasi Telegram): ${err.message}`);
+        return;
+      }
+
+      if (!Array.isArray(secrets) || !Array.isArray(active)) {
+        logger.warn('[CRON] Data PPPoE dari MikroTik tidak valid (Skip Notifikasi Telegram)');
+        return;
+      }
+
+      const activeMap = new Map();
+      active.forEach((row) => {
+        const name = String(row && row.name ? row.name : '').trim();
+        if (name) activeMap.set(name, row);
+      });
+
+      const customers = customerSvc.getAllCustomers();
+      const customerMap = new Map();
+      (customers || []).forEach((row) => {
+        const username = String(row && row.pppoe_username ? row.pppoe_username : '').trim();
+        if (username) customerMap.set(username, row);
+      });
+
+      // Pengecekan inisialisasi awal (boot pertama kali)
+      if (pppoeUserStates.size === 0) {
+        secrets.forEach((secret) => {
+          const username = String(secret && secret.name ? secret.name : '').trim();
+          if (!username) return;
+          const isOnline = activeMap.has(username);
+          const activeRow = activeMap.get(username);
+          pppoeUserStates.set(username, {
+            status: isOnline ? 'online' : 'offline',
+            lastIp: activeRow ? (activeRow.address || '-') : '-'
+          });
+        });
+        logger.info(`[CRON] State PPPoE Telegram diinisialisasi dengan ${pppoeUserStates.size} user.`);
+        return;
+      }
+
+      // Loop semua secret aktif
+      for (const secret of secrets) {
+        const username = String(secret && secret.name ? secret.name : '').trim();
+        if (!username) continue;
+
+        // Skip jika secret di-disable oleh admin
+        const disabled = secret.disabled === true || secret.disabled === 1 || String(secret.disabled).toLowerCase() === 'true';
+        if (disabled) continue;
+
+        const isOnline = activeMap.has(username);
+        const activeRow = activeMap.get(username) || null;
+        const currentStatus = isOnline ? 'online' : 'offline';
+
+        const prevStateObj = pppoeUserStates.get(username);
+        const prevStatus = prevStateObj ? prevStateObj.status : null;
+        const lastIp = activeRow ? (activeRow.address || '-') : (prevStateObj ? prevStateObj.lastIp : '-');
+
+        const customer = customerMap.get(username);
+        const customerName = customer && customer.name ? customer.name : '-';
+        const phone = customer && customer.phone ? customer.phone : '-';
+        const profile = secret.profile || (customer && customer.package_name ? customer.package_name : '-');
+
+        if (prevStatus === 'online' && currentStatus === 'offline') {
+          logger.warn(`[CRON] PPPoE User ${username} (${customerName}) terdeteksi DISCONNECTED.`);
+          pppoeUserStates.set(username, { status: 'offline', lastIp });
+
+          let oltName = customer && customer.olt_name ? customer.olt_name : null;
+          let ontStatus = null;
+          let offlineReason = null;
+          let rxPower = null;
+
+          if (customer && customer.olt_id) {
+            try {
+              const oltStats = await oltService.getOltStats(customer.olt_id, true);
+              if (oltStats) {
+                oltName = oltStats.name || oltName;
+                if (Array.isArray(oltStats.onus)) {
+                  const snTarget = String(customer.genieacs_tag || '').toUpperCase().trim();
+                  const userTarget = String(username).toLowerCase().trim();
+                  const nameTarget = String(customer.name || '').toLowerCase().trim();
+
+                  const matchedOnu = oltStats.onus.find(o => {
+                    const oSn = String(o.sn || '').toUpperCase().trim();
+                    const oName = String(o.name || '').toLowerCase().trim();
+                    return (snTarget && oSn.length > 3 && oSn.includes(snTarget)) ||
+                           (oName && (oName.includes(userTarget) || oName.includes(nameTarget)));
+                  });
+
+                  if (matchedOnu) {
+                    ontStatus = matchedOnu.status || 'PwrDown / down';
+                    offlineReason = matchedOnu.offline_reason || 'Dying_gasp / TIMEOUT / Other';
+                    rxPower = matchedOnu.rx || null;
+                  }
+                }
+              }
+            } catch (err) {
+              logger.warn(`[CRON] Gagal membaca status ONT OLT (${customer.olt_id}) untuk ${username}: ${err.message}`);
+            }
+          }
+
+          await telegramBot.sendPppoeStatusNotification({
+            username,
+            customerName,
+            phone,
+            profile,
+            ipAddress: lastIp,
+            status: 'offline',
+            oltName,
+            ontStatus,
+            offlineReason,
+            rxPower,
+            time: getNowLocal()
+          });
+        } else if (prevStatus === 'offline' && currentStatus === 'online') {
+          logger.info(`[CRON] PPPoE User ${username} (${customerName}) terdeteksi RECOVERED (Online).`);
+          pppoeUserStates.set(username, { status: 'online', lastIp });
+
+          let oltName = customer && customer.olt_name ? customer.olt_name : null;
+          let ontStatus = null;
+          let rxPower = null;
+
+          if (customer && customer.olt_id) {
+            try {
+              const oltStats = await oltService.getOltStats(customer.olt_id, true);
+              if (oltStats) {
+                oltName = oltStats.name || oltName;
+                if (Array.isArray(oltStats.onus)) {
+                  const snTarget = String(customer.genieacs_tag || '').toUpperCase().trim();
+                  const userTarget = String(username).toLowerCase().trim();
+                  const nameTarget = String(customer.name || '').toLowerCase().trim();
+
+                  const matchedOnu = oltStats.onus.find(o => {
+                    const oSn = String(o.sn || '').toUpperCase().trim();
+                    const oName = String(o.name || '').toLowerCase().trim();
+                    return (snTarget && oSn.length > 3 && oSn.includes(snTarget)) ||
+                           (oName && (oName.includes(userTarget) || oName.includes(nameTarget)));
+                  });
+
+                  if (matchedOnu) {
+                    ontStatus = matchedOnu.status || 'Online / UP';
+                    rxPower = matchedOnu.rx || null;
+                  }
+                }
+              }
+            } catch (err) {
+              logger.warn(`[CRON] Gagal membaca status ONT OLT (${customer.olt_id}) untuk ${username}: ${err.message}`);
+            }
+          }
+
+          await telegramBot.sendPppoeStatusNotification({
+            username,
+            customerName,
+            phone,
+            profile,
+            ipAddress: lastIp,
+            status: 'online',
+            oltName,
+            ontStatus,
+            rxPower,
+            time: getNowLocal()
+          });
+        } else {
+          pppoeUserStates.set(username, { status: currentStatus, lastIp });
+        }
+      }
+    } catch (err) {
+      logger.error(`[CRON] Error PPPoE Telegram Monitoring: ${err.message}`);
     }
   });
 

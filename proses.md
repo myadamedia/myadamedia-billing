@@ -2,6 +2,78 @@
 
 ---
 
+## [2026-08-28] Penambahan Notifikasi Telegram Otomatis untuk Status PPPoE Disconnected & Recovery (Integrasi OLT & ONT PwrDown / Dying_gasp)
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna meminta penambahan notifikasi otomatis ke Telegram apabila terdapat akun pelanggan PPPoE yang terputus (offline/disconnected) dari router MikroTik, serta menyertakan data fisik dari OLT berupa status ONT (`PwrDown`/`down`/`LOS`), `OfflineReason` (`Dying_gasp`/`TIMEOUT`/`Other`), nama OLT, dan redaman optik RX Power (dBm).
+
+### 2. Penyebab Utama & Tantangan
+- Sebelumnya pemantauan notifikasi Telegram hanya mencakup status PPPoE dari router tanpa menyajikan diagnosa penyebab pemutusan fisik dari perangkat OLT (seperti pemadaman listrik atau kabel optik putus).
+- Diperlukan mekanisme pencocokan otomatis (*auto-matching*) antara user PPPoE dengan serial number (`genieacs_tag`), port PON, dan akun ONU di OLT.
+
+### 3. Solusi & Implementasi Teknis
+- **Notifikasi Telegram Engine (`services/telegramBot.js`)**:
+  - Memperbarui `sendPppoeStatusNotification(pppoeData)` untuk memformat seksi **Status ONT OLT** (`ontStatus`), `OfflineReason` (`Dying_gasp` / `TIMEOUT` / `Other` / `LOS`), nama OLT (`oltName`), dan redaman optik (`rxPower`).
+  - Menyediakan penanganan alert visual: 🚨 **DISCONNECTED** (merah) & ✅ **RECOVERY** (hijau) lengkap dengan detail fisik jaringan.
+- **Background Cron Monitoring (`services/cronService.js`)**:
+  - Pada Task 9 (PPPoE Telegram Monitoring), saat terdeteksi transisi user offline/online, sistem melakukan query ke `oltService.getOltStats(customer.olt_id, true)`.
+  - Secara otomatis mencocokkan ONU terkait berdasarkan Serial Number, username PPPoE, atau nama pelanggan.
+  - Mengambil data status ONT (`PwrDown`/`down`), `offline_reason` (`Dying_gasp`, `LOS`, `TIMEOUT`, `Other`), dan daya optik RX.
+- **Skema Validasi & Konfigurasi (`config/settingsValidator.js`, `routes/adminPortal.js`, & `views/admin/settings.ejs`)**:
+  - Menambahkan kunci konfigurasi `telegram_pppoe_notify_enabled`, `telegram_pppoe_notify_recovery`, dan `telegram_pppoe_check_interval`.
+  - Menambahkan opsi toggle switch interaktif pada form **Pengaturan Telegram** di Panel Admin (`views/admin/settings.ejs`).
+- **Pengujian Unit Testing (`tests/telegramPppoeNotification.test.js`)**:
+  - Menambahkan unit test Jest untuk mengecek Notifikasi Telegram PPPoE dengan parameter OLT/ONT PwrDown & OfflineReason (`Dying_gasp`). Semua 7 unit test lulus 100%.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`config/settingsValidator.js`](file:///d:/WEBAPP/myadamedia-billing/config/settingsValidator.js)
+- `[MODIFY]` [`services/telegramBot.js`](file:///d:/WEBAPP/myadamedia-billing/services/telegramBot.js)
+- `[MODIFY]` [`services/cronService.js`](file:///d:/WEBAPP/myadamedia-billing/services/cronService.js)
+- `[MODIFY]` [`routes/adminPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/adminPortal.js)
+- `[MODIFY]` [`views/admin/settings.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/settings.ejs)
+- `[NEW]` [`tests/telegramPppoeNotification.test.js`](file:///d:/WEBAPP/myadamedia-billing/tests/telegramPppoeNotification.test.js)
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md)
+
+### 5. Hasil Pengujian & Verifikasi
+- **Jest Unit Test**: 7/7 test cases di `tests/telegramPppoeNotification.test.js` lulus 100%.
+- **Pengujian Notifikasi**: Notifikasi terkirim rapi via `sendPppoeStatusNotification` ke Telegram Admin ID dengan rincian OLT, status ONT `PwrDown/down`, `OfflineReason: Dying_gasp/Other/TIMEOUT`, dan Redaman RX.
+
+---
+
+## [2026-08-22] Penambahan Fitur Pilihan Template Portal Isolir (/admin/isolated-portal)
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna meminta penambahan fitur pilihan tema/template visual portal isolir pada halaman pengelola `http://localhost:3001/admin/isolated-portal` agar administrator dapat memilih gaya tampilan halaman `http://localhost:3001/isolated` yang dilihat oleh pelanggan ketika terisolir.
+
+### 2. Penyebab Utama & Tantangan
+- Sebelumnya halaman `isolated.ejs` hanya memiliki 1 desain tampilan tunggal tanpa opsi kustomisasi tema visual.
+
+### 3. Solusi & Implementasi Teknis
+- **Sistem Service & Pengaturan (`services/isolatedPortalService.js` & `routes/admin/isolatedPortal.js`)**:
+  - Menambahkan properti `template: 'default'` pada konfigurasi portal isolir.
+  - Memvalidasi dan menyimpan pilihan template (`default`, `red_alert`, `clean_light`, `corporate_navy`) pada handler `POST /admin/isolated-portal/settings`.
+- **Panel Pengelola Admin (`views/admin/isolated_portal.ejs`)**:
+  - Menambahkan section **Pilihan Template Tampilan Portal Isolir** pada form pengaturan.
+  - Menyediakan 4 kartu pilihan interaktif (*Template Selector Cards*) lengkap dengan visual badge, deskripsi tema, dan tombol **Pratinjau Live** yang membuka `http://localhost:3001/isolated`.
+- **Render Multi-Template (`views/isolated.ejs`)**:
+  - Mendukung 4 skema tema visual produksi:
+    1. 🌙 **Modern Dark Glassmorphism** (`default`)
+    2. 🚨 **Emergency Red Alert** (`red_alert`)
+    3. ☀️ **Clean Minimalist Light** (`clean_light`)
+    4. 🏢 **Corporate Navy** (`corporate_navy`)
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`services/isolatedPortalService.js`](file:///d:/WEBAPP/myadamedia-billing/services/isolatedPortalService.js)
+- `[MODIFY]` [`routes/admin/isolatedPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/admin/isolatedPortal.js)
+- `[MODIFY]` [`views/admin/isolated_portal.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/isolated_portal.ejs)
+- `[MODIFY]` [`views/isolated.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/isolated.ejs)
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md)
+
+### 5. Hasil Pengujian & Verifikasi
+- **Pengujian Pilihan Template**: Administrator dapat memilih dan menyimpan template pilihan di `http://localhost:3001/admin/isolated-portal`. Tampilan halaman `http://localhost:3001/isolated` langsung berubah secara instan dan 100% responsif sesuai tema yang dipilih.
+
+---
+
 ## [2026-08-22] Penambahan Poin Keunggulan "Harga Flat & Transparan" pada Halaman Registrasi (/customer/register)
 
 ### 1. Deskripsi Permasalahan & Kebutuhan

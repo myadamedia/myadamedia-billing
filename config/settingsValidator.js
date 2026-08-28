@@ -186,6 +186,20 @@ const VALIDATION_RULES = {
     pattern: /^[-\d,\s]+$/,
     description: 'Telegram admin ID atau Group ID (bisa beberapa dipisahkan koma)'
   },
+  telegram_pppoe_notify_enabled: {
+    type: 'boolean',
+    description: 'Notifikasi PPPoE Offline ke Telegram'
+  },
+  telegram_pppoe_notify_recovery: {
+    type: 'boolean',
+    description: 'Notifikasi PPPoE Recovery ke Telegram'
+  },
+  telegram_pppoe_check_interval: {
+    type: 'number',
+    min: 1,
+    max: 60,
+    description: 'Interval Pengecekan PPPoE (menit)'
+  },
 
   // Tripay Configuration
   tripay_enabled: {

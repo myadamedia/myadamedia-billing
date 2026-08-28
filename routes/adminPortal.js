@@ -3874,6 +3874,8 @@ router.post('/settings', requireAdminSession, express.urlencoded({ extended: tru
 
     newSettings.login_otp_enabled = (newSettings.login_otp_enabled === 'true');
     newSettings.telegram_enabled = (newSettings.telegram_enabled === 'true');
+    newSettings.telegram_pppoe_notify_enabled = (newSettings.telegram_pppoe_notify_enabled === 'true');
+    newSettings.telegram_pppoe_notify_recovery = (newSettings.telegram_pppoe_notify_recovery === 'true');
     newSettings.auto_backup_enabled = (newSettings.auto_backup_enabled === 'true');
     newSettings.use_builtin_acs = (newSettings.use_builtin_acs === 'true' || newSettings.use_builtin_acs === true);
 
