@@ -400,6 +400,57 @@ function scheduleAutoBackup() {
   logger.info(`[Backup] Auto backup scheduled: ${schedule}`);
 }
 
+/**
+ * Dapatkan path file backup aman dari nama file
+ */
+function getBackupFilePath(fileName) {
+  if (!fileName) return null;
+  const safeName = path.basename(fileName);
+  const targetPath = path.join(backupDir, safeName);
+  if (!fs.existsSync(targetPath)) return null;
+  return targetPath;
+}
+
+/**
+ * Simpan file database yang di-upload dari browser ke direktori backups/
+ */
+function saveUploadedDatabase(fileBuffer, originalName) {
+  try {
+    if (!fileBuffer || !Buffer.isBuffer(fileBuffer)) {
+      return { success: false, error: 'File buffer tidak valid' };
+    }
+
+    const ext = path.extname(originalName || '').toLowerCase();
+    if (!['.db', '.sqlite', '.sqlite3', '.json'].includes(ext)) {
+      return { success: false, error: 'Ekstensi file harus berupa .db, .sqlite, atau .json' };
+    }
+
+    const timestamp = getBackupTimestamp();
+    const prefix = ext === '.json' ? 'settings_uploaded_' : 'billing_db_uploaded_';
+    const newFileName = `${prefix}${timestamp}${ext === '.json' ? '.json' : '.db'}`;
+    const targetPath = path.join(backupDir, newFileName);
+
+    fs.writeFileSync(targetPath, fileBuffer);
+
+    const stats = fs.statSync(targetPath);
+    const sizeKB = Math.round(stats.size / 1024);
+
+    logger.info(`[Backup] Uploaded database saved: ${newFileName} (${sizeKB} KB)`);
+
+    return {
+      success: true,
+      fileName: newFileName,
+      type: ext === '.json' ? 'settings' : 'database',
+      size: stats.size,
+      sizeKB,
+      timestamp: getNowLocalISO()
+    };
+  } catch (e) {
+    logger.error(`[Backup] Failed to save uploaded database: ${e.message}`);
+    return { success: false, error: e.message };
+  }
+}
+
 module.exports = {
   backupDatabase,
   backupSettings,
@@ -409,5 +460,8 @@ module.exports = {
   listBackups,
   cleanupOldBackups,
   checkBackupCapacity,
-  scheduleAutoBackup
+  scheduleAutoBackup,
+  getBackupFilePath,
+  saveUploadedDatabase
 };
+

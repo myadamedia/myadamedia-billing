@@ -51,6 +51,9 @@
           </p>
         </div>
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <a href="/admin/backup/download-live" class="btn btn-sm" style="border-radius: 12px; font-weight: 800; padding: 10px 18px; background: rgba(255,255,255,0.2); color: #ffffff; border: 1px solid rgba(255,255,255,0.35); text-decoration: none; display: inline-flex; align-items: center;">
+            <i class="bi bi-download me-1"></i> Download DB Utama (Live)
+          </a>
           <form action="/admin/backup/create" method="POST" style="display:inline">
             <button type="submit" class="btn btn-sm" style="border-radius: 12px; font-weight: 800; padding: 10px 18px; background: #ffffff; color: #4f46e5; border: none; box-shadow: 0 6px 20px rgba(0,0,0,0.15);">
               <i class="bi bi-plus-lg me-1"></i> Buat Backup Sekarang
@@ -96,7 +99,7 @@
       </div>
     </div>
 
-    <div class="form-row mb16">
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-bottom: 16px;">
       <!-- Create Backup -->
       <div class="card">
         <div class="card-hd"><h6><i class="bi bi-plus-circle"></i> Buat Backup Baru</h6></div>
@@ -112,6 +115,29 @@
             </div>
             <button type="submit" class="btn btn-p w-100">
               <i class="bi bi-cloud-upload"></i> Mulai Backup
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Upload Database -->
+      <div class="card">
+        <div class="card-hd"><h6><i class="bi bi-upload"></i> Upload Database / File Backup</h6></div>
+        <div class="card-bd">
+          <form action="/admin/backup/upload" method="POST" enctype="multipart/form-data" id="uploadDbForm">
+            <div class="fg">
+              <label class="fl">Pilih File (.db / .sqlite / .json)</label>
+              <input type="file" class="fc" name="backup_file" accept=".db,.sqlite,.sqlite3,.json" required>
+            </div>
+            <div class="fg">
+              <label class="fl">Tindakan</label>
+              <select class="fs" name="auto_restore" id="uploadAutoRestore">
+                <option value="false">Simpan ke Riwayat Backup</option>
+                <option value="true">Upload & Restore Langsung ke Sistem</option>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-s w-100" onclick="return confirmUploadSubmit(event)">
+              <i class="bi bi-cloud-arrow-up"></i> Upload File
             </button>
           </form>
         </div>
@@ -188,6 +214,9 @@
                   </td>
                   <td>
                     <div class="backup-actions jc-fe">
+                      <a href="/admin/backup/download/<%= encodeURIComponent(backup.fileName) %>" class="btn btn-g btn-sm text-primary" title="Download File">
+                        <i class="bi bi-download"></i>
+                      </a>
                       <button type="button" class="btn btn-g btn-sm text-success" onclick="restoreBackup('<%= backup.fileName %>', '<%= backup.type %>')" title="Restore">
                         <i class="bi bi-arrow-counterclockwise"></i>
                       </button>
@@ -237,6 +266,17 @@
     `;
     document.body.appendChild(form);
     form.submit();
+  }
+
+  function confirmUploadSubmit(e) {
+    const autoRestore = document.getElementById('uploadAutoRestore').value === 'true';
+    if (autoRestore) {
+      if (!confirm('PERHATIAN: Anda memilih opsi "Upload & Restore Langsung". Data saat ini akan ditimpa dengan berkas yang di-upload.\n\nLanjutkan?')) {
+        if (e) e.preventDefault();
+        return false;
+      }
+    }
+    return true;
   }
 
   function toggleSidebar() {

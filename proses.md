@@ -2,6 +2,42 @@
 
 ---
 
+## [2026-08-28] Penambahan Fitur Download & Upload Database SQLite (/admin/backup)
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna meminta penambahan fitur **Download & Upload Database** pada halaman pengelola `https://bill.myadamedia.web.id/admin/backup` agar administrator dapat langsung mengunduh database utama yang sedang berjalan (*live database*) maupun file backup, serta mengunggah file database `.db` / `.sqlite` dari perangkat lokal ke server untuk disimpan atau di-restore.
+
+### 2. Penyebab Utama & Tantangan
+- Sebelumnya halaman `/admin/backup` hanya memiliki fitur pembuat backup otomatis lokal, pembersihan retensi, dan pemulihan dari file lokal yang sudah ada di direktori `backups/`, namun belum menyediakan antarmuka pengunggahan (*upload*) maupun pengunduhan (*download*) file secara fleksibel dari browser.
+
+### 3. Solusi & Implementasi Teknis
+- **Backup Service (`services/backupService.js`)**:
+  - Menambahkan fungsi `saveUploadedDatabase(fileBuffer, originalName)` untuk memvalidasi format ekstensi file (`.db`, `.sqlite`, `.json`), memberi nama timestamp `billing_db_uploaded_<timestamp>.db`, dan menyimpannya ke folder `backups/`.
+  - Menambahkan fungsi `getBackupFilePath(fileName)` dengan proteksi sanitasi `path.basename()` untuk mencegah ancaman *Path Traversal*.
+- **Admin Portal Routes (`routes/adminPortal.js`)**:
+  - `GET /admin/backup/download-live`: Mengalirkan file database SQLite utama (`database/billing.db`) sebagai `billing_live_<timestamp>.db`.
+  - `GET /admin/backup/download/:fileName`: Mengunduh berkas backup pilihan pengguna dari direktori `backups/`.
+  - `POST /admin/backup/upload`: Memproses pengunggahan berkas via middleware `multer` (limit 200MB) dengan opsi aksi: simpan ke riwayat backup atau *upload & restore* langsung ke sistem.
+- **Tampilan Antarmuka Panel Admin (`views/admin/backup.ejs`)**:
+  - Menambahkan tombol **Download DB Utama (Live)** pada *Hero Banner*.
+  - Menambahkan kartu **Upload Database / File Backup** lengkap dengan pilihan tindakan (*Simpan ke Backup* / *Upload & Restore Langsung*).
+  - Menambahkan tombol aksi **Download** (ikon `bi-download`) di setiap baris tabel Riwayat Backup.
+- **Pengujian Unit Testing (`tests/backupService.test.js`)**:
+  - Menulis 5 unit test Jest yang memvalidasi fungsi pembuatan backup, penanganan upload database, penolakan ekstensi file ilegal, dan pencegahan *path traversal*. Semua pengujian lulus 100%.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`services/backupService.js`](file:///d:/WEBAPP/myadamedia-billing/services/backupService.js)
+- `[MODIFY]` [`routes/adminPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/adminPortal.js)
+- `[MODIFY]` [`views/admin/backup.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/backup.ejs)
+- `[NEW]` [`tests/backupService.test.js`](file:///d:/WEBAPP/myadamedia-billing/tests/backupService.test.js)
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/myadamedia-billing/proses.md)
+
+### 5. Hasil Pengujian & Verifikasi
+- **Jest Unit Test**: 5/5 test cases di `tests/backupService.test.js` lulus 100%.
+- **Pengujian Fitur**: Download live database `billing.db`, download file backup dari tabel, dan upload database file `.db` / `.sqlite` berjalan sukses.
+
+---
+
 ## [2026-08-28] Penambahan Notifikasi Telegram Otomatis untuk Status PPPoE Disconnected & Recovery (Integrasi OLT & ONT PwrDown / Dying_gasp)
 
 ### 1. Deskripsi Permasalahan & Kebutuhan

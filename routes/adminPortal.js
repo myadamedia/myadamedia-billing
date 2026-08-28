@@ -23,6 +23,7 @@ const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage() });
 const qrisUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
 const logoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+const dbBackupUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
 const backupSvc = require('../services/backupService');
 const monitoringSvc = require('../services/monitoringService');
 const inventorySvc = require('../services/inventoryService');
@@ -3999,6 +4000,92 @@ router.post('/backup/cleanup', requireAdminSession, express.urlencoded({ extende
     req.session._msg = { type: 'error', text: `Gagal: ${e.message}` };
   }
   res.redirect('/admin/backup');
+});
+
+router.get('/backup/download-live', requireAdminSession, (req, res) => {
+  try {
+    const dbPath = path.join(__dirname, '../database/billing.db');
+    if (!fs.existsSync(dbPath)) {
+      req.session._msg = { type: 'error', text: 'Database utama billing.db tidak ditemukan' };
+      return res.redirect('/admin/backup');
+    }
+    const timestamp = getNowLocalISO().replace(/[-:T]/g, '').slice(0, 15);
+    const downloadFileName = `billing_live_${timestamp}.db`;
+    res.download(dbPath, downloadFileName, (err) => {
+      if (err && !res.headersSent) {
+        logger.error(`[Backup] Error downloading live database: ${err.message}`);
+      }
+    });
+  } catch (e) {
+    req.session._msg = { type: 'error', text: `Gagal mengunduh DB utama: ${e.message}` };
+    res.redirect('/admin/backup');
+  }
+});
+
+router.get('/backup/download/:fileName', requireAdminSession, (req, res) => {
+  try {
+    const rawFileName = req.params.fileName;
+    const filePath = backupSvc.getBackupFilePath(rawFileName);
+    if (!filePath) {
+      req.session._msg = { type: 'error', text: 'File backup tidak ditemukan atau nama file tidak valid' };
+      return res.redirect('/admin/backup');
+    }
+    const downloadName = path.basename(filePath);
+    res.download(filePath, downloadName, (err) => {
+      if (err && !res.headersSent) {
+        logger.error(`[Backup] Error downloading backup file: ${err.message}`);
+      }
+    });
+  } catch (e) {
+    req.session._msg = { type: 'error', text: `Gagal mengunduh: ${e.message}` };
+    res.redirect('/admin/backup');
+  }
+});
+
+router.post('/backup/upload', requireAdminSession, (req, res) => {
+  dbBackupUpload.single('backup_file')(req, res, (err) => {
+    if (err) {
+      req.session._msg = { type: 'error', text: `Gagal upload: ${err.message}` };
+      return res.redirect('/admin/backup');
+    }
+
+    try {
+      if (!req.file || !req.file.buffer) {
+        req.session._msg = { type: 'error', text: 'Pilih file database (.db / .sqlite / .json) yang akan di-upload' };
+        return res.redirect('/admin/backup');
+      }
+
+      const originalName = req.file.originalname;
+      const saveResult = backupSvc.saveUploadedDatabase(req.file.buffer, originalName);
+
+      if (!saveResult.success) {
+        req.session._msg = { type: 'error', text: `Gagal simpan file upload: ${saveResult.error}` };
+        return res.redirect('/admin/backup');
+      }
+
+      const autoRestore = req.body.auto_restore === 'true' || req.body.auto_restore === '1';
+
+      if (autoRestore) {
+        let restoreResult;
+        if (saveResult.type === 'settings') {
+          restoreResult = backupSvc.restoreSettings(saveResult.fileName);
+        } else {
+          restoreResult = backupSvc.restoreDatabase(saveResult.fileName);
+        }
+
+        if (restoreResult.success) {
+          req.session._msg = { type: 'success', text: `File ${saveResult.fileName} berhasil di-upload dan di-restore ke sistem!` };
+        } else {
+          req.session._msg = { type: 'warning', text: `File di-upload (${saveResult.fileName}) tapi gagal restore: ${restoreResult.error}` };
+        }
+      } else {
+        req.session._msg = { type: 'success', text: `File database berhasil di-upload ke riwayat backup: ${saveResult.fileName}` };
+      }
+    } catch (e) {
+      req.session._msg = { type: 'error', text: `Gagal: ${e.message}` };
+    }
+    res.redirect('/admin/backup');
+  });
 });
 
 // ─── INVENTORY / WAREHOUSE ──────────────────────────────────────────────────
