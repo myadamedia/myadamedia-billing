@@ -2852,4 +2852,29 @@ Mengubah tampilan halaman login pelanggan [views/login.ejs](file:///d:/WEBAPP/my
   - Perubahan data non-status pada pelanggan yang sudah `suspended` tidak memicu pesan isolir ganda.
   - Tombol manual isolir di panel admin, sinkronisasi portal isolir, dan cron job harian isolir otomatis berjalan konsisten dan terintegrasi melalui notifikasi terpusat.
 
+---
+
+## [2026-08-31] Pembaruan Pintasan Menu Utama (Quick Actions) pada Dashboard Admin
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+- **Halaman**: `http://localhost:3001/admin` (`views/admin/dashboard.ejs`).
+- **Bagian**: **PINTASAN MENU UTAMA (QUICK ACTIONS)**.
+- **Analisis Kebutuhan**:
+  - Tautan pintasan cepat sebelumnya menampilkan tombol **Log E-Wallet** (`/admin/ewallet-logs`).
+  - Fitur Log E-Wallet lebih bersifat konfigurasi/log audit yang jarang dibuka langsung dari beranda dibanding tiket operasional penanganan keluhan pelanggan.
+  - Pengguna meminta untuk menghilangkan **Log E-Wallet** dari pintasan dan menggantikannya dengan pintasan **Keluhan Pelanggan** (`/admin/tickets`).
+
+### 2. Solusi & Perubahan yang Diterapkan
+- **`views/admin/dashboard.ejs`**:
+  - Menghapus komponen pintasan kartu yang mengarah ke `/admin/ewallet-logs`.
+  - Menggantinya dengan kartu pintasan baru ke rute `/admin/tickets` (Tiket Gangguan & Keluhan Pelanggan).
+  - Mengonfigurasi ikon antarmuka standar tiket `bi bi-headset`.
+  - Menggunakan aksen gradien warna merah modern (`linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)`) dengan efek bayangan dan hover border yang konsisten dengan tema dashboard.
+  - Menyediakan teks terjemahan internasionalisasi `<%= t('admin.nav.customer_tickets', 'Keluhan Pelanggan') %>` dan subjudul *"Tiket & Gangguan"*.
+
+### 3. Dampak Terhadap Sistem
+- Memudahkan staf admin, teknisi, dan NOC untuk langsung menuju antarmuka penanganan keluhan dan gangguan pelanggan dari dashboard utama dalam 1 klik.
+- Tidak menimbulkan efek samping (*zero side-effects*) pada fitur backend atau menu sidebar utama lainnya.
+
+
 

@@ -1,785 +1,1142 @@
 <!DOCTYPE html>
 <html lang="<%= lang || 'id' %>">
+
 <head>
-  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title><%= title %> | <%= company %></title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>
+    <%= title %> | <%= company %>
+  </title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="/css/admin.css?v=2">
   <style>
     /* ── ONU STATUS DOT ── */
-    .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
-    .dot-on{background:var(--success);box-shadow:0 0 6px var(--success)}
-    .dot-off{background:var(--danger)}
+    .dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 6px
+    }
+
+    .dot-on {
+      background: var(--success);
+      box-shadow: 0 0 6px var(--success)
+    }
+
+    .dot-off {
+      background: var(--danger)
+    }
 
     /* ── PULSE ANIMATION (online) ── */
-    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-    .pulse{animation:pulse 2s infinite}
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1
+      }
+
+      50% {
+        opacity: .4
+      }
+    }
+
+    .pulse {
+      animation: pulse 2s infinite
+    }
 
     /* ── MONITORING SECTION ── */
-    #monitoring-section{display:none}
-    #dashboard-section{display:block}
+    #monitoring-section {
+      display: none
+    }
+
+    #dashboard-section {
+      display: block
+    }
 
     /* ── NAV TABS ── */
-    .tab-bar{display:flex;gap:4px;background:var(--bg3);padding:4px;border-radius:10px;margin-bottom:20px;width:fit-content}
-    .tab-btn{padding:8px 20px;border-radius:7px;border:none;background:transparent;color:var(--muted);font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;transition:all .2s}
-    .tab-btn.active{background:var(--bg2);color:var(--text);box-shadow:0 2px 8px rgba(0,0,0,.3)}
-    .tab-btn i{margin-right:6px}
+    .tab-bar {
+      display: flex;
+      gap: 4px;
+      background: var(--bg3);
+      padding: 4px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      width: fit-content
+    }
+
+    .tab-btn {
+      padding: 8px 20px;
+      border-radius: 7px;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all .2s
+    }
+
+    .tab-btn.active {
+      background: var(--bg2);
+      color: var(--text);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, .3)
+    }
+
+    .tab-btn i {
+      margin-right: 6px
+    }
 
     /* ── DEVICE STATUS BADGE ── */
-    .ds-on{background:rgba(63,185,80,.15);color:#3fb950;border:1px solid rgba(63,185,80,.3)}
-    .ds-off{background:rgba(248,81,73,.15);color:#f85149;border:1px solid rgba(248,81,73,.3)}
+    .ds-on {
+      background: rgba(63, 185, 80, .15);
+      color: #3fb950;
+      border: 1px solid rgba(63, 185, 80, .3)
+    }
+
+    .ds-off {
+      background: rgba(248, 81, 73, .15);
+      color: #f85149;
+      border: 1px solid rgba(248, 81, 73, .3)
+    }
 
     /* ── LIVE INDICATOR ── */
-    .live-dot{width:8px;height:8px;border-radius:50%;background:var(--success);display:inline-block;animation:pulse 1.5s infinite}
-    .realtime-bar{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      display: inline-block;
+      animation: pulse 1.5s infinite
+    }
+
+    .realtime-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--muted)
+    }
 
     /* ── CHART WRAPPER ── */
-    #donut-wrap{position:relative;width:160px;height:160px;margin:0 auto}
-    .donut-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
-    .donut-num{font-size:28px;font-weight:700;line-height:1}
-    .donut-lbl{font-size:11px;color:var(--muted);margin-top:2px}
+    #donut-wrap {
+      position: relative;
+      width: 160px;
+      height: 160px;
+      margin: 0 auto
+    }
+
+    .donut-center {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center
+    }
+
+    .donut-num {
+      font-size: 28px;
+      font-weight: 700;
+      line-height: 1
+    }
+
+    .donut-lbl {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px
+    }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
+
 <body>
-<%- include('partials/sidebar', { activePage: activePage || 'dashboard', company }) %>
+  <%- include('partials/sidebar', { activePage: activePage || 'dashboard' , company }) %>
 
-<div class="mw">
-  <!-- TOPBAR -->
-  <div class="topbar">
-    <div class="tb-title">
-      <button class="hb-menu" onclick="toggleSidebar()"><i class="bi bi-list"></i></button>
-      <i class="bi bi-speedometer2"></i>
-      <span id="page-title"><%= t('admin.nav.dashboard', 'Dashboard') %></span>
-    </div>
-    <div class="tb-right">
-      <div class="realtime-bar"><span class="live-dot"></span> <%= t('admin.dashboard.live_update', 'Live Update') %></div>
-      <span class="adm-badge">
-        <i class="bi bi-person-fill"></i> 
-        <%= (typeof session !== 'undefined' && session.isCashier) ? t('admin.role.cashier', 'Kasir') : t('admin.role.admin', 'Admin') %>
-      </span>
-      <a href="/admin/logout" class="btn btn-g btn-sm"><i class="bi bi-box-arrow-left"></i> <%= t('common.logout', 'Logout') %></a>
-    </div>
-  </div>
-
-  <div class="page">
-    <!-- HERO BANNER -->
-    <div class="card mb-4" style="background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); border: 1px solid rgba(99,102,241,0.5); border-radius: 20px; padding: 24px; position: relative; overflow: hidden; margin-bottom: 24px; box-shadow: 0 12px 36px rgba(79,70,229,0.25);">
-      <div style="position: absolute; right: -20px; bottom: -25px; font-size: 160px; color: rgba(255,255,255,0.08); pointer-events: none;">
-        <i class="bi bi-speedometer2"></i>
-      </div>
-      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; position: relative; z-index: 1;">
-        <div>
-          <div style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 14px; border-radius: 20px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.35); color: #ffffff; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 10px;">
-            <i class="bi bi-shield-check"></i> MONITORING & MANAJEMEN SISTEM REALTIME
-          </div>
-          <h2 style="font-size: 24px; font-weight: 800; color: #ffffff; margin: 0 0 6px 0; letter-spacing: -0.5px;">
-            Selamat Datang, <%= (typeof session !== 'undefined' && session.isCashier) ? 'Kasir Operasional' : 'Administrator' %>!
-          </h2>
-          <p style="font-size: 13px; color: rgba(255,255,255,0.92); margin: 0; max-width: 650px; line-height: 1.5; font-weight: 500;">
-            Pantau statistik jaringan, status ONU/OLT, penagihan pembayaran, mutasi E-Wallet, dan kelola seluruh fitur billing dalam satu dashboard terintegrasi.
-          </p>
+    <div class="mw">
+      <!-- TOPBAR -->
+      <div class="topbar">
+        <div class="tb-title">
+          <button class="hb-menu" onclick="toggleSidebar()"><i class="bi bi-list"></i></button>
+          <i class="bi bi-speedometer2"></i>
+          <span id="page-title">
+            <%= t('admin.nav.dashboard', 'Dashboard' ) %>
+          </span>
         </div>
-        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-          <a href="/admin/customers" class="btn btn-sm" style="border-radius: 12px; font-weight: 800; padding: 10px 18px; background: #ffffff; color: #4f46e5; border: none; box-shadow: 0 6px 20px rgba(0,0,0,0.15);">
-            <i class="bi bi-people-fill me-1"></i> Data Pelanggan
-          </a>
-          <a href="/admin/billing" class="btn btn-sm" style="border-radius: 12px; font-weight: 800; padding: 10px 18px; background: #10b981; color: #ffffff; border: none; box-shadow: 0 6px 20px rgba(16,185,129,0.4);">
-            <i class="bi bi-receipt me-1"></i> Tagihan Billing
-          </a>
-          <a href="/admin/routers" class="btn btn-sm" style="border-radius: 12px; font-weight: 700; padding: 10px 18px; background: rgba(255,255,255,0.16); color: #ffffff; border: 1px solid rgba(255,255,255,0.35);">
-            <i class="bi bi-hdd-network me-1"></i> Kelola Router
+        <div class="tb-right">
+          <div class="realtime-bar"><span class="live-dot"></span>
+            <%= t('admin.dashboard.live_update', 'Live Update' ) %>
+          </div>
+          <span class="adm-badge">
+            <i class="bi bi-person-fill"></i>
+            <%= (typeof session !=='undefined' && session.isCashier) ? t('admin.role.cashier', 'Kasir' ) :
+              t('admin.role.admin', 'Admin' ) %>
+          </span>
+          <a href="/admin/logout" class="btn btn-g btn-sm"><i class="bi bi-box-arrow-left"></i>
+            <%= t('common.logout', 'Logout' ) %>
           </a>
         </div>
       </div>
-    </div>
 
-    <!-- QUICK MENU SHORTCUTS GRID -->
-    <div style="margin-bottom: 24px;">
-      <div style="font-size:11px; color:var(--muted); font-weight:800; text-transform:uppercase; letter-spacing:1.2px; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
-        <i class="bi bi-grid-fill" style="color:var(--primary); font-size:14px;"></i> PINTRASAN MENU UTAMA (QUICK ACTIONS)
-      </div>
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px;">
-        <a href="/admin/customers" style="text-decoration:none; color:inherit;">
-          <div style="background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:16px; text-align:center; transition:all 0.25s ease; box-shadow:0 6px 16px rgba(0,0,0,0.1);" onmouseover="this.style.transform='translateY(-3px)';this.style.borderColor='rgba(99,102,241,0.5)';" onmouseout="this.style.transform='none';this.style.borderColor='var(--border)';">
-            <div style="width:44px; height:44px; border-radius:14px; background:linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color:#fff; display:grid; place-items:center; margin:0 auto 10px auto; font-size:20px; box-shadow:0 6px 14px rgba(59,130,246,0.35);">
-              <i class="bi bi-people-fill"></i>
-            </div>
-            <div style="font-weight:700; font-size:13px; color:var(--text);">Pelanggan</div>
-            <div style="font-size:11px; color:var(--muted); margin-top:2px;">Kelola Data</div>
+      <div class="page">
+        <!-- HERO BANNER -->
+        <div class="card mb-4"
+          style="background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); border: 1px solid rgba(99,102,241,0.5); border-radius: 20px; padding: 24px; position: relative; overflow: hidden; margin-bottom: 24px; box-shadow: 0 12px 36px rgba(79,70,229,0.25);">
+          <div
+            style="position: absolute; right: -20px; bottom: -25px; font-size: 160px; color: rgba(255,255,255,0.08); pointer-events: none;">
+            <i class="bi bi-speedometer2"></i>
           </div>
-        </a>
-
-        <a href="/admin/billing" style="text-decoration:none; color:inherit;">
-          <div style="background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:16px; text-align:center; transition:all 0.25s ease; box-shadow:0 6px 16px rgba(0,0,0,0.1);" onmouseover="this.style.transform='translateY(-3px)';this.style.borderColor='rgba(16,185,129,0.5)';" onmouseout="this.style.transform='none';this.style.borderColor='var(--border)';">
-            <div style="width:44px; height:44px; border-radius:14px; background:linear-gradient(135deg, #10b981 0%, #047857 100%); color:#fff; display:grid; place-items:center; margin:0 auto 10px auto; font-size:20px; box-shadow:0 6px 14px rgba(16,185,129,0.35);">
-              <i class="bi bi-receipt"></i>
+          <div
+            style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; position: relative; z-index: 1;">
+            <div>
+              <div
+                style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 14px; border-radius: 20px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.35); color: #ffffff; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 10px;">
+                <i class="bi bi-shield-check"></i> MONITORING & MANAJEMEN SISTEM REALTIME
+              </div>
+              <h2 style="font-size: 24px; font-weight: 800; color: #ffffff; margin: 0 0 6px 0; letter-spacing: -0.5px;">
+                Selamat Datang, <%= (typeof session !=='undefined' && session.isCashier) ? 'Kasir Operasional'
+                  : 'Administrator' %>!
+              </h2>
+              <p
+                style="font-size: 13px; color: rgba(255,255,255,0.92); margin: 0; max-width: 650px; line-height: 1.5; font-weight: 500;">
+                Pantau statistik jaringan, status ONU/OLT, penagihan pembayaran, mutasi E-Wallet, dan kelola seluruh
+                fitur billing dalam satu dashboard terintegrasi.
+              </p>
             </div>
-            <div style="font-weight:700; font-size:13px; color:var(--text);">Tagihan</div>
-            <div style="font-size:11px; color:var(--muted); margin-top:2px;">Invoice & Bayar</div>
-          </div>
-        </a>
-
-        <a href="/admin/mikrotik" style="text-decoration:none; color:inherit;">
-          <div style="background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:16px; text-align:center; transition:all 0.25s ease; box-shadow:0 6px 16px rgba(0,0,0,0.1);" onmouseover="this.style.transform='translateY(-3px)';this.style.borderColor='rgba(99,102,241,0.5)';" onmouseout="this.style.transform='none';this.style.borderColor='var(--border)';">
-            <div style="width:44px; height:44px; border-radius:14px; background:linear-gradient(135deg, #6366f1 0%, #4338ca 100%); color:#fff; display:grid; place-items:center; margin:0 auto 10px auto; font-size:20px; box-shadow:0 6px 14px rgba(99,102,241,0.35);">
-              <i class="bi bi-router-fill"></i>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+              <a href="/admin/customers" class="btn btn-sm"
+                style="border-radius: 12px; font-weight: 800; padding: 10px 18px; background: #ffffff; color: #4f46e5; border: none; box-shadow: 0 6px 20px rgba(0,0,0,0.15);">
+                <i class="bi bi-people-fill me-1"></i> Data Pelanggan
+              </a>
+              <a href="/admin/billing" class="btn btn-sm"
+                style="border-radius: 12px; font-weight: 800; padding: 10px 18px; background: #10b981; color: #ffffff; border: none; box-shadow: 0 6px 20px rgba(16,185,129,0.4);">
+                <i class="bi bi-receipt me-1"></i> Tagihan Billing
+              </a>
+              <a href="/admin/routers" class="btn btn-sm"
+                style="border-radius: 12px; font-weight: 700; padding: 10px 18px; background: rgba(255,255,255,0.16); color: #ffffff; border: 1px solid rgba(255,255,255,0.35);">
+                <i class="bi bi-hdd-network me-1"></i> Kelola Router
+              </a>
             </div>
-            <div style="font-weight:700; font-size:13px; color:var(--text);">MikroTik</div>
-            <div style="font-size:11px; color:var(--muted); margin-top:2px;">Router & Hotspot</div>
           </div>
-        </a>
-
-        <a href="/admin/map" style="text-decoration:none; color:inherit;">
-          <div style="background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:16px; text-align:center; transition:all 0.25s ease; box-shadow:0 6px 16px rgba(0,0,0,0.1);" onmouseover="this.style.transform='translateY(-3px)';this.style.borderColor='rgba(139,92,246,0.5)';" onmouseout="this.style.transform='none';this.style.borderColor='var(--border)';">
-            <div style="width:44px; height:44px; border-radius:14px; background:linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); color:#fff; display:grid; place-items:center; margin:0 auto 10px auto; font-size:20px; box-shadow:0 6px 14px rgba(139,92,246,0.35);">
-              <i class="bi bi-map-fill"></i>
-            </div>
-            <div style="font-weight:700; font-size:13px; color:var(--text);">Peta Jaringan</div>
-            <div style="font-size:11px; color:var(--muted); margin-top:2px;">ODP & ODC Map</div>
-          </div>
-        </a>
-
-        <a href="/admin/acs" style="text-decoration:none; color:inherit;">
-          <div style="background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:16px; text-align:center; transition:all 0.25s ease; box-shadow:0 6px 16px rgba(0,0,0,0.1);" onmouseover="this.style.transform='translateY(-3px)';this.style.borderColor='rgba(14,165,233,0.5)';" onmouseout="this.style.transform='none';this.style.borderColor='var(--border)';">
-            <div style="width:44px; height:44px; border-radius:14px; background:linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%); color:#fff; display:grid; place-items:center; margin:0 auto 10px auto; font-size:20px; box-shadow:0 6px 14px rgba(14,165,233,0.35);">
-              <i class="bi bi-hdd-network-fill"></i>
-            </div>
-            <div style="font-weight:700; font-size:13px; color:var(--text);">GenieACS</div>
-            <div style="font-size:11px; color:var(--muted); margin-top:2px;">Manajemen TR-069</div>
-          </div>
-        </a>
-
-        <a href="/admin/reports" style="text-decoration:none; color:inherit;">
-          <div style="background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:16px; text-align:center; transition:all 0.25s ease; box-shadow:0 6px 16px rgba(0,0,0,0.1);" onmouseover="this.style.transform='translateY(-3px)';this.style.borderColor='rgba(245,158,11,0.5)';" onmouseout="this.style.transform='none';this.style.borderColor='var(--border)';">
-            <div style="width:44px; height:44px; border-radius:14px; background:linear-gradient(135deg, #f59e0b 0%, #b45309 100%); color:#fff; display:grid; place-items:center; margin:0 auto 10px auto; font-size:20px; box-shadow:0 6px 14px rgba(245,158,11,0.35);">
-              <i class="bi bi-bar-chart-line-fill"></i>
-            </div>
-            <div style="font-weight:700; font-size:13px; color:var(--text);">Keuangan</div>
-            <div style="font-size:11px; color:var(--muted); margin-top:2px;">Laporan & Kas</div>
-          </div>
-        </a>
-
-        <a href="/admin/whatsapp/broadcast" style="text-decoration:none; color:inherit;">
-          <div style="background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:16px; text-align:center; transition:all 0.25s ease; box-shadow:0 6px 16px rgba(0,0,0,0.1);" onmouseover="this.style.transform='translateY(-3px)';this.style.borderColor='rgba(34,197,94,0.5)';" onmouseout="this.style.transform='none';this.style.borderColor='var(--border)';">
-            <div style="width:44px; height:44px; border-radius:14px; background:linear-gradient(135deg, #22c55e 0%, #15803d 100%); color:#fff; display:grid; place-items:center; margin:0 auto 10px auto; font-size:20px; box-shadow:0 6px 14px rgba(34,197,94,0.35);">
-              <i class="bi bi-megaphone-fill"></i>
-            </div>
-            <div style="font-weight:700; font-size:13px; color:var(--text);">Broadcast WA</div>
-            <div style="font-size:11px; color:var(--muted); margin-top:2px;">Pesan Masal</div>
-          </div>
-        </a>
-
-        <a href="/admin/ewallet-logs" style="text-decoration:none; color:inherit;">
-          <div style="background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:16px; text-align:center; transition:all 0.25s ease; box-shadow:0 6px 16px rgba(0,0,0,0.1);" onmouseover="this.style.transform='translateY(-3px)';this.style.borderColor='rgba(236,72,153,0.5)';" onmouseout="this.style.transform='none';this.style.borderColor='var(--border)';">
-            <div style="width:44px; height:44px; border-radius:14px; background:linear-gradient(135deg, #ec4899 0%, #be185d 100%); color:#fff; display:grid; place-items:center; margin:0 auto 10px auto; font-size:20px; box-shadow:0 6px 14px rgba(236,72,153,0.35);">
-              <i class="bi bi-wallet2"></i>
-            </div>
-            <div style="font-weight:700; font-size:13px; color:var(--text);">Log E-Wallet</div>
-            <div style="font-size:11px; color:var(--muted); margin-top:2px;">Webhook Notif</div>
-          </div>
-        </a>
-      </div>
-    </div>
-
-    <!-- TAB NAVIGATION -->
-    <div class="tab-bar">
-      <button class="tab-btn active" id="tab-dash" onclick="showTab('dashboard')">
-        <i class="bi bi-speedometer2"></i><%= t('admin.nav.dashboard', 'Dashboard') %>
-      </button>
-      <button class="tab-btn" id="tab-mon" onclick="showTab('monitoring')">
-        <i class="bi bi-router"></i><%= t('admin.dashboard.monitoring_onu', 'Monitoring ONU') %>
-      </button>
-    </div>
-
-    <!-- ═══════════════════════════════════════════════════════ -->
-    <!-- DASHBOARD SECTION                                       -->
-    <!-- ═══════════════════════════════════════════════════════ -->
-    <div id="dashboard-section">
-
-      <% const routerList = (typeof routers !== 'undefined' && Array.isArray(routers)) ? routers : []; %>
-
-      <!-- ONU Stats (Moved to Top) -->
-      <div style="font-size:12px;color:var(--text);font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
-        <i class="bi bi-router" style="color:var(--primary);font-size:16px;"></i> <%= t('admin.dashboard.onu_status_title', 'MONITORING ONU') %>
-      </div>
-      <div class="stat-grid" style="margin-bottom: 22px;">
-        <div class="sc p">
-          <i class="bi bi-router sc-icon"></i>
-          <div class="sc-label"><%= t('admin.dashboard.total_onu', 'Total ONU') %></div>
-          <div class="sc-val" id="stat-total"><span class="text-muted" style="font-size:16px">...</span></div>
-          <div class="sc-sub"><%= t('admin.dashboard.onu_registered', 'Perangkat terdaftar') %></div>
-        </div>
-        <div class="sc s">
-          <i class="bi bi-wifi sc-icon"></i>
-          <div class="sc-label"><%= t('admin.dashboard.online', 'Online') %></div>
-          <div class="sc-val" id="stat-online"><span class="text-muted" style="font-size:16px">...</span></div>
-          <div class="sc-sub"><%= t('admin.dashboard.active_now', 'Aktif saat ini') %></div>
-        </div>
-        <div class="sc d">
-          <i class="bi bi-wifi-off sc-icon"></i>
-          <div class="sc-label"><%= t('admin.dashboard.offline', 'Offline') %></div>
-          <div class="sc-val" id="stat-offline"><span class="text-muted" style="font-size:16px">...</span></div>
-          <div class="sc-sub"><%= t('admin.dashboard.no_response', 'Tidak merespons') %></div>
-        </div>
-        <div class="sc w">
-          <i class="bi bi-exclamation-triangle sc-icon"></i>
-          <div class="sc-label"><%= t('admin.dashboard.warning', 'Warning') %></div>
-          <div class="sc-val" id="stat-warning"><span class="text-muted" style="font-size:16px">...</span></div>
-          <div class="sc-sub"><%= t('admin.dashboard.needs_attention', 'Perlu perhatian') %></div>
-        </div>
-      </div>
-
-      <!-- Monitoring Pelanggan (Fitur Baru) -->
-      <div style="font-size:12px;color:var(--text);font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
-        <i class="bi bi-people-fill" style="color:var(--primary);font-size:16px;"></i> Monitoring Pelanggan
-      </div>
-      <div class="stat-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 22px;">
-        <!-- User Aktif (total pppoe aktif) -->
-        <div class="sc p" style="cursor:pointer" onclick="location.href='/admin/customers?status=active'">
-          <i class="bi bi-ethernet sc-icon"></i>
-          <div class="sc-label">User Aktif</div>
-          <div class="sc-val" id="stat-pppoe-active"><span class="text-muted" style="font-size:16px">...</span></div>
-          <div class="sc-sub">Total PPPoE Active / Online</div>
         </div>
 
-        <!-- User Suspend (total user dengan Profil suspend) -->
-        <div class="sc w" style="cursor:pointer" onclick="location.href='/admin/customers?status=suspended'">
-          <i class="bi bi-person-x-fill sc-icon"></i>
-          <div class="sc-label">User Suspend</div>
-          <div class="sc-val" id="stat-pppoe-suspended"><span class="text-muted" style="font-size:16px">...</span></div>
-          <div class="sc-sub">Total Profil Suspend / Terisolir</div>
+        <!-- QUICK MENU SHORTCUTS GRID -->
+        <div style="margin-bottom: 24px;">
+          <div
+            style="font-size:11px; color:var(--muted); font-weight:800; text-transform:uppercase; letter-spacing:1.2px; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
+            <i class="bi bi-grid-fill" style="color:var(--primary); font-size:14px;"></i> PINTASAN MENU UTAMA (QUICK
+            ACTIONS)
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px;">
+            <a href="/admin/customers" style="text-decoration:none; color:inherit;">
+              <div
+                style="background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:16px; text-align:center; transition:all 0.25s ease; box-shadow:0 6px 16px rgba(0,0,0,0.1);"
+                onmouseover="this.style.transform='translateY(-3px)';this.style.borderColor='rgba(99,102,241,0.5)';"
+                onmouseout="this.style.transform='none';this.style.borderColor='var(--border)';">
+                <div
+                  style="width:44px; height:44px; border-radius:14px; background:linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color:#fff; display:grid; place-items:center; margin:0 auto 10px auto; font-size:20px; box-shadow:0 6px 14px rgba(59,130,246,0.35);">
+                  <i class="bi bi-people-fill"></i>
+                </div>
+                <div style="font-weight:700; font-size:13px; color:var(--text);">Pelanggan</div>
+                <div style="font-size:11px; color:var(--muted); margin-top:2px;">Kelola Data</div>
+              </div>
+            </a>
+
+            <a href="/admin/billing" style="text-decoration:none; color:inherit;">
+              <div
+                style="background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:16px; text-align:center; transition:all 0.25s ease; box-shadow:0 6px 16px rgba(0,0,0,0.1);"
+                onmouseover="this.style.transform='translateY(-3px)';this.style.borderColor='rgba(16,185,129,0.5)';"
+                onmouseout="this.style.transform='none';this.style.borderColor='var(--border)';">
+                <div
+                  style="width:44px; height:44px; border-radius:14px; background:linear-gradient(135deg, #10b981 0%, #047857 100%); color:#fff; display:grid; place-items:center; margin:0 auto 10px auto; font-size:20px; box-shadow:0 6px 14px rgba(16,185,129,0.35);">
+                  <i class="bi bi-receipt"></i>
+                </div>
+                <div style="font-weight:700; font-size:13px; color:var(--text);">Tagihan</div>
+                <div style="font-size:11px; color:var(--muted); margin-top:2px;">Invoice & Bayar</div>
+              </div>
+            </a>
+
+            <a href="/admin/mikrotik" style="text-decoration:none; color:inherit;">
+              <div
+                style="background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:16px; text-align:center; transition:all 0.25s ease; box-shadow:0 6px 16px rgba(0,0,0,0.1);"
+                onmouseover="this.style.transform='translateY(-3px)';this.style.borderColor='rgba(99,102,241,0.5)';"
+                onmouseout="this.style.transform='none';this.style.borderColor='var(--border)';">
+                <div
+                  style="width:44px; height:44px; border-radius:14px; background:linear-gradient(135deg, #6366f1 0%, #4338ca 100%); color:#fff; display:grid; place-items:center; margin:0 auto 10px auto; font-size:20px; box-shadow:0 6px 14px rgba(99,102,241,0.35);">
+                  <i class="bi bi-router-fill"></i>
+                </div>
+                <div style="font-weight:700; font-size:13px; color:var(--text);">MikroTik</div>
+                <div style="font-size:11px; color:var(--muted); margin-top:2px;">Router & Hotspot</div>
+              </div>
+            </a>
+
+            <a href="/admin/map" style="text-decoration:none; color:inherit;">
+              <div
+                style="background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:16px; text-align:center; transition:all 0.25s ease; box-shadow:0 6px 16px rgba(0,0,0,0.1);"
+                onmouseover="this.style.transform='translateY(-3px)';this.style.borderColor='rgba(139,92,246,0.5)';"
+                onmouseout="this.style.transform='none';this.style.borderColor='var(--border)';">
+                <div
+                  style="width:44px; height:44px; border-radius:14px; background:linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); color:#fff; display:grid; place-items:center; margin:0 auto 10px auto; font-size:20px; box-shadow:0 6px 14px rgba(139,92,246,0.35);">
+                  <i class="bi bi-map-fill"></i>
+                </div>
+                <div style="font-weight:700; font-size:13px; color:var(--text);">Peta Jaringan</div>
+                <div style="font-size:11px; color:var(--muted); margin-top:2px;">ODP & ODC Map</div>
+              </div>
+            </a>
+
+            <a href="/admin/acs" style="text-decoration:none; color:inherit;">
+              <div
+                style="background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:16px; text-align:center; transition:all 0.25s ease; box-shadow:0 6px 16px rgba(0,0,0,0.1);"
+                onmouseover="this.style.transform='translateY(-3px)';this.style.borderColor='rgba(14,165,233,0.5)';"
+                onmouseout="this.style.transform='none';this.style.borderColor='var(--border)';">
+                <div
+                  style="width:44px; height:44px; border-radius:14px; background:linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%); color:#fff; display:grid; place-items:center; margin:0 auto 10px auto; font-size:20px; box-shadow:0 6px 14px rgba(14,165,233,0.35);">
+                  <i class="bi bi-hdd-network-fill"></i>
+                </div>
+                <div style="font-weight:700; font-size:13px; color:var(--text);">GenieACS</div>
+                <div style="font-size:11px; color:var(--muted); margin-top:2px;">Manajemen TR-069</div>
+              </div>
+            </a>
+
+            <a href="/admin/reports" style="text-decoration:none; color:inherit;">
+              <div
+                style="background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:16px; text-align:center; transition:all 0.25s ease; box-shadow:0 6px 16px rgba(0,0,0,0.1);"
+                onmouseover="this.style.transform='translateY(-3px)';this.style.borderColor='rgba(245,158,11,0.5)';"
+                onmouseout="this.style.transform='none';this.style.borderColor='var(--border)';">
+                <div
+                  style="width:44px; height:44px; border-radius:14px; background:linear-gradient(135deg, #f59e0b 0%, #b45309 100%); color:#fff; display:grid; place-items:center; margin:0 auto 10px auto; font-size:20px; box-shadow:0 6px 14px rgba(245,158,11,0.35);">
+                  <i class="bi bi-bar-chart-line-fill"></i>
+                </div>
+                <div style="font-weight:700; font-size:13px; color:var(--text);">Keuangan</div>
+                <div style="font-size:11px; color:var(--muted); margin-top:2px;">Laporan & Kas</div>
+              </div>
+            </a>
+
+            <a href="/admin/whatsapp/broadcast" style="text-decoration:none; color:inherit;">
+              <div
+                style="background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:16px; text-align:center; transition:all 0.25s ease; box-shadow:0 6px 16px rgba(0,0,0,0.1);"
+                onmouseover="this.style.transform='translateY(-3px)';this.style.borderColor='rgba(34,197,94,0.5)';"
+                onmouseout="this.style.transform='none';this.style.borderColor='var(--border)';">
+                <div
+                  style="width:44px; height:44px; border-radius:14px; background:linear-gradient(135deg, #22c55e 0%, #15803d 100%); color:#fff; display:grid; place-items:center; margin:0 auto 10px auto; font-size:20px; box-shadow:0 6px 14px rgba(34,197,94,0.35);">
+                  <i class="bi bi-megaphone-fill"></i>
+                </div>
+                <div style="font-weight:700; font-size:13px; color:var(--text);">Broadcast WA</div>
+                <div style="font-size:11px; color:var(--muted); margin-top:2px;">Pesan Masal</div>
+              </div>
+            </a>
+
+            <a href="/admin/tickets" style="text-decoration:none; color:inherit;">
+              <div
+                style="background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:16px; text-align:center; transition:all 0.25s ease; box-shadow:0 6px 16px rgba(0,0,0,0.1);"
+                onmouseover="this.style.transform='translateY(-3px)';this.style.borderColor='rgba(239,68,68,0.5)';"
+                onmouseout="this.style.transform='none';this.style.borderColor='var(--border)';">
+                <div
+                  style="width:44px; height:44px; border-radius:14px; background:linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); color:#fff; display:grid; place-items:center; margin:0 auto 10px auto; font-size:20px; box-shadow:0 6px 14px rgba(239,68,68,0.35);">
+                  <i class="bi bi-headset"></i>
+                </div>
+                <div style="font-weight:700; font-size:13px; color:var(--text);"><%= t('admin.nav.customer_tickets', 'Keluhan Pelanggan') %></div>
+                <div style="font-size:11px; color:var(--muted); margin-top:2px;">Tiket & Gangguan</div>
+              </div>
+            </a>
+          </div>
         </div>
 
-        <!-- User Offline (pppoe offline) -->
-        <div class="sc d" style="cursor:pointer" onclick="location.href='/admin/customers'">
-          <i class="bi bi-plug-fill sc-icon"></i>
-          <div class="sc-label">User Offline</div>
-          <div class="sc-val" id="stat-pppoe-offline"><span class="text-muted" style="font-size:16px">...</span></div>
-          <div class="sc-sub">PPPoE Offline / Terputus</div>
+        <!-- TAB NAVIGATION -->
+        <div class="tab-bar">
+          <button class="tab-btn active" id="tab-dash" onclick="showTab('dashboard')">
+            <i class="bi bi-speedometer2"></i>
+            <%= t('admin.nav.dashboard', 'Dashboard' ) %>
+          </button>
+          <button class="tab-btn" id="tab-mon" onclick="showTab('monitoring')">
+            <i class="bi bi-router"></i>
+            <%= t('admin.dashboard.monitoring_onu', 'Monitoring ONU' ) %>
+          </button>
         </div>
-      </div>
 
-      <!-- Daftar Router MikroTik Table Card -->
-      <div class="card" style="margin-bottom: 22px;">
-        <div class="card-hd" style="display:flex; justify-content:space-between; align-items:center;">
-          <h6><i class="bi bi-hdd-network"></i> <%= t('admin.dashboard.router_list_title', 'Daftar Router MikroTik') %> (<%= routerList.length %>)</h6>
-          <a href="/admin/routers" class="btn btn-g btn-sm"><i class="bi bi-gear"></i> Kelola Router</a>
-        </div>
-        <div class="card-bd" style="padding:0">
-          <% if (routerList.length === 0) { %>
-            <div style="padding: 20px; text-align: center; color: var(--muted);">
-              <i class="bi bi-info-circle" style="font-size: 24px;"></i>
-              <p style="margin-top: 8px; font-size: 13px;">Belum ada router MikroTik yang terdaftar di sistem.</p>
-              <a href="/admin/routers" class="btn btn-p btn-sm" style="margin-top: 8px;"><i class="bi bi-plus-lg"></i> Tambah Router</a>
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- DASHBOARD SECTION                                       -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <div id="dashboard-section">
+
+          <% const routerList=(typeof routers !=='undefined' && Array.isArray(routers)) ? routers : []; %>
+
+            <!-- ONU Stats (Moved to Top) -->
+            <div
+              style="font-size:12px;color:var(--text);font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+              <i class="bi bi-router" style="color:var(--primary);font-size:16px;"></i>
+              <%= t('admin.dashboard.onu_status_title', 'MONITORING ONU' ) %>
             </div>
-          <% } else { %>
-            <div style="overflow-x:auto;">
-              <table class="tbl" style="width:100%; border-collapse:collapse; font-size:13px;">
+            <div class="stat-grid" style="margin-bottom: 22px;">
+              <div class="sc p">
+                <i class="bi bi-router sc-icon"></i>
+                <div class="sc-label">
+                  <%= t('admin.dashboard.total_onu', 'Total ONU' ) %>
+                </div>
+                <div class="sc-val" id="stat-total"><span class="text-muted" style="font-size:16px">...</span></div>
+                <div class="sc-sub">
+                  <%= t('admin.dashboard.onu_registered', 'Perangkat terdaftar' ) %>
+                </div>
+              </div>
+              <div class="sc s">
+                <i class="bi bi-wifi sc-icon"></i>
+                <div class="sc-label">
+                  <%= t('admin.dashboard.online', 'Online' ) %>
+                </div>
+                <div class="sc-val" id="stat-online"><span class="text-muted" style="font-size:16px">...</span></div>
+                <div class="sc-sub">
+                  <%= t('admin.dashboard.active_now', 'Aktif saat ini' ) %>
+                </div>
+              </div>
+              <div class="sc d">
+                <i class="bi bi-wifi-off sc-icon"></i>
+                <div class="sc-label">
+                  <%= t('admin.dashboard.offline', 'Offline' ) %>
+                </div>
+                <div class="sc-val" id="stat-offline"><span class="text-muted" style="font-size:16px">...</span></div>
+                <div class="sc-sub">
+                  <%= t('admin.dashboard.no_response', 'Tidak merespons' ) %>
+                </div>
+              </div>
+              <div class="sc w">
+                <i class="bi bi-exclamation-triangle sc-icon"></i>
+                <div class="sc-label">
+                  <%= t('admin.dashboard.warning', 'Warning' ) %>
+                </div>
+                <div class="sc-val" id="stat-warning"><span class="text-muted" style="font-size:16px">...</span></div>
+                <div class="sc-sub">
+                  <%= t('admin.dashboard.needs_attention', 'Perlu perhatian' ) %>
+                </div>
+              </div>
+            </div>
+
+            <!-- Monitoring Pelanggan (Fitur Baru) -->
+            <div
+              style="font-size:12px;color:var(--text);font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+              <i class="bi bi-people-fill" style="color:var(--primary);font-size:16px;"></i> Monitoring Pelanggan
+            </div>
+            <div class="stat-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 22px;">
+              <!-- User Aktif (total pppoe aktif) -->
+              <div class="sc p" style="cursor:pointer" onclick="location.href='/admin/customers?status=active'">
+                <i class="bi bi-ethernet sc-icon"></i>
+                <div class="sc-label">User Aktif</div>
+                <div class="sc-val" id="stat-pppoe-active"><span class="text-muted" style="font-size:16px">...</span>
+                </div>
+                <div class="sc-sub">Total PPPoE Active / Online</div>
+              </div>
+
+              <!-- User Suspend (total user dengan Profil suspend) -->
+              <div class="sc w" style="cursor:pointer" onclick="location.href='/admin/customers?status=suspended'">
+                <i class="bi bi-person-x-fill sc-icon"></i>
+                <div class="sc-label">User Suspend</div>
+                <div class="sc-val" id="stat-pppoe-suspended"><span class="text-muted" style="font-size:16px">...</span>
+                </div>
+                <div class="sc-sub">Total Profil Suspend / Terisolir</div>
+              </div>
+
+              <!-- User Offline (pppoe offline) -->
+              <div class="sc d" style="cursor:pointer" onclick="location.href='/admin/customers'">
+                <i class="bi bi-plug-fill sc-icon"></i>
+                <div class="sc-label">User Offline</div>
+                <div class="sc-val" id="stat-pppoe-offline"><span class="text-muted" style="font-size:16px">...</span>
+                </div>
+                <div class="sc-sub">PPPoE Offline / Terputus</div>
+              </div>
+            </div>
+
+            <!-- Daftar Router MikroTik Table Card -->
+            <div class="card" style="margin-bottom: 22px;">
+              <div class="card-hd" style="display:flex; justify-content:space-between; align-items:center;">
+                <h6><i class="bi bi-hdd-network"></i>
+                  <%= t('admin.dashboard.router_list_title', 'Daftar Router MikroTik' ) %> (<%= routerList.length %>)
+                </h6>
+                <a href="/admin/routers" class="btn btn-g btn-sm"><i class="bi bi-gear"></i> Kelola Router</a>
+              </div>
+              <div class="card-bd" style="padding:0">
+                <% if (routerList.length===0) { %>
+                  <div style="padding: 20px; text-align: center; color: var(--muted);">
+                    <i class="bi bi-info-circle" style="font-size: 24px;"></i>
+                    <p style="margin-top: 8px; font-size: 13px;">Belum ada router MikroTik yang terdaftar di sistem.</p>
+                    <a href="/admin/routers" class="btn btn-p btn-sm" style="margin-top: 8px;"><i
+                        class="bi bi-plus-lg"></i> Tambah Router</a>
+                  </div>
+                  <% } else { %>
+                    <div style="overflow-x:auto;">
+                      <table class="tbl" style="width:100%; border-collapse:collapse; font-size:13px;">
+                        <thead>
+                          <tr style="border-bottom:1px solid var(--border); text-align:left; background:var(--bg2);">
+                            <th style="padding:12px 16px; width:38%;">Nama Router</th>
+                            <th style="padding:12px 16px; width:62%;">Detail & Monitoring Interface</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <% routerList.forEach(r=> { %>
+                            <tr style="border-bottom:1px solid var(--border); vertical-align:top;">
+                              <!-- Kolom 1: Nama Router -->
+                              <td style="padding:14px 16px;">
+                                <div
+                                  style="font-weight:700; font-size:14px; color:var(--text); display:flex; align-items:center; gap:8px;">
+                                  <i class="bi bi-hdd-network" style="color:var(--primary); font-size:18px;"></i>
+                                  <%= r.name %>
+                                </div>
+                                <div
+                                  style="margin-top:6px; font-size:12px; color:var(--muted); display:flex; flex-direction:column; gap:4px;">
+                                  <div><i class="bi bi-hdd-stack" style="margin-right:4px;"></i> Host:
+                                    <code><%= r.host %>:<%= r.port || 8728 %></code></div>
+                                  <div><i class="bi bi-person-lock" style="margin-right:4px;"></i> User:
+                                    <code><%= r.user %></code></div>
+                                  <% if (r.description) { %>
+                                    <div><i class="bi bi-info-circle" style="margin-right:4px;"></i>
+                                      <%= r.description %>
+                                    </div>
+                                    <% } %>
+                                </div>
+                                <div
+                                  style="margin-top:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                                  <% if (r.is_active) { %>
+                                    <span class="badge bg-s"
+                                      style="padding:3px 8px; border-radius:4px; font-size:11px; background:rgba(16,185,129,0.15); color:var(--success); font-weight:600;"><i
+                                        class="bi bi-check-circle"></i> Status Aktif</span>
+                                    <% } else { %>
+                                      <span class="badge bg-d"
+                                        style="padding:3px 8px; border-radius:4px; font-size:11px; background:rgba(239,68,68,0.15); color:var(--danger); font-weight:600;"><i
+                                          class="bi bi-dash-circle"></i> Status Nonaktif</span>
+                                      <% } %>
+                                        <button type="button" class="btn btn-g btn-sm"
+                                          style="padding:2px 8px; font-size:11px;"
+                                          onclick="testRouterConnDashboard(<%= r.id %>, this)">
+                                          <i class="bi bi-arrow-repeat"></i> Tes Koneksi
+                                        </button>
+                                        <span class="badge"
+                                          style="padding:3px 8px; border-radius:4px; font-size:11px; background:var(--bg2); color:var(--muted); font-weight:500;"
+                                          id="badge-router-<%= r.id %>">
+                                          <i class="bi bi-hourglass-split"></i> Siap diuji
+                                        </span>
+                                </div>
+                              </td>
+
+                              <!-- Kolom 2: Detail & Monitoring Interface (Dropdown) -->
+                              <td style="padding:14px 16px;">
+                                <div style="display:flex; flex-direction:column; gap:10px;">
+                                  <div style="display:flex; gap:8px; align-items:center;">
+                                    <select class="fc" id="dash-iface-select-<%= r.id %>"
+                                      onchange="onDashIfaceChange(<%= r.id %>, this.value)"
+                                      style="width:100%; font-size:13px; font-weight:600; padding:8px 12px; cursor:pointer;">
+                                      <option value="">-- Loading daftar interface... --</option>
+                                    </select>
+                                    <button type="button" class="btn btn-g btn-sm"
+                                      onclick="loadDashRouterInterfaces(<%= r.id %>, true)"
+                                      title="Refresh Interface List" style="padding:8px 12px;">
+                                      <i class="bi bi-arrow-clockwise"></i>
+                                    </button>
+                                  </div>
+
+                                  <!-- Panel Detail & Live Traffic Monitoring -->
+                                  <div id="dash-iface-panel-<%= r.id %>"
+                                    style="display:none; background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:12px; font-size:12px;">
+                                    <!-- Filled dynamically by JavaScript -->
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                            <% }); %>
+                        </tbody>
+                      </table>
+                    </div>
+                    <% } %>
+              </div>
+            </div>
+
+            <!-- Billing Stats -->
+            <% if (typeof billing !=='undefined' && billing) { %>
+              <div
+                style="font-size:12px;color:var(--text);font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:24px 0 12px;display:flex;align-items:center;gap:8px;">
+                <i class="bi bi-receipt" style="color:var(--primary);font-size:16px;"></i>
+                <%= t('admin.dashboard.billing_summary_month', 'Ringkasan Billing & Financial Analytics' ) %>
+              </div>
+              <div class="stat-grid" style="margin-bottom: 24px;">
+                <div class="sc s" style="cursor:pointer" onclick="location.href='/admin/billing'">
+                  <i class="bi bi-cash-stack sc-icon"></i>
+                  <div class="sc-label">
+                    <%= t('admin.dashboard.revenue_month', 'Pendapatan Bulan Ini' ) %>
+                  </div>
+                  <div class="sc-val money-value" style="font-size:20px">Rp&nbsp;<%=
+                      billing.thisMonth.toLocaleString('id-ID') %>
+                  </div>
+                  <div class="sc-sub">
+                    <%= t('admin.dashboard.collected', 'Sudah terkumpul' ) %>
+                  </div>
+                </div>
+                <div class="sc p" style="cursor:pointer" onclick="location.href='/admin/customers'">
+                  <i class="bi bi-people sc-icon"></i>
+                  <div class="sc-label">
+                    <%= t('admin.dashboard.active_customers', 'Pelanggan Aktif' ) %>
+                  </div>
+                  <div class="sc-val">
+                    <%= custStats ? custStats.active : 0 %>
+                  </div>
+                  <div class="sc-sub">
+                    <%= t('admin.dashboard.from', 'Dari' ) %>
+                      <%= custStats ? custStats.total : 0 %>
+                        <%= t('admin.dashboard.total_customers_suffix', 'total pelanggan' ) %>
+                  </div>
+                </div>
+                <div class="sc d" style="cursor:pointer" onclick="location.href='/admin/billing?status=unpaid'">
+                  <i class="bi bi-hourglass sc-icon"></i>
+                  <div class="sc-label">
+                    <%= t('admin.dashboard.unpaid_invoices', 'Tagihan Belum Bayar' ) %>
+                  </div>
+                  <div class="sc-val">
+                    <%= billing.unpaidCount %>
+                  </div>
+                  <div class="sc-sub">
+                    <%= t('admin.dashboard.awaiting_payment', 'Menunggu pembayaran' ) %>
+                  </div>
+                </div>
+                <div class="sc w" style="cursor:pointer" onclick="location.href='/admin/reports'">
+                  <i class="bi bi-bar-chart-line sc-icon"></i>
+                  <div class="sc-label">
+                    <%= t('admin.dashboard.total_receivable', 'Total Piutang' ) %>
+                  </div>
+                  <div class="sc-val money-value" style="font-size:20px">Rp&nbsp;<%=
+                      billing.pendingAmount.toLocaleString('id-ID') %>
+                  </div>
+                  <div class="sc-sub">
+                    <%= t('admin.dashboard.not_collected', 'Belum tertagih' ) %>
+                  </div>
+                </div>
+              </div>
+              <% } %>
+
+                <!-- Quick Actions & Recent Offline Devices -->
+                <div style="display:flex;flex-direction:column;gap:18px;margin-top:4px">
+                  <!-- Quick Actions -->
+                  <div class="card">
+                    <div class="card-hd">
+                      <h6><i class="bi bi-lightning-charge"></i>
+                        <%= t('admin.dashboard.quick_actions', 'Aksi Cepat' ) %>
+                      </h6>
+                    </div>
+                    <div class="card-bd quick-actions-grid">
+                      <a href="/admin/customers" class="btn btn-g"
+                        style="flex-direction:column;gap:4px;padding:14px 10px;text-align:center">
+                        <i class="bi bi-person-plus" style="font-size:20px;color:var(--primary)"></i>
+                        <span style="font-size:12px">
+                          <%= t('admin.dashboard.qa_add_customer', 'Tambah Pelanggan' ) %>
+                        </span>
+                      </a>
+                      <a href="/admin/packages" class="btn btn-g"
+                        style="flex-direction:column;gap:4px;padding:14px 10px;text-align:center">
+                        <i class="bi bi-box-seam" style="font-size:20px;color:var(--success)"></i>
+                        <span style="font-size:12px">
+                          <%= t('admin.dashboard.qa_manage_packages', 'Kelola Paket' ) %>
+                        </span>
+                      </a>
+                      <a href="/admin/billing" class="btn btn-g"
+                        style="flex-direction:column;gap:4px;padding:14px 10px;text-align:center">
+                        <i class="bi bi-receipt" style="font-size:20px;color:var(--warning)"></i>
+                        <span style="font-size:12px">
+                          <%= t('admin.dashboard.qa_create_invoice', 'Buat Tagihan' ) %>
+                        </span>
+                      </a>
+                      <a href="/admin/reports" class="btn btn-g"
+                        style="flex-direction:column;gap:4px;padding:14px 10px;text-align:center">
+                        <i class="bi bi-bar-chart-line" style="font-size:20px;color:var(--info)"></i>
+                        <span style="font-size:12px">
+                          <%= t('admin.dashboard.qa_reports', 'Laporan' ) %>
+                        </span>
+                      </a>
+                      <button class="btn btn-g" onclick="showTab('monitoring')"
+                        style="flex-direction:column;gap:4px;padding:14px 10px;text-align:center">
+                        <i class="bi bi-router" style="font-size:20px;color:var(--danger)"></i>
+                        <span style="font-size:12px">
+                          <%= t('admin.dashboard.qa_monitor_onu', 'Monitor ONU' ) %>
+                        </span>
+                      </button>
+                      <a href="/admin/bulk" class="btn btn-g"
+                        style="flex-direction:column;gap:4px;padding:14px 10px;text-align:center">
+                        <i class="bi bi-layers" style="font-size:20px;color:var(--muted)"></i>
+                        <span style="font-size:12px">
+                          <%= t('admin.dashboard.qa_bulk', 'Bulk Config' ) %>
+                        </span>
+                      </a>
+                    </div>
+                  </div>
+
+                  <!-- Top Offline Devices -->
+                  <div class="card" style="flex:1">
+                    <div class="card-hd">
+                      <h6><i class="bi bi-exclamation-circle"></i>
+                        <%= t('admin.dashboard.latest_offline', 'ONU Offline Terbaru' ) %>
+                      </h6>
+                      <button class="btn btn-g btn-sm" onclick="showTab('monitoring')"><i class="bi bi-arrow-right"></i>
+                        <%= t('common.view_all', 'Lihat Semua' ) %>
+                      </button>
+                    </div>
+                    <div id="offline-list" style="padding:0">
+                      <div class="text-center text-muted" style="padding:24px;font-size:13px">
+                        <%= t('common.loading', 'Memuat data...' ) %>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- MONITORING ONU SECTION                                  -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <div id="monitoring-section" style="display:none">
+
+          <!-- Stats mini -->
+          <div class="stat-grid" style="margin-bottom:18px">
+            <div class="sc p"><i class="bi bi-router sc-icon"></i>
+              <div class="sc-label">
+                <%= t('admin.dashboard.total_onu', 'Total ONU' ) %>
+              </div>
+              <div class="sc-val" id="m-total">-</div>
+            </div>
+            <div class="sc s"><i class="bi bi-wifi sc-icon"></i>
+              <div class="sc-label">
+                <%= t('admin.dashboard.online', 'Online' ) %>
+              </div>
+              <div class="sc-val" id="m-online">-</div>
+            </div>
+            <div class="sc d"><i class="bi bi-wifi-off sc-icon"></i>
+              <div class="sc-label">
+                <%= t('admin.dashboard.offline', 'Offline' ) %>
+              </div>
+              <div class="sc-val" id="m-offline">-</div>
+            </div>
+            <div class="sc i"><i class="bi bi-percent sc-icon"></i>
+              <div class="sc-label">
+                <%= t('admin.dashboard.uptime', 'Uptime' ) %>
+              </div>
+              <div class="sc-val" id="m-pct">-%</div>
+            </div>
+          </div>
+
+          <!-- Search & Filter -->
+          <div class="srow" style="margin-bottom:16px">
+            <div class="sinput" style="max-width:320px">
+              <i class="bi bi-search"></i>
+              <input class="fc" id="search-device"
+                placeholder="<%= t('admin.dashboard.search_placeholder', 'Cari tag, SN, atau username pppoe...') %>">
+            </div>
+            <select class="fs" id="filter-status" style="width:150px" onchange="loadDevices()">
+              <option value="all">
+                <%= t('common.all_status', 'Semua Status' ) %>
+              </option>
+              <option value="online">
+                <%= t('admin.dashboard.online', 'Online' ) %>
+              </option>
+              <option value="offline">
+                <%= t('admin.dashboard.offline', 'Offline' ) %>
+              </option>
+            </select>
+            <button class="btn btn-g btn-sm" onclick="openGenieACSSettings()" title="Pengaturan GenieACS">
+              <i class="bi bi-gear"></i> GenieACS
+            </button>
+            <button class="btn btn-p btn-sm" id="btn-refresh" onclick="refreshAll()">
+              <i class="bi bi-arrow-clockwise"></i>
+              <%= t('common.refresh', 'Refresh' ) %>
+            </button>
+            <div class="realtime-bar" style="margin-left:auto">
+              <span class="live-dot"></span>
+              <%= t('admin.dashboard.realtime', 'Realtime Monitoring' ) %>
+            </div>
+          </div>
+
+          <!-- Bulk Actions Panel -->
+          <div id="monBulkActionsPanel"
+            style="display: none; background: rgba(59,130,246,0.05); border: 1px solid rgba(59,130,246,0.15); padding: 12px 20px; border-radius: 12px; margin-bottom: 16px; align-items: center; justify-content: space-between;">
+            <div style="font-size: 13px; font-weight: 600; color: var(--text);">
+              <span id="monSelectedCount">0</span> perangkat terpilih
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn btn-p btn-sm" onclick="bulkMonSummon()" style="background: var(--primary);"><i
+                  class="bi bi-lightning-charge"></i> Summon Terpilih</button>
+              <button class="btn btn-d btn-sm" onclick="bulkMonDelete()" style="background: var(--danger);"><i
+                  class="bi bi-trash"></i> Hapus Terpilih</button>
+            </div>
+          </div>
+
+          <!-- Device Table -->
+          <div class="card">
+            <div class="card-hd">
+              <h6><i class="bi bi-list-ul"></i>
+                <%= t('admin.dashboard.onu_device_list', 'Daftar Perangkat ONU' ) %>
+              </h6>
+              <span id="device-count" class="badge bm">
+                <%= t('common.loading_short', 'memuat...' ) %>
+              </span>
+            </div>
+            <div id="loading-devices" style="text-align:center;padding:32px;display:none">
+              <div
+                style="display:inline-block;width:30px;height:30px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite">
+              </div>
+              <div class="text-muted" style="margin-top:10px;font-size:13px">
+                <%= t('admin.dashboard.loading_onu', 'Memuat data ONU...' ) %>
+              </div>
+            </div>
+            <div class="tbl-wrap">
+              <table class="dtbl">
                 <thead>
-                  <tr style="border-bottom:1px solid var(--border); text-align:left; background:var(--bg2);">
-                    <th style="padding:12px 16px; width:38%;">Nama Router</th>
-                    <th style="padding:12px 16px; width:62%;">Detail & Monitoring Interface</th>
+                  <tr>
+                    <th style="width: 40px; text-align: center;"><input type="checkbox" id="selectAllMonDevices"
+                        onchange="toggleSelectAllMon(this)"></th>
+                    <th>#</th>
+                    <th>
+                      <%= t('admin.dashboard.table.tag_customer', 'Tag / Pelanggan' ) %>
+                    </th>
+                    <th>
+                      <%= t('admin.dashboard.table.device', 'Perangkat' ) %>
+                    </th>
+                    <th>
+                      <%= t('admin.dashboard.table.network', 'Jaringan' ) %>
+                    </th>
+                    <th>
+                      <%= t('admin.dashboard.table.status_info', 'Status / Info' ) %>
+                    </th>
+                    <th>
+                      <%= t('admin.dashboard.table.actions', 'Aksi' ) %>
+                    </th>
                   </tr>
                 </thead>
-                <tbody>
-                  <% routerList.forEach(r => { %>
-                    <tr style="border-bottom:1px solid var(--border); vertical-align:top;">
-                      <!-- Kolom 1: Nama Router -->
-                      <td style="padding:14px 16px;">
-                        <div style="font-weight:700; font-size:14px; color:var(--text); display:flex; align-items:center; gap:8px;">
-                          <i class="bi bi-hdd-network" style="color:var(--primary); font-size:18px;"></i>
-                          <%= r.name %>
-                        </div>
-                        <div style="margin-top:6px; font-size:12px; color:var(--muted); display:flex; flex-direction:column; gap:4px;">
-                          <div><i class="bi bi-hdd-stack" style="margin-right:4px;"></i> Host: <code><%= r.host %>:<%= r.port || 8728 %></code></div>
-                          <div><i class="bi bi-person-lock" style="margin-right:4px;"></i> User: <code><%= r.user %></code></div>
-                          <% if (r.description) { %>
-                            <div><i class="bi bi-info-circle" style="margin-right:4px;"></i> <%= r.description %></div>
-                          <% } %>
-                        </div>
-                        <div style="margin-top:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                          <% if (r.is_active) { %>
-                            <span class="badge bg-s" style="padding:3px 8px; border-radius:4px; font-size:11px; background:rgba(16,185,129,0.15); color:var(--success); font-weight:600;"><i class="bi bi-check-circle"></i> Status Aktif</span>
-                          <% } else { %>
-                            <span class="badge bg-d" style="padding:3px 8px; border-radius:4px; font-size:11px; background:rgba(239,68,68,0.15); color:var(--danger); font-weight:600;"><i class="bi bi-dash-circle"></i> Status Nonaktif</span>
-                          <% } %>
-                          <button type="button" class="btn btn-g btn-sm" style="padding:2px 8px; font-size:11px;" onclick="testRouterConnDashboard(<%= r.id %>, this)">
-                            <i class="bi bi-arrow-repeat"></i> Tes Koneksi
-                          </button>
-                          <span class="badge" style="padding:3px 8px; border-radius:4px; font-size:11px; background:var(--bg2); color:var(--muted); font-weight:500;" id="badge-router-<%= r.id %>">
-                            <i class="bi bi-hourglass-split"></i> Siap diuji
-                          </span>
-                        </div>
-                      </td>
-
-                      <!-- Kolom 2: Detail & Monitoring Interface (Dropdown) -->
-                      <td style="padding:14px 16px;">
-                        <div style="display:flex; flex-direction:column; gap:10px;">
-                          <div style="display:flex; gap:8px; align-items:center;">
-                            <select class="fc" id="dash-iface-select-<%= r.id %>" onchange="onDashIfaceChange(<%= r.id %>, this.value)" style="width:100%; font-size:13px; font-weight:600; padding:8px 12px; cursor:pointer;">
-                              <option value="">-- Loading daftar interface... --</option>
-                            </select>
-                            <button type="button" class="btn btn-g btn-sm" onclick="loadDashRouterInterfaces(<%= r.id %>, true)" title="Refresh Interface List" style="padding:8px 12px;">
-                              <i class="bi bi-arrow-clockwise"></i>
-                            </button>
-                          </div>
-
-                          <!-- Panel Detail & Live Traffic Monitoring -->
-                          <div id="dash-iface-panel-<%= r.id %>" style="display:none; background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:12px; font-size:12px;">
-                            <!-- Filled dynamically by JavaScript -->
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  <% }); %>
+                <tbody id="devices-tbody">
+                  <tr>
+                    <td colspan="7" class="text-center text-muted" style="padding:32px">
+                      <%= t('admin.dashboard.loading_devices', 'Memuat perangkat...' ) %>
+                    </td>
+                  </tr>
                 </tbody>
               </table>
             </div>
-          <% } %>
+          </div>
         </div>
       </div>
+    </div>
 
-      <!-- Billing Stats -->
-      <% if (typeof billing !== 'undefined' && billing) { %>
-      <div style="font-size:12px;color:var(--text);font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:24px 0 12px;display:flex;align-items:center;gap:8px;">
-        <i class="bi bi-receipt" style="color:var(--primary);font-size:16px;"></i> <%= t('admin.dashboard.billing_summary_month', 'Ringkasan Billing & Financial Analytics') %>
+    <!-- ── MODAL DETAIL DEVICE ── -->
+    <div class="mo" id="deviceModal">
+      <div class="mb" style="max-width:920px">
+        <div class="mh">
+          <span class="mt"><i class="bi bi-router"></i>
+            <%= t('admin.dashboard.device_detail', 'Detail Perangkat' ) %>
+          </span>
+          <button class="mc" onclick="closeModal('deviceModal')">&times;</button>
+        </div>
+        <div class="mbody" id="device-detail" style="max-height:72vh;overflow:auto">
+          <div class="text-muted text-center" style="padding:20px">
+            <%= t('common.loading_short', 'Memuat...' ) %>
+          </div>
+        </div>
+        <div class="mf"><button class="btn btn-g" onclick="closeModal('deviceModal')">
+            <%= t('common.close', 'Tutup' ) %>
+          </button></div>
       </div>
-      <div class="stat-grid" style="margin-bottom: 24px;">
-        <div class="sc s" style="cursor:pointer" onclick="location.href='/admin/billing'">
-          <i class="bi bi-cash-stack sc-icon"></i>
-          <div class="sc-label"><%= t('admin.dashboard.revenue_month', 'Pendapatan Bulan Ini') %></div>
-          <div class="sc-val money-value" style="font-size:20px">Rp&nbsp;<%= billing.thisMonth.toLocaleString('id-ID') %></div>
-          <div class="sc-sub"><%= t('admin.dashboard.collected', 'Sudah terkumpul') %></div>
-        </div>
-        <div class="sc p" style="cursor:pointer" onclick="location.href='/admin/customers'">
-          <i class="bi bi-people sc-icon"></i>
-          <div class="sc-label"><%= t('admin.dashboard.active_customers', 'Pelanggan Aktif') %></div>
-          <div class="sc-val"><%= custStats ? custStats.active : 0 %></div>
-          <div class="sc-sub"><%= t('admin.dashboard.from', 'Dari') %> <%= custStats ? custStats.total : 0 %> <%= t('admin.dashboard.total_customers_suffix', 'total pelanggan') %></div>
-        </div>
-        <div class="sc d" style="cursor:pointer" onclick="location.href='/admin/billing?status=unpaid'">
-          <i class="bi bi-hourglass sc-icon"></i>
-          <div class="sc-label"><%= t('admin.dashboard.unpaid_invoices', 'Tagihan Belum Bayar') %></div>
-          <div class="sc-val"><%= billing.unpaidCount %></div>
-          <div class="sc-sub"><%= t('admin.dashboard.awaiting_payment', 'Menunggu pembayaran') %></div>
-        </div>
-        <div class="sc w" style="cursor:pointer" onclick="location.href='/admin/reports'">
-          <i class="bi bi-bar-chart-line sc-icon"></i>
-          <div class="sc-label"><%= t('admin.dashboard.total_receivable', 'Total Piutang') %></div>
-          <div class="sc-val money-value" style="font-size:20px">Rp&nbsp;<%= billing.pendingAmount.toLocaleString('id-ID') %></div>
-          <div class="sc-sub"><%= t('admin.dashboard.not_collected', 'Belum tertagih') %></div>
-        </div>
-      </div>
-      <% } %>
+    </div>
 
-      <!-- Quick Actions & Recent Offline Devices -->
-      <div style="display:flex;flex-direction:column;gap:18px;margin-top:4px">
-          <!-- Quick Actions -->
-          <div class="card">
-            <div class="card-hd"><h6><i class="bi bi-lightning-charge"></i> <%= t('admin.dashboard.quick_actions', 'Aksi Cepat') %></h6></div>
-            <div class="card-bd quick-actions-grid">
-              <a href="/admin/customers" class="btn btn-g" style="flex-direction:column;gap:4px;padding:14px 10px;text-align:center">
-                <i class="bi bi-person-plus" style="font-size:20px;color:var(--primary)"></i>
-                <span style="font-size:12px"><%= t('admin.dashboard.qa_add_customer', 'Tambah Pelanggan') %></span>
-              </a>
-              <a href="/admin/packages" class="btn btn-g" style="flex-direction:column;gap:4px;padding:14px 10px;text-align:center">
-                <i class="bi bi-box-seam" style="font-size:20px;color:var(--success)"></i>
-                <span style="font-size:12px"><%= t('admin.dashboard.qa_manage_packages', 'Kelola Paket') %></span>
-              </a>
-              <a href="/admin/billing" class="btn btn-g" style="flex-direction:column;gap:4px;padding:14px 10px;text-align:center">
-                <i class="bi bi-receipt" style="font-size:20px;color:var(--warning)"></i>
-                <span style="font-size:12px"><%= t('admin.dashboard.qa_create_invoice', 'Buat Tagihan') %></span>
-              </a>
-              <a href="/admin/reports" class="btn btn-g" style="flex-direction:column;gap:4px;padding:14px 10px;text-align:center">
-                <i class="bi bi-bar-chart-line" style="font-size:20px;color:var(--info)"></i>
-                <span style="font-size:12px"><%= t('admin.dashboard.qa_reports', 'Laporan') %></span>
-              </a>
-              <button class="btn btn-g" onclick="showTab('monitoring')" style="flex-direction:column;gap:4px;padding:14px 10px;text-align:center">
-                <i class="bi bi-router" style="font-size:20px;color:var(--danger)"></i>
-                <span style="font-size:12px"><%= t('admin.dashboard.qa_monitor_onu', 'Monitor ONU') %></span>
-              </button>
-              <a href="/admin/bulk" class="btn btn-g" style="flex-direction:column;gap:4px;padding:14px 10px;text-align:center">
-                <i class="bi bi-layers" style="font-size:20px;color:var(--muted)"></i>
-                <span style="font-size:12px"><%= t('admin.dashboard.qa_bulk', 'Bulk Config') %></span>
-              </a>
+    <!-- ── MODAL EDIT SSID ── -->
+    <div class="mo" id="ssidModal">
+      <div class="mb">
+        <div class="mh"><span class="mt"><i class="bi bi-wifi"></i>
+            <%= t('admin.dashboard.edit_ssid', 'Ubah SSID' ) %>
+          </span><button class="mc" onclick="closeModal('ssidModal')">&times;</button></div>
+        <div class="mbody">
+          <input type="hidden" id="edit-tag">
+          <div class="fg"><label class="fl">
+              <%= t('admin.dashboard.new_ssid', 'SSID Baru' ) %>
+            </label><input class="fc" id="new-ssid"
+              placeholder="<%= t('admin.dashboard.new_ssid_placeholder', 'Nama WiFi baru') %>"></div>
+        </div>
+        <div class="mf">
+          <button class="btn btn-g" onclick="closeModal('ssidModal')">
+            <%= t('common.cancel', 'Batal' ) %>
+          </button>
+          <button class="btn btn-p" id="btn-save-ssid">
+            <span class="btn-text"><i class="bi bi-check-lg"></i>
+              <%= t('common.save', 'Simpan' ) %>
+            </span>
+            <span class="btn-loader" style="display:none"><i class="bi bi-arrow-clockwise spin"></i>
+              <%= t('common.processing', 'Memproses...' ) %>
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── MODAL EDIT PASSWORD ── -->
+    <div class="mo" id="passwordModal">
+      <div class="mb">
+        <div class="mh"><span class="mt"><i class="bi bi-key"></i>
+            <%= t('admin.dashboard.edit_wifi_password', 'Ubah Password WiFi' ) %>
+          </span><button class="mc" onclick="closeModal('passwordModal')">&times;</button></div>
+        <div class="mbody">
+          <input type="hidden" id="edit-pass-tag">
+          <div class="fg"><label class="fl">
+              <%= t('admin.dashboard.new_password', 'Password Baru' ) %>
+            </label><input class="fc" id="new-password" type="text"
+              placeholder="<%= t('admin.dashboard.new_password_placeholder', 'Minimal 8 karakter') %>"></div>
+        </div>
+        <div class="mf">
+          <button class="btn btn-g" onclick="closeModal('passwordModal')">
+            <%= t('common.cancel', 'Batal' ) %>
+          </button>
+          <button class="btn btn-s" id="btn-save-password">
+            <span class="btn-text"><i class="bi bi-check-lg"></i>
+              <%= t('common.save', 'Simpan' ) %>
+            </span>
+            <span class="btn-loader" style="display:none"><i class="bi bi-arrow-clockwise spin"></i>
+              <%= t('common.processing', 'Memproses...' ) %>
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── MODAL GENIEACS SETTINGS ── -->
+    <div class="mo" id="genieacsModal">
+      <div class="mb" style="max-width:600px">
+        <div class="mh">
+          <span class="mt"><i class="bi bi-gear"></i> Pengaturan GenieACS</span>
+          <button class="mc" onclick="closeModal('genieacsModal')">&times;</button>
+        </div>
+        <div class="mbody">
+          <form id="genieacsSettingsForm">
+            <div class="fg">
+              <label class="fl">Timeout (ms)</label>
+              <input type="number" class="fc" id="genieacs_timeout" name="genieacs_timeout"
+                value="<%= typeof settings !== 'undefined' && settings.genieacs_timeout ? settings.genieacs_timeout : 30000 %>"
+                min="5000" max="120000" step="1000">
+              <small class="text-muted" style="font-size:11px;display:block;margin-top:4px">Timeout untuk request ke
+                GenieACS (5000-120000 ms)</small>
             </div>
-          </div>
 
-          <!-- Top Offline Devices -->
-          <div class="card" style="flex:1">
-            <div class="card-hd">
-              <h6><i class="bi bi-exclamation-circle"></i> <%= t('admin.dashboard.latest_offline', 'ONU Offline Terbaru') %></h6>
-              <button class="btn btn-g btn-sm" onclick="showTab('monitoring')"><i class="bi bi-arrow-right"></i> <%= t('common.view_all', 'Lihat Semua') %></button>
+            <div class="fg">
+              <label class="fl">RX Power Threshold (dBm)</label>
+              <input type="number" class="fc" id="genieacs_rxpower_threshold" name="genieacs_rxpower_threshold"
+                value="<%= typeof settings !== 'undefined' && settings.genieacs_rxpower_threshold ? settings.genieacs_rxpower_threshold : -27 %>"
+                min="-40" max="-15" step="0.5">
+              <small class="text-muted" style="font-size:11px;display:block;margin-top:4px">Threshold untuk warning RX
+                Power (-40 sampai -15 dBm)</small>
             </div>
-            <div id="offline-list" style="padding:0">
-              <div class="text-center text-muted" style="padding:24px;font-size:13px"><%= t('common.loading', 'Memuat data...') %></div>
+
+            <div class="fg">
+              <label class="fl">Monitoring Interval (jam)</label>
+              <input type="number" class="fc" id="genieacs_monitoring_interval" name="genieacs_monitoring_interval"
+                value="<%= typeof settings !== 'undefined' && settings.genieacs_monitoring_interval ? settings.genieacs_monitoring_interval : 6 %>"
+                min="1" max="24" step="1">
+              <small class="text-muted" style="font-size:11px;display:block;margin-top:4px">Interval monitoring otomatis
+                (1-24 jam)</small>
             </div>
-          </div>
-      </div>
-    </div>
 
-    <!-- ═══════════════════════════════════════════════════════ -->
-    <!-- MONITORING ONU SECTION                                  -->
-    <!-- ═══════════════════════════════════════════════════════ -->
-    <div id="monitoring-section" style="display:none">
+            <div class="fg">
+              <label class="fl">Monitoring Enabled</label>
+              <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+                <input type="checkbox" id="genieacs_monitoring_enabled" name="genieacs_monitoring_enabled"
+                  style="width:40px;height:20px;cursor:pointer" <%=typeof settings !=='undefined' &&
+                  settings.genieacs_monitoring_enabled !==false ? 'checked' : '' %>>
+                <label for="genieacs_monitoring_enabled" style="cursor:pointer;font-size:13px;margin:0">
+                  Aktifkan monitoring otomatis RX Power & Offline Devices
+                </label>
+              </div>
+            </div>
 
-      <!-- Stats mini -->
-      <div class="stat-grid" style="margin-bottom:18px">
-        <div class="sc p"><i class="bi bi-router sc-icon"></i><div class="sc-label"><%= t('admin.dashboard.total_onu', 'Total ONU') %></div><div class="sc-val" id="m-total">-</div></div>
-        <div class="sc s"><i class="bi bi-wifi sc-icon"></i><div class="sc-label"><%= t('admin.dashboard.online', 'Online') %></div><div class="sc-val" id="m-online">-</div></div>
-        <div class="sc d"><i class="bi bi-wifi-off sc-icon"></i><div class="sc-label"><%= t('admin.dashboard.offline', 'Offline') %></div><div class="sc-val" id="m-offline">-</div></div>
-        <div class="sc i"><i class="bi bi-percent sc-icon"></i><div class="sc-label"><%= t('admin.dashboard.uptime', 'Uptime') %></div><div class="sc-val" id="m-pct">-%</div></div>
-      </div>
-
-      <!-- Search & Filter -->
-      <div class="srow" style="margin-bottom:16px">
-        <div class="sinput" style="max-width:320px">
-          <i class="bi bi-search"></i>
-          <input class="fc" id="search-device" placeholder="<%= t('admin.dashboard.search_placeholder', 'Cari tag, SN, atau username pppoe...') %>">
+            <div id="genieacsMessage"
+              style="display:none;margin-top:16px;padding:12px;border-radius:6px;font-size:13px"></div>
+          </form>
         </div>
-        <select class="fs" id="filter-status" style="width:150px" onchange="loadDevices()">
-          <option value="all"><%= t('common.all_status', 'Semua Status') %></option>
-          <option value="online"><%= t('admin.dashboard.online', 'Online') %></option>
-          <option value="offline"><%= t('admin.dashboard.offline', 'Offline') %></option>
-        </select>
-        <button class="btn btn-g btn-sm" onclick="openGenieACSSettings()" title="Pengaturan GenieACS">
-          <i class="bi bi-gear"></i> GenieACS
-        </button>
-        <button class="btn btn-p btn-sm" id="btn-refresh" onclick="refreshAll()">
-          <i class="bi bi-arrow-clockwise"></i> <%= t('common.refresh', 'Refresh') %>
-        </button>
-        <div class="realtime-bar" style="margin-left:auto">
-          <span class="live-dot"></span> <%= t('admin.dashboard.realtime', 'Realtime Monitoring') %>
-        </div>
-      </div>
-
-      <!-- Bulk Actions Panel -->
-      <div id="monBulkActionsPanel" style="display: none; background: rgba(59,130,246,0.05); border: 1px solid rgba(59,130,246,0.15); padding: 12px 20px; border-radius: 12px; margin-bottom: 16px; align-items: center; justify-content: space-between;">
-          <div style="font-size: 13px; font-weight: 600; color: var(--text);">
-              <span id="monSelectedCount">0</span> perangkat terpilih
-          </div>
-          <div style="display: flex; gap: 8px;">
-              <button class="btn btn-p btn-sm" onclick="bulkMonSummon()" style="background: var(--primary);"><i class="bi bi-lightning-charge"></i> Summon Terpilih</button>
-              <button class="btn btn-d btn-sm" onclick="bulkMonDelete()" style="background: var(--danger);"><i class="bi bi-trash"></i> Hapus Terpilih</button>
-          </div>
-      </div>
-
-      <!-- Device Table -->
-      <div class="card">
-        <div class="card-hd">
-          <h6><i class="bi bi-list-ul"></i> <%= t('admin.dashboard.onu_device_list', 'Daftar Perangkat ONU') %></h6>
-          <span id="device-count" class="badge bm"><%= t('common.loading_short', 'memuat...') %></span>
-        </div>
-        <div id="loading-devices" style="text-align:center;padding:32px;display:none">
-          <div style="display:inline-block;width:30px;height:30px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite"></div>
-          <div class="text-muted" style="margin-top:10px;font-size:13px"><%= t('admin.dashboard.loading_onu', 'Memuat data ONU...') %></div>
-        </div>
-        <div class="tbl-wrap">
-          <table class="dtbl">
-            <thead>
-              <tr>
-                <th style="width: 40px; text-align: center;"><input type="checkbox" id="selectAllMonDevices" onchange="toggleSelectAllMon(this)"></th>
-                <th>#</th>
-                <th><%= t('admin.dashboard.table.tag_customer', 'Tag / Pelanggan') %></th>
-                <th><%= t('admin.dashboard.table.device', 'Perangkat') %></th>
-                <th><%= t('admin.dashboard.table.network', 'Jaringan') %></th>
-                <th><%= t('admin.dashboard.table.status_info', 'Status / Info') %></th>
-                <th><%= t('admin.dashboard.table.actions', 'Aksi') %></th>
-              </tr>
-            </thead>
-            <tbody id="devices-tbody">
-              <tr><td colspan="7" class="text-center text-muted" style="padding:32px"><%= t('admin.dashboard.loading_devices', 'Memuat perangkat...') %></td></tr>
-            </tbody>
-          </table>
+        <div class="mf">
+          <button class="btn btn-g" onclick="testGenieACSConnection()">
+            <i class="bi bi-wifi"></i> Test Koneksi
+          </button>
+          <button class="btn btn-p" onclick="saveGenieACSSettings()">
+            <i class="bi bi-save"></i> Simpan
+          </button>
         </div>
       </div>
     </div>
-  </div>
-</div>
 
-<!-- ── MODAL DETAIL DEVICE ── -->
-<div class="mo" id="deviceModal">
-  <div class="mb" style="max-width:920px">
-    <div class="mh">
-      <span class="mt"><i class="bi bi-router"></i> <%= t('admin.dashboard.device_detail', 'Detail Perangkat') %></span>
-      <button class="mc" onclick="closeModal('deviceModal')">&times;</button>
-    </div>
-    <div class="mbody" id="device-detail" style="max-height:72vh;overflow:auto"><div class="text-muted text-center" style="padding:20px"><%= t('common.loading_short', 'Memuat...') %></div></div>
-    <div class="mf"><button class="btn btn-g" onclick="closeModal('deviceModal')"><%= t('common.close', 'Tutup') %></button></div>
-  </div>
-</div>
+    <style>
+      @keyframes spin {
+        to {
+          transform: rotate(360deg)
+        }
+      }
+    </style>
 
-<!-- ── MODAL EDIT SSID ── -->
-<div class="mo" id="ssidModal">
-  <div class="mb">
-    <div class="mh"><span class="mt"><i class="bi bi-wifi"></i> <%= t('admin.dashboard.edit_ssid', 'Ubah SSID') %></span><button class="mc" onclick="closeModal('ssidModal')">&times;</button></div>
-    <div class="mbody">
-      <input type="hidden" id="edit-tag">
-      <div class="fg"><label class="fl"><%= t('admin.dashboard.new_ssid', 'SSID Baru') %></label><input class="fc" id="new-ssid" placeholder="<%= t('admin.dashboard.new_ssid_placeholder', 'Nama WiFi baru') %>"></div>
-    </div>
-    <div class="mf">
-      <button class="btn btn-g" onclick="closeModal('ssidModal')"><%= t('common.cancel', 'Batal') %></button>
-      <button class="btn btn-p" id="btn-save-ssid">
-        <span class="btn-text"><i class="bi bi-check-lg"></i> <%= t('common.save', 'Simpan') %></span>
-        <span class="btn-loader" style="display:none"><i class="bi bi-arrow-clockwise spin"></i> <%= t('common.processing', 'Memproses...') %></span>
-      </button>
-    </div>
-  </div>
-</div>
+    <script>
+      // ── STATE ──────────────────────────────────────────────────────
+      let devicesData = [];
+      let donutChart = null;
 
-<!-- ── MODAL EDIT PASSWORD ── -->
-<div class="mo" id="passwordModal">
-  <div class="mb">
-    <div class="mh"><span class="mt"><i class="bi bi-key"></i> <%= t('admin.dashboard.edit_wifi_password', 'Ubah Password WiFi') %></span><button class="mc" onclick="closeModal('passwordModal')">&times;</button></div>
-    <div class="mbody">
-      <input type="hidden" id="edit-pass-tag">
-      <div class="fg"><label class="fl"><%= t('admin.dashboard.new_password', 'Password Baru') %></label><input class="fc" id="new-password" type="text" placeholder="<%= t('admin.dashboard.new_password_placeholder', 'Minimal 8 karakter') %>"></div>
-    </div>
-    <div class="mf">
-      <button class="btn btn-g" onclick="closeModal('passwordModal')"><%= t('common.cancel', 'Batal') %></button>
-      <button class="btn btn-s" id="btn-save-password">
-        <span class="btn-text"><i class="bi bi-check-lg"></i> <%= t('common.save', 'Simpan') %></span>
-        <span class="btn-loader" style="display:none"><i class="bi bi-arrow-clockwise spin"></i> <%= t('common.processing', 'Memproses...') %></span>
-      </button>
-    </div>
-  </div>
-</div>
+      function escHtml(s) {
+        return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      }
+      const I18N = {
+        pageDashboard: "<%= t('admin.nav.dashboard', 'Dashboard') %>",
+        pageMonitoring: "<%= t('admin.dashboard.monitoring_onu', 'Monitoring ONU') %>",
+        online: "<%= t('admin.dashboard.online', 'Online') %>",
+        offline: "<%= t('admin.dashboard.offline', 'Offline') %>",
+        allStatus: "<%= t('common.all_status', 'Semua Status') %>",
+        refresh: "<%= t('common.refresh', 'Refresh') %>",
+        devicesSuffix: " <%= t('admin.dashboard.devices_suffix', 'perangkat') %>",
+        loading: "<%= t('common.loading_short', 'Memuat...') %>",
+        loadingData: "<%= t('common.loading', 'Memuat data...') %>",
+        loadingOnu: "<%= t('admin.dashboard.loading_onu', 'Memuat data ONU...') %>",
+        loadingDevices: "<%= t('admin.dashboard.loading_devices', 'Memuat perangkat...') %>",
+        updatePrefix: "<%= t('admin.dashboard.update_prefix', 'Update:') %>",
+        allOnuOnline: "<%= t('admin.dashboard.all_onu_online', 'Semua ONU online!') %>",
+        never: "<%= t('admin.dashboard.never', 'Tidak pernah') %>",
+        secondsAgo: "<%= t('admin.dashboard.seconds_ago', 'detik lalu') %>",
+        minutesAgo: "<%= t('admin.dashboard.minutes_ago', 'menit lalu') %>",
+        hoursAgo: "<%= t('admin.dashboard.hours_ago', 'jam lalu') %>",
+        daysAgo: "<%= t('admin.dashboard.days_ago', 'hari lalu') %>",
+        rebootConfirmPrefix: "<%= t('admin.dashboard.reboot_confirm_prefix', 'Yakin reboot ONU:') %>",
+        rebootSent: "<%= t('admin.dashboard.reboot_sent', 'Reboot terkirim') %>",
+        failed: "<%= t('common.failed', 'Gagal') %>",
+        success: "<%= t('common.success', 'Berhasil') %>",
+        errorLoadData: "<%= t('admin.dashboard.load_failed', 'Gagal memuat data') %>",
+        noDevicesFound: "<%= t('admin.dashboard.no_devices_found', 'Tidak ada perangkat ditemukan') %>",
+        onuDevice: "<%= t('admin.dashboard.onu_device_fallback', 'ONU Device') %>",
+        noIp: "<%= t('admin.dashboard.no_ip', 'No IP') %>",
+        connectedSuffix: "<%= t('admin.dashboard.connected_suffix', 'dev tersambung') %>",
+        titleDetail: "<%= t('common.details', 'Detail') %>",
+        titleEditSsid: "<%= t('admin.dashboard.edit_ssid', 'Ubah SSID') %>",
+        titleEditPassword: "<%= t('admin.dashboard.edit_password', 'Ubah Password') %>",
+        titleReboot: "<%= t('admin.dashboard.reboot', 'Reboot') %>",
+        ssidRequired: "<%= t('admin.dashboard.ssid_required', 'SSID tidak boleh kosong') %>",
+        ssidSent: "<%= t('admin.dashboard.ssid_sent', 'Perubahan SSID telah dikirim ke perangkat.') %>",
+        ssidFailed: "<%= t('admin.dashboard.ssid_failed', 'Gagal mengubah SSID.') %>",
+        passwordMin: "<%= t('admin.dashboard.password_min', 'Password minimal 8 karakter') %>",
+        passwordSent: "<%= t('admin.dashboard.password_sent', 'Perubahan Password telah dikirim ke perangkat.') %>",
+        passwordFailed: "<%= t('admin.dashboard.password_failed', 'Gagal mengubah password.') %>",
+        connectionError: "<%= t('admin.dashboard.connection_error', 'Terjadi kesalahan koneksi.') %>",
+        connectedDevicesTitlePrefix: "<%= t('admin.dashboard.connected_devices', 'Perangkat Terhubung') %>",
+        noConnectedDevices: "<%= t('admin.dashboard.no_connected_devices', 'Tidak ada perangkat terhubung') %>",
+        detailLoadFailed: "<%= t('admin.dashboard.detail_load_failed', 'Gagal memuat detail') %>",
+        offlineBadge: "<%= t('admin.dashboard.offline', 'Offline') %>"
+      };
 
-<!-- ── MODAL GENIEACS SETTINGS ── -->
-<div class="mo" id="genieacsModal">
-  <div class="mb" style="max-width:600px">
-    <div class="mh">
-      <span class="mt"><i class="bi bi-gear"></i> Pengaturan GenieACS</span>
-      <button class="mc" onclick="closeModal('genieacsModal')">&times;</button>
-    </div>
-    <div class="mbody">
-      <form id="genieacsSettingsForm">
-        <div class="fg">
-          <label class="fl">Timeout (ms)</label>
-          <input type="number" class="fc" id="genieacs_timeout" name="genieacs_timeout" 
-                 value="<%= typeof settings !== 'undefined' && settings.genieacs_timeout ? settings.genieacs_timeout : 30000 %>" 
-                 min="5000" max="120000" step="1000">
-          <small class="text-muted" style="font-size:11px;display:block;margin-top:4px">Timeout untuk request ke GenieACS (5000-120000 ms)</small>
-        </div>
-        
-        <div class="fg">
-          <label class="fl">RX Power Threshold (dBm)</label>
-          <input type="number" class="fc" id="genieacs_rxpower_threshold" name="genieacs_rxpower_threshold" 
-                 value="<%= typeof settings !== 'undefined' && settings.genieacs_rxpower_threshold ? settings.genieacs_rxpower_threshold : -27 %>" 
-                 min="-40" max="-15" step="0.5">
-          <small class="text-muted" style="font-size:11px;display:block;margin-top:4px">Threshold untuk warning RX Power (-40 sampai -15 dBm)</small>
-        </div>
+      // ── TABS ───────────────────────────────────────────────────────
+      function showTab(tab) {
+        const isDash = tab === 'dashboard';
+        document.getElementById('dashboard-section').style.display = isDash ? 'block' : 'none';
+        document.getElementById('monitoring-section').style.display = isDash ? 'none' : 'block';
+        document.getElementById('tab-dash').classList.toggle('active', isDash);
+        document.getElementById('tab-mon').classList.toggle('active', !isDash);
+        document.getElementById('page-title').textContent = isDash ? I18N.pageDashboard : I18N.pageMonitoring;
+        if (!isDash) loadDevices();
+      }
 
-        <div class="fg">
-          <label class="fl">Monitoring Interval (jam)</label>
-          <input type="number" class="fc" id="genieacs_monitoring_interval" name="genieacs_monitoring_interval" 
-                 value="<%= typeof settings !== 'undefined' && settings.genieacs_monitoring_interval ? settings.genieacs_monitoring_interval : 6 %>" 
-                 min="1" max="24" step="1">
-          <small class="text-muted" style="font-size:11px;display:block;margin-top:4px">Interval monitoring otomatis (1-24 jam)</small>
-        </div>
-        
-        <div class="fg">
-          <label class="fl">Monitoring Enabled</label>
-          <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
-            <input type="checkbox" id="genieacs_monitoring_enabled" name="genieacs_monitoring_enabled" 
-                   style="width:40px;height:20px;cursor:pointer"
-                   <%= typeof settings !== 'undefined' && settings.genieacs_monitoring_enabled !== false ? 'checked' : '' %>>
-            <label for="genieacs_monitoring_enabled" style="cursor:pointer;font-size:13px;margin:0">
-              Aktifkan monitoring otomatis RX Power & Offline Devices
-            </label>
-          </div>
-        </div>
+      // ── MODAL HELPERS ──────────────────────────────────────────────
+      function openModal(id) { document.getElementById(id).classList.add('show'); }
+      function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+      document.querySelectorAll('.mo').forEach(m => m.addEventListener('click', e => { if (e.target === m) m.classList.remove('show'); }));
 
-        <div id="genieacsMessage" style="display:none;margin-top:16px;padding:12px;border-radius:6px;font-size:13px"></div>
-      </form>
-    </div>
-    <div class="mf">
-      <button class="btn btn-g" onclick="testGenieACSConnection()">
-        <i class="bi bi-wifi"></i> Test Koneksi
-      </button>
-      <button class="btn btn-p" onclick="saveGenieACSSettings()">
-        <i class="bi bi-save"></i> Simpan
-      </button>
-    </div>
-  </div>
-</div>
+      // ── LOAD STATS ─────────────────────────────────────────────────
+      async function loadStats() {
+        try {
+          const res = await fetch('/admin/api/stats');
+          const d = await res.json();
+          const total = d.total || 0;
+          const online = d.online || 0;
+          const offline = d.offline || 0;
+          const pct = total > 0 ? Math.round(online / total * 100) : 0;
 
-<style>
-@keyframes spin{to{transform:rotate(360deg)}}
-</style>
+          // Dashboard stats
+          document.getElementById('stat-total').textContent = total;
+          document.getElementById('stat-online').textContent = online;
+          document.getElementById('stat-offline').textContent = offline;
+          document.getElementById('stat-warning').textContent = d.warning || 0;
 
-<script>
-// ── STATE ──────────────────────────────────────────────────────
-let devicesData = [];
-let donutChart = null;
+          // Customer / PPPoE stats
+          if (d.customerStats) {
+            const pActive = document.getElementById('stat-pppoe-active');
+            const pSusp = document.getElementById('stat-pppoe-suspended');
+            const pOff = document.getElementById('stat-pppoe-offline');
+            if (pActive) pActive.textContent = d.customerStats.active ?? 0;
+            if (pSusp) pSusp.textContent = d.customerStats.suspended ?? 0;
+            if (pOff) pOff.textContent = d.customerStats.offline ?? 0;
+          }
 
-function escHtml(s) {
-  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-}
-const I18N = {
-  pageDashboard: "<%= t('admin.nav.dashboard', 'Dashboard') %>",
-  pageMonitoring: "<%= t('admin.dashboard.monitoring_onu', 'Monitoring ONU') %>",
-  online: "<%= t('admin.dashboard.online', 'Online') %>",
-  offline: "<%= t('admin.dashboard.offline', 'Offline') %>",
-  allStatus: "<%= t('common.all_status', 'Semua Status') %>",
-  refresh: "<%= t('common.refresh', 'Refresh') %>",
-  devicesSuffix: " <%= t('admin.dashboard.devices_suffix', 'perangkat') %>",
-  loading: "<%= t('common.loading_short', 'Memuat...') %>",
-  loadingData: "<%= t('common.loading', 'Memuat data...') %>",
-  loadingOnu: "<%= t('admin.dashboard.loading_onu', 'Memuat data ONU...') %>",
-  loadingDevices: "<%= t('admin.dashboard.loading_devices', 'Memuat perangkat...') %>",
-  updatePrefix: "<%= t('admin.dashboard.update_prefix', 'Update:') %>",
-  allOnuOnline: "<%= t('admin.dashboard.all_onu_online', 'Semua ONU online!') %>",
-  never: "<%= t('admin.dashboard.never', 'Tidak pernah') %>",
-  secondsAgo: "<%= t('admin.dashboard.seconds_ago', 'detik lalu') %>",
-  minutesAgo: "<%= t('admin.dashboard.minutes_ago', 'menit lalu') %>",
-  hoursAgo: "<%= t('admin.dashboard.hours_ago', 'jam lalu') %>",
-  daysAgo: "<%= t('admin.dashboard.days_ago', 'hari lalu') %>",
-  rebootConfirmPrefix: "<%= t('admin.dashboard.reboot_confirm_prefix', 'Yakin reboot ONU:') %>",
-  rebootSent: "<%= t('admin.dashboard.reboot_sent', 'Reboot terkirim') %>",
-  failed: "<%= t('common.failed', 'Gagal') %>",
-  success: "<%= t('common.success', 'Berhasil') %>",
-  errorLoadData: "<%= t('admin.dashboard.load_failed', 'Gagal memuat data') %>",
-  noDevicesFound: "<%= t('admin.dashboard.no_devices_found', 'Tidak ada perangkat ditemukan') %>",
-  onuDevice: "<%= t('admin.dashboard.onu_device_fallback', 'ONU Device') %>",
-  noIp: "<%= t('admin.dashboard.no_ip', 'No IP') %>",
-  connectedSuffix: "<%= t('admin.dashboard.connected_suffix', 'dev tersambung') %>",
-  titleDetail: "<%= t('common.details', 'Detail') %>",
-  titleEditSsid: "<%= t('admin.dashboard.edit_ssid', 'Ubah SSID') %>",
-  titleEditPassword: "<%= t('admin.dashboard.edit_password', 'Ubah Password') %>",
-  titleReboot: "<%= t('admin.dashboard.reboot', 'Reboot') %>",
-  ssidRequired: "<%= t('admin.dashboard.ssid_required', 'SSID tidak boleh kosong') %>",
-  ssidSent: "<%= t('admin.dashboard.ssid_sent', 'Perubahan SSID telah dikirim ke perangkat.') %>",
-  ssidFailed: "<%= t('admin.dashboard.ssid_failed', 'Gagal mengubah SSID.') %>",
-  passwordMin: "<%= t('admin.dashboard.password_min', 'Password minimal 8 karakter') %>",
-  passwordSent: "<%= t('admin.dashboard.password_sent', 'Perubahan Password telah dikirim ke perangkat.') %>",
-  passwordFailed: "<%= t('admin.dashboard.password_failed', 'Gagal mengubah password.') %>",
-  connectionError: "<%= t('admin.dashboard.connection_error', 'Terjadi kesalahan koneksi.') %>",
-  connectedDevicesTitlePrefix: "<%= t('admin.dashboard.connected_devices', 'Perangkat Terhubung') %>",
-  noConnectedDevices: "<%= t('admin.dashboard.no_connected_devices', 'Tidak ada perangkat terhubung') %>",
-  detailLoadFailed: "<%= t('admin.dashboard.detail_load_failed', 'Gagal memuat detail') %>",
-  offlineBadge: "<%= t('admin.dashboard.offline', 'Offline') %>"
-};
+          // Monitoring mini stats
+          document.getElementById('m-total').textContent = total;
+          document.getElementById('m-online').textContent = online;
+          document.getElementById('m-offline').textContent = offline;
+          document.getElementById('m-pct').textContent = pct + '%';
 
-// ── TABS ───────────────────────────────────────────────────────
-function showTab(tab) {
-  const isDash = tab === 'dashboard';
-  document.getElementById('dashboard-section').style.display = isDash ? 'block' : 'none';
-  document.getElementById('monitoring-section').style.display = isDash ? 'none' : 'block';
-  document.getElementById('tab-dash').classList.toggle('active', isDash);
-  document.getElementById('tab-mon').classList.toggle('active', !isDash);
-  document.getElementById('page-title').textContent = isDash ? I18N.pageDashboard : I18N.pageMonitoring;
-  if (!isDash) loadDevices();
-}
+          // Donut
+          const donutPct = document.getElementById('donut-pct');
+          const legOnline = document.getElementById('leg-online');
+          const legOffline = document.getElementById('leg-offline');
+          const lastUpdate = document.getElementById('last-update-time');
+          if (donutPct) donutPct.textContent = pct + '%';
+          if (legOnline) legOnline.textContent = online;
+          if (legOffline) legOffline.textContent = offline;
+          if (lastUpdate) lastUpdate.textContent = I18N.updatePrefix + ' ' + new Date().toLocaleTimeString('id-ID', { timeZone: '<%= settings.timezone %>' });
 
-// ── MODAL HELPERS ──────────────────────────────────────────────
-function openModal(id) { document.getElementById(id).classList.add('show'); }
-function closeModal(id) { document.getElementById(id).classList.remove('show'); }
-document.querySelectorAll('.mo').forEach(m => m.addEventListener('click', e => { if (e.target === m) m.classList.remove('show'); }));
+          updateDonut(online, offline);
+        } catch (e) { console.error('Stats error:', e); }
+      }
 
-// ── LOAD STATS ─────────────────────────────────────────────────
-async function loadStats() {
-  try {
-    const res = await fetch('/admin/api/stats');
-    const d   = await res.json();
-    const total   = d.total   || 0;
-    const online  = d.online  || 0;
-    const offline = d.offline || 0;
-    const pct     = total > 0 ? Math.round(online / total * 100) : 0;
+      // ── DONUT CHART ────────────────────────────────────────────────
+      function updateDonut(online, offline) {
+        const ctx = document.getElementById('donutChart');
+        if (!ctx) return;
+        if (donutChart) { donutChart.data.datasets[0].data = [online, offline]; donutChart.update(); return; }
+        donutChart = new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            datasets: [{
+              data: [online, offline],
+              backgroundColor: ['#3fb950', '#f85149'],
+              borderWidth: 0,
+              hoverOffset: 4
+            }]
+          },
+          options: {
+            cutout: '72%',
+            plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.label + ': ' + ctx.raw } } },
+            animation: { animateRotate: true, duration: 600 }
+          }
+        });
+      }
 
-    // Dashboard stats
-    document.getElementById('stat-total').textContent   = total;
-    document.getElementById('stat-online').textContent  = online;
-    document.getElementById('stat-offline').textContent = offline;
-    document.getElementById('stat-warning').textContent = d.warning || 0;
+      // ── LOAD DEVICES ───────────────────────────────────────────────
+      async function loadDevices() {
+        const tbody = document.getElementById('devices-tbody');
+        const loading = document.getElementById('loading-devices');
+        loading.style.display = 'block';
+        tbody.innerHTML = '';
 
-    // Customer / PPPoE stats
-    if (d.customerStats) {
-      const pActive = document.getElementById('stat-pppoe-active');
-      const pSusp = document.getElementById('stat-pppoe-suspended');
-      const pOff = document.getElementById('stat-pppoe-offline');
-      if (pActive) pActive.textContent = d.customerStats.active ?? 0;
-      if (pSusp) pSusp.textContent = d.customerStats.suspended ?? 0;
-      if (pOff) pOff.textContent = d.customerStats.offline ?? 0;
-    }
+        try {
+          const search = document.getElementById('search-device')?.value || '';
+          const status = document.getElementById('filter-status')?.value || 'all';
+          const params = new URLSearchParams();
+          if (search) params.set('search', search);
+          if (status && status !== 'all') params.set('status', status);
+          let url = '/admin/api/devices';
+          const qs = params.toString();
+          if (qs) url += '?' + qs;
 
-    // Monitoring mini stats
-    document.getElementById('m-total').textContent  = total;
-    document.getElementById('m-online').textContent = online;
-    document.getElementById('m-offline').textContent= offline;
-    document.getElementById('m-pct').textContent    = pct + '%';
+          const res = await fetch(url);
+          const data = await res.json();
+          if (data && data.error) throw new Error(data.error);
+          devicesData = data.devices || [];
 
-    // Donut
-    const donutPct = document.getElementById('donut-pct');
-    const legOnline = document.getElementById('leg-online');
-    const legOffline = document.getElementById('leg-offline');
-    const lastUpdate = document.getElementById('last-update-time');
-    if (donutPct) donutPct.textContent = pct + '%';
-    if (legOnline) legOnline.textContent = online;
-    if (legOffline) legOffline.textContent = offline;
-    if (lastUpdate) lastUpdate.textContent = I18N.updatePrefix + ' ' + new Date().toLocaleTimeString('id-ID', { timeZone: '<%= settings.timezone %>' });
+          document.getElementById('device-count').textContent = devicesData.length + I18N.devicesSuffix;
 
-    updateDonut(online, offline);
-  } catch(e) { console.error('Stats error:', e); }
-}
-
-// ── DONUT CHART ────────────────────────────────────────────────
-function updateDonut(online, offline) {
-  const ctx = document.getElementById('donutChart');
-  if (!ctx) return;
-  if (donutChart) { donutChart.data.datasets[0].data = [online, offline]; donutChart.update(); return; }
-  donutChart = new Chart(ctx, {
-    type: 'doughnut',
-    data: {
-      datasets: [{
-        data: [online, offline],
-        backgroundColor: ['#3fb950', '#f85149'],
-        borderWidth: 0,
-        hoverOffset: 4
-      }]
-    },
-    options: {
-      cutout: '72%',
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.label + ': ' + ctx.raw } } },
-      animation: { animateRotate: true, duration: 600 }
-    }
-  });
-}
-
-// ── LOAD DEVICES ───────────────────────────────────────────────
-async function loadDevices() {
-  const tbody   = document.getElementById('devices-tbody');
-  const loading = document.getElementById('loading-devices');
-  loading.style.display = 'block';
-  tbody.innerHTML = '';
-
-  try {
-    const search = document.getElementById('search-device')?.value || '';
-    const status = document.getElementById('filter-status')?.value || 'all';
-    const params = new URLSearchParams();
-    if (search) params.set('search', search);
-    if (status && status !== 'all') params.set('status', status);
-    let url = '/admin/api/devices';
-    const qs = params.toString();
-    if (qs) url += '?' + qs;
-
-    const res = await fetch(url);
-    const data = await res.json();
-    if (data && data.error) throw new Error(data.error);
-    devicesData = data.devices || [];
-
-    document.getElementById('device-count').textContent = devicesData.length + I18N.devicesSuffix;
-
-    if (devicesData.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted" style="padding:32px">' + I18N.noDevicesFound + '</td></tr>';
-    } else {
-      tbody.innerHTML = devicesData.map((d, i) => {
-        const isOn = d.status === 'online';
-        const tagStr = (Array.isArray(d.tags) && d.tags.length > 0) ? d.tags.join(', ') : (d.phone || '-');
-        const custNameStr = d.customerName && d.customerName !== '-' ? d.customerName : '';
-        const lastInformStr = d.lastInform ? new Date(d.lastInform).toLocaleString('id-ID', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '-';
-        return `<tr>
+          if (devicesData.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted" style="padding:32px">' + I18N.noDevicesFound + '</td></tr>';
+          } else {
+            tbody.innerHTML = devicesData.map((d, i) => {
+              const isOn = d.status === 'online';
+              const tagStr = (Array.isArray(d.tags) && d.tags.length > 0) ? d.tags.join(', ') : (d.phone || '-');
+              const custNameStr = d.customerName && d.customerName !== '-' ? d.customerName : '';
+              const lastInformStr = d.lastInform ? new Date(d.lastInform).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
+              return `<tr>
           <td style="text-align: center;">
             <input type="checkbox" class="mon-device-checkbox" data-id="${d.id}" data-acs="${d.acs_server_id || 'legacy'}" onchange="updateMonBulkPanel()">
           </td>
@@ -816,50 +1173,50 @@ async function loadDevices() {
             </div>
           </td>
         </tr>`;
-      }).join('');
+            }).join('');
 
-      // Bind event listeners for actions to prevent quote escaping HTML issues
-      tbody.querySelectorAll('.btn-dev-detail').forEach(btn => {
-        btn.addEventListener('click', function() { showDetail(this.getAttribute('data-tag')); });
-      });
-      tbody.querySelectorAll('.btn-dev-summon').forEach(btn => {
-        btn.addEventListener('click', function() { summonMonDevice(this.getAttribute('data-id'), this.getAttribute('data-acs')); });
-      });
-      tbody.querySelectorAll('.btn-dev-wifi').forEach(btn => {
-        btn.addEventListener('click', function() { editSsid(this.getAttribute('data-tag'), this.getAttribute('data-ssid')); });
-      });
-      tbody.querySelectorAll('.btn-dev-pass').forEach(btn => {
-        btn.addEventListener('click', function() { editPassword(this.getAttribute('data-tag')); });
-      });
-      tbody.querySelectorAll('.btn-dev-reboot').forEach(btn => {
-        btn.addEventListener('click', function() { rebootDevice(this.getAttribute('data-tag')); });
-      });
-      tbody.querySelectorAll('.btn-dev-delete').forEach(btn => {
-        btn.addEventListener('click', function() { deleteMonDevice(this.getAttribute('data-id'), this.getAttribute('data-acs')); });
-      });
-    }
+            // Bind event listeners for actions to prevent quote escaping HTML issues
+            tbody.querySelectorAll('.btn-dev-detail').forEach(btn => {
+              btn.addEventListener('click', function () { showDetail(this.getAttribute('data-tag')); });
+            });
+            tbody.querySelectorAll('.btn-dev-summon').forEach(btn => {
+              btn.addEventListener('click', function () { summonMonDevice(this.getAttribute('data-id'), this.getAttribute('data-acs')); });
+            });
+            tbody.querySelectorAll('.btn-dev-wifi').forEach(btn => {
+              btn.addEventListener('click', function () { editSsid(this.getAttribute('data-tag'), this.getAttribute('data-ssid')); });
+            });
+            tbody.querySelectorAll('.btn-dev-pass').forEach(btn => {
+              btn.addEventListener('click', function () { editPassword(this.getAttribute('data-tag')); });
+            });
+            tbody.querySelectorAll('.btn-dev-reboot').forEach(btn => {
+              btn.addEventListener('click', function () { rebootDevice(this.getAttribute('data-tag')); });
+            });
+            tbody.querySelectorAll('.btn-dev-delete').forEach(btn => {
+              btn.addEventListener('click', function () { deleteMonDevice(this.getAttribute('data-id'), this.getAttribute('data-acs')); });
+            });
+          }
 
-    // Update offline list on dashboard
-    renderOfflineList(devicesData.filter(d => d.status === 'offline').slice(0, 5));
+          // Update offline list on dashboard
+          renderOfflineList(devicesData.filter(d => d.status === 'offline').slice(0, 5));
 
-  } catch(e) {
-    tbody.innerHTML = '<tr><td colspan="7" class="text-center" style="padding:32px;color:var(--danger)"><i class="bi bi-exclamation-circle"></i> ' + I18N.errorLoadData + '</td></tr>';
-  } finally {
-    loading.style.display = 'none';
-  }
-}
+        } catch (e) {
+          tbody.innerHTML = '<tr><td colspan="7" class="text-center" style="padding:32px;color:var(--danger)"><i class="bi bi-exclamation-circle"></i> ' + I18N.errorLoadData + '</td></tr>';
+        } finally {
+          loading.style.display = 'none';
+        }
+      }
 
-// ── OFFLINE LIST (dashboard) ───────────────────────────────────
-function renderOfflineList(offlineDevices) {
-  const el = document.getElementById('offline-list');
-  if (!el) return;
-  if (offlineDevices.length === 0) {
-    el.innerHTML = '<div class="text-center" style="padding:24px;font-size:13px;color:var(--success)"><i class="bi bi-check-circle-fill"></i> ' + I18N.allOnuOnline + '</div>';
-    return;
-  }
-  el.innerHTML = offlineDevices.map(d => {
-    const ago = d.lastInform ? timeSince(new Date(d.lastInform)) : I18N.never;
-    return `<div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+      // ── OFFLINE LIST (dashboard) ───────────────────────────────────
+      function renderOfflineList(offlineDevices) {
+        const el = document.getElementById('offline-list');
+        if (!el) return;
+        if (offlineDevices.length === 0) {
+          el.innerHTML = '<div class="text-center" style="padding:24px;font-size:13px;color:var(--success)"><i class="bi bi-check-circle-fill"></i> ' + I18N.allOnuOnline + '</div>';
+          return;
+        }
+        el.innerHTML = offlineDevices.map(d => {
+          const ago = d.lastInform ? timeSince(new Date(d.lastInform)) : I18N.never;
+          return `<div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
       <div>
         <div style="font-size:13px;font-weight:600">${d.tags.join(', ') || '-'}</div>
         <div style="font-size:11px;color:var(--muted)">${d.serialNumber}</div>
@@ -869,28 +1226,28 @@ function renderOfflineList(offlineDevices) {
         <div style="font-size:11px;color:var(--muted);margin-top:3px">${ago}</div>
       </div>
     </div>`;
-  }).join('');
-}
+        }).join('');
+      }
 
-function timeSince(date) {
-  const sec = Math.floor((Date.now() - date) / 1000);
-  if (sec < 60) return sec + ' ' + I18N.secondsAgo;
-  if (sec < 3600) return Math.floor(sec/60) + ' ' + I18N.minutesAgo;
-  if (sec < 86400) return Math.floor(sec/3600) + ' ' + I18N.hoursAgo;
-  return Math.floor(sec/86400) + ' ' + I18N.daysAgo;
-}
+      function timeSince(date) {
+        const sec = Math.floor((Date.now() - date) / 1000);
+        if (sec < 60) return sec + ' ' + I18N.secondsAgo;
+        if (sec < 3600) return Math.floor(sec / 60) + ' ' + I18N.minutesAgo;
+        if (sec < 86400) return Math.floor(sec / 3600) + ' ' + I18N.hoursAgo;
+        return Math.floor(sec / 86400) + ' ' + I18N.daysAgo;
+      }
 
-// ── DEVICE ACTIONS ─────────────────────────────────────────────
-async function showDetail(tag) {
-  openModal('deviceModal');
-  document.getElementById('device-detail').innerHTML = '<div class="text-muted text-center" style="padding:20px">' + I18N.loading + '</div>';
-  try {
-    const res = await fetch('/admin/api/device/' + encodeURIComponent(tag));
-    const d   = await res.json();
-    const isOn = String(d.status || '').toLowerCase() === 'online';
-    const lastInformText = d.lastInform ? new Date(d.lastInform).toLocaleString('id-ID', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '-';
-    const connected = Array.isArray(d.connectedUsers) ? d.connectedUsers : [];
-    document.getElementById('device-detail').innerHTML = `
+      // ── DEVICE ACTIONS ─────────────────────────────────────────────
+      async function showDetail(tag) {
+        openModal('deviceModal');
+        document.getElementById('device-detail').innerHTML = '<div class="text-muted text-center" style="padding:20px">' + I18N.loading + '</div>';
+        try {
+          const res = await fetch('/admin/api/device/' + encodeURIComponent(tag));
+          const d = await res.json();
+          const isOn = String(d.status || '').toLowerCase() === 'online';
+          const lastInformText = d.lastInform ? new Date(d.lastInform).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
+          const connected = Array.isArray(d.connectedUsers) ? d.connectedUsers : [];
+          document.getElementById('device-detail').innerHTML = `
       <div style="padding:14px 16px;border-radius:12px;margin-bottom:16px;font-weight:700;border:1px solid var(--border);background:${isOn ? 'rgba(16,185,129,.10)' : 'rgba(239,68,68,.10)'};color:${isOn ? 'var(--success)' : 'var(--danger)'}">
         <i class="bi bi-circle-fill" style="font-size:10px"></i>
         ${isOn ? I18N.online : I18N.offline}
@@ -957,156 +1314,156 @@ async function showDetail(tag) {
       </div>
     `;
 
-    document.getElementById('device-detail').querySelectorAll('.btn-delete-host').forEach(btn => {
-      btn.addEventListener('click', function() {
-        deleteConnectedClientModal(this.getAttribute('data-tag'), this.getAttribute('data-mac'), this.getAttribute('data-ip'), this.getAttribute('data-name'));
+          document.getElementById('device-detail').querySelectorAll('.btn-delete-host').forEach(btn => {
+            btn.addEventListener('click', function () {
+              deleteConnectedClientModal(this.getAttribute('data-tag'), this.getAttribute('data-mac'), this.getAttribute('data-ip'), this.getAttribute('data-name'));
+            });
+          });
+        } catch (e) { document.getElementById('device-detail').innerHTML = '<p class="text-muted text-center" style="padding:20px">' + I18N.detailLoadFailed + '</p>'; }
+      }
+
+      async function deleteConnectedClientModal(tag, mac, ip, hostname) {
+        if (!confirm(`Apakah Anda yakin ingin menghapus perangkat "${hostname}" (${mac || ip}) dari daftar terhubung?`)) return;
+        try {
+          const res = await fetch('/admin/api/device/' + encodeURIComponent(tag) + '/connected-clients/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mac, ip })
+          });
+          const data = await res.json();
+          showToast(data.message || (data.ok ? 'Perangkat terhubung dihapus' : 'Gagal menghapus'), data.ok ? 's' : 'd');
+          if (data.ok) {
+            showDetail(tag);
+          }
+        } catch (e) {
+          showToast('Error: ' + e.message, 'd');
+        }
+      }
+
+      async function enableRemoteWebOnt(tag) {
+        try {
+          const res = await fetch('/admin/api/device/' + encodeURIComponent(tag) + '/enable-remote-web', { method: 'POST' });
+          const data = await res.json();
+          showToast(data.message || (data.ok ? 'Perintah Remote Web dikirim' : 'Gagal'), data.ok ? 's' : 'd');
+        } catch (e) {
+          showToast('Error: ' + e.message, 'd');
+        }
+      }
+
+      async function fixRadiusMikrotikAccess() {
+        if (!confirm('Terapkan aturan NAT Masquerade, Proxy-ARP, dan Forward Filter di MikroTik untuk mengizinkan akses Web ONT RADIUS?')) return;
+        try {
+          const res = await fetch('/admin/api/mikrotik/setup-remote-access', { method: 'POST' });
+          const data = await res.json();
+          showToast(data.message || (data.ok ? 'Aturan MikroTik diterapkan' : 'Gagal'), data.ok ? 's' : 'd');
+        } catch (e) {
+          showToast('Error: ' + e.message, 'd');
+        }
+      }
+
+      function editSsid(tag, currentSsid) { document.getElementById('edit-tag').value = tag; document.getElementById('new-ssid').value = (currentSsid && currentSsid !== '-') ? currentSsid : ''; openModal('ssidModal'); }
+      function editPassword(tag) { document.getElementById('edit-pass-tag').value = tag; document.getElementById('new-password').value = ''; openModal('passwordModal'); }
+
+      async function rebootDevice(tag) {
+        if (!confirm(I18N.rebootConfirmPrefix + ' ' + tag + '?')) return;
+        try {
+          const res = await fetch('/admin/api/device/' + encodeURIComponent(tag) + '/reboot', { method: 'POST' });
+          const data = await res.json();
+          showToast(data.message || (data.ok ? I18N.rebootSent : I18N.failed), data.ok ? 's' : 'd');
+        } catch (e) { showToast('Error: ' + e.message, 'd'); }
+      }
+
+      document.getElementById('btn-save-ssid').addEventListener('click', async function () {
+        const btn = this;
+        const txt = btn.querySelector('.btn-text');
+        const ldr = btn.querySelector('.btn-loader');
+        const tag = document.getElementById('edit-tag').value;
+        const ssid = document.getElementById('new-ssid').value.trim();
+
+        if (!ssid) return showToast(I18N.ssidRequired, 'd');
+
+        btn.disabled = true;
+        txt.style.display = 'none';
+        ldr.style.display = 'inline-block';
+
+        try {
+          const res = await fetch('/admin/api/device/' + encodeURIComponent(tag) + '/ssid', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ssid })
+          });
+          const data = await res.json();
+          if (data.success) {
+            showToast(I18N.ssidSent, 's');
+            closeModal('ssidModal');
+            setTimeout(loadDevices, 2000);
+          } else {
+            showToast(data.message || I18N.ssidFailed, 'd');
+          }
+        } catch (e) {
+          showToast(I18N.connectionError, 'd');
+        } finally {
+          btn.disabled = false;
+          txt.style.display = 'inline-block';
+          ldr.style.display = 'none';
+        }
       });
-    });
-  } catch(e) { document.getElementById('device-detail').innerHTML = '<p class="text-muted text-center" style="padding:20px">' + I18N.detailLoadFailed + '</p>'; }
-}
 
-async function deleteConnectedClientModal(tag, mac, ip, hostname) {
-  if (!confirm(`Apakah Anda yakin ingin menghapus perangkat "${hostname}" (${mac || ip}) dari daftar terhubung?`)) return;
-  try {
-    const res = await fetch('/admin/api/device/' + encodeURIComponent(tag) + '/connected-clients/delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mac, ip })
-    });
-    const data = await res.json();
-    showToast(data.message || (data.ok ? 'Perangkat terhubung dihapus' : 'Gagal menghapus'), data.ok ? 's' : 'd');
-    if (data.ok) {
-      showDetail(tag);
-    }
-  } catch (e) {
-    showToast('Error: ' + e.message, 'd');
-  }
-}
+      document.getElementById('btn-save-password').addEventListener('click', async function () {
+        const btn = this;
+        const txt = btn.querySelector('.btn-text');
+        const ldr = btn.querySelector('.btn-loader');
+        const tag = document.getElementById('edit-pass-tag').value;
+        const pass = document.getElementById('new-password').value;
 
-async function enableRemoteWebOnt(tag) {
-  try {
-    const res = await fetch('/admin/api/device/' + encodeURIComponent(tag) + '/enable-remote-web', { method: 'POST' });
-    const data = await res.json();
-    showToast(data.message || (data.ok ? 'Perintah Remote Web dikirim' : 'Gagal'), data.ok ? 's' : 'd');
-  } catch (e) {
-    showToast('Error: ' + e.message, 'd');
-  }
-}
+        if (!pass || pass.length < 8) return showToast(I18N.passwordMin, 'd');
 
-async function fixRadiusMikrotikAccess() {
-  if (!confirm('Terapkan aturan NAT Masquerade, Proxy-ARP, dan Forward Filter di MikroTik untuk mengizinkan akses Web ONT RADIUS?')) return;
-  try {
-    const res = await fetch('/admin/api/mikrotik/setup-remote-access', { method: 'POST' });
-    const data = await res.json();
-    showToast(data.message || (data.ok ? 'Aturan MikroTik diterapkan' : 'Gagal'), data.ok ? 's' : 'd');
-  } catch (e) {
-    showToast('Error: ' + e.message, 'd');
-  }
-}
+        btn.disabled = true;
+        txt.style.display = 'none';
+        ldr.style.display = 'inline-block';
 
-function editSsid(tag, currentSsid) { document.getElementById('edit-tag').value = tag; document.getElementById('new-ssid').value = (currentSsid && currentSsid !== '-') ? currentSsid : ''; openModal('ssidModal'); }
-function editPassword(tag) { document.getElementById('edit-pass-tag').value = tag; document.getElementById('new-password').value = ''; openModal('passwordModal'); }
+        try {
+          const res = await fetch('/admin/api/device/' + encodeURIComponent(tag) + '/password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: pass })
+          });
+          const data = await res.json();
+          if (data.success) {
+            showToast(I18N.passwordSent, 's');
+            closeModal('passwordModal');
+          } else {
+            showToast(data.message || I18N.passwordFailed, 'd');
+          }
+        } catch (e) {
+          showToast(I18N.connectionError, 'd');
+        } finally {
+          btn.disabled = false;
+          txt.style.display = 'inline-block';
+          ldr.style.display = 'none';
+        }
+      });
 
-async function rebootDevice(tag) {
-  if (!confirm(I18N.rebootConfirmPrefix + ' ' + tag + '?')) return;
-  try {
-    const res  = await fetch('/admin/api/device/' + encodeURIComponent(tag) + '/reboot', { method: 'POST' });
-    const data = await res.json();
-    showToast(data.message || (data.ok ? I18N.rebootSent : I18N.failed), data.ok ? 's' : 'd');
-  } catch(e) { showToast('Error: ' + e.message, 'd'); }
-}
+      // ── SEARCH DEBOUNCE ────────────────────────────────────────────
+      const searchEl = document.getElementById('search-device');
+      if (searchEl) {
+        let st;
+        searchEl.addEventListener('input', () => { clearTimeout(st); st = setTimeout(loadDevices, 400); });
+      }
 
-document.getElementById('btn-save-ssid').addEventListener('click', async function() {
-  const btn = this;
-  const txt = btn.querySelector('.btn-text');
-  const ldr = btn.querySelector('.btn-loader');
-  const tag  = document.getElementById('edit-tag').value;
-  const ssid = document.getElementById('new-ssid').value.trim();
-  
-  if (!ssid) return showToast(I18N.ssidRequired, 'd');
-  
-  btn.disabled = true;
-  txt.style.display = 'none';
-  ldr.style.display = 'inline-block';
+      // ── TOAST NOTIFICATION ─────────────────────────────────────────
+      function showToast(msg, type = 's') {
+        const old = document.querySelector('.toast-notif');
+        if (old) old.remove();
 
-  try {
-    const res  = await fetch('/admin/api/device/' + encodeURIComponent(tag) + '/ssid', { 
-      method:'POST', 
-      headers:{'Content-Type':'application/json'}, 
-      body: JSON.stringify({ ssid }) 
-    });
-    const data = await res.json();
-    if (data.success) {
-      showToast(I18N.ssidSent, 's');
-      closeModal('ssidModal');
-      setTimeout(loadDevices, 2000);
-    } else {
-      showToast(data.message || I18N.ssidFailed, 'd');
-    }
-  } catch(e) {
-    showToast(I18N.connectionError, 'd');
-  } finally {
-    btn.disabled = false;
-    txt.style.display = 'inline-block';
-    ldr.style.display = 'none';
-  }
-});
+        const t = document.createElement('div');
+        t.className = 'toast-notif';
+        t.style.cssText = `position:fixed;bottom:32px;right:32px;z-index:10000;background:var(--bg2);border-left:5px solid var(--${type === 's' ? 'success' : 'danger'});border-radius:8px;padding:16px 24px;font-size:14px;display:flex;align-items:center;gap:12px;box-shadow:0 12px 32px rgba(0,0,0,.5);animation:slideInRight .3s ease;color:var(--text);min-width:300px`;
 
-document.getElementById('btn-save-password').addEventListener('click', async function() {
-  const btn = this;
-  const txt = btn.querySelector('.btn-text');
-  const ldr = btn.querySelector('.btn-loader');
-  const tag  = document.getElementById('edit-pass-tag').value;
-  const pass = document.getElementById('new-password').value;
-  
-  if (!pass || pass.length < 8) return showToast(I18N.passwordMin, 'd');
-  
-  btn.disabled = true;
-  txt.style.display = 'none';
-  ldr.style.display = 'inline-block';
+        const icon = type === 's' ? 'check-circle-fill' : 'exclamation-circle-fill';
+        const color = type === 's' ? 'var(--success)' : 'var(--danger)';
 
-  try {
-    const res  = await fetch('/admin/api/device/' + encodeURIComponent(tag) + '/password', { 
-      method:'POST', 
-      headers:{'Content-Type':'application/json'}, 
-      body: JSON.stringify({ password: pass }) 
-    });
-    const data = await res.json();
-    if (data.success) {
-      showToast(I18N.passwordSent, 's');
-      closeModal('passwordModal');
-    } else {
-      showToast(data.message || I18N.passwordFailed, 'd');
-    }
-  } catch(e) {
-    showToast(I18N.connectionError, 'd');
-  } finally {
-    btn.disabled = false;
-    txt.style.display = 'inline-block';
-    ldr.style.display = 'none';
-  }
-});
-
-// ── SEARCH DEBOUNCE ────────────────────────────────────────────
-const searchEl = document.getElementById('search-device');
-if (searchEl) {
-  let st;
-  searchEl.addEventListener('input', () => { clearTimeout(st); st = setTimeout(loadDevices, 400); });
-}
-
-// ── TOAST NOTIFICATION ─────────────────────────────────────────
-function showToast(msg, type = 's') {
-  const old = document.querySelector('.toast-notif');
-  if (old) old.remove();
-  
-  const t = document.createElement('div');
-  t.className = 'toast-notif';
-  t.style.cssText = `position:fixed;bottom:32px;right:32px;z-index:10000;background:var(--bg2);border-left:5px solid var(--${type==='s'?'success':'danger'});border-radius:8px;padding:16px 24px;font-size:14px;display:flex;align-items:center;gap:12px;box-shadow:0 12px 32px rgba(0,0,0,.5);animation:slideInRight .3s ease;color:var(--text);min-width:300px`;
-  
-  const icon = type === 's' ? 'check-circle-fill' : 'exclamation-circle-fill';
-  const color = type === 's' ? 'var(--success)' : 'var(--danger)';
-  
-  t.innerHTML = `
+        t.innerHTML = `
     <i class="bi bi-${icon}" style="font-size:20px;color:${color}"></i>
     <div style="flex:1">
       <div style="font-weight:600;margin-bottom:2px">${type === 's' ? I18N.success : I18N.failed}</div>
@@ -1114,336 +1471,336 @@ function showToast(msg, type = 's') {
     </div>
     <button onclick="this.parentElement.remove()" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:4px"><i class="bi bi-x-lg"></i></button>
   `;
-  document.body.appendChild(t);
-  setTimeout(() => { if(t.parentElement) t.style.animation = 'slideOutRight .3s ease forwards'; setTimeout(() => t.remove(), 300); }, 5000);
-}
-
-// ── REFRESH ALL ────────────────────────────────────────────────
-function refreshAll() {
-  loadStats();
-  loadDevices();
-}
-
-loadStats();
-loadDevices();
-setInterval(refreshAll, 30000);
-
-// ── CHECK IF SHOULD GO TO MONITORING TAB (from sidebar link) ──
-if (window.location.hash === '#monitoring') showTab('monitoring');
-window.addEventListener('hashchange', () => {
-  if (window.location.hash === '#monitoring') showTab('monitoring');
-  else if (window.location.hash === '#dashboard' || !window.location.hash) showTab('dashboard');
-});
-
-// ── GENIEACS SETTINGS FUNCTIONS ────────────────────────────────
-function openGenieACSSettings() {
-  openModal('genieacsModal');
-}
-
-async function saveGenieACSSettings() {
-  const formData = {
-    genieacs_timeout: parseInt(document.getElementById('genieacs_timeout').value),
-    genieacs_rxpower_threshold: parseFloat(document.getElementById('genieacs_rxpower_threshold').value),
-    genieacs_monitoring_interval: parseInt(document.getElementById('genieacs_monitoring_interval').value),
-    genieacs_monitoring_enabled: document.getElementById('genieacs_monitoring_enabled').checked
-  };
-
-  // Validate
-  if (formData.genieacs_timeout < 5000 || formData.genieacs_timeout > 120000) {
-    showGenieACSMessage('Timeout harus antara 5000-120000 ms', 'danger');
-    return;
-  }
-  if (formData.genieacs_rxpower_threshold < -40 || formData.genieacs_rxpower_threshold > -15) {
-    showGenieACSMessage('RX Power threshold harus antara -40 sampai -15 dBm', 'danger');
-    return;
-  }
-  if (formData.genieacs_monitoring_interval < 1 || formData.genieacs_monitoring_interval > 24) {
-    showGenieACSMessage('Monitoring interval harus antara 1-24 jam', 'danger');
-    return;
-  }
-
-  try {
-    const response = await fetch('/admin/api/genieacs/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData)
-    });
-
-    const result = await response.json();
-    
-    if (result.success) {
-      showGenieACSMessage(result.message, 'success');
-      setTimeout(() => {
-        closeModal('genieacsModal');
-        showToast('Pengaturan GenieACS berhasil disimpan', 's');
-      }, 1500);
-    } else {
-      showGenieACSMessage(result.message, 'danger');
-    }
-  } catch (error) {
-    showGenieACSMessage('Error: ' + error.message, 'danger');
-  }
-}
-
-async function testGenieACSConnection() {
-  showGenieACSMessage('Testing koneksi ke GenieACS...', 'info');
-
-  try {
-    const response = await fetch('/admin/api/genieacs/test');
-    const result = await response.json();
-    
-    if (result.success) {
-      const msg = result.message + (result.deviceCount !== undefined ? ' (' + result.deviceCount + ' devices)' : '');
-      showGenieACSMessage(msg, 'success');
-    } else {
-      showGenieACSMessage('Koneksi gagal: ' + result.message, 'danger');
-    }
-  } catch (error) {
-    showGenieACSMessage('Error: ' + error.message, 'danger');
-  }
-}
-
-function showGenieACSMessage(msg, type) {
-  const messageDiv = document.getElementById('genieacsMessage');
-  messageDiv.style.display = 'block';
-  
-  const colors = {
-    success: { bg: 'rgba(63, 185, 80, 0.15)', border: 'rgba(63, 185, 80, 0.3)', text: '#3fb950' },
-    danger: { bg: 'rgba(248, 81, 73, 0.15)', border: 'rgba(248, 81, 73, 0.3)', text: '#f85149' },
-    info: { bg: 'rgba(102, 126, 234, 0.15)', border: 'rgba(102, 126, 234, 0.3)', text: '#667eea' }
-  };
-  
-  const color = colors[type] || colors.info;
-  messageDiv.style.background = color.bg;
-  messageDiv.style.border = '1px solid ' + color.border;
-  messageDiv.style.color = color.text;
-  
-  const icons = { success: 'check-circle', danger: 'x-circle', info: 'info-circle' };
-  messageDiv.innerHTML = '<i class="bi bi-' + icons[type] + '"></i> ' + msg;
-}
-
-function toggleSelectAllMon(master) {
-  const checkboxes = document.querySelectorAll('.mon-device-checkbox');
-  checkboxes.forEach(cb => cb.checked = master.checked);
-  updateMonBulkPanel();
-}
-
-function updateMonBulkPanel() {
-  const checkboxes = document.querySelectorAll('.mon-device-checkbox:checked');
-  const panel = document.getElementById('monBulkActionsPanel');
-  const countSpan = document.getElementById('monSelectedCount');
-  
-  if (checkboxes.length > 0) {
-    panel.style.display = 'flex';
-    countSpan.textContent = checkboxes.length;
-  } else {
-    panel.style.display = 'none';
-    document.getElementById('selectAllMonDevices').checked = false;
-  }
-}
-
-function getSelectedMonDevices() {
-  const checkboxes = document.querySelectorAll('.mon-device-checkbox:checked');
-  const devices = [];
-  checkboxes.forEach(cb => {
-    devices.push({
-      id: cb.dataset.id,
-      acsId: cb.dataset.acs
-    });
-  });
-  return devices;
-}
-
-async function bulkMonSummon() {
-  const devices = getSelectedMonDevices();
-  if (devices.length === 0) return;
-  if (!confirm(`Summon / Sinkronisasi ulang ${devices.length} perangkat?`)) return;
-  
-  try {
-    const res = await fetch('/admin/acs/api/bulk/refresh', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ devices })
-    });
-    const d = await res.json();
-    showToast(d.message, d.success ? 's' : 'd');
-    if (d.success) setTimeout(refreshAll, 1500);
-  } catch (err) {
-    showToast('Gagal memproses bulk summon: ' + err.message, 'd');
-  }
-}
-
-async function bulkMonDelete() {
-  const devices = getSelectedMonDevices();
-  if (devices.length === 0) return;
-  if (!confirm(`HAPUS ${devices.length} perangkat dari database ACS?\n(Tindakan ini tidak dapat dibatalkan)`)) return;
-  
-  try {
-    const res = await fetch('/admin/acs/api/bulk/delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ devices })
-    });
-    const d = await res.json();
-    showToast(d.message, d.success ? 's' : 'd');
-    if (d.success) setTimeout(refreshAll, 1500);
-  } catch (err) {
-    showToast('Gagal memproses bulk delete: ' + err.message, 'd');
-  }
-}
-
-async function summonMonDevice(deviceId, acsId) {
-  if (!confirm('Summon / Sinkronisasi ulang perangkat ' + deviceId + '?')) return;
-  try {
-    const res = await fetch('/admin/acs/api/refresh/' + encodeURIComponent(deviceId), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ acsId })
-    });
-    const d = await res.json();
-    showToast(d.message, d.success ? 's' : 'd');
-    if (d.success) setTimeout(refreshAll, 1500);
-  } catch (err) {
-    showToast('Gagal mengirim summon: ' + err.message, 'd');
-  }
-}
-
-async function deleteMonDevice(deviceId, acsId) {
-  if (!confirm('Hapus perangkat ' + deviceId + ' dari database ACS?')) return;
-  try {
-    const res = await fetch('/admin/acs/api/device/' + encodeURIComponent(deviceId), {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ acsId })
-    });
-    const d = await res.json();
-    showToast(d.message, d.success ? 's' : 'd');
-    if (d.success) setTimeout(refreshAll, 1500);
-  } catch (err) {
-    showToast('Gagal menghapus perangkat: ' + err.message, 'd');
-  }
-}
-
-async function testRouterConnDashboard(id, btn) {
-  const badge = document.getElementById('badge-router-' + id);
-  const origText = btn ? btn.innerHTML : '';
-  if (btn) {
-    btn.disabled = true;
-    btn.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> Menguji...';
-  }
-  if (badge) {
-    badge.style.background = 'rgba(59,130,246,0.15)';
-    badge.style.color = 'var(--info)';
-    badge.innerHTML = '<i class="bi bi-hourglass-split spin"></i> Menghubungkan...';
-  }
-
-  try {
-    const res = await fetch('/admin/api/routers/' + id + '/test');
-    const d = await res.json();
-    if (d.success) {
-      if (badge) {
-        badge.style.background = 'rgba(16,185,129,0.15)';
-        badge.style.color = 'var(--success)';
-        badge.innerHTML = '<i class="bi bi-wifi"></i> Connected';
+        document.body.appendChild(t);
+        setTimeout(() => { if (t.parentElement) t.style.animation = 'slideOutRight .3s ease forwards'; setTimeout(() => t.remove(), 300); }, 5000);
       }
-      if (typeof showToast === 'function') showToast(d.message || 'Koneksi Router Berhasil', 's');
-    } else {
-      if (badge) {
-        badge.style.background = 'rgba(239,68,68,0.15)';
-        badge.style.color = 'var(--danger)';
-        badge.innerHTML = '<i class="bi bi-wifi-off"></i> Connection Error';
+
+      // ── REFRESH ALL ────────────────────────────────────────────────
+      function refreshAll() {
+        loadStats();
+        loadDevices();
       }
-      if (typeof showToast === 'function') showToast(d.error || 'Gagal terhubung ke router', 'd');
-    }
-  } catch (err) {
-    if (badge) {
-      badge.style.background = 'rgba(239,68,68,0.15)';
-      badge.style.color = 'var(--danger)';
-      badge.innerHTML = '<i class="bi bi-wifi-off"></i> Connection Failed';
-    }
-    if (typeof showToast === 'function') showToast('Error: ' + err.message, 'd');
-  } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.innerHTML = origText;
-    }
-  }
-}
 
-// ─── DASHBOARD MIKROTIK DROPDOWN INTERFACE MONITORING ───────────────────────
-const dashIfaceDataMap = {};
-const dashIfacePollMap = {};
+      loadStats();
+      loadDevices();
+      setInterval(refreshAll, 30000);
 
-document.addEventListener('DOMContentLoaded', () => {
-  const routerSelects = document.querySelectorAll('[id^="dash-iface-select-"]');
-  routerSelects.forEach(select => {
-    const routerId = select.id.replace('dash-iface-select-', '');
-    if (routerId) {
-      loadDashRouterInterfaces(routerId);
-    }
-  });
-});
-
-async function loadDashRouterInterfaces(routerId, force = false) {
-  const select = document.getElementById('dash-iface-select-' + routerId);
-  if (!select) return;
-
-  select.innerHTML = '<option value="">⏳ Memuat daftar interface...</option>';
-  select.disabled = true;
-
-  try {
-    const res = await fetch('/admin/api/routers/' + routerId + '/interfaces');
-    const d = await res.json();
-    if (d.success && Array.isArray(d.interfaces)) {
-      dashIfaceDataMap[routerId] = d.interfaces;
-      select.innerHTML = '<option value="">-- Pilih Interface MikroTik untuk Monitoring --</option>';
-      d.interfaces.forEach(iface => {
-        const opt = document.createElement('option');
-        opt.value = iface.name;
-        const statusIcon = iface.disabled ? '🔴' : (iface.running ? '🟢' : '🟡');
-        opt.textContent = `${statusIcon} ${iface.name} (${iface.type || 'ether'}) ${iface.comment ? '- ' + iface.comment : ''}`;
-        select.appendChild(opt);
+      // ── CHECK IF SHOULD GO TO MONITORING TAB (from sidebar link) ──
+      if (window.location.hash === '#monitoring') showTab('monitoring');
+      window.addEventListener('hashchange', () => {
+        if (window.location.hash === '#monitoring') showTab('monitoring');
+        else if (window.location.hash === '#dashboard' || !window.location.hash) showTab('dashboard');
       });
-      if (force && typeof showToast === 'function') {
-        showToast('Daftar interface berhasil dimuat (' + d.interfaces.length + ' interface)', 's');
+
+      // ── GENIEACS SETTINGS FUNCTIONS ────────────────────────────────
+      function openGenieACSSettings() {
+        openModal('genieacsModal');
       }
-    } else {
-      select.innerHTML = '<option value="">❌ Gagal memuat interface (' + (d.error || 'Offline') + ')</option>';
-    }
-  } catch (err) {
-    select.innerHTML = '<option value="">❌ Gagal terhubung ke router</option>';
-  } finally {
-    select.disabled = false;
-  }
-}
 
-function onDashIfaceChange(routerId, ifaceName) {
-  const panel = document.getElementById('dash-iface-panel-' + routerId);
-  if (!panel) return;
+      async function saveGenieACSSettings() {
+        const formData = {
+          genieacs_timeout: parseInt(document.getElementById('genieacs_timeout').value),
+          genieacs_rxpower_threshold: parseFloat(document.getElementById('genieacs_rxpower_threshold').value),
+          genieacs_monitoring_interval: parseInt(document.getElementById('genieacs_monitoring_interval').value),
+          genieacs_monitoring_enabled: document.getElementById('genieacs_monitoring_enabled').checked
+        };
 
-  if (dashIfacePollMap[routerId]) {
-    clearInterval(dashIfacePollMap[routerId]);
-    delete dashIfacePollMap[routerId];
-  }
+        // Validate
+        if (formData.genieacs_timeout < 5000 || formData.genieacs_timeout > 120000) {
+          showGenieACSMessage('Timeout harus antara 5000-120000 ms', 'danger');
+          return;
+        }
+        if (formData.genieacs_rxpower_threshold < -40 || formData.genieacs_rxpower_threshold > -15) {
+          showGenieACSMessage('RX Power threshold harus antara -40 sampai -15 dBm', 'danger');
+          return;
+        }
+        if (formData.genieacs_monitoring_interval < 1 || formData.genieacs_monitoring_interval > 24) {
+          showGenieACSMessage('Monitoring interval harus antara 1-24 jam', 'danger');
+          return;
+        }
 
-  if (!ifaceName) {
-    panel.style.display = 'none';
-    panel.innerHTML = '';
-    return;
-  }
+        try {
+          const response = await fetch('/admin/api/genieacs/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(formData)
+          });
 
-  const interfaces = dashIfaceDataMap[routerId] || [];
-  const iface = interfaces.find(i => i.name === ifaceName);
-  const statusBadge = iface ? (iface.disabled ? 
-    '<span style="color:var(--danger); font-weight:700;"><i class="bi bi-dash-circle"></i> Disabled</span>' : 
-    (iface.running ? 
-      '<span style="color:var(--success); font-weight:700;"><i class="bi bi-check-circle-fill"></i> Running (Active)</span>' : 
-      '<span style="color:var(--warning); font-weight:700;"><i class="bi bi-exclamation-circle"></i> Link Down</span>'
-    )
-  ) : '-';
+          const result = await response.json();
 
-  panel.style.display = 'block';
-  panel.innerHTML = `
+          if (result.success) {
+            showGenieACSMessage(result.message, 'success');
+            setTimeout(() => {
+              closeModal('genieacsModal');
+              showToast('Pengaturan GenieACS berhasil disimpan', 's');
+            }, 1500);
+          } else {
+            showGenieACSMessage(result.message, 'danger');
+          }
+        } catch (error) {
+          showGenieACSMessage('Error: ' + error.message, 'danger');
+        }
+      }
+
+      async function testGenieACSConnection() {
+        showGenieACSMessage('Testing koneksi ke GenieACS...', 'info');
+
+        try {
+          const response = await fetch('/admin/api/genieacs/test');
+          const result = await response.json();
+
+          if (result.success) {
+            const msg = result.message + (result.deviceCount !== undefined ? ' (' + result.deviceCount + ' devices)' : '');
+            showGenieACSMessage(msg, 'success');
+          } else {
+            showGenieACSMessage('Koneksi gagal: ' + result.message, 'danger');
+          }
+        } catch (error) {
+          showGenieACSMessage('Error: ' + error.message, 'danger');
+        }
+      }
+
+      function showGenieACSMessage(msg, type) {
+        const messageDiv = document.getElementById('genieacsMessage');
+        messageDiv.style.display = 'block';
+
+        const colors = {
+          success: { bg: 'rgba(63, 185, 80, 0.15)', border: 'rgba(63, 185, 80, 0.3)', text: '#3fb950' },
+          danger: { bg: 'rgba(248, 81, 73, 0.15)', border: 'rgba(248, 81, 73, 0.3)', text: '#f85149' },
+          info: { bg: 'rgba(102, 126, 234, 0.15)', border: 'rgba(102, 126, 234, 0.3)', text: '#667eea' }
+        };
+
+        const color = colors[type] || colors.info;
+        messageDiv.style.background = color.bg;
+        messageDiv.style.border = '1px solid ' + color.border;
+        messageDiv.style.color = color.text;
+
+        const icons = { success: 'check-circle', danger: 'x-circle', info: 'info-circle' };
+        messageDiv.innerHTML = '<i class="bi bi-' + icons[type] + '"></i> ' + msg;
+      }
+
+      function toggleSelectAllMon(master) {
+        const checkboxes = document.querySelectorAll('.mon-device-checkbox');
+        checkboxes.forEach(cb => cb.checked = master.checked);
+        updateMonBulkPanel();
+      }
+
+      function updateMonBulkPanel() {
+        const checkboxes = document.querySelectorAll('.mon-device-checkbox:checked');
+        const panel = document.getElementById('monBulkActionsPanel');
+        const countSpan = document.getElementById('monSelectedCount');
+
+        if (checkboxes.length > 0) {
+          panel.style.display = 'flex';
+          countSpan.textContent = checkboxes.length;
+        } else {
+          panel.style.display = 'none';
+          document.getElementById('selectAllMonDevices').checked = false;
+        }
+      }
+
+      function getSelectedMonDevices() {
+        const checkboxes = document.querySelectorAll('.mon-device-checkbox:checked');
+        const devices = [];
+        checkboxes.forEach(cb => {
+          devices.push({
+            id: cb.dataset.id,
+            acsId: cb.dataset.acs
+          });
+        });
+        return devices;
+      }
+
+      async function bulkMonSummon() {
+        const devices = getSelectedMonDevices();
+        if (devices.length === 0) return;
+        if (!confirm(`Summon / Sinkronisasi ulang ${devices.length} perangkat?`)) return;
+
+        try {
+          const res = await fetch('/admin/acs/api/bulk/refresh', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ devices })
+          });
+          const d = await res.json();
+          showToast(d.message, d.success ? 's' : 'd');
+          if (d.success) setTimeout(refreshAll, 1500);
+        } catch (err) {
+          showToast('Gagal memproses bulk summon: ' + err.message, 'd');
+        }
+      }
+
+      async function bulkMonDelete() {
+        const devices = getSelectedMonDevices();
+        if (devices.length === 0) return;
+        if (!confirm(`HAPUS ${devices.length} perangkat dari database ACS?\n(Tindakan ini tidak dapat dibatalkan)`)) return;
+
+        try {
+          const res = await fetch('/admin/acs/api/bulk/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ devices })
+          });
+          const d = await res.json();
+          showToast(d.message, d.success ? 's' : 'd');
+          if (d.success) setTimeout(refreshAll, 1500);
+        } catch (err) {
+          showToast('Gagal memproses bulk delete: ' + err.message, 'd');
+        }
+      }
+
+      async function summonMonDevice(deviceId, acsId) {
+        if (!confirm('Summon / Sinkronisasi ulang perangkat ' + deviceId + '?')) return;
+        try {
+          const res = await fetch('/admin/acs/api/refresh/' + encodeURIComponent(deviceId), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ acsId })
+          });
+          const d = await res.json();
+          showToast(d.message, d.success ? 's' : 'd');
+          if (d.success) setTimeout(refreshAll, 1500);
+        } catch (err) {
+          showToast('Gagal mengirim summon: ' + err.message, 'd');
+        }
+      }
+
+      async function deleteMonDevice(deviceId, acsId) {
+        if (!confirm('Hapus perangkat ' + deviceId + ' dari database ACS?')) return;
+        try {
+          const res = await fetch('/admin/acs/api/device/' + encodeURIComponent(deviceId), {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ acsId })
+          });
+          const d = await res.json();
+          showToast(d.message, d.success ? 's' : 'd');
+          if (d.success) setTimeout(refreshAll, 1500);
+        } catch (err) {
+          showToast('Gagal menghapus perangkat: ' + err.message, 'd');
+        }
+      }
+
+      async function testRouterConnDashboard(id, btn) {
+        const badge = document.getElementById('badge-router-' + id);
+        const origText = btn ? btn.innerHTML : '';
+        if (btn) {
+          btn.disabled = true;
+          btn.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> Menguji...';
+        }
+        if (badge) {
+          badge.style.background = 'rgba(59,130,246,0.15)';
+          badge.style.color = 'var(--info)';
+          badge.innerHTML = '<i class="bi bi-hourglass-split spin"></i> Menghubungkan...';
+        }
+
+        try {
+          const res = await fetch('/admin/api/routers/' + id + '/test');
+          const d = await res.json();
+          if (d.success) {
+            if (badge) {
+              badge.style.background = 'rgba(16,185,129,0.15)';
+              badge.style.color = 'var(--success)';
+              badge.innerHTML = '<i class="bi bi-wifi"></i> Connected';
+            }
+            if (typeof showToast === 'function') showToast(d.message || 'Koneksi Router Berhasil', 's');
+          } else {
+            if (badge) {
+              badge.style.background = 'rgba(239,68,68,0.15)';
+              badge.style.color = 'var(--danger)';
+              badge.innerHTML = '<i class="bi bi-wifi-off"></i> Connection Error';
+            }
+            if (typeof showToast === 'function') showToast(d.error || 'Gagal terhubung ke router', 'd');
+          }
+        } catch (err) {
+          if (badge) {
+            badge.style.background = 'rgba(239,68,68,0.15)';
+            badge.style.color = 'var(--danger)';
+            badge.innerHTML = '<i class="bi bi-wifi-off"></i> Connection Failed';
+          }
+          if (typeof showToast === 'function') showToast('Error: ' + err.message, 'd');
+        } finally {
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = origText;
+          }
+        }
+      }
+
+      // ─── DASHBOARD MIKROTIK DROPDOWN INTERFACE MONITORING ───────────────────────
+      const dashIfaceDataMap = {};
+      const dashIfacePollMap = {};
+
+      document.addEventListener('DOMContentLoaded', () => {
+        const routerSelects = document.querySelectorAll('[id^="dash-iface-select-"]');
+        routerSelects.forEach(select => {
+          const routerId = select.id.replace('dash-iface-select-', '');
+          if (routerId) {
+            loadDashRouterInterfaces(routerId);
+          }
+        });
+      });
+
+      async function loadDashRouterInterfaces(routerId, force = false) {
+        const select = document.getElementById('dash-iface-select-' + routerId);
+        if (!select) return;
+
+        select.innerHTML = '<option value="">⏳ Memuat daftar interface...</option>';
+        select.disabled = true;
+
+        try {
+          const res = await fetch('/admin/api/routers/' + routerId + '/interfaces');
+          const d = await res.json();
+          if (d.success && Array.isArray(d.interfaces)) {
+            dashIfaceDataMap[routerId] = d.interfaces;
+            select.innerHTML = '<option value="">-- Pilih Interface MikroTik untuk Monitoring --</option>';
+            d.interfaces.forEach(iface => {
+              const opt = document.createElement('option');
+              opt.value = iface.name;
+              const statusIcon = iface.disabled ? '🔴' : (iface.running ? '🟢' : '🟡');
+              opt.textContent = `${statusIcon} ${iface.name} (${iface.type || 'ether'}) ${iface.comment ? '- ' + iface.comment : ''}`;
+              select.appendChild(opt);
+            });
+            if (force && typeof showToast === 'function') {
+              showToast('Daftar interface berhasil dimuat (' + d.interfaces.length + ' interface)', 's');
+            }
+          } else {
+            select.innerHTML = '<option value="">❌ Gagal memuat interface (' + (d.error || 'Offline') + ')</option>';
+          }
+        } catch (err) {
+          select.innerHTML = '<option value="">❌ Gagal terhubung ke router</option>';
+        } finally {
+          select.disabled = false;
+        }
+      }
+
+      function onDashIfaceChange(routerId, ifaceName) {
+        const panel = document.getElementById('dash-iface-panel-' + routerId);
+        if (!panel) return;
+
+        if (dashIfacePollMap[routerId]) {
+          clearInterval(dashIfacePollMap[routerId]);
+          delete dashIfacePollMap[routerId];
+        }
+
+        if (!ifaceName) {
+          panel.style.display = 'none';
+          panel.innerHTML = '';
+          return;
+        }
+
+        const interfaces = dashIfaceDataMap[routerId] || [];
+        const iface = interfaces.find(i => i.name === ifaceName);
+        const statusBadge = iface ? (iface.disabled ?
+          '<span style="color:var(--danger); font-weight:700;"><i class="bi bi-dash-circle"></i> Disabled</span>' :
+          (iface.running ?
+            '<span style="color:var(--success); font-weight:700;"><i class="bi bi-check-circle-fill"></i> Running (Active)</span>' :
+            '<span style="color:var(--warning); font-weight:700;"><i class="bi bi-exclamation-circle"></i> Link Down</span>'
+          )
+        ) : '-';
+
+        panel.style.display = 'block';
+        panel.innerHTML = `
     <div style="display:flex; justify-space-between; align-items:center; margin-bottom:8px; border-bottom:1px solid var(--border); padding-bottom:6px;">
       <div style="font-weight:700; font-size:13px; color:var(--text); display:flex; align-items:center; gap:6px;">
         <i class="bi bi-ethernet" style="color:var(--primary);"></i> ${escapeHtmlDash(ifaceName)}
@@ -1478,51 +1835,52 @@ function onDashIfaceChange(routerId, ifaceName) {
     </div>
   `;
 
-  fetchDashIfaceTraffic(routerId, ifaceName);
-  dashIfacePollMap[routerId] = setInterval(() => {
-    fetchDashIfaceTraffic(routerId, ifaceName);
-  }, 2500);
-}
+        fetchDashIfaceTraffic(routerId, ifaceName);
+        dashIfacePollMap[routerId] = setInterval(() => {
+          fetchDashIfaceTraffic(routerId, ifaceName);
+        }, 2500);
+      }
 
-async function fetchDashIfaceTraffic(routerId, ifaceName) {
-  try {
-    const res = await fetch(`/admin/api/routers/${routerId}/interfaces/${encodeURIComponent(ifaceName)}/traffic`);
-    const d = await res.json();
-    if (d.success && d.traffic) {
-      const rxEl = document.getElementById('dash-rx-speed-' + routerId);
-      const txEl = document.getElementById('dash-tx-speed-' + routerId);
-      const liveEl = document.getElementById('dash-traffic-live-indicator-' + routerId);
+      async function fetchDashIfaceTraffic(routerId, ifaceName) {
+        try {
+          const res = await fetch(`/admin/api/routers/${routerId}/interfaces/${encodeURIComponent(ifaceName)}/traffic`);
+          const d = await res.json();
+          if (d.success && d.traffic) {
+            const rxEl = document.getElementById('dash-rx-speed-' + routerId);
+            const txEl = document.getElementById('dash-tx-speed-' + routerId);
+            const liveEl = document.getElementById('dash-traffic-live-indicator-' + routerId);
 
-      const rx = Number(d.traffic.rxBitsPerSecond ?? d.traffic['rx-bits-per-second'] ?? d.traffic.rx ?? 0);
-      const tx = Number(d.traffic.txBitsPerSecond ?? d.traffic['tx-bits-per-second'] ?? d.traffic.tx ?? 0);
+            const rx = Number(d.traffic.rxBitsPerSecond ?? d.traffic['rx-bits-per-second'] ?? d.traffic.rx ?? 0);
+            const tx = Number(d.traffic.txBitsPerSecond ?? d.traffic['tx-bits-per-second'] ?? d.traffic.tx ?? 0);
 
-      if (rxEl) rxEl.textContent = formatBitsPerSecDash(rx);
-      if (txEl) txEl.textContent = formatBitsPerSecDash(tx);
-      if (liveEl) liveEl.style.opacity = liveEl.style.opacity === '0.4' ? '1' : '0.4';
-    }
-  } catch (e) {
-    console.error('Error fetching traffic:', e);
-  }
-}
+            if (rxEl) rxEl.textContent = formatBitsPerSecDash(rx);
+            if (txEl) txEl.textContent = formatBitsPerSecDash(tx);
+            if (liveEl) liveEl.style.opacity = liveEl.style.opacity === '0.4' ? '1' : '0.4';
+          }
+        } catch (e) {
+          console.error('Error fetching traffic:', e);
+        }
+      }
 
-function formatBitsPerSecDash(bits) {
-  if (!bits || isNaN(bits) || bits <= 0) return '0 Bps';
-  const k = 1000;
-  const sizes = ['Bps', 'Kbps', 'Mbps', 'Gbps'];
-  const i = Math.floor(Math.log(bits) / Math.log(k));
-  return parseFloat((bits / Math.pow(k, i)).toFixed(2)) + ' ' + (sizes[i] || 'Bps');
-}
+      function formatBitsPerSecDash(bits) {
+        if (!bits || isNaN(bits) || bits <= 0) return '0 Bps';
+        const k = 1000;
+        const sizes = ['Bps', 'Kbps', 'Mbps', 'Gbps'];
+        const i = Math.floor(Math.log(bits) / Math.log(k));
+        return parseFloat((bits / Math.pow(k, i)).toFixed(2)) + ' ' + (sizes[i] || 'Bps');
+      }
 
-function escapeHtmlDash(str) {
-  if (str === null || str === undefined) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
+      function escapeHtmlDash(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
 
-</script>
+    </script>
 </body>
+
 </html>
