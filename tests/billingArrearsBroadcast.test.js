@@ -133,4 +133,31 @@ describe('Billing Arrears and WhatsApp Broadcast Integration Tests', () => {
     expect(all[0].unpaid_count).toBe(1);
     expect(all[0].unpaid_total).toBe(50000);
   });
+
+  test('should strictly display shortfall (balance_due / yang kurang), never display paid_amount (yang sudah dibayar)', () => {
+    // Pelanggan bayar parsial 100.000 dari 150.000 -> sisa yang kurang adalah 50.000
+    db.prepare(`
+      INSERT INTO invoices (customer_id, period_month, period_year, amount, paid_amount, balance_due, carried_balance, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(testCustomerId, 7, 2026, 150000, 100000, 50000, 0, 'partial');
+
+    // Invoice bulan berjalan 150.000
+    db.prepare(`
+      INSERT INTO invoices (customer_id, period_month, period_year, amount, paid_amount, balance_due, carried_balance, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(testCustomerId, 8, 2026, 150000, 0, 150000, 0, 'unpaid');
+
+    const summary = billingSvc.getCustomerBillingSummary(testCustomerId);
+    
+    // Tagihan yang kurang dari bulan lalu: 50.000 (BUKAN 100.000 yang sudah dibayar)
+    expect(summary.sisaLalu).toBe(50000);
+    expect(summary.sisaLalu).not.toBe(100000);
+
+    // Total tagihan: 150.000 + 50.000 = 200.000 (BUKAN 250.000 hasil penambahan 100.000 yang sudah dibayar)
+    expect(summary.totalTagihan).toBe(200000);
+    expect(summary.totalTagihan).not.toBe(250000);
+
+    // Pastikan tagihan periode berjalan adalah 150.000
+    expect(summary.tagihanBerjalan).toBe(150000);
+  });
 });

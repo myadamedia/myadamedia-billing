@@ -2912,6 +2912,33 @@ Mengubah tampilan halaman login pelanggan [views/login.ejs](file:///d:/WEBAPP/my
 - **Validasi Alur**:
   - Pelanggan dengan invoice bulan lalu partial (sisa Rp 50.000) dan invoice bulan berjalan (Rp 150.000) otomatis menerima pesan WhatsApp broadcast dengan total tagihan **Rp 200.000** dan rincian *"📌 Termasuk Sisa Tagihan Bulan Lalu: Rp 50.000"*.
 
+---
+
+## [2026-08-31] - Perbaikan Presisi: Menampilkan Tagihan Parsial Yang Kurang (Balance Due), Bukan Yang Sudah Dibayar (Paid Amount)
+
+### 1. Deskripsi Permasalahan & Akar Masalah
+- **Keluhan Pengguna**: *"Masih belum tepat. WA Broadcast menampilkan tagihan partial yang sudah dibayar, bukan menampilkan tagihan yang kurang."*
+- **Akar Masalah**:
+  1. **Logika Carried Balance vs Previous Due**: Pada implementasi awal `getCustomerBillingSummary`, terdapat pengecekan `if (latestCarried > previousInvoicesDue)` yang menambahkan selisih `latestCarried - previousInvoicesDue` ke `totalTagihan`. Jika sebuah invoice berjalan dibuat dengan snapshot `carried_balance` sebelum pelanggan membayar sebagian tagihan lama (misal carried = 150.000, lalu dibayar 100.000 sehingga sisa = 50.000), selisih `150.000 - 50.000 = 100.000` (yaitu nominal yang **sudah dibayar**) secara keliru ditambahkan kembali ke total tagihan.
+  2. **Pemisahan Periode Kronologis**: Penentuan periode lampau sebelumnya menggunakan perbandingan kalender riil (`new Date().getMonth() + 1`). Apabila invoice di-generate mendahului bulan kalender (misal invoice bulan 9 dan 10 saat kalender masih bulan 8), kedua invoice tidak terdeteksi sebagai periode sebelumnya sehingga `sisaLalu` menjadi 0.
+  3. **Process In-Memory Runtime**: Server Node.js berjalan terus di background sejak pagi hari tanpa reload kode baru ke memori runtime.
+
+### 2. Solusi & Implementasi Teknis
+- **Kalkulasi Murni Berbasis `balance_due` di [`services/billingService.js`](file:///d:/WEBAPP/myadamedia-billing/services/billingService.js)**:
+  - Mengubah `getCustomerBillingSummary` agar untuk setiap invoice berstatus `unpaid` maupun `partial`, nilai yang dihitung adalah murni sisa kekurangan:
+    `due = (inv.balance_due != null && inv.balance_due > 0) ? inv.balance_due : Math.max(0, inv.amount - inv.paid_amount)`.
+  - Menghapus penambahan selisih `latestCarried - previousInvoicesDue`. Ground truth adalah tagihan fisik di database.
+  - Memisahkan periode secara kronologis (`ORDER BY period_year ASC, period_month ASC, id ASC`): invoice terakhir dianggap sebagai tagihan periode berjalan (`tagihanBerjalan`), sedangkan seluruh invoice terdahulu diakumulasikan sebagai sisa tunggakan lampau (`sisaLalu`).
+- **Penyelarasan Template Placeholder**:
+  - Menambahkan dukungan variabel `{{sisa_tagihan}}`, `{{kurang_bayar}}`, dan `{{tagihan_berjalan}}` di samping `{{tagihan}}`, `{{sisa_lalu}}`, `{{sisa_tagihan_bulan_lalu}}`, dan `{{rincian_sisa}}` pada [`routes/adminPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/adminPortal.js) dan [`services/cronService.js`](file:///d:/WEBAPP/myadamedia-billing/services/cronService.js).
+- **Restart Service Runtime**:
+  - Menghentikan proses node lama dan me-restart server `node app-customer.js` sehingga seluruh perubahan aktif di port 3001.
+
+### 3. Hasil Pengujian & Verifikasi
+- **Pengujian Unit (`jest tests/billingArrearsBroadcast.test.js`)**: 6/6 tests PASSED.
+  - Memverifikasi bahwa jika invoice lama berstatus partial (150.000 dibayar 100.000, sisa 50.000) dan invoice berjalan 150.000, maka `totalTagihan` adalah **200.000** (bukan 250.000) dan `sisaLalu` adalah **50.000** (bukan 100.000).
+- **Seluruh Test Suite (`jest`)**: 15/15 test suites PASSED, 222/222 tests PASSED (100%).
+
 
 
 

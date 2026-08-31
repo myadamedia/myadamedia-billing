@@ -769,6 +769,31 @@ Sebelumnya, setiap kali Superadmin ingin menyimpan perubahan visibilitas menu si
 ### 3. Dampak Perubahan
 Superadmin kini dapat mengubah dan menyimpan status visibilitas menu sidebar (Tampil, Sembunyikan, Kunci) secara langsung dari Dashboard Admin tanpa kendala permintaan Password Aktivasi.
 
+---
+
+## [2026-08-31] - Perbaikan Presisi: Menampilkan Tagihan Parsial Yang Kurang (Balance Due), Bukan Yang Sudah Dibayar (Paid Amount)
+
+### 1. Permasalahan & Akar Masalah
+- **Permasalahan**: Pada broadcast WhatsApp maupun pengiriman invoice tagihan via WhatsApp, pesan tagihan yang terkirim ke pelanggan dengan status pembayaran parsial sebelumnya malah menampilkan/menambahkan nominal yang **sudah dibayar** (`paid_amount`, misal Rp 100.000), bukannya menampilkan nominal sisa kewajiban yang **kurang** (`balance_due`, misal Rp 50.000).
+- **Akar Masalah**:
+  1. **Logika Selisih Carried Balance vs Previous Due**: Pada `getCustomerBillingSummary`, terdapat penambahan selisih `latestCarried - previousInvoicesDue`. Karena `carried_balance` di-*snapshot* saat invoice baru di-generate sebelum pembayaran parsial masuk, nilainya masih membawa total lama (misal 150.000). Ketika pelanggan membayar sebagian (100.000), sisa tagihan lama menjadi 50.000, namun selisih `150.000 - 50.000 = 100.000` (yang sudah dibayar) malah ditambahkan kembali ke total tagihan.
+  2. **Deteksi Periode Kronologis**: Pemisahan tagihan lampau sebelumnya membandingkan dengan bulan kalender riil (`new Date().getMonth() + 1`). Jika invoice dibuat untuk periode bulan depan (misal invoice 9 dan 10 saat kalender bulan 8), keduanya tidak terdeteksi sebagai periode sebelumnya sehingga sisa tunggakan lampau bernilai 0.
+  3. **Process In-Memory Runtime**: Server Node.js berjalan terus di latar belakang tanpa reload kode terbaru ke memori HTTP server.
+
+### 2. Solusi yang Diterapkan
+- **Pembersihan Logika Kalkulasi ([`services/billingService.js`](file:///d:/WEBAPP/myadamedia-billing/services/billingService.js))**:
+  - Menghitung nilai kewajiban riil (`real_due`) murni dari sisa kekurangan: `balance_due` jika valid > 0, atau `amount - paid_amount`.
+  - Menghapus penambahan selisih `latestCarried - previousInvoicesDue`. Ground truth adalah tagihan riil yang ada di database.
+  - Memisahkan periode secara kronologis (`ORDER BY period_year ASC, period_month ASC, id ASC`): invoice terakhir dianggap sebagai tagihan berjalan (`tagihanBerjalan`), dan invoice-invoice terdahulu diakumulasikan sebagai sisa tunggakan lampau (`sisaLalu`).
+- **Penyelarasan Template Replacements ([`routes/adminPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/adminPortal.js) & [`services/cronService.js`](file:///d:/WEBAPP/myadamedia-billing/services/cronService.js))**:
+  - Menambahkan dukungan penggantian placeholder: `{{sisa_tagihan}}`, `{{kurang_bayar}}`, dan `{{tagihan_berjalan}}` di samping `{{tagihan}}`, `{{sisa_lalu}}`, `{{sisa_tagihan_bulan_lalu}}`, dan `{{rincian_sisa}}`.
+- **Restart Service Runtime**:
+  - Me-restart proses server `node app-customer.js` sehingga seluruh perubahan aktif di port 3001.
+
+### 3. Hasil Pengujian & Verifikasi
+- **Pengujian Unit (`jest tests/billingArrearsBroadcast.test.js`)**: 6/6 tests PASSED.
+- **Seluruh Test Suite (`jest`)**: 15/15 test suites PASSED, 222/222 tests PASSED (100%).
+
 
 
 

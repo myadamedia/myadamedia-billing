@@ -721,63 +721,88 @@ function getUnpaidInvoicesByCustomerId(customerId) {
     JOIN customers c ON i.customer_id = c.id
     LEFT JOIN packages p ON c.package_id = p.id
     WHERE i.customer_id = ? AND i.status IN ('unpaid', 'partial')
-    ORDER BY i.period_year ASC, i.period_month ASC
+    ORDER BY i.period_year ASC, i.period_month ASC, i.id ASC
   `).all(customerId);
 }
 
 /**
  * Menghitung ringkasan tagihan riil pelanggan termasuk tunggakan bulan sebelumnya:
- * - totalTagihan: Akumulasi seluruh sisa kewajiban aktif (balance_due)
- * - sisaLalu: Sisa tunggakan dari periode sebelum bulan berjalan (atau carried_balance)
+ * - totalTagihan: Akumulasi seluruh sisa kekurangan aktif (balance_due riil)
+ * - tagihanBerjalan: Tagihan periode terbaru/berjalan yang belum lunas
+ * - sisaLalu: Sisa tunggakan riil dari periode sebelum periode berjalan (atau carried_balance)
  * - rincianBulan: Rincian periode tagihan (misal: "7/2026, 8/2026")
  * - unpaidInvoices: Daftar invoice berstatus 'unpaid' atau 'partial'
  */
 function getCustomerBillingSummary(customerId) {
   const cid = Number(customerId);
   if (!Number.isFinite(cid) || cid <= 0) {
-    return { unpaidInvoices: [], totalTagihan: 0, sisaLalu: 0, rincianBulan: '-', hasArrears: false };
+    return { 
+      unpaidInvoices: [], 
+      totalTagihan: 0, 
+      tagihanBerjalan: 0, 
+      sisaLalu: 0, 
+      rincianBulan: '-', 
+      hasArrears: false 
+    };
   }
 
   const unpaidInvoices = getUnpaidInvoicesByCustomerId(cid);
-  const now = new Date();
-  const currentMonth = now.getMonth() + 1;
-  const currentYear = now.getFullYear();
-
-  let totalTagihan = 0;
-  let previousInvoicesDue = 0;
-  let latestCarried = 0;
-
-  for (const inv of unpaidInvoices) {
-    const due = (inv.balance_due != null && inv.balance_due > 0)
-      ? Number(inv.balance_due)
-      : Math.max(0, Number(inv.amount || 0) - Number(inv.paid_amount || 0));
-
-    totalTagihan += due;
-
-    const isPrev = (inv.period_year < currentYear || (inv.period_year === currentYear && inv.period_month < currentMonth));
-    if (isPrev) {
-      previousInvoicesDue += due;
-    }
-
-    if (Number(inv.carried_balance) > latestCarried) {
-      latestCarried = Number(inv.carried_balance);
-    }
+  if (!unpaidInvoices || unpaidInvoices.length === 0) {
+    return { 
+      unpaidInvoices: [], 
+      totalTagihan: 0, 
+      tagihanBerjalan: 0, 
+      sisaLalu: 0, 
+      rincianBulan: '-', 
+      hasArrears: false 
+    };
   }
 
-  // Jika carried_balance pada invoice berjalan melebihi tagihan lama fisik di database (misal invoice lama diarsipkan),
-  // tambahkan selisihnya agar tidak ada piutang yang hilang.
-  if (latestCarried > previousInvoicesDue) {
-    totalTagihan += (latestCarried - previousInvoicesDue);
+  // Hitung kewajiban riil (tagihan yang kurang / sisa balance_due) untuk tiap invoice.
+  // PENTING: Untuk status partial, yang dihitung ADALAH SISA KEKURANGANNYA (balance_due),
+  // BUKAN yang sudah dibayar (paid_amount).
+  const invoicesWithDue = unpaidInvoices.map(inv => {
+    const invAmount = Number(inv.amount || 0);
+    const invPaid = Number(inv.paid_amount || 0);
+    let due = 0;
+    if (inv.balance_due != null && Number(inv.balance_due) > 0) {
+      due = Number(inv.balance_due);
+    } else {
+      due = Math.max(0, invAmount - invPaid);
+    }
+    return { ...inv, real_due: due };
+  });
+
+  const totalTagihan = invoicesWithDue.reduce((sum, inv) => sum + inv.real_due, 0);
+
+  let tagihanBerjalan = 0;
+  let sisaLalu = 0;
+
+  if (invoicesWithDue.length === 1) {
+    const singleInv = invoicesWithDue[0];
+    tagihanBerjalan = singleInv.real_due;
+    if (singleInv.carried_balance && Number(singleInv.carried_balance) > 0) {
+      sisaLalu = Number(singleInv.carried_balance);
+    } else if (singleInv.status === 'partial') {
+      sisaLalu = singleInv.real_due;
+    }
+  } else {
+    // Jika ada lebih dari 1 invoice belum lunas:
+    // Invoice terakhir/terbaru secara kronologis adalah tagihan periode berjalan.
+    // Seluruh invoice terdahulu adalah sisa tunggakan periode sebelumnya.
+    const latestInvoice = invoicesWithDue[invoicesWithDue.length - 1];
+    tagihanBerjalan = latestInvoice.real_due;
+
+    const previousInvoices = invoicesWithDue.slice(0, -1);
+    sisaLalu = previousInvoices.reduce((sum, inv) => sum + inv.real_due, 0);
   }
 
-  const sisaLalu = Math.max(previousInvoicesDue, latestCarried);
-  const rincianBulan = unpaidInvoices.length > 0 
-    ? unpaidInvoices.map(inv => `${inv.period_month}/${inv.period_year}`).join(', ') 
-    : '-';
+  const rincianBulan = invoicesWithDue.map(inv => `${inv.period_month}/${inv.period_year}`).join(', ');
 
   return {
-    unpaidInvoices,
+    unpaidInvoices: invoicesWithDue,
     totalTagihan: Math.max(0, Math.round(totalTagihan)),
+    tagihanBerjalan: Math.max(0, Math.round(tagihanBerjalan)),
     sisaLalu: Math.max(0, Math.round(sisaLalu)),
     rincianBulan,
     hasArrears: totalTagihan > 0
