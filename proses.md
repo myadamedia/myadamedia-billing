@@ -2876,5 +2876,42 @@ Mengubah tampilan halaman login pelanggan [views/login.ejs](file:///d:/WEBAPP/my
 - Memudahkan staf admin, teknisi, dan NOC untuk langsung menuju antarmuka penanganan keluhan dan gangguan pelanggan dari dashboard utama dalam 1 klik.
 - Tidak menimbulkan efek samping (*zero side-effects*) pada fitur backend atau menu sidebar utama lainnya.
 
+---
+
+## [2026-08-31] Otomatisasi Akumulasi Tunggakan Tagihan Parsial (Partial) Bulan Lalu ke WA Broadcast Tagihan Bulan Berjalan
+
+### 1. Deskripsi Permasalahan & Akar Masalah
+- **Masalah**: Pelanggan yang memiliki sisa tunggakan tagihan pembayaran sebagian (*partial payment*) di bulan sebelumnya tidak otomatis dijumlahkan ke dalam total tagihan pesan WhatsApp broadcast dan pengingat tagihan bulan berjalan.
+- **Akar Masalah (Root Cause)**:
+  1. `getUnpaidInvoicesByCustomerId(customerId)` di `services/billingService.js` hanya memfilter tagihan dengan `WHERE status = 'unpaid'`, sehingga seluruh invoice berstatus `'partial'` diabaikan.
+  2. Handler broadcast di `routes/adminPortal.js` (`POST /whatsapp/broadcast`) menjumlahkan `inv.amount` secara bruto tanpa memperhitungkan sisa kewajiban riil (`balance_due`).
+  3. Template broadcast manual belum memproses variabel `{{sisa_lalu}}` dan `{{rincian_sisa}}`.
+  4. Subquery `unpaid_count` di `services/customerService.js` mengabaikan pelanggan yang memiliki tagihan `partial`, sehingga target broadcast tunggakan terlewat.
+
+### 2. Solusi & Implementasi Teknis
+- **`services/billingService.js`**:
+  - Memperbarui `getUnpaidInvoicesByCustomerId` agar mengambil tagihan dengan `WHERE status IN ('unpaid', 'partial')`.
+  - Menambahkan engine terpusat `getCustomerBillingSummary(customerId)` yang menghitung:
+    - `totalTagihan`: Akumulasi sisa kewajiban seluruh invoice aktif (`balance_due = amount - paid_amount`).
+    - `sisaLalu`: Akumulasi tunggakan periode sebelum bulan berjalan (atau `carried_balance`).
+    - `rincianBulan`: Periode gabungan (misal `"7/2026, 8/2026"`).
+    - Memastikan *edge-case* konsistensi antara `carried_balance` dan riwayat invoice tanpa duplikasi.
+  - Mengekspor `getCustomerBillingSummary` ke `module.exports`.
+- **`services/customerService.js`**:
+  - Memperbarui subquery `unpaid_count` dan `unpaid_total` di `getAllCustomers` agar memperhitungkan tagihan dengan status `'partial'` dan menghitung sisa `balance_due`.
+- **`routes/adminPortal.js`**:
+  - Mengintegrasikan `getCustomerBillingSummary` ke rute `POST /whatsapp/broadcast` dan `POST /billing/:id/send-wa`.
+  - Mengisi placeholder template WhatsApp: `{{tagihan}}`, `{{sisa_lalu}}`, `{{sisa_tagihan_bulan_lalu}}`, `{{rincian_sisa}}`, `{{id_pelanggan}}`, dan `{{jatuh_tempo}}`.
+- **`services/cronService.js` & `services/notificationService.js`**:
+  - Menyelaraskan seluruh CRON tagihan otomatis dan notifikasi isolir agar menggunakan `getCustomerBillingSummary`.
+- **`tests/billingArrearsBroadcast.test.js` [BARU]**:
+  - Membuat unit test suite komprehensif menguji skenario invoice partial, akumulasi otomatis dengan invoice bulan berjalan, dan formatting pesan WhatsApp.
+
+### 3. Hasil Pengujian & Verifikasi
+- **Pengujian Unit (`npm test`)**: 15/15 Test Suites PASSED (221/221 tests lulus 100%).
+- **Validasi Alur**:
+  - Pelanggan dengan invoice bulan lalu partial (sisa Rp 50.000) dan invoice bulan berjalan (Rp 150.000) otomatis menerima pesan WhatsApp broadcast dengan total tagihan **Rp 200.000** dan rincian *"📌 Termasuk Sisa Tagihan Bulan Lalu: Rp 50.000"*.
+
+
 
 

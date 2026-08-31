@@ -364,12 +364,12 @@ class NotificationService {
 
       // Ambil tagihan yang belum lunas & hitung totalnya
       const billingSvc = require('./billingService');
-      const unpaidInvoices = (billingSvc && typeof billingSvc.getUnpaidInvoicesByCustomerId === 'function')
-        ? billingSvc.getUnpaidInvoicesByCustomerId(customer.id)
-        : [];
-      const totalTagihan = Array.isArray(unpaidInvoices)
-        ? unpaidInvoices.reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0)
-        : 0;
+      const billingSummary = (billingSvc && typeof billingSvc.getCustomerBillingSummary === 'function')
+        ? billingSvc.getCustomerBillingSummary(customer.id)
+        : (billingSvc && typeof billingSvc.getUnpaidInvoicesByCustomerId === 'function')
+          ? { totalTagihan: billingSvc.getUnpaidInvoicesByCustomerId(customer.id).reduce((s, i) => s + (i.balance_due > 0 ? i.balance_due : i.amount), 0) }
+          : { totalTagihan: 0 };
+      const totalTagihan = Number(billingSummary.totalTagihan) || 0;
       const invoiceAmountToDisplay = totalTagihan > 0
         ? totalTagihan
         : (Number(customer.package_price) || 0);

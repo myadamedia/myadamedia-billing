@@ -2862,10 +2862,14 @@ router.post('/billing/:id/whatsapp', requireAdminSession, async (req, res) => {
       return await decodeQrisPayloadFromUploadedQr();
     };
 
-    // Hitung Tagihan
-    const unpaidInvoices = billingSvc.getUnpaidInvoicesByCustomerId(customer.id);
-    const totalTagihan = unpaidInvoices.reduce((sum, i) => sum + i.amount, 0);
-    const rincianBulan = unpaidInvoices.map(i => `${i.period_month}/${i.period_year}`).join(', ');
+    // Hitung Tagihan Lengkap Termasuk Sisa Tagihan Partial Lalu
+    const billingSummary = billingSvc.getCustomerBillingSummary(customer.id);
+    const totalTagihan = billingSummary.totalTagihan;
+    const totalCarried = billingSummary.sisaLalu;
+    const rincianBulan = billingSummary.rincianBulan;
+    const rincianSisaText = totalCarried > 0
+      ? `📌 *Termasuk Sisa Tagihan Bulan Lalu:* Rp ${totalCarried.toLocaleString('id-ID')}\n`
+      : '';
 
     // Generate Link Login
     const protocol = req.headers['x-forwarded-proto'] || req.protocol;
@@ -2903,6 +2907,9 @@ router.post('/billing/:id/whatsapp', requireAdminSession, async (req, res) => {
         .replace(/{{periode}}/gi, `${inv.period_month}/${inv.period_year}`)
         .replace(/{{paket}}/gi, inv.package_name || '-')
         .replace(/{{tagihan}}/gi, totalTagihan.toLocaleString('id-ID'))
+        .replace(/{{sisa_lalu}}/gi, totalCarried.toLocaleString('id-ID'))
+        .replace(/{{sisa_tagihan_bulan_lalu}}/gi, totalCarried.toLocaleString('id-ID'))
+        .replace(/{{rincian_sisa}}/gi, rincianSisaText)
         .replace(/{{qris_nominal}}/gi, Number(qrisAmountUnique).toLocaleString('id-ID'))
         .replace(/{{qris_kode}}/gi, String(qrisCode).padStart(3, '0'))
         .replace(/{{qris_qr}}/gi, `QRIS terlampir (gambar).\n🔗 QRIS JPG: ${qrisJpgLink}\n\n🔐 Portal (Download): ${qrisPortalLink}`)
@@ -2920,6 +2927,9 @@ router.post('/billing/:id/whatsapp', requireAdminSession, async (req, res) => {
         .replace(/{{periode}}/gi, `${inv.period_month}/${inv.period_year}`)
         .replace(/{{paket}}/gi, inv.package_name || '-')
         .replace(/{{tagihan}}/gi, totalTagihan.toLocaleString('id-ID'))
+        .replace(/{{sisa_lalu}}/gi, totalCarried.toLocaleString('id-ID'))
+        .replace(/{{sisa_tagihan_bulan_lalu}}/gi, totalCarried.toLocaleString('id-ID'))
+        .replace(/{{rincian_sisa}}/gi, rincianSisaText)
         .replace(/{{qris_nominal}}/gi, Number(qrisAmountUnique).toLocaleString('id-ID'))
         .replace(/{{qris_kode}}/gi, String(qrisCode).padStart(3, '0'))
         .replace(/{{qris_qr}}/gi, `🔗 QRIS JPG: ${qrisJpgLink}\n\n🔐 Portal (Download): ${qrisPortalLink}`)
@@ -2928,6 +2938,9 @@ router.post('/billing/:id/whatsapp', requireAdminSession, async (req, res) => {
         .replace(/{{id_pelanggan}}/gi, customerFormattedId)
         .replace(/{{nama}}/gi, customer.name || 'Pelanggan')
         .replace(/{{tagihan}}/gi, totalTagihan.toLocaleString('id-ID'))
+        .replace(/{{sisa_lalu}}/gi, totalCarried.toLocaleString('id-ID'))
+        .replace(/{{sisa_tagihan_bulan_lalu}}/gi, totalCarried.toLocaleString('id-ID'))
+        .replace(/{{rincian_sisa}}/gi, rincianSisaText)
         .replace(/{{rincian}}/gi, rincianBulan || '-')
         .replace(/{{paket}}/gi, inv.package_name || '-')
         .replace(/{{link}}/gi, loginLink)
@@ -5689,23 +5702,40 @@ router.post('/whatsapp/broadcast', requireAdminSession, express.urlencoded({ ext
             const randomDelay = getRandomDelay(baseDelayMs, 2000);
             await new Promise(r => setTimeout(r, randomDelay));
 
-            // Hitung Tagihan
-            const unpaidInvoices = billingSvc.getUnpaidInvoicesByCustomerId(cust.id);
-            const totalTagihan = unpaidInvoices.reduce((sum, inv) => sum + inv.amount, 0);
-            const rincianBulan = unpaidInvoices.map(inv => `${inv.period_month}/${inv.period_year}`).join(', ');
+            // Hitung Tagihan Lengkap Termasuk Sisa Tagihan Partial Lalu
+            const billingSummary = billingSvc.getCustomerBillingSummary(cust.id);
+            const totalTagihan = billingSummary.totalTagihan;
+            const totalCarried = billingSummary.sisaLalu;
+            const rincianBulan = billingSummary.rincianBulan;
 
             // Generate Link Login
             const protocol = req.protocol;
             const host = req.get('host');
             const loginLink = `${protocol}://${host}/customer/login`;
 
+            const now = new Date();
+            const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
+            const currentYear = now.getFullYear();
+            const jatuhTempo = `${String(cust.isolate_day || 10).padStart(2, '0')}/${currentMonth}/${currentYear}`;
+
+            const rincianSisaText = totalCarried > 0
+              ? `📌 *Termasuk Sisa Tagihan Bulan Lalu:* Rp ${totalCarried.toLocaleString('id-ID')}\n`
+              : '';
+
+            const customerFormattedId = 'MDE-' + String(cust.id).padStart(4, '0');
+
             // Format Pesan dengan variation untuk menghindari spam detection
             let formattedMsg = message
+              .replace(/{{id_pelanggan}}/gi, customerFormattedId)
               .replace(/{{nama}}/gi, cust.name || 'Pelanggan')
               .replace(/{{tagihan}}/gi, totalTagihan.toLocaleString('id-ID'))
+              .replace(/{{sisa_lalu}}/gi, totalCarried.toLocaleString('id-ID'))
+              .replace(/{{sisa_tagihan_bulan_lalu}}/gi, totalCarried.toLocaleString('id-ID'))
+              .replace(/{{rincian_sisa}}/gi, rincianSisaText)
               .replace(/{{rincian}}/gi, rincianBulan || '-')
               .replace(/{{paket}}/gi, cust.package_name || '-')
-              .replace(/{{link}}/gi, loginLink);
+              .replace(/{{link}}/gi, loginLink)
+              .replace(/{{jatuh_tempo}}/gi, jatuhTempo);
 
             // Add subtle variation untuk menghindari spam detection
             formattedMsg = addMessageVariation(formattedMsg, i);

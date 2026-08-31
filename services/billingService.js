@@ -720,9 +720,68 @@ function getUnpaidInvoicesByCustomerId(customerId) {
     FROM invoices i
     JOIN customers c ON i.customer_id = c.id
     LEFT JOIN packages p ON c.package_id = p.id
-    WHERE i.customer_id = ? AND i.status = 'unpaid'
+    WHERE i.customer_id = ? AND i.status IN ('unpaid', 'partial')
     ORDER BY i.period_year ASC, i.period_month ASC
   `).all(customerId);
+}
+
+/**
+ * Menghitung ringkasan tagihan riil pelanggan termasuk tunggakan bulan sebelumnya:
+ * - totalTagihan: Akumulasi seluruh sisa kewajiban aktif (balance_due)
+ * - sisaLalu: Sisa tunggakan dari periode sebelum bulan berjalan (atau carried_balance)
+ * - rincianBulan: Rincian periode tagihan (misal: "7/2026, 8/2026")
+ * - unpaidInvoices: Daftar invoice berstatus 'unpaid' atau 'partial'
+ */
+function getCustomerBillingSummary(customerId) {
+  const cid = Number(customerId);
+  if (!Number.isFinite(cid) || cid <= 0) {
+    return { unpaidInvoices: [], totalTagihan: 0, sisaLalu: 0, rincianBulan: '-', hasArrears: false };
+  }
+
+  const unpaidInvoices = getUnpaidInvoicesByCustomerId(cid);
+  const now = new Date();
+  const currentMonth = now.getMonth() + 1;
+  const currentYear = now.getFullYear();
+
+  let totalTagihan = 0;
+  let previousInvoicesDue = 0;
+  let latestCarried = 0;
+
+  for (const inv of unpaidInvoices) {
+    const due = (inv.balance_due != null && inv.balance_due > 0)
+      ? Number(inv.balance_due)
+      : Math.max(0, Number(inv.amount || 0) - Number(inv.paid_amount || 0));
+
+    totalTagihan += due;
+
+    const isPrev = (inv.period_year < currentYear || (inv.period_year === currentYear && inv.period_month < currentMonth));
+    if (isPrev) {
+      previousInvoicesDue += due;
+    }
+
+    if (Number(inv.carried_balance) > latestCarried) {
+      latestCarried = Number(inv.carried_balance);
+    }
+  }
+
+  // Jika carried_balance pada invoice berjalan melebihi tagihan lama fisik di database (misal invoice lama diarsipkan),
+  // tambahkan selisihnya agar tidak ada piutang yang hilang.
+  if (latestCarried > previousInvoicesDue) {
+    totalTagihan += (latestCarried - previousInvoicesDue);
+  }
+
+  const sisaLalu = Math.max(previousInvoicesDue, latestCarried);
+  const rincianBulan = unpaidInvoices.length > 0 
+    ? unpaidInvoices.map(inv => `${inv.period_month}/${inv.period_year}`).join(', ') 
+    : '-';
+
+  return {
+    unpaidInvoices,
+    totalTagihan: Math.max(0, Math.round(totalTagihan)),
+    sisaLalu: Math.max(0, Math.round(sisaLalu)),
+    rincianBulan,
+    hasArrears: totalTagihan > 0
+  };
 }
 
 function getTodayRevenue() {
@@ -1052,6 +1111,7 @@ function updatePaymentInfo(invoiceId, data) {
 module.exports = {
   getInvoicesByAny,
   getUnpaidInvoicesByCustomerId,
+  getCustomerBillingSummary,
   generateMonthlyInvoices, generateInvoiceForCustomer, createInstallProrataCatchUpInvoice, payInvoiceForCustomerPeriod, payInvoicesForCustomerMonths, getPaidMonthsForCustomerYear, getCustomerBillingYearSummary, getAllInvoices, getInvoiceById,
   markAsPaid, recordPartialPayment, processCustomerPayment, markAsUnpaid, deleteInvoice,
   getInvoiceSummary, getMonthlyRevenue,
