@@ -72,23 +72,20 @@ function checkCommandCooldown(phone) {
 
 function getPhoneFromKey(key) {
   if (!key) return null;
-  const remoteJid = key.remoteJid || key;
-  if (!remoteJid) return null;
-
-  // Extract phone number from JID
-  const [user, host] = remoteJid.split('@');
-  if (!user || !host) return null;
-
-  // Remove non-digits
+  if (typeof key === 'string') {
+    const [rawUser] = key.split('@');
+    const user = (rawUser || '').split(':')[0].split('.')[0];
+    const phone = user.replace(/\D/g, '');
+    if (!phone) return null;
+    return phone.startsWith('0') ? '62' + phone.slice(1) : phone;
+  }
+  const candidate = key.senderPn || key.remoteJid || key.participant;
+  if (!candidate || typeof candidate !== 'string') return null;
+  const [rawUser] = candidate.split('@');
+  const user = (rawUser || '').split(':')[0].split('.')[0];
   const phone = user.replace(/\D/g, '');
   if (!phone) return null;
-
-  // Convert 0 to 62
-  if (phone.startsWith('0')) {
-    return '62' + phone.slice(1);
-  }
-
-  return phone;
+  return phone.startsWith('0') ? '62' + phone.slice(1) : phone;
 }
 
 function waBrand() {
@@ -294,23 +291,34 @@ export function getWhatsappAdminNumbers() {
   const primary = getSetting('whatsapp_admin_numbers', []);
   let list = [];
   if (Array.isArray(primary)) {
-    list = primary;
+    list = [...primary];
   } else if (typeof primary === 'string' && primary.trim()) {
     list = primary.split(/[\s,]+/).map(s => s.trim()).filter(Boolean);
   } else {
     const legacy = getSetting('admins', []);
     if (Array.isArray(legacy)) {
-      list = legacy;
+      list = [...legacy];
     } else if (typeof legacy === 'string' && legacy.trim()) {
       list = legacy.split(/[\s,]+/).map(s => s.trim()).filter(Boolean);
     }
   }
 
-  // Fallback ke company_phone jika admin numbers belum diatur
+  // Fallback / Tambahan ke company_phone
   const companyPhone = getSetting('company_phone', '');
-  if (companyPhone && list.length === 0) {
-    list = [companyPhone];
+  if (companyPhone && !list.some(p => String(p).replace(/\D/g, '') === String(companyPhone).replace(/\D/g, ''))) {
+    list.push(companyPhone);
   }
+
+  // Tambahkan nomor dari tabel admins di SQLite jika ada
+  try {
+    const db = require('../config/database.js');
+    const adminRows = db.prepare("SELECT phone FROM admins WHERE is_active = 1 AND phone IS NOT NULL AND phone != ''").all();
+    for (const row of adminRows) {
+      if (row.phone && !list.includes(row.phone)) {
+        list.push(row.phone);
+      }
+    }
+  } catch (e) {}
 
   return list;
 }
@@ -324,9 +332,13 @@ export function loadWhatsappAdminSet() {
     if (digits.length >= 8) {
       for (const c of customerDevice.expandTagCandidates(digits)) {
         set.add(c);
+        set.add(`${c}@s.whatsapp.net`);
+        set.add(`${c}@c.us`);
       }
     } else if (s) {
       set.add(s);
+      set.add(`${s}@s.whatsapp.net`);
+      set.add(`${s}@c.us`);
     }
   }
   return set;
@@ -349,34 +361,45 @@ export function isWhatsappAdminKey(key, adminSet, lidStore = null, custSvc = nul
     return false;
   };
 
+  const checkJidMatch = (jid) => {
+    if (!jid || typeof jid !== 'string') return false;
+    const cleanJid = jid.toLowerCase().trim();
+    if (adminSet.has(cleanJid)) return true;
+    const [rawUser] = cleanJid.split('@');
+    const user = (rawUser || '').split(':')[0].split('.')[0];
+    const digits = user.replace(/\D/g, '');
+    if (digits && checkDigitsMatch(digits)) return true;
+    return false;
+  };
+
+  if (typeof key === 'string') {
+    if (checkJidMatch(key)) return true;
+    if (lidStore) {
+      const mapped = lidStore.get(key);
+      if (mapped && (checkDigitsMatch(mapped) || adminSet.has(String(mapped).toLowerCase()))) return true;
+    }
+    return false;
+  }
+
   const nk = normalizeKey(key);
 
   // 1. Cek senderPn (JID nomor pada multi-device)
-  if (nk.senderPn) {
-    const digits = customerDevice.phoneFromPnJid(nk.senderPn);
-    if (digits && checkDigitsMatch(digits)) return true;
-  }
+  if (nk.senderPn && checkJidMatch(nk.senderPn)) return true;
 
-  // 2. Cek remoteJid jika berakhiran @s.whatsapp.net
-  if (nk.remoteJid && nk.remoteJid.endsWith('@s.whatsapp.net')) {
-    const digits = customerDevice.phoneFromPnJid(nk.remoteJid);
-    if (digits && checkDigitsMatch(digits)) return true;
-  }
+  // 2. Cek remoteJid
+  if (nk.remoteJid && checkJidMatch(nk.remoteJid)) return true;
 
   // 3. Cek participant (untuk pesan grup / broadcast)
   const participant = key.participant || (typeof key === 'object' && key.participant);
-  if (participant && typeof participant === 'string' && participant.endsWith('@s.whatsapp.net')) {
-    const digits = customerDevice.phoneFromPnJid(participant);
-    if (digits && checkDigitsMatch(digits)) return true;
-  }
+  if (participant && typeof participant === 'string' && checkJidMatch(participant)) return true;
 
-  // 4. Cek melalui lidStore jika pesan datang dari @lid
+  // 4. Cek melalui lidStore jika pesan datang dari @lid atau memiliki senderLid
   if (lidStore) {
-    const checkLidKey = (lidJid) => {
+    const checkLid = (lidJid) => {
       if (!lidJid) return false;
       const mapped = lidStore.get(lidJid);
       if (mapped) {
-        if (checkDigitsMatch(mapped)) return true;
+        if (checkDigitsMatch(mapped) || adminSet.has(String(mapped).toLowerCase())) return true;
         if (custSvc) {
           const cust = custSvc.findCustomerByAny(mapped);
           if (cust && cust.phone && checkDigitsMatch(cust.phone)) return true;
@@ -385,11 +408,11 @@ export function isWhatsappAdminKey(key, adminSet, lidStore = null, custSvc = nul
       return false;
     };
 
-    if (nk.remoteJid && nk.remoteJid.endsWith('@lid')) {
-      if (checkLidKey(nk.remoteJid)) return true;
+    if (nk.remoteJid && nk.remoteJid.includes('@lid')) {
+      if (checkLid(nk.remoteJid)) return true;
     }
-    if (nk.senderLid && nk.senderLid.endsWith('@lid')) {
-      if (checkLidKey(nk.senderLid)) return true;
+    if (nk.senderLid && nk.senderLid.includes('@lid')) {
+      if (checkLid(nk.senderLid)) return true;
     }
   }
 
@@ -404,10 +427,14 @@ export function parseCommand(text, isAdmin = false) {
   const rest = t.slice(parts[0].length).trim();
 
   // Customer / General Commands
-  if (['menu', 'bantuan', 'help'].includes(cmd)) return { cmd: 'menu', rest: '' };
+  if (['menu', 'bantuan', 'help', '/menu', '!menu', '#menu'].includes(cmd)) return { cmd: 'menu', rest: '' };
 
   // Admin Commands (Ditandai admin: true & adminOnly: true)
-  if (['admin', 'adminmenu', 'menuadmin'].includes(cmd)) {
+  if (['admin', 'adminmenu', 'menuadmin', '/admin', '/adminmenu', '!admin', '!adminmenu', '#admin', '#adminmenu'].includes(cmd)) {
+    // Jika format "admin 0812345678" atau "admin daftar 08123456", perlakukan sebagai perintah pendaftaran/binding
+    if (parts.length >= 2 && /^\d+$/.test(parts[1].replace(/\D/g, ''))) {
+      return { cmd: 'daftar', rest: parts.slice(1).join(' ') };
+    }
     return { cmd: 'adminmenu', admin: true, adminOnly: true, rest: '' };
   }
 
@@ -459,7 +486,7 @@ export function parseCommand(text, isAdmin = false) {
   if (cmd === 'cekterhubung') return { cmd: 'cekterhubung', rest: '' };
   if (cmd === 'gantissid') return { cmd: 'gantissid', rest };
   if (cmd === 'gantisandi') return { cmd: 'gantisandi', rest };
-  if (cmd === 'daftar') return { cmd: 'daftar', rest };
+  if (cmd === 'daftar' || cmd === 'link') return { cmd: 'daftar', rest };
   if (cmd === 'reboot' || cmd === 'restartonu') return { cmd: 'reboot', rest: '' };
   return null;
 }
@@ -1581,20 +1608,58 @@ export async function startWhatsAppBot() {
 
         if (parsed.cmd === 'daftar') {
           if (!parsed.rest) {
-            await reply('❌ Format salah. Gunakan:\n\n\`daftar 081234567890\`\n\n(gunakan tag/nomor yang sama dengan di GenieACS)');
+            await reply(
+              '❌ *Format Salah*\n\n' +
+              'Untuk menautkan akun WhatsApp ini, ketik:\n' +
+              '`daftar NOMOR_ATAU_TAG`\n\n' +
+              'Contoh Admin: `daftar 085179966227`\n' +
+              'Contoh Pelanggan: `daftar 081234567890` (atau username PPPoE)'
+            );
             continue;
           }
-          const dev = await customerDevice.resolveDeviceToken(parsed.rest);
-          if (!dev) {
-            await reply('❌ Tag/nomor tidak ditemukan di GenieACS. Periksa penulisan atau hubungi admin.');
-            continue;
-          }
+
+          const rawTarget = String(parsed.rest || '').trim();
+          const cleanDigits = rawTarget.replace(/\D/g, '');
           const nk = normalizeKey(m.key);
-          const tagKey = String(parsed.rest || '').trim();
-          lidStore.set(remote, tagKey);
-          if (nk.senderLid) lidStore.set(nk.senderLid, tagKey);
-          if (nk.senderPn) lidStore.set(nk.senderPn, tagKey);
-          await reply(`✅ Berhasil! Nomor WA ini diikat ke tag:\n\n📍 *${tagKey}*\n\nSilakan gunakan perintah lain.`);
+          const adminSet = loadWhatsappAdminSet();
+
+          // 1. Cek apakah target adalah Nomor Admin
+          const isTargetAdmin = cleanDigits.length >= 8 && Array.from(customerDevice.expandTagCandidates(cleanDigits)).some(c => adminSet.has(c));
+          if (isTargetAdmin) {
+            lidStore.set(remote, cleanDigits);
+            if (nk.senderLid) lidStore.set(nk.senderLid, cleanDigits);
+            if (nk.senderPn) lidStore.set(nk.senderPn, cleanDigits);
+            await reply(
+              `✅ *Pendaftaran Admin Berhasil!*\n\n` +
+              `Akun WhatsApp ini telah ditautkan sebagai *Admin (${cleanDigits})*.\n\n` +
+              `Silakan ketik *adminmenu* untuk melihat seluruh menu pengelolaan.`
+            );
+            continue;
+          }
+
+          // 2. Cek apakah target adalah Pelanggan di Billing Database
+          const cust = customerSvc.findCustomerByAny(rawTarget);
+          if (cust) {
+            const tagKey = cust.genieacs_tag || cust.pppoe_username || cust.phone || rawTarget;
+            lidStore.set(remote, tagKey);
+            if (nk.senderLid) lidStore.set(nk.senderLid, tagKey);
+            if (nk.senderPn) lidStore.set(nk.senderPn, tagKey);
+            await reply(`✅ *Pendaftaran Berhasil!*\n\nNomor WA Anda telah diikat ke akun pelanggan:\n👤 *${cust.name}* (Tag: ${tagKey})\n\nKetik *menu* untuk melihat opsi layanan.`);
+            continue;
+          }
+
+          // 3. Cek apakah target adalah Perangkat di GenieACS / ACS
+          const dev = await customerDevice.resolveDeviceToken(rawTarget);
+          if (dev) {
+            const tagKey = rawTarget;
+            lidStore.set(remote, tagKey);
+            if (nk.senderLid) lidStore.set(nk.senderLid, tagKey);
+            if (nk.senderPn) lidStore.set(nk.senderPn, tagKey);
+            await reply(`✅ *Pendaftaran Berhasil!*\n\nNomor WA Anda telah diikat ke perangkat ONT:\n📍 *${tagKey}*\n\nKetik *menu* untuk melihat opsi layanan.`);
+            continue;
+          }
+
+          await reply('❌ Nomor HP atau Tag tidak ditemukan di daftar Admin, Billing Pelanggan, ataupun GenieACS. Periksa kembali nomor yang Anda masukkan.');
           continue;
         }
 

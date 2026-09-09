@@ -551,12 +551,14 @@ async function findDeviceWithTagVariants(input) {
   return null;
 }
 
-/** Nomor dari JID WhatsApp @s.whatsapp.net */
+/** Nomor dari JID WhatsApp (menghapus suffix multi-device seperti :0) */
 function phoneFromPnJid(jid) {
   if (!jid || typeof jid !== 'string') return null;
-  const [user, host] = jid.split('@');
-  if (!user || host !== 's.whatsapp.net') return null;
-  return user.replace(/\D/g, '') || null;
+  const [rawUser, host] = jid.split('@');
+  if (!rawUser) return null;
+  const user = rawUser.split(':')[0].split('.')[0];
+  const digits = user.replace(/\D/g, '');
+  return digits || null;
 }
 
 function mapDeviceData(device, tag) {

@@ -2,6 +2,46 @@
 
 ---
 
+## [2026-09-09] Perbaikan Pengenalan Admin WhatsApp Bot (Multi-Device Suffix `:0` & Admin Self-Binding)
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna melaporkan bahwa perintah `adminmenu` masih belum bisa digunakan. Nomor WhatsApp sudah didaftarkan, namun saat Admin mengirimkan `adminmenu` ke bot, balasannya tetap `❌ Akses Ditolak`.
+
+### 2. Penyebab Utama Masalah (Root Causes)
+1. **Penyisipan Suffix Multi-Device (`:0` / `:12`) pada JID Baileys**:
+   Pada protokol WhatsApp Multi-Device (Baileys), identitas pengirim pada pesan masuk (`remoteJid`, `senderPn`, `participant`) sering kali mengandung suffix indeks perangkat (contoh: `6285179966227:0@s.whatsapp.net` atau `6285179966227:12@s.whatsapp.net`). Fungsi `phoneFromPnJid()` dan `getPhoneFromKey()` sebelumnya langsung mengeksekusi `user.replace(/\D/g, '')` tanpa memisahkan `:0` terlebih dahulu. Akibatnya nomor `6285179966227:0` berubah menjadi `62851799662270` (dengan kelebihan digit 0 di akhir), sehingga gagal total saat dicocokkan dengan nomor admin terdaftar.
+2. **Kegagalan Validasi Perintah `daftar <NOMOR_ADMIN>`**:
+   Ketika Admin yang menggunakan WhatsApp dengan format `@lid` mengirim perintah `daftar 085179966227` (sesuai instruksi pada pesan balasan), fungsi `daftar` di bot sebelumnya langsung mengecek `customerDevice.resolveDeviceToken(parsed.rest)` yang khusus mencari ONU ONT di GenieACS. Karena nomor admin bukan perangkat ONT modem di GenieACS, bot menolak dengan `❌ Tag/nomor tidak ditemukan di GenieACS.` dan pemetaan LID admin (`lidStore.set`) tidak pernah tersimpan.
+3. **Penyusunan Admin Numbers Multi-Sumber**:
+   Daftar admin sebelumnya hanya mengambil dari `settings.json`, belum mengikutsertakan nomor telepon admin dari database tabel `admins` dan variasi format JID langsung (`@s.whatsapp.net` / `@c.us`).
+
+### 3. Solusi & Implementasi Teknis (Clean Architecture & Production-Ready)
+- **Normalisasi Suffix Multi-Device (`services/customerDeviceService.js` & `services/whatsappBot.mjs`)**:
+  - Memperbarui `phoneFromPnJid()` dan `getPhoneFromKey()` untuk memisahkan user string berdasarkan titik dua (`split(':')[0].split('.')[0]`) sebelum membuang karakter non-digit. `6285179966227:0@s.whatsapp.net` kini secara presisi menghasilkan `6285179966227`.
+- **Multi-Source Admin Loader (`loadWhatsappAdminSet`)**:
+  - Menggabungkan nomor admin dari `settings.whatsapp_admin_numbers`, `settings.company_phone`, `settings.admins`, serta tabel `admins` di SQLite.
+  - Memasukkan variasi format (`08xxx`, `628xxx`, `+628xxx`, `8xxx`, serta JID `@s.whatsapp.net` dan `@c.us`) ke dalam `adminSet` untuk pencocokan instan $O(1)$.
+- **Penyempurnaan Alur Pendaftaran (`daftar` & `admin <nomor>`)**:
+  - Pada controller `parsed.cmd === 'daftar'`, sistem kini memprioritaskan pengecekan apakah target adalah Nomor Admin. Jika cocok, bot langsung menyimpan pemetaan LID ke `lidStore` (dan berkas `data/wa-lid-map.json`), memberikan balasan sukses hijau, dan langsung membuka akses `adminmenu`.
+  - Mendukung alias perintah `/admin`, `!admin`, `#admin`, `link <nomor>`, dan `admin <nomor_admin>`.
+- **Pengujian Unit Testing (`tests/whatsappBotAdmin.test.js`)**:
+  - Menambahkan pengujian untuk:
+    1. Multi-device suffix `:0` dan `:12`.
+    2. Prefix perintah (`/`, `!`, `#`).
+    3. Parsing perintah registrasi admin `admin <nomor>`.
+    4. Seluruh 12 unit tests lulus 100%.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`services/customerDeviceService.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/customerDeviceService.js)
+- `[MODIFY]` [`services/whatsappBot.mjs`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/whatsappBot.mjs)
+- `[MODIFY]` [`tests/whatsappBotAdmin.test.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/tests/whatsappBotAdmin.test.js)
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/proses.md)
+
+### 5. Hasil Pengujian & Verifikasi
+- **Jest Test Suite**: Seluruh 17 test suites (239 tests) lulus 100% (`0 failures`).
+
+---
+
 ## [2026-09-09] Perbaikan Fitur Ubah Password & SSID Wi-Fi Portal Pelanggan (Customer Dashboard)
 
 ### 1. Deskripsi Permasalahan & Kebutuhan
