@@ -902,19 +902,37 @@ async function updateSSID(tag, newSSID, actor = null) {
     // Check supported paths in DB
     const db = require('../config/database');
     const row = db.prepare('SELECT params FROM acs_devices WHERE id = ?').get(device._id);
-    const flatParams = row && row.params ? JSON.parse(row.params) : null;
+    let flatParams = null;
+    if (row && row.params) {
+      flatParams = typeof row.params === 'string' ? JSON.parse(row.params) : row.params;
+    } else if (device._flatParams) {
+      flatParams = device._flatParams;
+    }
+
+    // Case-insensitive lookup helper
+    const findMatchingKey = (targetPath) => {
+      if (!flatParams || typeof flatParams !== 'object') return null;
+      if (flatParams[targetPath] !== undefined) return targetPath;
+      const targetLower = targetPath.toLowerCase();
+      for (const k of Object.keys(flatParams)) {
+        if (k.toLowerCase() === targetLower) return k;
+      }
+      return null;
+    };
     
-    if (flatParams) {
+    if (flatParams && typeof flatParams === 'object') {
       // SSID 2.4G paths
       const paths24G = [
         'InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID',
         'Device.WiFi.SSID.1.SSID'
       ];
-      paths24G.forEach(p => {
-        if (flatParams[p] !== undefined) {
-          parameterValues.push([p, newSSID, 'xsd:string']);
+      for (const p of paths24G) {
+        const matched = findMatchingKey(p);
+        if (matched) {
+          parameterValues.push([matched, newSSID, 'xsd:string']);
+          break;
         }
-      });
+      }
       
       // SSID 5G paths
       const paths5G = [
@@ -923,19 +941,23 @@ async function updateSSID(tag, newSSID, actor = null) {
       for (const idx of [5, 6, 7, 8]) {
         paths5G.push(`InternetGatewayDevice.LANDevice.1.WLANConfiguration.${idx}.SSID`);
       }
-      paths5G.forEach(p => {
-        if (flatParams[p] !== undefined) {
-          parameterValues.push([p, `${newSSID}-5G`, 'xsd:string']);
+      for (const p of paths5G) {
+        const matched = findMatchingKey(p);
+        if (matched) {
+          parameterValues.push([matched, `${newSSID}-5G`, 'xsd:string']);
+          break;
         }
-      });
+      }
     }
     
     // Fallback if no parameters match or device not bootstrapped yet
     if (parameterValues.length === 0) {
-      parameterValues.push(
-        ['InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID', newSSID, 'xsd:string'],
-        ['Device.WiFi.SSID.1.SSID', newSSID, 'xsd:string']
-      );
+      const isTR181 = device.Device?.WiFi || String(device._id || '').includes('Device.');
+      if (isTR181) {
+        parameterValues.push(['Device.WiFi.SSID.1.SSID', newSSID, 'xsd:string']);
+      } else {
+        parameterValues.push(['InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID', newSSID, 'xsd:string']);
+      }
     }
 
     let ok = false;
@@ -955,6 +977,28 @@ async function updateSSID(tag, newSSID, actor = null) {
     try {
       await instance.post(tasksUrl, { name: 'refreshObject', objectName: 'Device.WiFi.SSID' }, { timeout: 15000 });
     } catch (e) {}
+
+    // Update local SQLite params directly if in Builtin ACS mode
+    if (ok) {
+      try {
+        const devRow = db.prepare('SELECT params FROM acs_devices WHERE id = ?').get(device._id);
+        if (devRow) {
+          const currentParams = typeof devRow.params === 'string' ? JSON.parse(devRow.params || '{}') : (devRow.params || {});
+          for (const [pName, pVal] of parameterValues) {
+            if (pName) {
+              if (currentParams[pName] && typeof currentParams[pName] === 'object') {
+                currentParams[pName]._value = pVal;
+                currentParams[pName]._timestamp = new Date().toISOString();
+              } else {
+                currentParams[pName] = { _value: pVal, _type: 'xsd:string', _timestamp: new Date().toISOString() };
+              }
+            }
+          }
+          db.prepare('UPDATE acs_devices SET params = ?, updated_at = ? WHERE id = ?')
+            .run(JSON.stringify(currentParams), new Date().toISOString(), device._id);
+        }
+      } catch (dbErr) {}
+    }
 
     // Catat audit trail jika berhasil
     if (ok && actor) {
@@ -1009,9 +1053,25 @@ async function updatePassword(tag, newPassword, actor = null) {
     // Check supported paths in DB
     const db = require('../config/database');
     const row = db.prepare('SELECT params FROM acs_devices WHERE id = ?').get(device._id);
-    const flatParams = row && row.params ? JSON.parse(row.params) : null;
+    let flatParams = null;
+    if (row && row.params) {
+      flatParams = typeof row.params === 'string' ? JSON.parse(row.params) : row.params;
+    } else if (device._flatParams) {
+      flatParams = device._flatParams;
+    }
+
+    // Case-insensitive lookup helper
+    const findMatchingKey = (targetPath) => {
+      if (!flatParams || typeof flatParams !== 'object') return null;
+      if (flatParams[targetPath] !== undefined) return targetPath;
+      const targetLower = targetPath.toLowerCase();
+      for (const k of Object.keys(flatParams)) {
+        if (k.toLowerCase() === targetLower) return k;
+      }
+      return null;
+    };
     
-    if (flatParams) {
+    if (flatParams && typeof flatParams === 'object') {
       // 2.4G password paths
       const paths24G = [
         'InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.KeyPassphrase',
@@ -1020,11 +1080,13 @@ async function updatePassword(tag, newPassword, actor = null) {
         'Device.WiFi.AccessPoint.1.Security.KeyPassphrase',
         'Device.WiFi.AccessPoint.1.Security.PreSharedKey'
       ];
-      paths24G.forEach(p => {
-        if (flatParams[p] !== undefined) {
-          parameterValues.push([p, pw, 'xsd:string']);
+      for (const p of paths24G) {
+        const matched = findMatchingKey(p);
+        if (matched) {
+          parameterValues.push([matched, pw, 'xsd:string']);
+          break; // Use the first matching path
         }
-      });
+      }
       
       // 5G password paths
       const paths5G = [
@@ -1038,21 +1100,26 @@ async function updatePassword(tag, newPassword, actor = null) {
           `InternetGatewayDevice.LANDevice.1.WLANConfiguration.${idx}.PreSharedKey.1.PreSharedKey`
         );
       }
-      paths5G.forEach(p => {
-        if (flatParams[p] !== undefined) {
-          parameterValues.push([p, pw, 'xsd:string']);
+      for (const p of paths5G) {
+        const matched = findMatchingKey(p);
+        if (matched) {
+          parameterValues.push([matched, pw, 'xsd:string']);
+          break;
         }
-      });
+      }
     }
     
     // Fallback if no parameters match or device not bootstrapped yet
     if (parameterValues.length === 0) {
-      parameterValues.push(
-        ['InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.KeyPassphrase', pw, 'xsd:string'],
-        ['InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.PreSharedKey.1.KeyPassphrase', pw, 'xsd:string'],
-        ['InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.PreSharedKey.1.PreSharedKey', pw, 'xsd:string'],
-        ['Device.WiFi.AccessPoint.1.Security.KeyPassphrase', pw, 'xsd:string']
-      );
+      const isTR181 = device.Device?.WiFi || String(device._id || '').includes('Device.');
+      if (isTR181) {
+        parameterValues.push(['Device.WiFi.AccessPoint.1.Security.KeyPassphrase', pw, 'xsd:string']);
+      } else {
+        parameterValues.push(
+          ['InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.KeyPassphrase', pw, 'xsd:string'],
+          ['InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.PreSharedKey.1.KeyPassphrase', pw, 'xsd:string']
+        );
+      }
     }
 
     let ok = false;
@@ -1073,6 +1140,28 @@ async function updatePassword(tag, newPassword, actor = null) {
     try {
       await instance.post(tasksUrl, { name: 'refreshObject', objectName: 'Device.WiFi.AccessPoint' }, { timeout: 15000 });
     } catch (e) {}
+
+    // Update local SQLite params directly if in Builtin ACS mode
+    if (ok) {
+      try {
+        const devRow = db.prepare('SELECT params FROM acs_devices WHERE id = ?').get(device._id);
+        if (devRow) {
+          const currentParams = typeof devRow.params === 'string' ? JSON.parse(devRow.params || '{}') : (devRow.params || {});
+          for (const [pName, pVal] of parameterValues) {
+            if (pName) {
+              if (currentParams[pName] && typeof currentParams[pName] === 'object') {
+                currentParams[pName]._value = pVal;
+                currentParams[pName]._timestamp = new Date().toISOString();
+              } else {
+                currentParams[pName] = { _value: pVal, _type: 'xsd:string', _timestamp: new Date().toISOString() };
+              }
+            }
+          }
+          db.prepare('UPDATE acs_devices SET params = ?, updated_at = ? WHERE id = ?')
+            .run(JSON.stringify(currentParams), new Date().toISOString(), device._id);
+        }
+      } catch (dbErr) {}
+    }
 
     // Catat audit trail jika berhasil
     if (ok && actor) {

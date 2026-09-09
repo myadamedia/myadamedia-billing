@@ -1076,6 +1076,25 @@
         .catch(() => {});
     }
 
+    function togglePassVisibility() {
+      const input = document.getElementById('wifiPassInput');
+      const icon = document.getElementById('passEyeIcon');
+      if (!input) return;
+      if (input.type === 'password') {
+        input.type = 'text';
+        if (icon) {
+          icon.classList.remove('bi-eye');
+          icon.classList.add('bi-eye-slash');
+        }
+      } else {
+        input.type = 'password';
+        if (icon) {
+          icon.classList.remove('bi-eye-slash');
+          icon.classList.add('bi-eye');
+        }
+      }
+    }
+
     async function deleteCustomerConnectedClient(mac, ip, hostname) {
       if (!confirm(`Apakah Anda yakin ingin menghapus perangkat "${hostname}" (${mac || ip}) dari daftar terhubung?`)) return;
       try {

@@ -2,6 +2,55 @@
 
 ---
 
+## [2026-09-09] Perbaikan Fitur Ubah Password & SSID Wi-Fi Portal Pelanggan (Customer Dashboard)
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna melaporkan bahwa pada dashboard customer portal (`/customer/dashboard`), fitur perubahan password Wi-Fi dan pergantian nama Wi-Fi (SSID) tidak berfungsi ketika pelanggan mencoba mengganti kata sandi atau SSID perangkat router/ONT mereka.
+
+### 2. Penyebab Utama Masalah (Root Causes)
+1. **`ReferenceError: phone is not defined` pada Rute Portal Pelanggan**:
+   Pada `routes/customerPortal.js` di controller `POST /customer/change-password`, fungsi pemanggilan pengiriman notifikasi WhatsApp keliru memanggil `findCustomerProfileByLoginId(phone)` padahal variabel `phone` belum dideklarasikan pada scope fungsi tersebut. Hal ini memicu runtime error yang menggagalkan alur atau memutus pengiriman notifikasi.
+2. **Kandidat Token Identifikasi Perangkat Terbatas**:
+   Jika pelanggan login ke dashboard portal menggunakan username PPPoE, `req.session.pppoe_username` belum disertakan ke dalam daftar kandidat pencarian (`tokenCandidates`) saat memanggil `customerDeviceService.resolveDeviceToken()`, sehingga sistem gagal mengaitkan sesi pelanggan dengan data modem ONT di database/ACS.
+3. **TR-069 Payload Conflict (Fault 9005) & Case-Sensitivity**:
+   - Pada `services/customerDeviceService.js`, fallback pengiriman parameter TR-069 sebelumnya menggabungkan parameter TR-098 (`InternetGatewayDevice.LANDevice...`) dan TR-181 (`Device.WiFi...`) dalam satu task `setParameterValues`. Modem/ONT standar menolak konfigurasi campuran ini dengan TR-069 Fault 9005 (Parameter Invalid).
+   - Pencocokan parameter path sebelumnya bersifat case-sensitive, sedangkan berbagai merk router (ZTE, Huawei, Fiberhome) mengirim casing yang berbeda (misalnya `KeyPassphrase` vs `keyPassphrase`).
+4. **Fungsi UI `togglePassVisibility()` Tidak Ditemukan**:
+   Pada `views/dashboard.ejs`, tombol ikon mata pada input form password memanggil fungsi `togglePassVisibility()`, namun fungsi JavaScript tersebut belum tersedia di blok `<script>`, menyebabkan tombol intip password tidak merespons.
+
+### 3. Solusi & Implementasi Teknis (Clean Architecture & Production-Ready)
+- **Customer Portal Controller (`routes/customerPortal.js`)**:
+  - Memperbaiki penanganan profil pelanggan dan nomor WhatsApp menggunakan `profile?.phone || loginId` sehingga bebas dari `ReferenceError`.
+  - Memperluas resolusi kandidat identitas perangkat: `[pppoeSession, loginId, profile?.pppoe_username, profile?.genieacs_tag, profile?.phone]`.
+  - Meneruskan objek `actor` (`{ type: 'customer', id: customerId, name: customerName, ip, userAgent }`) ke service perangkat untuk pencatatan audit trail yang lengkap.
+- **Customer Device Service (`services/customerDeviceService.js`)**:
+  - Mengimplementasikan helper `findMatchingKey()` yang bersifat case-insensitive untuk mencocokkan path TR-069 parameter 2.4G dan 5G secara akurat.
+  - Memilih satu jalur parameter utama yang benar-benar didukung perangkat untuk mencegah Fault 9005 TR-069.
+  - Memperbarui penyimpanan lokal SQLite `acs_devices` secara presisi dengan struktur standar GenieACS/TR-069 (`_value`, `_type`, `_timestamp`).
+  - Membersihkan syntax error (duplikat closing brace) dan memastikan fallback TR-181 / TR-098 bekerja mulus.
+- **Tampilan Antarmuka Portal (`views/dashboard.ejs`)**:
+  - Menambahkan fungsi `togglePassVisibility()` di blok `<script>` untuk beralih antara `type="password"` dan `type="text"`, serta mengubah ikon mata (`bi-eye` / `bi-eye-slash`).
+- **Pengujian Unit Testing (`tests/customerWifiPassword.test.js`)**:
+  - Membuat unit test Jest yang memverifikasi:
+    1. Resolusi perangkat via PPPoE username, genieacs_tag, dan nomor telepon.
+    2. Pembaruan SSID 2.4G & 5G pada data model TR-098.
+    3. Pembaruan Password Wi-Fi pada data model TR-098.
+    4. Pembaruan Password Wi-Fi pada data model TR-181.
+    5. Penanganan kegagalan graceful (perangkat tidak ditemukan / password terlalu pendek < 8 karakter).
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`routes/customerPortal.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/routes/customerPortal.js)
+- `[MODIFY]` [`services/customerDeviceService.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/customerDeviceService.js)
+- `[MODIFY]` [`views/dashboard.ejs`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/views/dashboard.ejs)
+- `[NEW]` [`tests/customerWifiPassword.test.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/tests/customerWifiPassword.test.js)
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/proses.md)
+
+### 5. Hasil Pengujian & Verifikasi
+- **Jest Test Suite**: Seluruh 17 test suites (237 tests) lulus 100% (`0 failures`).
+- Pengujian unit `tests/customerWifiPassword.test.js`: 5/5 test cases lulus.
+
+---
+
 ## [2026-09-09] Perbaikan WhatsApp Bot Adminmenu & Identifikasi Nomor Admin (LID Multi-Device Support)
 
 ### 1. Deskripsi Permasalahan & Kebutuhan

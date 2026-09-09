@@ -2105,42 +2105,59 @@ router.get('/api/pppoe-traffic', async (req, res) => {
 
 router.post('/change-ssid', async (req, res) => {
   const loginId = String(req.session?.phone ?? '').replace(/[\r\n\t]+/g, '').trim();
-  if (!loginId) return res.redirect('/customer/login');
-  const { ssid } = req.body;
-  const profile = findCustomerProfileByLoginId(loginId);
+  const pppoeSession = String(req.session?.pppoe_username ?? '').replace(/[\r\n\t]+/g, '').trim();
+  if (!loginId && !pppoeSession) return res.redirect('/customer/login');
+  
+  const ssidRaw = req.body ? req.body.ssid : '';
+  const ssid = String(ssidRaw ?? '').replace(/[\r\n\t]+/g, '').trim();
+  if (!ssid) {
+    req.session._msg = { type: 'danger', text: 'Nama SSID tidak boleh kosong.' };
+    return res.redirect('/customer/dashboard');
+  }
+
+  const profile = findCustomerProfileByLoginId(loginId || pppoeSession);
   const tokenCandidates = [];
-  for (const v of [loginId, profile?.phone, profile?.pppoe_username, profile?.genieacs_tag]) {
+  for (const v of [pppoeSession, loginId, profile?.pppoe_username, profile?.genieacs_tag, profile?.phone]) {
     const s = String(v ?? '').replace(/[\r\n\t]+/g, '').trim();
     if (s && !tokenCandidates.includes(s)) tokenCandidates.push(s);
   }
+
+  const actor = {
+    type: 'customer',
+    id: profile ? profile.id : null,
+    name: profile ? profile.name : (loginId || pppoeSession),
+    ip: req.ip || req.headers['x-forwarded-for'] || null,
+    userAgent: req.headers['user-agent'] || null
+  };
+
   let ok = false;
   for (const token of tokenCandidates) {
-    ok = await updateSSID(token, ssid);
+    ok = await updateSSID(token, ssid, actor);
     if (ok) break;
   }
   
   req.session._msg = ok 
     ? { type: 'success', text: 'Nama WiFi (SSID) berhasil diubah.' }
-    : { type: 'danger', text: 'Gagal mengubah SSID.' };
+    : { type: 'danger', text: 'Gagal mengubah SSID. Perangkat mungkin offline atau sedang sibuk, silakan coba lagi.' };
 
   // Kirim notifikasi WhatsApp ke pelanggan
   if (ok) {
     try {
       const settings = getSettingsWithCache();
       if (settings.whatsapp_enabled) {
-        const profile = findCustomerProfileByLoginId(phone);
-        if (profile && profile.phone) {
+        const targetPhone = profile?.phone || loginId;
+        if (targetPhone) {
           const { sendWA, whatsappStatus } = await import('../services/whatsappBot.mjs');
           if (whatsappStatus && whatsappStatus.connection === 'open') {
             const now = getNowLocal();
-            const msg = `\ud83d\udcf6 *PERUBAHAN SSID WIFI*\n\n` +
-              `\ud83d\udc64 *Pelanggan:* ${profile.name}\n` +
-              `\ud83d\udd52 *Waktu:* ${now}\n\n` +
+            const msg = `📶 *PERUBAHAN SSID WIFI*\n\n` +
+              `👤 *Pelanggan:* ${profile?.name || targetPhone}\n` +
+              `🕒 *Waktu:* ${now}\n\n` +
               `SSID WiFi Anda sudah diperbarui menjadi:\n` +
-              `\ud83d\udce1 *${ssid}*\n\n` +
+              `📡 *${ssid}*\n\n` +
               `Silakan pilih SSID baru di perangkat Anda untuk terhubung.\n` +
-              `\u26a0\ufe0f Jangan bagikan info ini ke orang lain.`;
-            await sendWA(profile.phone, msg);
+              `⚠️ Jangan bagikan info ini ke orang lain.`;
+            await sendWA(targetPhone, msg);
           }
         }
       }
@@ -2152,7 +2169,9 @@ router.post('/change-ssid', async (req, res) => {
 
 router.post('/change-password', async (req, res) => {
   const loginId = String(req.session?.phone ?? '').replace(/[\r\n\t]+/g, '').trim();
-  if (!loginId) return res.redirect('/customer/login');
+  const pppoeSession = String(req.session?.pppoe_username ?? '').replace(/[\r\n\t]+/g, '').trim();
+  if (!loginId && !pppoeSession) return res.redirect('/customer/login');
+  
   const passwordRaw = req.body ? req.body.password : '';
   const password = String(passwordRaw ?? '').replace(/[\r\n\t]+/g, '').trim();
   if (password.length < 8) {
@@ -2160,15 +2179,24 @@ router.post('/change-password', async (req, res) => {
     return res.redirect('/customer/dashboard');
   }
 
-  const profile = findCustomerProfileByLoginId(loginId);
+  const profile = findCustomerProfileByLoginId(loginId || pppoeSession);
   const tokenCandidates = [];
-  for (const v of [loginId, profile?.phone, profile?.pppoe_username, profile?.genieacs_tag]) {
+  for (const v of [pppoeSession, loginId, profile?.pppoe_username, profile?.genieacs_tag, profile?.phone]) {
     const s = String(v ?? '').replace(/[\r\n\t]+/g, '').trim();
     if (s && !tokenCandidates.includes(s)) tokenCandidates.push(s);
   }
+
+  const actor = {
+    type: 'customer',
+    id: profile ? profile.id : null,
+    name: profile ? profile.name : (loginId || pppoeSession),
+    ip: req.ip || req.headers['x-forwarded-for'] || null,
+    userAgent: req.headers['user-agent'] || null
+  };
+
   let ok = false;
   for (const token of tokenCandidates) {
-    ok = await updatePassword(token, password);
+    ok = await updatePassword(token, password, actor);
     if (ok) break;
   }
   
@@ -2181,19 +2209,19 @@ router.post('/change-password', async (req, res) => {
     try {
       const settings = getSettingsWithCache();
       if (settings.whatsapp_enabled) {
-        const profile = findCustomerProfileByLoginId(phone);
-        if (profile && profile.phone) {
+        const targetPhone = profile?.phone || loginId;
+        if (targetPhone) {
           const { sendWA, whatsappStatus } = await import('../services/whatsappBot.mjs');
           if (whatsappStatus && whatsappStatus.connection === 'open') {
             const now = getNowLocal();
-            const msg = `\ud83d\udd11 *PERUBAHAN PASSWORD WIFI*\n\n` +
-              `\ud83d\udc64 *Pelanggan:* ${profile.name}\n` +
-              `\ud83d\udd52 *Waktu:* ${now}\n\n` +
+            const msg = `🔑 *PERUBAHAN PASSWORD WIFI*\n\n` +
+              `👤 *Pelanggan:* ${profile?.name || targetPhone}\n` +
+              `🕒 *Waktu:* ${now}\n\n` +
               `Password WiFi Anda sudah diperbarui menjadi:\n` +
-              `\ud83d\udd10 *${password}*\n\n` +
+              `🔐 *${password}*\n\n` +
               `Silakan gunakan password baru untuk terhubung.\n` +
-              `\u26a0\ufe0f Jangan bagikan password ini ke orang lain.`;
-            await sendWA(profile.phone, msg);
+              `⚠️ Jangan bagikan password ini ke orang lain.`;
+            await sendWA(targetPhone, msg);
           }
         }
       }
