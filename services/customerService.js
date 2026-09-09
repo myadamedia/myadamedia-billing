@@ -163,7 +163,7 @@ function updateCustomer(id, data) {
       }
     } else if (newStatus === 'active') {
       syncCustomerActivation(id).catch(err => logger.error(`[updateCustomer] Auto sync activation error for customer ${id}: ${err.message}`));
-    } else if (newStatus === 'inactive') {
+    } else if (newStatus === 'terminated' || newStatus === 'inactive') {
       syncCustomerInactivation(id).catch(err => logger.error(`[updateCustomer] Auto sync inactivation error for customer ${id}: ${err.message}`));
     }
   } else {
@@ -283,10 +283,11 @@ async function deleteCustomer(id) {
 
 function getCustomerStats() {
   return {
-    total:     db.prepare('SELECT COUNT(*) as c FROM customers').get().c,
-    active:    db.prepare("SELECT COUNT(*) as c FROM customers WHERE status='active'").get().c,
-    suspended: db.prepare("SELECT COUNT(*) as c FROM customers WHERE status='suspended'").get().c,
-    inactive:  db.prepare("SELECT COUNT(*) as c FROM customers WHERE status='inactive'").get().c,
+    total:      db.prepare('SELECT COUNT(*) as c FROM customers').get().c,
+    active:     db.prepare("SELECT COUNT(*) as c FROM customers WHERE status='active'").get().c,
+    suspended:  db.prepare("SELECT COUNT(*) as c FROM customers WHERE status='suspended'").get().c,
+    terminated: db.prepare("SELECT COUNT(*) as c FROM customers WHERE status IN ('terminated', 'inactive')").get().c,
+    inactive:   db.prepare("SELECT COUNT(*) as c FROM customers WHERE status IN ('terminated', 'inactive')").get().c,
   };
 }
 
@@ -680,9 +681,22 @@ async function activateCustomer(id) {
   return true;
 }
 
+async function terminateCustomer(id) {
+  const customer = getCustomerById(id);
+  if (!customer) throw new Error('Pelanggan tidak ditemukan');
+
+  const oldStatus = customer.status;
+  updateCustomer(id, { ...customer, status: 'terminated' });
+
+  if (oldStatus === 'terminated' || oldStatus === 'inactive') {
+    await syncCustomerInactivation(customer);
+  }
+  return true;
+}
+
 module.exports = {
   getAllCustomers, getCustomerById, createCustomer, updateCustomer, deleteCustomer, getCustomerStats,
   getAllPackages, getPackageById, createPackage, updatePackage, deletePackage,
-  suspendCustomer, activateCustomer, findCustomerByAny, updateCustomerCablePath,
+  suspendCustomer, activateCustomer, terminateCustomer, findCustomerByAny, updateCustomerCablePath,
   resetPromoCyclesUsed, syncCustomerIsolation, syncCustomerActivation, syncCustomerInactivation
 };

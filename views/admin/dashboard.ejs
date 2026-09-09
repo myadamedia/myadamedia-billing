@@ -416,23 +416,32 @@
               style="font-size:12px;color:var(--text);font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
               <i class="bi bi-people-fill" style="color:var(--primary);font-size:16px;"></i> Monitoring Pelanggan
             </div>
-            <div class="stat-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 22px;">
+            <div class="stat-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 22px;">
               <!-- User Aktif (total pppoe aktif) -->
               <div class="sc p" style="cursor:pointer" onclick="location.href='/admin/customers?status=active'">
                 <i class="bi bi-ethernet sc-icon"></i>
                 <div class="sc-label">User Aktif</div>
-                <div class="sc-val" id="stat-pppoe-active"><span class="text-muted" style="font-size:16px">...</span>
+                <div class="sc-val" id="stat-pppoe-active"><span class="text-muted" style="font-size:16px"><%= typeof custStats !== 'undefined' && custStats ? custStats.active : '...' %></span>
                 </div>
                 <div class="sc-sub">Total PPPoE Active / Online</div>
               </div>
 
               <!-- User Suspend (total user dengan Profil suspend) -->
               <div class="sc w" style="cursor:pointer" onclick="location.href='/admin/customers?status=suspended'">
-                <i class="bi bi-person-x-fill sc-icon"></i>
+                <i class="bi bi-pause-circle sc-icon"></i>
                 <div class="sc-label">User Suspend</div>
-                <div class="sc-val" id="stat-pppoe-suspended"><span class="text-muted" style="font-size:16px">...</span>
+                <div class="sc-val" id="stat-pppoe-suspended"><span class="text-muted" style="font-size:16px"><%= typeof custStats !== 'undefined' && custStats ? custStats.suspended : '...' %></span>
                 </div>
                 <div class="sc-sub">Total Profil Suspend / Terisolir</div>
+              </div>
+
+              <!-- User Terminate (total user dengan status terminate/berhenti) -->
+              <div class="sc d" style="cursor:pointer" onclick="location.href='/admin/customers?status=terminated'">
+                <i class="bi bi-person-x-fill sc-icon"></i>
+                <div class="sc-label">User Terminate</div>
+                <div class="sc-val" id="stat-pppoe-terminated"><span class="text-muted" style="font-size:16px"><%= typeof custStats !== 'undefined' && custStats ? (custStats.terminated || 0) : '...' %></span>
+                </div>
+                <div class="sc-sub">Pelanggan Berhenti Layanan</div>
               </div>
 
               <!-- User Offline (pppoe offline) -->
@@ -1055,9 +1064,11 @@
           if (d.customerStats) {
             const pActive = document.getElementById('stat-pppoe-active');
             const pSusp = document.getElementById('stat-pppoe-suspended');
+            const pTerm = document.getElementById('stat-pppoe-terminated');
             const pOff = document.getElementById('stat-pppoe-offline');
             if (pActive) pActive.textContent = d.customerStats.active ?? 0;
             if (pSusp) pSusp.textContent = d.customerStats.suspended ?? 0;
+            if (pTerm) pTerm.textContent = d.customerStats.terminated ?? 0;
             if (pOff) pOff.textContent = d.customerStats.offline ?? 0;
           }
 

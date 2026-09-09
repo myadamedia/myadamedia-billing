@@ -1664,13 +1664,13 @@ router.get('/customers', requireAdminSession, requireSidebarMenuAccess('customer
   const odps = odpSvc.getAllOdps();
   const collectors = adminSvc.getAllCollectors();
 
-  // Filter out inactive (registered candidate) customers from the main customer list
-  const customers = allCustomers.filter(c => c.status !== 'inactive');
-
   // Apply status filter in JS if provided
-  const filteredCustomers = filterStatus
-    ? customers.filter(c => c.status === filterStatus)
-    : customers;
+  let filteredCustomers = allCustomers;
+  if (filterStatus === 'terminated' || filterStatus === 'inactive') {
+    filteredCustomers = allCustomers.filter(c => c.status === 'terminated' || c.status === 'inactive');
+  } else if (filterStatus) {
+    filteredCustomers = allCustomers.filter(c => c.status === filterStatus);
+  }
 
   res.render('admin/customers', {
     title: 'Data Pelanggan', company: company(), activePage: 'customers',
@@ -4383,6 +4383,7 @@ router.get('/api/stats', requireAdmin, async (req, res) => {
       customerStats: {
         active: pppoeActiveCount,
         suspended: custStats.suspended || 0,
+        terminated: custStats.terminated || 0,
         offline: pppoeOfflineCount,
         totalCustomers: custStats.total || 0
       }

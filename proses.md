@@ -2,6 +2,44 @@
 
 ---
 
+## [2026-09-09] Penambahan Fitur & Monitoring Pelanggan Terminate pada Dashboard Admin
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna meminta agar pada Dashboard Admin ditambahkan informasi dan pemantauan **Pelanggan Terminate**. Ketika status pelanggan diubah dari *aktif* atau *suspend* menjadi *Terminate*, pelanggan tersebut akan otomatis masuk ke dalam daftar pelanggan terminate dan status jaringannya dinonaktifkan (diisolasi/didisconnect di MikroTik & RADIUS).
+
+### 2. Analisis & Desain Solusi (Clean Architecture & SOLID)
+1. **Model Data & Status Pelanggan**:
+   - Status `terminated` (dan `inactive` sebagai sinonim) mewakili pelanggan yang telah berhenti berlangganan / diputus.
+   - Pada `services/customerService.js`, fungsi `getCustomerStats()` diperbarui untuk menghitung jumlah pelanggan berstatus `terminated` secara real-time.
+   - Fungsi `terminateCustomer(id)` ditambahkan untuk mempermudah transisi status dan sinkronisasi pemutusan jaringan.
+2. **Sinkronisasi Jaringan Otomatis (`syncCustomerInactivation`)**:
+   - Saat status berubah menjadi `terminated` / `inactive`, `updateCustomer()` memicu `syncCustomerInactivation(id)`.
+   - Melakukan disconnect sesi aktif RADIUS (CoA Disconnect-Request), mendisable secret PPPoE di MikroTik, serta mengkick active sessions agar pengguna tidak dapat mengakses internet lagi.
+3. **Penyajian di Dashboard Admin & Polling Real-time (`views/admin/dashboard.ejs` & `routes/adminPortal.js`)**:
+   - Pada grid **Monitoring Pelanggan** di Dashboard Admin, ditambahkan kartu metrik ke-4: **User Terminate** (`stat-pppoe-terminated`) dengan warna danger/merah dan link klik langsung ke `/admin/customers?status=terminated`.
+   - Endpoint `/admin/api/stats` diperbarui untuk menyertakan `customerStats.terminated`, sehingga nilai metrik pada dashboard terupdate otomatis via interval polling tanpa reload halaman.
+4. **Manajemen Pelanggan Admin (`views/admin/customers.ejs`)**:
+   - Menambahkan kartu statistik **Terminate** pada header manajemen pelanggan.
+   - Menambahkan opsi filter status `terminated` pada dropdown filter.
+   - Menambahkan pilihan status `terminated` pada modal **Tambah Pelanggan** dan modal **Edit Pelanggan**.
+   - Menampilkan badge status merah khusus `badge bd` dengan ikon `bi-x-circle-fill` untuk status Terminate.
+5. **Pengecualian Invoice Bulanan**:
+   - Sesuai arsitektur di `services/billingService.js`, pembuatan tagihan bulanan otomatis (`generateMonthlyInvoices`) hanya memproses pelanggan dengan status `active` dan `suspended`. Pelanggan berstatus `terminated` secara otomatis aman dan tidak akan tertagih.
+
+### 3. Komponen & File Yang Diubah
+- `[MODIFY]` [`services/customerService.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/customerService.js)
+- `[MODIFY]` [`routes/adminPortal.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/routes/adminPortal.js)
+- `[MODIFY]` [`views/admin/dashboard.ejs`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/views/admin/dashboard.ejs)
+- `[MODIFY]` [`views/admin/customers.ejs`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/views/admin/customers.ejs)
+- `[NEW]` [`tests/customerTerminate.test.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/tests/customerTerminate.test.js)
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/proses.md)
+
+### 4. Hasil Pengujian & Verifikasi
+- **Jest Test Suite**: Seluruh 18 test suites (243 tests) lulus 100% (`0 failures`).
+- Pengujian unit `tests/customerTerminate.test.js`: 4/4 test cases lulus.
+
+---
+
 ## [2026-09-09] Perbaikan Pengenalan Admin WhatsApp Bot (Multi-Device Suffix `:0` & Admin Self-Binding)
 
 ### 1. Deskripsi Permasalahan & Kebutuhan

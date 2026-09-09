@@ -61,10 +61,11 @@
     <% } %>
 
     <!-- Stats -->
-    <div class="stat-grid" style="grid-template-columns:repeat(3,1fr)">
-      <div class="sc p"><i class="bi bi-people sc-icon"></i><div class="sc-label"><%= t('admin.customers.stats.total', 'Total') %></div><div class="sc-val"><%= stats.active + stats.suspended %></div></div>
-      <div class="sc s"><i class="bi bi-check-circle sc-icon"></i><div class="sc-label"><%= t('admin.customers.stats.active', 'Aktif') %></div><div class="sc-val"><%= stats.active %></div></div>
-      <div class="sc w"><i class="bi bi-pause-circle sc-icon"></i><div class="sc-label"><%= t('admin.customers.stats.suspended', 'Disuspend') %></div><div class="sc-val"><%= stats.suspended %></div></div>
+    <div class="stat-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="sc p" style="cursor:pointer" onclick="location.href='/admin/customers'"><i class="bi bi-people sc-icon"></i><div class="sc-label"><%= t('admin.customers.stats.total', 'Total') %></div><div class="sc-val"><%= stats.total %></div></div>
+      <div class="sc s" style="cursor:pointer" onclick="location.href='/admin/customers?status=active'"><i class="bi bi-check-circle sc-icon"></i><div class="sc-label"><%= t('admin.customers.stats.active', 'Aktif') %></div><div class="sc-val"><%= stats.active %></div></div>
+      <div class="sc w" style="cursor:pointer" onclick="location.href='/admin/customers?status=suspended'"><i class="bi bi-pause-circle sc-icon"></i><div class="sc-label"><%= t('admin.customers.stats.suspended', 'Disuspend') %></div><div class="sc-val"><%= stats.suspended %></div></div>
+      <div class="sc d" style="cursor:pointer" onclick="location.href='/admin/customers?status=terminated'"><i class="bi bi-person-x-fill sc-icon"></i><div class="sc-label">Terminate</div><div class="sc-val"><%= stats.terminated || stats.inactive || 0 %></div></div>
     </div>
 
     <!-- Search & Add -->
@@ -87,6 +88,7 @@
             <option value=""><%= t('admin.customers.filter.all_status', 'Semua Status') %></option>
             <option value="active" <%= filterStatus==='active' ? 'selected':'' %>><%= t('admin.customers.filter.active', 'Aktif') %></option>
             <option value="suspended" <%= filterStatus==='suspended' ? 'selected':'' %>><%= t('admin.customers.filter.suspended', 'Suspend') %></option>
+            <option value="terminated" <%= (filterStatus==='terminated' || filterStatus==='inactive') ? 'selected':'' %>>Terminate</option>
           </select>
           <select class="fs" name="sort" style="width:165px" onchange="this.form.submit()">
             <option value="name_asc" <%= typeof sort !== 'undefined' && sort==='name_asc' ? 'selected':'' %>><%= t('admin.customers.sort.name_asc', 'Nama (A-Z)') %></option>
@@ -165,9 +167,10 @@
               </td>
               <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><%= c.address || '-' %></td>
               <td>
-                <% if (c.status==='active') { %><span class="badge bs"><i class="bi bi-circle-fill" style="font-size:7px"></i><%= t('admin.customers.filter.active', 'Aktif') %></span>
-                <% } else if (c.status==='suspended') { %><span class="badge bw"><%= t('admin.customers.filter.suspended', 'Suspend') %></span>
-                <% } else { %><span class="badge bm"><%= t('admin.customers.filter.inactive', 'Nonaktif') %></span><% } %>
+                <% if (c.status==='active') { %><span class="badge bs"><i class="bi bi-circle-fill" style="font-size:7px"></i> <%= t('admin.customers.filter.active', 'Aktif') %></span>
+                <% } else if (c.status==='suspended') { %><span class="badge bw"><i class="bi bi-pause-fill" style="font-size:7px"></i> <%= t('admin.customers.filter.suspended', 'Suspend') %></span>
+                <% } else if (c.status==='terminated' || c.status==='inactive') { %><span class="badge bd"><i class="bi bi-x-circle-fill" style="font-size:7px"></i> Terminate</span>
+                <% } else { %><span class="badge bm"><%= c.status %></span><% } %>
                 <div style="font-size:10px;margin-top:4px">
                   <i class="bi bi-clock-history"></i> <%= t('admin.customers.auto_isolate.label', 'Auto Isolir') %>:
                   <span class="<%= c.auto_isolate === 0 ? 'text-danger' : 'text-success' %>">
@@ -355,7 +358,7 @@
             <select class="fs" name="status">
               <option value="active">Aktif</option>
               <option value="suspended">Suspend</option>
-              <option value="inactive">Nonaktif</option>
+              <option value="terminated">Terminate</option>
             </select>
           </div>
           <div class="fg"><label class="fl">Tanggal Pasang</label><input class="fc" type="date" name="install_date"></div>
@@ -586,7 +589,7 @@
             <select class="fs" name="status" id="e_status">
               <option value="active">Aktif</option>
               <option value="suspended">Suspend</option>
-              <option value="inactive">Nonaktif</option>
+              <option value="terminated">Terminate</option>
             </select>
           </div>
           <div class="fg"><label class="fl">Tanggal Pasang</label><input class="fc" type="date" name="install_date" id="e_install"></div>
