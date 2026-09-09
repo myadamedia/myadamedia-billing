@@ -2,6 +2,39 @@
 
 ---
 
+## [2026-09-09] Perbaikan WhatsApp Bot Adminmenu & Identifikasi Nomor Admin (LID Multi-Device Support)
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna melaporkan bahwa menu admin WhatsApp (`adminmenu`) dan perintah-perintah administratif bot lainnya tidak dapat digunakan / tidak merespons ketika dikirimkan oleh Admin.
+
+### 2. Penyebab Utama Masalah (Root Causes)
+1. **Kegagalan Deteksi Admin pada WhatsApp Modern (`@lid`)**: Akun WhatsApp multi-device versi terbaru sering mengirim pesan dengan identitas JID `@lid` (Linked Identity ID, contoh `284849204918239@lid`). Fungsi `isWhatsappAdminKey()` sebelumnya hanya memeriksa `@s.whatsapp.net` dan mengabaikan `lidStore`, sehingga pesan dari akun `@lid` tidak dikenali sebagai admin (`isAdmin === false`).
+2. **Silent Drop pada `parseCommand()`**: Fungsi `parseCommand()` sebelumnya menggunakan `if (isAdmin && ...)` yang langsung mengembalikan `null` jika `isAdmin` bernilai `false`. Akibatnya bot diam seribu bahasa (*silent drop*), dan blok pesan error akses ditolak menjadi *dead code* yang tak pernah tereksekusi.
+3. **Format Pengaturan `whatsapp_admin_numbers`**: `getWhatsappAdminNumbers()` gagal mem-parse jika nomor diisi sebagai string berpemisah koma/spasi di `settings.json`.
+
+### 3. Solusi & Implementasi Teknis (Clean Architecture & Production-Ready)
+- **Normalisasi Nomor Admin (`services/whatsappBot.mjs`)**:
+  - Menyempurnakan `getWhatsappAdminNumbers()` untuk mendukung array, string berpemisah koma/spasi, serta fallback ke `company_phone`.
+  - Menyempurnakan `loadWhatsappAdminSet()` untuk mengekspansi variasi format nomor (`08xxx`, `628xxx`, `+628xxx`).
+- **Verifikasi Multi-Layer Admin Identity (`isWhatsappAdminKey`)**:
+  - Memeriksa `remoteJid` (`@s.whatsapp.net`), `senderPn` (JID multi-device), `participant` (grup/broadcast), dan pemetaan akun `@lid` via `lidStore` serta data pelanggan terkait.
+- **Deterministic Command Parsing (`parseCommand`)**:
+  - Mem-parse perintah admin (`adminmenu`, `menuadmin`, `admin`, `mtactive`, `ringkasan`, `listonu`, `lunas`, `generate`, `isolir`, `buka`, dll.) secara konsisten dengan flag `adminOnly: true`.
+- **Informative Access Feedback**:
+  - Jika pengguna non-admin (atau akun LID belum terikat) mengirim perintah admin, bot akan membalas secara edukatif dengan panduan menautkan nomor via `daftar NOMOR_ADMIN`.
+- **Pengujian Unit Testing (`tests/whatsappBotAdmin.test.js`)**:
+  - Menulis 10 test case unit testing untuk memvalidasi ekstraksi nomor admin, verifikasi identitas `@s.whatsapp.net`, `senderPn`, `participant`, `@lid` via `lidStore`, dan parsing perintah. Seluruh 10 test case lulus 100%.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`services/whatsappBot.mjs`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/whatsappBot.mjs)
+- `[NEW]` [`tests/whatsappBotAdmin.test.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/tests/whatsappBotAdmin.test.js)
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/proses.md)
+
+### 5. Hasil Pengujian & Verifikasi
+- **Jest Test Suite**: 16 test suites (232 tests) lulus 100% tanpa kegagalan (`0 failures`).
+
+---
+
 ## [2026-08-28] Penambahan Fitur Download & Upload Database SQLite (/admin/backup)
 
 ### 1. Deskripsi Permasalahan & Kebutuhan

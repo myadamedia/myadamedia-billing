@@ -290,15 +290,32 @@ function formatActiveMikrotik(pppoe, hotspot) {
   return waWrap('🌐 *MIKROTIK ACTIVE*', p + h);
 }
 
-function getWhatsappAdminNumbers() {
+export function getWhatsappAdminNumbers() {
   const primary = getSetting('whatsapp_admin_numbers', []);
-  if (Array.isArray(primary) && primary.length > 0) return primary;
-  const legacy = getSetting('admins', []);
-  if (Array.isArray(legacy) && legacy.length > 0) return legacy;
-  return [];
+  let list = [];
+  if (Array.isArray(primary)) {
+    list = primary;
+  } else if (typeof primary === 'string' && primary.trim()) {
+    list = primary.split(/[\s,]+/).map(s => s.trim()).filter(Boolean);
+  } else {
+    const legacy = getSetting('admins', []);
+    if (Array.isArray(legacy)) {
+      list = legacy;
+    } else if (typeof legacy === 'string' && legacy.trim()) {
+      list = legacy.split(/[\s,]+/).map(s => s.trim()).filter(Boolean);
+    }
+  }
+
+  // Fallback ke company_phone jika admin numbers belum diatur
+  const companyPhone = getSetting('company_phone', '');
+  if (companyPhone && list.length === 0) {
+    list = [companyPhone];
+  }
+
+  return list;
 }
 
-function loadWhatsappAdminSet() {
+export function loadWhatsappAdminSet() {
   const list = getWhatsappAdminNumbers();
   const set = new Set();
   for (const n of list) {
@@ -315,80 +332,126 @@ function loadWhatsappAdminSet() {
   return set;
 }
 
-/** Admin dikenali dari nomor WA (bukan @lid saja). Pakai senderPn atau remoteJid @s.whatsapp.net */
-function isWhatsappAdminKey(key, adminSet) {
+/** 
+ * Admin dikenali dari nomor WA (mendukung format @s.whatsapp.net, senderPn, participant, dan pemetaan @lid).
+ */
+export function isWhatsappAdminKey(key, adminSet, lidStore = null, custSvc = null) {
   if (!adminSet || adminSet.size === 0) return false;
+  if (!key) return false;
+
+  const checkDigitsMatch = (digits) => {
+    if (!digits || typeof digits !== 'string') return false;
+    const clean = digits.replace(/\D/g, '');
+    if (clean.length < 8) return false;
+    for (const c of customerDevice.expandTagCandidates(clean)) {
+      if (adminSet.has(c)) return true;
+    }
+    return false;
+  };
+
   const nk = normalizeKey(key);
-  const pnJid =
-    nk.senderPn && nk.senderPn.endsWith('@s.whatsapp.net')
-      ? nk.senderPn
-      : nk.remoteJid && nk.remoteJid.endsWith('@s.whatsapp.net')
-        ? nk.remoteJid
-        : null;
-  if (!pnJid) return false;
-  const digits = customerDevice.phoneFromPnJid(pnJid);
-  if (!digits) return false;
-  for (const c of customerDevice.expandTagCandidates(digits)) {
-    if (adminSet.has(c)) return true;
+
+  // 1. Cek senderPn (JID nomor pada multi-device)
+  if (nk.senderPn) {
+    const digits = customerDevice.phoneFromPnJid(nk.senderPn);
+    if (digits && checkDigitsMatch(digits)) return true;
   }
+
+  // 2. Cek remoteJid jika berakhiran @s.whatsapp.net
+  if (nk.remoteJid && nk.remoteJid.endsWith('@s.whatsapp.net')) {
+    const digits = customerDevice.phoneFromPnJid(nk.remoteJid);
+    if (digits && checkDigitsMatch(digits)) return true;
+  }
+
+  // 3. Cek participant (untuk pesan grup / broadcast)
+  const participant = key.participant || (typeof key === 'object' && key.participant);
+  if (participant && typeof participant === 'string' && participant.endsWith('@s.whatsapp.net')) {
+    const digits = customerDevice.phoneFromPnJid(participant);
+    if (digits && checkDigitsMatch(digits)) return true;
+  }
+
+  // 4. Cek melalui lidStore jika pesan datang dari @lid
+  if (lidStore) {
+    const checkLidKey = (lidJid) => {
+      if (!lidJid) return false;
+      const mapped = lidStore.get(lidJid);
+      if (mapped) {
+        if (checkDigitsMatch(mapped)) return true;
+        if (custSvc) {
+          const cust = custSvc.findCustomerByAny(mapped);
+          if (cust && cust.phone && checkDigitsMatch(cust.phone)) return true;
+        }
+      }
+      return false;
+    };
+
+    if (nk.remoteJid && nk.remoteJid.endsWith('@lid')) {
+      if (checkLidKey(nk.remoteJid)) return true;
+    }
+    if (nk.senderLid && nk.senderLid.endsWith('@lid')) {
+      if (checkLidKey(nk.senderLid)) return true;
+    }
+  }
+
   return false;
 }
 
-function parseCommand(text, isAdmin) {
+export function parseCommand(text, isAdmin = false) {
   const t = String(text || '').trim();
   if (!t) return null;
   const parts = t.split(/\s+/);
   const cmd = parts[0].toLowerCase();
   const rest = t.slice(parts[0].length).trim();
 
+  // Customer / General Commands
   if (['menu', 'bantuan', 'help'].includes(cmd)) return { cmd: 'menu', rest: '' };
 
-  if (isAdmin && ['admin', 'adminmenu', 'menuadmin'].includes(cmd)) return { cmd: 'adminmenu', rest: '' };
-
-  if (isAdmin && ['listonu', 'listdevice', 'daftarperangkat'].includes(cmd)) {
-    return { cmd: 'listonu', admin: true };
+  // Admin Commands (Ditandai admin: true & adminOnly: true)
+  if (['admin', 'adminmenu', 'menuadmin'].includes(cmd)) {
+    return { cmd: 'adminmenu', admin: true, adminOnly: true, rest: '' };
   }
 
+  if (['listonu', 'listdevice', 'daftarperangkat'].includes(cmd)) {
+    return { cmd: 'listonu', admin: true, adminOnly: true };
+  }
 
-
-  if (isAdmin && ['topup', 'topupagent', 'tfagent', 'transferagent', 'depositagent'].includes(cmd) && parts.length >= 3) {
-    return { cmd: 'topupagent', admin: true, agentKey: parts[1], amount: parts[2], note: parts.slice(3).join(' ') };
+  if (['topup', 'topupagent', 'tfagent', 'transferagent', 'depositagent'].includes(cmd) && parts.length >= 3) {
+    return { cmd: 'topupagent', admin: true, adminOnly: true, agentKey: parts[1], amount: parts[2], note: parts.slice(3).join(' ') };
   }
 
   // Admin Mikrotik
-  if (isAdmin && cmd === 'mtactive') return { cmd: 'mtactive', admin: true };
-  if (isAdmin && cmd === 'kickuser' && parts.length >= 2) return { cmd: 'kickuser', admin: true, args: parts.slice(1) };
-  if (isAdmin && cmd === 'addpppoe' && parts.length >= 4) return { cmd: 'addpppoe', admin: true, args: parts.slice(1) };
-  if (isAdmin && cmd === 'editpppoe' && parts.length >= 3) return { cmd: 'editpppoe', admin: true, args: parts.slice(1) };
-  if (isAdmin && cmd === 'delpppoe' && parts.length >= 2) return { cmd: 'delpppoe', admin: true, args: parts.slice(1) };
-  if (isAdmin && cmd === 'addhotspot' && parts.length >= 4) return { cmd: 'addhotspot', admin: true, args: parts.slice(1) };
-  if (isAdmin && cmd === 'vcr' && parts.length >= 3) return { cmd: 'vcr', admin: true, args: parts.slice(1) };
-  if (isAdmin && cmd === 'delhotspot' && parts.length >= 2) return { cmd: 'delhotspot', admin: true, args: parts.slice(1) };
+  if (cmd === 'mtactive') return { cmd: 'mtactive', admin: true, adminOnly: true };
+  if (cmd === 'kickuser' && parts.length >= 2) return { cmd: 'kickuser', admin: true, adminOnly: true, args: parts.slice(1) };
+  if (cmd === 'addpppoe' && parts.length >= 4) return { cmd: 'addpppoe', admin: true, adminOnly: true, args: parts.slice(1) };
+  if (cmd === 'editpppoe' && parts.length >= 3) return { cmd: 'editpppoe', admin: true, adminOnly: true, args: parts.slice(1) };
+  if (cmd === 'delpppoe' && parts.length >= 2) return { cmd: 'delpppoe', admin: true, adminOnly: true, args: parts.slice(1) };
+  if (cmd === 'addhotspot' && parts.length >= 4) return { cmd: 'addhotspot', admin: true, adminOnly: true, args: parts.slice(1) };
+  if (cmd === 'vcr' && parts.length >= 3) return { cmd: 'vcr', admin: true, adminOnly: true, args: parts.slice(1) };
+  if (cmd === 'delhotspot' && parts.length >= 2) return { cmd: 'delhotspot', admin: true, adminOnly: true, args: parts.slice(1) };
 
   // Admin Billing & Pelanggan
-  if (isAdmin && cmd === 'ringkasan') return { cmd: 'ringkasan', admin: true };
-  if (isAdmin && cmd === 'lunas' && parts.length >= 2) return { cmd: 'lunas', admin: true, targetId: rest || parts.slice(1).join(' ') };
-  if (isAdmin && cmd === 'generate' && parts.length >= 3) return { cmd: 'generate', admin: true, month: parts[1], year: parts[2] };
-  if (isAdmin && cmd === 'isolir' && parts.length >= 2) return { cmd: 'isolir', admin: true, targetId: parts[1] };
-  if (isAdmin && cmd === 'buka' && parts.length >= 2) return { cmd: 'buka', admin: true, targetId: parts[1] };
+  if (cmd === 'ringkasan') return { cmd: 'ringkasan', admin: true, adminOnly: true };
+  if (cmd === 'lunas' && parts.length >= 2) return { cmd: 'lunas', admin: true, adminOnly: true, targetId: rest || parts.slice(1).join(' ') };
+  if (cmd === 'generate' && parts.length >= 3) return { cmd: 'generate', admin: true, adminOnly: true, month: parts[1], year: parts[2] };
+  if (cmd === 'isolir' && parts.length >= 2) return { cmd: 'isolir', admin: true, adminOnly: true, targetId: parts[1] };
+  if (cmd === 'buka' && parts.length >= 2) return { cmd: 'buka', admin: true, adminOnly: true, targetId: parts[1] };
 
-  if (isAdmin && ['info', 'cekstatus', 'cekonu', 'statusonu'].includes(cmd) && parts.length >= 2) {
-    return { cmd: 'info', admin: true, targetTag: parts[1], rest: '' };
+  // Admin Device ONU dengan spesifik TAG
+  if (['info', 'cekstatus', 'cekonu', 'statusonu'].includes(cmd) && parts.length >= 2) {
+    return { cmd: 'info', admin: true, adminOnly: true, targetTag: parts[1], rest: '' };
   }
-  if (isAdmin && cmd === 'cekterhubung' && parts.length >= 2) {
-    return { cmd: 'cekterhubung', admin: true, targetTag: parts[1] };
+  if (cmd === 'cekterhubung' && parts.length >= 2) {
+    return { cmd: 'cekterhubung', admin: true, adminOnly: true, targetTag: parts[1] };
   }
-  if (isAdmin && (cmd === 'reboot' || cmd === 'restartonu') && parts.length >= 2) {
-    return { cmd: 'reboot', admin: true, targetTag: parts[1] };
+  if ((cmd === 'reboot' || cmd === 'restartonu') && parts.length >= 2) {
+    return { cmd: 'reboot', admin: true, adminOnly: true, targetTag: parts[1] };
   }
-  if (isAdmin && cmd === 'gantissid' && parts.length >= 3) {
-    return { cmd: 'gantissid', admin: true, targetTag: parts[1], rest: parts.slice(2).join(' ') };
+  if (cmd === 'gantissid' && parts.length >= 3) {
+    return { cmd: 'gantissid', admin: true, adminOnly: true, targetTag: parts[1], rest: parts.slice(2).join(' ') };
   }
-  if (isAdmin && cmd === 'gantisandi' && parts.length >= 3) {
-    return { cmd: 'gantisandi', admin: true, targetTag: parts[1], rest: parts.slice(2).join(' ') };
+  if (cmd === 'gantisandi' && parts.length >= 3) {
+    return { cmd: 'gantisandi', admin: true, adminOnly: true, targetTag: parts[1], rest: parts.slice(2).join(' ') };
   }
-
-
 
   // Customer Commands
   if (cmd === 'cektagihan') return { cmd: 'cektagihan', rest: '' };
@@ -1012,7 +1075,7 @@ export async function startWhatsAppBot() {
         if (!text) continue;
 
         const adminSet = loadWhatsappAdminSet();
-        const isAdmin = isWhatsappAdminKey(m.key, adminSet);
+        const isAdmin = isWhatsappAdminKey(m.key, adminSet, lidStore, customerSvc);
         const parsed = parseCommand(text, isAdmin);
         if (!parsed) continue;
 
@@ -1041,6 +1104,19 @@ export async function startWhatsAppBot() {
           }
         }
 
+        // Pengecekan hak akses perintah Admin
+        if (parsed.adminOnly && !isAdmin) {
+          await reply(
+            '❌ *Akses Ditolak*\n\n' +
+            'Perintah ini khusus untuk nomor Admin yang terdaftar di `whatsapp_admin_numbers`.\n\n' +
+            'Jika WhatsApp Anda menggunakan ID akun/LID, silakan tautkan nomor admin Anda sekali dengan mengetik:\n' +
+            '`daftar NOMOR_ADMIN`\n' +
+            '*(contoh: daftar 085179966227)*\n\n' +
+            'Setelah itu, ulangi perintah Anda.'
+          );
+          continue;
+        }
+
         if (parsed.cmd === 'menu') {
           let body = getMenuText();
           if (isAdmin) body += '\n\n_Anda admin — ketik `admin` untuk perintah kelola semua tag._';
@@ -1052,19 +1128,11 @@ export async function startWhatsAppBot() {
         }
 
         if (parsed.cmd === 'adminmenu') {
-          if (!isAdmin) {
-            await reply('❌ Perintah ini khusus nomor admin (pengaturan whatsapp_admin_numbers).');
-            continue;
-          }
           await reply(getAdminMenuText());
           continue;
         }
 
         if (parsed.cmd === 'listonu' && parsed.admin) {
-          if (!isAdmin) {
-            await reply('❌ Akses ditolak. Perintah ini khusus admin.');
-            continue;
-          }
           let res = await customerDevice.listDevicesWithTags(300);
           if (!res.ok || !res.devices || res.devices.length === 0) {
             res = await customerDevice.listAllDevices(300);
