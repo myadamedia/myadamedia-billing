@@ -127,8 +127,10 @@
     }
 
     .logo-container img {
-      height: 48px;
+      max-height: 52px;
+      max-width: 260px;
       width: auto;
+      height: auto;
       object-fit: contain;
     }
 
@@ -277,9 +279,13 @@
 <body>
   <div class="sso-wrapper">
     <div class="sso-header">
-      <div class="logo-container">
-        <img src="/img/logo.png" alt="Company Logo" onerror="this.src='https://cdn-icons-png.flaticon.com/512/10061/10061739.png'">
-      </div>
+      <% const hasLogo = (typeof companyLogo !== 'undefined' && companyLogo) || (typeof settings !== 'undefined' && settings && settings.company_logo); %>
+      <% const logoSrc = (typeof companyLogo !== 'undefined' && companyLogo) ? companyLogo : ((typeof settings !== 'undefined' && settings && settings.company_logo) ? settings.company_logo : ''); %>
+      <% if (hasLogo) { %>
+        <div class="logo-container">
+          <img src="<%= logoSrc %>" alt="<%= company %>" onerror="this.parentElement.style.display='none'">
+        </div>
+      <% } %>
       <h1 class="company-title"><%= company %></h1>
       <p class="sso-subtitle"><i class="bi bi-shield-check me-1"></i> Single Sign-On (SSO) Portal Gateway</p>
       

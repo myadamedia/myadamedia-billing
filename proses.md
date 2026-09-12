@@ -2,6 +2,47 @@
 
 ---
 
+## [2026-09-12] Implementasi Logo Dinamis pada SSO Portal Gateway (/sso) Sesuai Pengaturan Logo Perusahaan
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna meminta agar logo di bagian atas halaman Single Sign-On Gateway (`http://localhost:3001/sso`) mengikuti konfigurasi **Logo Aplikasi / Perusahaan (Sidebar)** (`settings.company_logo`). Apabila tidak ada gambar logo yang di-upload, halaman `/sso` harus **hanya menampilkan teks Nama Aplikasi / Perusahaan** (`settings.company_header`) tanpa menampilkan kontainer kartu gambar default.
+
+### 2. Analisis Masalah & Penyebab Utama (Root Cause Analysis)
+1. **Hardcoded Asset di Template**:
+   Sebelumnya, template `views/sso.ejs` melakukan hardcode path gambar ke `<img src="/img/logo.png" ...>` di dalam elemen `.logo-container`.
+2. **Missing Controller Data Context**:
+   Handler route `GET /sso` pada `app-customer.js` hanya mengirimkan objek `{ title, company, version }` ke `res.render('sso', ...)`, tanpa menyertakan `company_logo` maupun objek konfigurasi `settings`.
+3. **Inkonsistensi Tampilan**:
+   Ketika nama perusahaan diganti (misal: "PT.XYZ") dan pengguna belum meng-upload logo resmi, halaman `/sso` tetap memunculkan logo default MyAdamedia di atas teks "PT.XYZ", yang merusak estetika dan integritas branding perusahaan pengguna.
+
+### 3. Solusi Terpilih (Clean Architecture & SOLID)
+1. **Backend Controller (`app-customer.js`)**:
+   - Memperbarui route `app.get('/sso')` untuk mengambil konfigurasi via `getSettingsWithCache()`.
+   - Mengirimkan properti `companyLogo: settings.company_logo || ''` dan objek `settings` ke konteks rendering template EJS.
+2. **Frontend View (`views/sso.ejs`)**:
+   - Menambahkan evaluasi logika kondisional `hasLogo`:
+     - **Jika Logo Tersedia (`hasLogo = true`)**: Menampilkan `.logo-container` dengan `<img src="<%= logoSrc %>" alt="<%= company %>" onerror="this.parentElement.style.display='none'">`.
+     - **Jika Logo Kosong (`hasLogo = false`)**: Menyembunyikan elemen `.logo-container` sepenuhnya, sehingga halaman hanya menampilkan teks judul nama perusahaan (`<h1 class="company-title"><%= company %></h1>`) di atas subjudul gateway.
+   - Mengoptimalkan CSS `.logo-container img` dengan `max-height: 52px; max-width: 260px; object-fit: contain;` agar responsif terhadap berbagai ukuran dan rasio aspek gambar.
+3. **Automated Unit Testing (`tests/ssoLogo.test.js`)**:
+   - Dibuat suite pengujian otomatis dengan Jest yang memverifikasi 4 skenario rendering:
+     - Skenario logo terisi (menghasilkan kontainer logo dengan src yang benar).
+     - Skenario logo kosong (tidak memunculkan kontainer logo dan hanya menampilkan teks nama perusahaan).
+     - Skenario fallback ke `settings.company_logo`.
+     - Skenario objek konfigurasi kosong/null.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`app-customer.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/app-customer.js): Penambahan `companyLogo` dan `settings` pada route `GET /sso`.
+- `[MODIFY]` [`views/sso.ejs`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/views/sso.ejs): Penerapan logika kondisional `hasLogo` dan optimasi CSS img logo.
+- `[NEW]` [`tests/ssoLogo.test.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/tests/ssoLogo.test.js): Pengujian otomatis template rendering SSO logo.
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/proses.md): Dokumentasi log perbaikan sistem.
+
+### 5. Hasil Pengujian & Verifikasi
+- **Jest Unit Test Suite (`tests/ssoLogo.test.js`)**: 4/4 tests passed (100%).
+- **Regression Tests (`tests/settingsValidator.test.js`, `tests/settingsEncryption.test.js`)**: Seluruh 35 tests lulus tanpa regresi.
+
+---
+
 ## [2026-09-09] Penambahan Fitur & Monitoring Pelanggan Terminate pada Dashboard Admin
 
 ### 1. Deskripsi Permasalahan & Kebutuhan

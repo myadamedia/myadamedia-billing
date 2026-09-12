@@ -847,6 +847,8 @@ app.get('/sso', (req, res) => {
   res.render('sso', {
     title: 'Portal Single Sign-On',
     company: settings.company_header || 'ISP App',
+    companyLogo: settings.company_logo || '',
+    settings,
     version: VERSION
   });
 });
