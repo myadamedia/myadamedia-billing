@@ -2,6 +2,87 @@
 
 ---
 
+## [2026-09-12] Implementasi Fitur Factory Reset Total (Mode 2: Siap PT / Klien Baru) pada Menu Backup & Recovery (/admin/backup)
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna meminta penambahan fitur **Flush Database** pada menu **Backup & Recovery** (`https://localhost:3001/admin/backup`) dengan spesifikasi:
+- **Mode 2: Factory Reset Total (Siap PT / Klien Baru)**: Aplikasi dibersihkan secara menyeluruh dari seluruh data operasional (pelanggan, invoice, tiket, riwayat keuangan, ODP, OLT, log WhatsApp, riwayat absensi, log inventaris) dan dikonfigurasi ulang ke kondisi awal yang siap diserahkan/dijual ke PT atau klien baru untuk tujuan komersil.
+- **Kebijakan Lisensi**: Lisensi (`settings.license_key`) **dipertahankan secara default** agar sistem tetap langsung beroperasi di mesin yang bersangkutan, namun disediakan opsi checklist **"Kosongkan Lisensi" (Unbind Lisensi)** jika pengguna ingin melepas lisensi dari mesin tersebut.
+- **Accidental Data Loss Prevention (Pencegahan Kehilangan Data Tidak Sengaja)**:
+  1. Pembuatan cadangan otomatis penuh (pre-flush auto backup untuk database & settings) sebelum proses reset dijalankan. Jika backup pra-reset gagal, proses pembongkaran data wajib dibatalkan demi keselamatan data.
+  2. Autentikasi ulang dengan password Administrator.
+  3. Verifikasi teks konfirmasi ketat: Pengguna wajib mengetik persis frase `"FLUSH DATABASE"`.
+  4. Akun login Super Admin (`admin_username` & `admin_password`) tetap dipertahankan agar pengguna tidak terkunci dari sistem.
+
+### 2. Analisis Arsitektur & Keamanan Data (Root Cause & Risk Mitigation)
+1. **Pemisahan Data Komersil Lama vs Baru**:
+   - Seluruh data transaksi, pelanggan, router, ODP, tiket gangguan, serta log absensi dan payroll harus dihapus tuntas.
+   - Sequence SQLite (`sqlite_sequence`) harus direset agar penomoran ID (ID pelanggan, invoice, tiket) kembali mulai dari angka 1 untuk PT baru.
+   - Template notifikasi WhatsApp di database (`app_settings`) sebelumnya menyimpan data pribadi dan nomor rekening spesifik (seperti nama pemilik dan rekening BCA/Mandiri). Template ini wajib di-reset ke template generik ISP tanpa membocorkan data finansial PT lama.
+2. **Integritas Lisensi BroLinks Offline RSA**:
+   - Lisensi terikat pada Machine ID mesin. Untuk deployment di mesin yang sama bagi PT baru, lisensi harus dipertahankan secara default agar tidak memutus masa aktif sistem. Opsi unbind (mengosongkan lisensi) disediakan melalui checklist eksplisit.
+3. **Pembersihan File Fisik (File Storage Hygiene)**:
+   - File-file upload lama milik PT sebelumnya di `public/uploads/logo/`, `public/uploads/qris/`, `public/uploads/payment_proofs/`, dan `public/uploads/tickets/` harus dibersihkan, namun struktur folder tetap dipertahankan.
+   - Kredensial sesi WhatsApp lama di `auth_info_baileys/` dan `data/wa-lid-map.json` harus dihapus agar WhatsApp PT baru tidak terhubung ke nomor HP pribadi milik PT lama.
+4. **Optimasi Berkas Database**:
+   - Penghapusan puluhan tabel dapat menyisakan ruang kosong (fragmentasi) pada file SQLite. Eksekusi `PRAGMA wal_checkpoint(TRUNCATE)` dan `VACUUM` diintegrasikan setelah transaksi selesai untuk merampingkan ukuran fisik berkas `billing.db`.
+
+### 3. Solusi Terpilih (Clean Architecture & SOLID Implementation)
+1. **Service Layer (`services/backupService.js`)**:
+   - Menambahkan fungsi `cleanDirectoryContents(dirPath)` untuk membersihkan berkas dalam subdirektori upload secara aman.
+   - Menambahkan fungsi `flushDatabase(options = {})`:
+     - **Langkah 1**: Memicu `backupAll()` (membuat berkas `billing_db_YYYYMMDD_HHMMSS.db` dan `settings_YYYYMMDD_HHMMSS.json`). Jika gagal, batalkan operasi dengan exception.
+     - **Langkah 2**: Membuka transaksi SQLite dengan `PRAGMA foreign_keys = OFF`. Menghapus 42+ tabel operasional, infrastruktur, staf/agen, tiket, inventaris, dan keuangan.
+     - **Langkah 3**: Menghapus `sqlite_sequence` untuk mereset seluruh auto-increment ke 1.
+     - **Langkah 4**: Mempertahankan/menjamin eksistensi superadmin default di tabel `admins` (membersihkan akun non-superadmin).
+     - **Langkah 5**: Menginjeksi ulang master data bersih:
+       - 6 Kategori Pengeluaran standar (`Operasional Kantor`, `Gaji & Upah`, `Bandwidth & Upstream`, `Perangkat & Kabel`, `Listrik & Utilitas`, `Promosi & Pemasaran`).
+       - 3 Paket Internet Starter (`Home Basic 10 Mbps`, `Home Fast 20 Mbps`, `Home Pro 50 Mbps`).
+       - 3 Kategori Inventaris (`Modem & ONT`, `Kabel & Konektor`, `Perangkat Jaringan`).
+     - **Langkah 6**: Mereset template WhatsApp di `app_settings` ke format baku tanpa rekening pribadi.
+     - **Langkah 7**: Mengeksekusi `PRAGMA wal_checkpoint(TRUNCATE)` dan `VACUUM`.
+     - **Langkah 8**: Mereset `settings.json`:
+       - Mempertahankan: `admin_username`, `admin_password`, `admin_api_key`, `server_port`, `server_host`, `session_secret`, `timezone`.
+       - Menjaga `license_key` tetap aktif KECUALI jika `options.clearLicense === true`.
+       - Mengembalikan branding, nama perusahaan (`Nama Perusahaan / ISP`), nomor kontak, payment gateway (Midtrans, Tripay, Xendit, Duitku), static QRIS, dan kredensial MikroTik ke nilai kosong/default.
+     - **Langkah 9**: Membersihkan isi folder `public/uploads/{logo, qris, payment_proofs, tickets}`, `auth_info_baileys/`, dan `data/wa-lid-map.json`.
+2. **Controller Layer (`routes/adminPortal.js`)**:
+   - Menambahkan route `POST /backup/flush`:
+     - Otorisasi ketat: Hanya Super Admin (`!isCashier` dan `adminRole === 'superadmin'`) yang diizinkan.
+     - Verifikasi password admin dengan `admin_password`.
+     - Verifikasi konfirmasi teks persis `"FLUSH DATABASE"`.
+     - Mengevaluasi opsi `clear_license` (boolean).
+     - Menampilkan notifikasi sukses/gagal yang informatif dan mengarahkan kembali ke `/admin/backup`.
+3. **Presentation & View Layer (`views/admin/backup.ejs`)**:
+   - Menambahkan kartu **Zona Bahaya: Factory Reset Total (Mode 2: Siap PT / Klien Baru)** dengan styling dark red theme dan badge `DANGER ZONE`.
+   - Menampilkan ringkasan garansi keamanan: Auto-Backup Terjamin, Lisensi Dipertahankan, Akses Login Aman, Data Bersih.
+   - Menambahkan modal dialog interaktif `id="flushModal"`:
+     - Warning box krusial.
+     - Checkbox: `[ ] Kosongkan Lisensi (Unbind Lisensi)` (default tidak dicentang).
+     - Input Password Administrator.
+     - Input teks konfirmasi `"FLUSH DATABASE"`.
+     - Validasi JavaScript ganda (`confirm()` dengan indikator status lisensi sebelum submit).
+4. **Automated Unit & Integration Testing (`tests/flushDatabase.test.js`)**:
+   - Menambahkan pengujian komprehensif untuk:
+     - Rendering template EJS (memastikan kartu dan modal Danger Zone termuat sempurna).
+     - Eksekusi `flushDatabase()` dengan retensi lisensi (default).
+     - Eksekusi `flushDatabase()` dengan unbind lisensi (`clearLicense: true`).
+     - Verifikasi tabel operasional bersih, reseed master data, dan pembersihan template pesan.
+     - Validasi password dan frasa konfirmasi pada route handler.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`services/backupService.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/backupService.js): Implementasi `flushDatabase(options)` dan `cleanDirectoryContents(dirPath)`.
+- `[MODIFY]` [`routes/adminPortal.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/routes/adminPortal.js): Penambahan endpoint `POST /backup/flush` dengan otorisasi dan proteksi ganda.
+- `[MODIFY]` [`views/admin/backup.ejs`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/views/admin/backup.ejs): Penambahan komponen kartu Danger Zone, dialog konfirmasi modal, checklist unbind lisensi, dan script helper.
+- `[NEW]` [`tests/flushDatabase.test.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/tests/flushDatabase.test.js): Automated Jest test suite untuk fitur Factory Reset Total.
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/proses.md): Pembaruan dokumentasi proses & audit trail pengembangan.
+
+### 5. Hasil Pengujian & Verifikasi
+- **Jest Unit Test Suite (`tests/flushDatabase.test.js`)**: 5/5 tests passed (100%).
+- **Full System Regression Tests (`tests/ssoLogo.test.js`, `tests/qrisDelete.test.js`, `tests/flushDatabase.test.js`)**: 12/12 tests passed (100%).
+
+---
+
 ## [2026-09-12] Implementasi Fitur Hapus QRIS Statis (Semi-Otomatis) pada Pengaturan Admin (/admin/settings)
 
 ### 1. Deskripsi Permasalahan & Kebutuhan

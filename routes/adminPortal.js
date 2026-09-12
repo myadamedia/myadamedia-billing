@@ -4055,6 +4055,50 @@ router.post('/backup/cleanup', requireAdminSession, express.urlencoded({ extende
   res.redirect('/admin/backup');
 });
 
+router.post('/backup/flush', requireAdminSession, express.urlencoded({ extended: true }), (req, res) => {
+  try {
+    // 1. Strict Role Authorization: Superadmin only
+    if (req.session?.isCashier || (req.session?.adminRole && req.session.adminRole !== 'superadmin')) {
+      req.session._msg = { type: 'error', text: 'Hanya Super Admin yang berhak melakukan Factory Reset / Flush Database.' };
+      return res.redirect('/admin/backup');
+    }
+
+    // 2. Re-authenticate with Administrator Password
+    const { password, confirm_text, clear_license } = req.body;
+    const adminPassword = getSetting('admin_password');
+    if (!password || password !== adminPassword) {
+      req.session._msg = { type: 'error', text: 'Password administrator salah. Tindakan Factory Reset dibatalkan.' };
+      return res.redirect('/admin/backup');
+    }
+
+    // 3. Exact confirmation phrase check
+    if (!confirm_text || confirm_text.trim() !== 'FLUSH DATABASE') {
+      req.session._msg = { type: 'error', text: 'Konfirmasi teks tidak cocok. Ketik tepat "FLUSH DATABASE" untuk menyetujui.' };
+      return res.redirect('/admin/backup');
+    }
+
+    // 4. Execute Mode 2 Flush
+    const shouldClearLicense = clear_license === 'true' || clear_license === '1' || clear_license === 'on';
+    const result = backupSvc.flushDatabase({ clearLicense: shouldClearLicense });
+
+    if (result.success) {
+      const licenseNote = shouldClearLicense 
+        ? 'Lisensi telah dikosongkan (Unbound).' 
+        : 'Lisensi tetap dipertahankan dan aktif.';
+      req.session._msg = { 
+        type: 'success', 
+        text: `Factory Reset Total (Mode 2) Berhasil! Cadangan otomatis telah dibuat (${result.preBackupFile || 'backup'}). Seluruh data operasional telah dihapus dan sistem siap untuk PT / Klien Baru. ${licenseNote}` 
+      };
+    } else {
+      req.session._msg = { type: 'error', text: `Gagal melakukan Factory Reset: ${result.error}` };
+    }
+  } catch (e) {
+    logger.error(`[Backup] Flush database exception: ${e.message}`);
+    req.session._msg = { type: 'error', text: `Terjadi kesalahan saat Factory Reset: ${e.message}` };
+  }
+  return res.redirect('/admin/backup');
+});
+
 router.get('/backup/download-live', requireAdminSession, (req, res) => {
   try {
     const dbPath = path.join(__dirname, '../database/billing.db');

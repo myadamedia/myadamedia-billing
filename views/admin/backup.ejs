@@ -231,12 +231,132 @@
             </table>
           </div>
         <% } %>
+    <!-- DANGER ZONE: FACTORY RESET TOTAL (MODE 2) -->
+    <div class="card mt-4" style="border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 16px; overflow: hidden; background: linear-gradient(180deg, rgba(239, 68, 68, 0.04) 0%, rgba(2, 6, 23, 0.6) 100%); margin-top: 24px;">
+      <div class="card-hd" style="background: rgba(239, 68, 68, 0.12); border-bottom: 1px solid rgba(239, 68, 68, 0.25); display: flex; justify-content: space-between; align-items: center; padding: 14px 20px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <i class="bi bi-radioactive text-danger" style="font-size: 20px;"></i>
+          <h6 style="color: #ef4444; margin: 0; font-weight: 800; letter-spacing: 0.2px;">Zona Bahaya: Factory Reset Total (Mode 2: Siap PT / Klien Baru)</h6>
+        </div>
+        <span class="badge" style="background: #dc2626; color: #ffffff; font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 6px; letter-spacing: 0.5px;">DANGER ZONE</span>
+      </div>
+      <div class="card-bd" style="padding: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 20px;">
+          <div style="max-width: 750px;">
+            <p style="margin: 0 0 12px 0; font-size: 13px; line-height: 1.6; color: var(--text);">
+              Gunakan fitur ini ketika sistem billing akan <b>dialihkan, dijual, atau diserahkan ke PT / Klien Baru</b> untuk tujuan komersil. Fitur ini akan menghapus seluruh data operasional, mereset identitas perusahaan ke nama umum, mengosongkan kredensial pihak ketiga, dan menyiapkan database bersih dengan master data awal.
+            </p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin-top: 12px;">
+              <div style="font-size: 12px; display: flex; align-items: center; gap: 8px; color: var(--text);">
+                <i class="bi bi-shield-check text-success" style="font-size: 16px;"></i>
+                <span><b>Auto-Backup Terjamin:</b> Cadangan dibuat otomatis sebelum reset.</span>
+              </div>
+              <div style="font-size: 12px; display: flex; align-items: center; gap: 8px; color: var(--text);">
+                <i class="bi bi-key-fill text-warning" style="font-size: 16px;"></i>
+                <span><b>Lisensi Dipertahankan:</b> Lisensi default tetap aktif (opsi unbind tersedia).</span>
+              </div>
+              <div style="font-size: 12px; display: flex; align-items: center; gap: 8px; color: var(--text);">
+                <i class="bi bi-person-check-fill text-info" style="font-size: 16px;"></i>
+                <span><b>Akses Login Aman:</b> Akun Super Admin tetap bisa login seperti biasa.</span>
+              </div>
+              <div style="font-size: 12px; display: flex; align-items: center; gap: 8px; color: var(--text);">
+                <i class="bi bi-eraser-fill text-danger" style="font-size: 16px;"></i>
+                <span><b>Data Bersih:</b> Pelanggan, invoice, tiket, ODP, OLT, log direset ke nol.</span>
+              </div>
+            </div>
+          </div>
+          <div>
+            <button type="button" class="btn btn-d" onclick="openModal('flushModal')" style="padding: 12px 20px; font-weight: 800; border-radius: 10px; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 6px 20px rgba(220, 38, 38, 0.3);">
+              <i class="bi bi-radioactive"></i> Flush Database (Mode 2)
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </div>
 
+<!-- MODAL FLUSH DATABASE (MODE 2) -->
+<div class="mo" id="flushModal">
+  <div class="mb" style="max-width: 540px; border: 1px solid rgba(239, 68, 68, 0.4);">
+    <div class="mh" style="background: rgba(239, 68, 68, 0.12); border-bottom: 1px solid rgba(239, 68, 68, 0.25);">
+      <span class="mt" style="color: #ef4444; font-weight: 800;">
+        <i class="bi bi-exclamation-octagon-fill text-danger me-1"></i> Konfirmasi Factory Reset Total (Mode 2)
+      </span>
+      <button class="mc" onclick="closeModal('flushModal')">&times;</button>
+    </div>
+    <form action="/admin/backup/flush" method="POST" id="flushForm">
+      <div class="mbody" style="padding: 20px;">
+        <div class="alert alert-d" style="margin-bottom: 16px; font-size: 12px; line-height: 1.5;">
+          <i class="bi bi-exclamation-triangle-fill"></i>
+          <b>PERINGATAN KRUSIAL:</b> Seluruh data pelanggan, tagihan, router, ODP, tiket, log, dan pengaturan perusahaan akan dihapus. Sistem akan membuat berkas cadangan otomatis (pre-flush backup) sebelum penghapusan data dijalankan.
+        </div>
+
+        <!-- Checklist Kosongkan Lisensi (Unbind) -->
+        <div style="background: rgba(239, 68, 68, 0.06); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 10px; padding: 12px 14px; margin-bottom: 16px;">
+          <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; margin: 0;">
+            <input type="checkbox" name="clear_license" value="true" id="clearLicenseCheck" style="margin-top: 3px; cursor: pointer; width: 16px; height: 16px;">
+            <div>
+              <span style="font-weight: 800; color: #ef4444; font-size: 13px;">Kosongkan Lisensi (Unbind Lisensi)</span>
+              <p style="margin: 4px 0 0 0; font-size: 11px; color: var(--muted); line-height: 1.4;">
+                <b>Default (tidak dicentang):</b> Lisensi tetap dipertahankan dan aktif di mesin ini.<br>
+                <b>Centang opsi ini:</b> Jika Anda ingin melepas lisensi sepenuhnya dari sistem ini (misal untuk aktivasi di mesin baru).
+              </p>
+            </div>
+          </label>
+        </div>
+
+        <div class="fg" style="margin-bottom: 14px;">
+          <label class="fl" style="font-weight: 700;">Password Administrator <span class="text-danger">*</span></label>
+          <input type="password" class="fc" name="password" id="flushAdminPassword" placeholder="Masukkan password admin Anda" required autocomplete="current-password">
+        </div>
+
+        <div class="fg" style="margin-bottom: 8px;">
+          <label class="fl" style="font-weight: 700;">
+            Ketik persis <span style="font-family: monospace; color: #ef4444; font-weight: 900; background: rgba(239,68,68,0.1); padding: 2px 6px; border-radius: 4px;">FLUSH DATABASE</span> di bawah ini: <span class="text-danger">*</span>
+          </label>
+          <input type="text" class="fc" name="confirm_text" id="flushConfirmText" placeholder="FLUSH DATABASE" required autocomplete="off">
+        </div>
+      </div>
+      <div class="mf" style="border-top: 1px solid var(--border); padding: 14px 20px; display: flex; justify-content: flex-end; gap: 10px;">
+        <button type="button" class="btn btn-g" onclick="closeModal('flushModal')">Batal</button>
+        <button type="submit" class="btn btn-d" id="btnSubmitFlush" style="font-weight: 800;">
+          <i class="bi bi-radioactive"></i> Ya, Flush Database Sekarang
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
+  function openModal(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('show');
+  }
+
+  function closeModal(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('show');
+  }
+
+  const flushForm = document.getElementById('flushForm');
+  if (flushForm) {
+    flushForm.addEventListener('submit', function(e) {
+      const confirmInput = document.getElementById('flushConfirmText');
+      if (!confirmInput || confirmInput.value.trim() !== 'FLUSH DATABASE') {
+        e.preventDefault();
+        alert('Teks konfirmasi harus persis "FLUSH DATABASE"!');
+        return false;
+      }
+      const clearLic = document.getElementById('clearLicenseCheck')?.checked;
+      const licWarning = clearLic ? '\n- LISENSI AKAN DIKOSONGKAN (UNBOUND).' : '\n- Lisensi tetap dipertahankan.';
+      if (!confirm('KONFIRMASI AKHIR:\nApakah Anda yakin 100% ingin menjalankan Factory Reset Total?' + licWarning + '\n\nAuto-backup akan dibuat secara instan.')) {
+        e.preventDefault();
+        return false;
+      }
+    });
+  }
+
   function restoreBackup(fileName, type) {
     if (!confirm('Apakah Anda yakin ingin merestore backup ini? Data saat ini akan ditimpa.')) {
       return;
