@@ -202,12 +202,14 @@ function getAuditStats() {
  */
 function cleanupOldAuditTrail(days = 90) {
   try {
+    const parsedDays = parseInt(days, 10);
+    const safeDays = (Number.isFinite(parsedDays) && parsedDays > 0) ? parsedDays : 90;
     const stmt = db.prepare(`
       DELETE FROM audit_trail
-      WHERE created_at < datetime('now', '-${days} days')
+      WHERE created_at < datetime('now', ? || ' days')
     `);
-    const result = stmt.run();
-    logger.info(`[Audit Trail] Cleaned up ${result.changes} old records (older than ${days} days)`);
+    const result = stmt.run(`-${safeDays}`);
+    logger.info(`[Audit Trail] Cleaned up ${result.changes} old records (older than ${safeDays} days)`);
     return result.changes;
   } catch (e) {
     logger.error(`[Audit Trail] Gagal cleanup: ${e.message}`);

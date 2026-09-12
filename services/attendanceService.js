@@ -208,7 +208,8 @@ function getTodayAllAttendance() {
 
 // Get attendance statistics for admin
 function getAttendanceStats(date = null) {
-  const dateFilter = date ? `date(check_in_time) = date('${date}')` : `date(check_in_time) = date(NOW_LOCAL())`;
+  const dateFilter = date ? `date(check_in_time) = date(?)` : `date(check_in_time) = date(NOW_LOCAL())`;
+  const params = date ? [String(date)] : [];
   
   const stmt = db.prepare(`
     SELECT 
@@ -221,7 +222,7 @@ function getAttendanceStats(date = null) {
     GROUP BY employee_type
   `);
   
-  return stmt.all();
+  return stmt.all(...params);
 }
 
 // Check if employee has checked in today
@@ -232,7 +233,8 @@ function hasCheckedInToday(employeeType, employeeId) {
 
 // Get late check-ins (after 8:30 AM)
 function getLateCheckIns(date = null) {
-  const dateFilter = date ? `date(check_in_time) = date('${date}')` : `date(check_in_time) = date(NOW_LOCAL())`;
+  const dateFilter = date ? `date(check_in_time) = date(?)` : `date(check_in_time) = date(NOW_LOCAL())`;
+  const params = date ? [String(date)] : [];
   
   const stmt = db.prepare(`
     SELECT * FROM attendance 
@@ -241,12 +243,13 @@ function getLateCheckIns(date = null) {
     ORDER BY check_in_time DESC
   `);
   
-  return stmt.all();
+  return stmt.all(...params);
 }
 
 // Get employees who haven't checked out
 function getNotCheckedOut(date = null) {
-  const dateFilter = date ? `date(check_in_time) = date('${date}')` : `date(check_in_time) = date(NOW_LOCAL())`;
+  const dateFilter = date ? `date(check_in_time) = date(?)` : `date(check_in_time) = date(NOW_LOCAL())`;
+  const params = date ? [String(date)] : [];
   
   const stmt = db.prepare(`
     SELECT * FROM attendance 
@@ -255,7 +258,7 @@ function getNotCheckedOut(date = null) {
     ORDER BY check_in_time DESC
   `);
   
-  return stmt.all();
+  return stmt.all(...params);
 }
 
 // Delete attendance record (admin only)

@@ -1072,12 +1072,12 @@
                             </td>
                             <td>
                               <div class="odps-actions">
-                                <button type="button" class="btn btn-sm btn-p" data-odp-id="<%= Number(o.id) %>"
+                                <button type="button" class="btn btn-sm btn-p" data-odp-id="<%= (Number.isFinite(Number(o.id)) && Number(o.id) > 0) ? Number(o.id) : (o.id || '') %>"
                                   onclick="editOdpFromBtn(this)" title="<%= t('common.edit', 'Edit') %>"><i
                                     class="bi bi-pencil"></i></button>
-                                <button type="button" class="btn btn-sm btn-d" data-odp-id="<%= Number(o.id) %>"
+                                <button type="button" class="btn btn-sm btn-d" data-odp-id="<%= (Number.isFinite(Number(o.id)) && Number(o.id) > 0) ? Number(o.id) : (o.id || '') %>"
                                   onclick="deleteOdpFromBtn(this)" title="Hapus"><i class="bi bi-trash"></i></button>
-                                <button type="button" class="btn btn-sm btn-ghost" data-odp-id="<%= Number(o.id) %>"
+                                <button type="button" class="btn btn-sm btn-ghost" data-odp-id="<%= (Number.isFinite(Number(o.id)) && Number(o.id) > 0) ? Number(o.id) : (o.id || '') %>"
                                   onclick="focusOdpFromBtn(this)"
                                   title="<%= t('admin.map.odp_list.focus', 'Fokus') %>"><i
                                     class="bi bi-geo-alt"></i></button>

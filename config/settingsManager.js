@@ -139,21 +139,29 @@ function saveSettings(newSettings) {
 function getNowLocal() {
   const tz = getSetting('timezone', 'Asia/Jakarta');
   const now = new Date();
-  const options = {
-    timeZone: tz,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false
-  };
-  const formatter = new Intl.DateTimeFormat('en-US', options);
-  const parts = formatter.formatToParts(now);
-  const p = {};
-  parts.forEach(part => p[part.type] = part.value);
-  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`;
+  try {
+    const options = {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23',
+      hour12: false
+    };
+    const formatter = new Intl.DateTimeFormat('en-US', options);
+    const parts = formatter.formatToParts(now);
+    const p = {};
+    parts.forEach(part => p[part.type] = part.value);
+    let hour = p.hour;
+    if (hour === '24') hour = '00';
+    return `${p.year}-${p.month}-${p.day} ${hour}:${p.minute}:${p.second}`;
+  } catch (_) {
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  }
 }
 
 /**
@@ -164,20 +172,35 @@ function getCurrentDateInTimezone() {
   const tz = getSetting('timezone', 'Asia/Jakarta');
   const now = new Date();
   
-  // Ambil string format ISO lokal
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz,
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-    hour12: false
-  });
-  
-  const parts = formatter.formatToParts(now);
-  const p = {};
-  parts.forEach(part => p[part.type] = part.value);
-  
-  // Buat objek Date baru dengan nilai lokal tersebut
-  return new Date(`${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}`);
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hourCycle: 'h23',
+      hour12: false
+    });
+    
+    const parts = formatter.formatToParts(now);
+    const p = {};
+    parts.forEach(part => p[part.type] = part.value);
+    
+    let h = parseInt(p.hour, 10);
+    if (isNaN(h) || h === 24) h = 0;
+    const y = parseInt(p.year, 10) || now.getFullYear();
+    const m = parseInt(p.month, 10) || (now.getMonth() + 1);
+    const d = parseInt(p.day, 10) || now.getDate();
+    const min = parseInt(p.minute, 10) || 0;
+    const s = parseInt(p.second, 10) || 0;
+    
+    const dt = new Date(y, m - 1, d, h, min, s);
+    if (!isNaN(dt.getTime())) {
+      return dt;
+    }
+  } catch (_) {
+    // fallback to current date
+  }
+  return new Date();
 }
 
 /**
@@ -186,25 +209,40 @@ function getCurrentDateInTimezone() {
 function getCurrentTimeInfo() {
   const tz = getSetting('timezone', 'Asia/Jakarta');
   const now = new Date();
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz,
-    year: 'numeric', month: 'numeric', day: 'numeric',
-    hour: 'numeric', minute: 'numeric', second: 'numeric',
-    hour12: false
-  });
-  
-  const parts = formatter.formatToParts(now);
-  const p = {};
-  parts.forEach(part => p[part.type] = part.value);
-  
-  return {
-    year: parseInt(p.year),
-    month: parseInt(p.month),
-    day: parseInt(p.day),
-    hour: parseInt(p.hour),
-    minute: parseInt(p.minute),
-    second: parseInt(p.second)
-  };
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      year: 'numeric', month: 'numeric', day: 'numeric',
+      hour: 'numeric', minute: 'numeric', second: 'numeric',
+      hourCycle: 'h23',
+      hour12: false
+    });
+    
+    const parts = formatter.formatToParts(now);
+    const p = {};
+    parts.forEach(part => p[part.type] = part.value);
+    
+    let h = parseInt(p.hour, 10);
+    if (isNaN(h) || h === 24) h = 0;
+    
+    return {
+      year: parseInt(p.year, 10) || now.getFullYear(),
+      month: parseInt(p.month, 10) || (now.getMonth() + 1),
+      day: parseInt(p.day, 10) || now.getDate(),
+      hour: h,
+      minute: parseInt(p.minute, 10) || 0,
+      second: parseInt(p.second, 10) || 0
+    };
+  } catch (_) {
+    return {
+      year: now.getFullYear(),
+      month: now.getMonth() + 1,
+      day: now.getDate(),
+      hour: now.getHours(),
+      minute: now.getMinutes(),
+      second: now.getSeconds()
+    };
+  }
 }
 
 /**

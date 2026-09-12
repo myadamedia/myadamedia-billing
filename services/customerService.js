@@ -8,8 +8,10 @@ const { getCurrentDateInTimezone, formatCustomerId, getSettingsWithCache } = req
 // ─── CUSTOMERS ───────────────────────────────────────────────
 function getAllCustomers(search = '', sortBy = 'name_asc') {
   const now = getCurrentDateInTimezone();
-  const month = now.getMonth() + 1;
-  const year = now.getFullYear();
+  const rawMonth = now && typeof now.getMonth === 'function' ? now.getMonth() + 1 : (new Date().getMonth() + 1);
+  const rawYear = now && typeof now.getFullYear === 'function' ? now.getFullYear() : (new Date().getFullYear());
+  const month = (Number.isFinite(rawMonth) && rawMonth >= 1 && rawMonth <= 12) ? Math.floor(rawMonth) : (new Date().getMonth() + 1);
+  const year = (Number.isFinite(rawYear) && rawYear >= 2000 && rawYear <= 2100) ? Math.floor(rawYear) : (new Date().getFullYear());
 
   const base = `
     SELECT c.*, p.name as package_name, p.price as package_price,

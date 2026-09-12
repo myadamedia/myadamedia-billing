@@ -416,8 +416,16 @@ function getAllInvoices({ month, year, status, search, sortBy = 'period_desc', l
     WHERE 1=1
   `;
   const params = [];
-  if (month)  { q += ' AND i.period_month=?'; params.push(parseInt(month)); }
-  if (year)   { q += ' AND i.period_year=?';  params.push(parseInt(year)); }
+  const parsedMonth = parseInt(month, 10);
+  if (Number.isFinite(parsedMonth) && parsedMonth >= 1 && parsedMonth <= 12) {
+    q += ' AND i.period_month=?';
+    params.push(parsedMonth);
+  }
+  const parsedYear = parseInt(year, 10);
+  if (Number.isFinite(parsedYear) && parsedYear >= 2000 && parsedYear <= 2100) {
+    q += ' AND i.period_year=?';
+    params.push(parsedYear);
+  }
   if (status && status !== 'all') { q += ' AND i.status=?'; params.push(status); }
   if (search) {
     q += ' AND (c.name LIKE ? OR c.phone LIKE ? OR c.genieacs_tag LIKE ?)';
@@ -439,7 +447,11 @@ function getAllInvoices({ month, year, status, search, sortBy = 'period_desc', l
 
   const orderClause = sortingClauses[sortBy] || 'i.period_year DESC, i.period_month DESC, c.name ASC';
 
-  q += ` ORDER BY ${orderClause} LIMIT ${parseInt(limit)}`;
+  const parsedLimit = parseInt(limit, 10);
+  const safeLimit = (Number.isFinite(parsedLimit) && parsedLimit > 0) ? parsedLimit : 300;
+
+  q += ` ORDER BY ${orderClause} LIMIT ?`;
+  params.push(safeLimit);
   return db.prepare(q).all(...params);
 }
 
