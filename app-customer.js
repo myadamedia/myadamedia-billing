@@ -38,7 +38,7 @@ process.on('uncaughtException', (err) => {
 
 // Settings Management
 const session = require('express-session');
-const { getSetting, getSettingsWithCache } = require('./config/settingsManager');
+const { getSetting, getSettingsWithCache, formatCustomerId } = require('./config/settingsManager');
 const { SUPPORTED_LANGS, FALLBACK_LANG, normalizeLang, t } = require('./config/i18n');
 
 // Inisialisasi aplikasi Express
@@ -261,6 +261,7 @@ app.use((req, res, next) => {
   res.locals.lang = lang;
   res.locals.availableLangs = Array.from(SUPPORTED_LANGS);
   res.locals.t = (key, fallback = '') => t(lang, key, fallback);
+  res.locals.formatCustomerId = (id) => formatCustomerId(id);
   next();
 });
 

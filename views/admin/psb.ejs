@@ -111,7 +111,7 @@
           <% customers.forEach((c, i) => { %>
             <tr>
               <td class="text-muted"><%= i+1 %></td>
-              <td><span class="mono fw6">MDE-<%= String(c.id).padStart(4, '0') %></span></td>
+              <td><span class="mono fw6"><%= (typeof formatCustomerId === 'function') ? formatCustomerId(c.id) : ('MDE-' + String(c.id).padStart(4, '0')) %></span></td>
               <td class="fw6"><%= c.name %></td>
               <td><%= c.phone || '-' %></td>
               <td>
@@ -584,12 +584,24 @@ function toggleConnectionFields(type) {
 }
 
 document.querySelectorAll('.mo').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('show')}));
+function clientFormatCustomerId(id) {
+  if (!id) return '';
+  const prefix = '<%= (settings.customer_id_prefix !== undefined ? settings.customer_id_prefix : "MDE").replace(/'/g, "\\'") %>';
+  const sep = '<%= (settings.customer_id_separator !== undefined ? settings.customer_id_separator : "-").replace(/'/g, "\\'") %>';
+  const pad = <%= Number(settings.customer_id_padding) || 4 %>;
+  const padStr = String(id).padStart(pad, '0');
+  if (!prefix) return padStr;
+  let p = prefix;
+  if (sep && p.endsWith(sep)) p = p.slice(0, -sep.length);
+  return p + sep + padStr;
+}
+
 let currentEditCustomerId = '';
 function editCust(idx) {
   const c = customersData[idx];
   if (!c) return;
   currentEditCustomerId = c.id || '';
-  document.querySelector('#editModal .mt').innerHTML = '<i class="bi bi-pencil"></i> Edit Pelanggan <span id="editModalCustomerId" style="font-size: 13px; color: var(--muted); font-weight: normal; margin-left: 8px;">(MDE-' + String(c.id).padStart(4, '0') + ')</span>';
+  document.querySelector('#editModal .mt').innerHTML = '<i class="bi bi-pencil"></i> Edit Pelanggan <span id="editModalCustomerId" style="font-size: 13px; color: var(--muted); font-weight: normal; margin-left: 8px;">(' + clientFormatCustomerId(c.id) + ')</span>';
   document.getElementById('editForm').action='/admin/customers/'+c.id+'/update';
   document.getElementById('e_name').value=c.name||'';
   document.getElementById('e_phone').value=c.phone||'';
@@ -633,7 +645,7 @@ function activateCust(idx) {
   if (!c) return;
   editCust(idx);
   document.getElementById('e_status').value = 'active';
-  document.querySelector('#editModal .mt').innerHTML = '<i class="bi bi-check-circle"></i> Aktivasi Pelanggan <span id="editModalCustomerId" style="font-size: 13px; color: var(--muted); font-weight: normal; margin-left: 8px;">(MDE-' + String(c.id).padStart(4, '0') + ')</span>';
+  document.querySelector('#editModal .mt').innerHTML = '<i class="bi bi-check-circle"></i> Aktivasi Pelanggan <span id="editModalCustomerId" style="font-size: 13px; color: var(--muted); font-weight: normal; margin-left: 8px;">(' + clientFormatCustomerId(c.id) + ')</span>';
 }
 
 function openGenInvoice(idx) {
@@ -965,7 +977,7 @@ function initTableSort(tableSelector) {
         
         if (type === 'number') {
           const cleanNum = (str) => {
-            const clean = str.replace(/MDE-/g, '').replace(/[^0-9,-]/g, '').replace(',', '.');
+            const clean = str.replace(/^[^\d]*/, '').replace(/[^0-9,-]/g, '').replace(',', '.');
             return parseFloat(clean) || 0;
           };
           return isAsc ? cleanNum(cellA) - cleanNum(cellB) : cleanNum(cellB) - cleanNum(cellA);

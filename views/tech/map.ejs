@@ -1,271 +1,471 @@
 <!-- views/tech/map.ejs -->
 <%- include('partials/header') %>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-<style>
-  #map { height: calc(100vh - 145px); border-radius: 12px; margin-top: 10px; z-index: 1; border: 1px solid #334155; background: #0f172a; }
-  .map-info { background: #1e293b; padding: 12px; border-radius: 12px; margin-bottom: 10px; font-size: 13px; border: 1px solid #334155; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
-  
-  /* Tech Stats */
-  .tech-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
-  .tsc { background: #1e293b; border: 1px solid #334155; padding: 10px; border-radius: 10px; text-align: center; }
-  .tsc .val { display: block; font-size: 16px; font-weight: 700; color: #f8fafc; }
-  .tsc .lbl { display: block; font-size: 9px; color: #94a3b8; text-transform: uppercase; font-weight: 600; margin-top: 2px; }
-  .tsc-w { border-bottom: 3px solid #f59e0b; }
-  .tsc-s { border-bottom: 3px solid #10b981; }
-  .tsc-d { border-bottom: 3px solid #ef4444; }
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <style>
+    #map {
+      height: calc(100vh - 145px);
+      border-radius: 12px;
+      margin-top: 10px;
+      z-index: 1;
+      border: 1px solid #334155;
+      background: #0f172a;
+    }
 
-  /* Tech Legend Grid */
-  .legend-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px; }
-  .lc { background: #1e293b; border: 1px solid #334155; padding: 8px; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 8px; }
-  .lc i { width: 10px; height: 10px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5); }
-  .lc span { font-size: 11px; font-weight: 700; color: #f1f5f9; }
+    .map-info {
+      background: #1e293b;
+      padding: 12px;
+      border-radius: 12px;
+      margin-bottom: 10px;
+      font-size: 13px;
+      border: 1px solid #334155;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
 
-  /* Custom Leaflet DivIcon Styling */
-  .custom-div-icon { background: none !important; border: none !important; }
+    /* Tech Stats */
+    .tech-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 10px;
+    }
 
-  /* ODC Marker Styling */
-  .marker-odc-box {
-    background: linear-gradient(135deg, #a78bfa 0%, #7c3aed 100%);
-    border: 2px solid #ffffff;
-    box-shadow: 0 0 14px rgba(167, 139, 250, 0.8), 0 4px 10px rgba(0,0,0,0.4);
-    border-radius: 9px;
-    width: 30px; height: 30px;
-    display: flex; align-items: center; justify-content: center;
-    color: #ffffff; font-size: 15px;
-    position: relative;
-  }
-  .marker-odc-tag {
-    position: absolute; bottom: -7px;
-    background: #4c1d95; color: #ede9fe;
-    font-size: 7.5px; font-weight: 900; padding: 1px 4px;
-    border-radius: 4px; border: 1px solid #c4b5fd;
-    white-space: nowrap; line-height: 1; letter-spacing: 0.5px;
-  }
+    .tsc {
+      background: #1e293b;
+      border: 1px solid #334155;
+      padding: 10px;
+      border-radius: 10px;
+      text-align: center;
+    }
 
-  /* ODP Marker Styling */
-  .marker-odp-box {
-    background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%);
-    border: 2px solid #ffffff;
-    box-shadow: 0 0 12px rgba(251, 191, 36, 0.8), 0 4px 10px rgba(0,0,0,0.4);
-    border-radius: 8px;
-    width: 26px; height: 26px;
-    display: flex; align-items: center; justify-content: center;
-    color: #ffffff; font-size: 13px;
-    position: relative;
-  }
-  .marker-odp-tag {
-    position: absolute; bottom: -7px;
-    background: #78350f; color: #fef3c7;
-    font-size: 7.5px; font-weight: 900; padding: 1px 4px;
-    border-radius: 4px; border: 1px solid #fde68a;
-    white-space: nowrap; line-height: 1; letter-spacing: 0.5px;
-  }
+    .tsc .val {
+      display: block;
+      font-size: 16px;
+      font-weight: 700;
+      color: #f8fafc;
+    }
 
-  /* Tech Modern Customer Pins */
-  .cust-pin-wrapper {
-    position: relative;
-    width: 28px; height: 28px;
-    display: flex; align-items: center; justify-content: center;
-  }
-  .cust-pin-pulse {
-    position: absolute;
-    top: -3px; left: -3px;
-    width: 34px; height: 34px;
-    border-radius: 50%;
-    pointer-events: none;
-    animation: pulse-ring 2.2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
-  }
-  .pulse-active { border: 2px solid rgba(56, 189, 248, 0.7); }
-  .pulse-free { border: 2px solid rgba(52, 211, 153, 0.7); }
-  .pulse-suspended { border: 2px solid rgba(248, 113, 113, 0.7); }
+    .tsc .lbl {
+      display: block;
+      font-size: 9px;
+      color: #94a3b8;
+      text-transform: uppercase;
+      font-weight: 600;
+      margin-top: 2px;
+    }
 
-  @keyframes pulse-ring {
-    0% { transform: scale(0.6); opacity: 1; }
-    80%, 100% { transform: scale(1.4); opacity: 0; }
-  }
+    .tsc-w {
+      border-bottom: 3px solid #f59e0b;
+    }
 
-  .cust-pin {
-    width: 26px; height: 26px;
-    border-radius: 50% 50% 50% 0;
-    transform: rotate(-45deg);
-    display: flex; align-items: center; justify-content: center;
-    border: 2px solid #ffffff;
-    position: relative;
-  }
-  .cust-pin i { transform: rotate(45deg); font-size: 13px; color: #ffffff; }
-  .cust-pin-active { background: linear-gradient(135deg, #38bdf8 0%, #1d4ed8 100%); box-shadow: 0 0 10px rgba(56, 189, 248, 0.7); }
-  .cust-pin-free { background: linear-gradient(135deg, #34d399 0%, #047857 100%); box-shadow: 0 0 10px rgba(52, 211, 153, 0.7); }
-  .cust-pin-suspended { background: linear-gradient(135deg, #f87171 0%, #b91c1c 100%); box-shadow: 0 0 10px rgba(248, 113, 113, 0.7); }
+    .tsc-s {
+      border-bottom: 3px solid #10b981;
+    }
 
-  .popup-dark { color: #1e293b; }
-  .popup-dark h6 { margin: 0 0 5px 0; border-bottom: 1px solid #ddd; padding-bottom: 5px; font-weight: bold; }
-  .btn-wa { background: #25d366; color: white; border: none; padding: 5px 10px; border-radius: 5px; text-decoration: none; display: inline-block; margin-top: 8px; font-size: 12px; }
+    .tsc-d {
+      border-bottom: 3px solid #ef4444;
+    }
 
-  /* Flowing line animation */
-  @keyframes flow {
-    from { stroke-dashoffset: 20; }
-    to { stroke-dashoffset: 0; }
-  }
-  .flowing-line {
-    animation: flow 1s linear infinite;
-  }
-</style>
+    /* Tech Legend Grid */
+    .legend-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      margin-bottom: 10px;
+    }
 
-<%
-  const odcList = odps.filter(o => o.type === 'ODC');
-  const odpList = odps.filter(o => !o.type || o.type === 'ODP');
-  const isFreeCust = (c) => (c.status && String(c.status).toLowerCase() === 'free') || (c.package_name && String(c.package_name).toLowerCase().includes('free')) || (c.package_price !== undefined && c.package_price !== null && Number(c.package_price) === 0 && c.package_name);
-  const freeCount = customers.filter(isFreeCust).length;
-  const activeCount = customers.filter(c => c.status === 'active' && !isFreeCust(c)).length;
-  const suspendedCount = customers.filter(c => c.status !== 'active' && !isFreeCust(c)).length;
-%>
+    .lc {
+      background: #1e293b;
+      border: 1px solid #334155;
+      padding: 8px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
 
-<div class="tech-stats" style="grid-template-columns: repeat(5, 1fr);">
-  <div class="tsc" style="border-bottom: 3px solid #a78bfa;">
-    <span class="val"><%= odcList.length %></span>
-    <span class="lbl">ODC</span>
-  </div>
-  <div class="tsc tsc-w">
-    <span class="val"><%= odpList.length %></span>
-    <span class="lbl">ODP</span>
-  </div>
-  <div class="tsc" style="border-bottom: 3px solid #3b82f6;">
-    <span class="val"><%= activeCount %></span>
-    <span class="lbl">Berbayar</span>
-  </div>
-  <div class="tsc tsc-s">
-    <span class="val"><%= freeCount %></span>
-    <span class="lbl">Free</span>
-  </div>
-  <div class="tsc tsc-d">
-    <span class="val"><%= suspendedCount %></span>
-    <span class="lbl">Isolir</span>
-  </div>
-</div>
+    .lc i {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      border: 2px solid white;
+      box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+    }
 
-<div class="legend-grid" style="grid-template-columns: repeat(6, 1fr);">
-  <label class="lc" style="cursor:pointer; user-select:none; margin-bottom:0; padding: 6px;">
-    <input type="checkbox" id="toggle-odc" checked onchange="toggleLayers()" style="width:14px;height:14px;cursor:pointer">
-    <i style="background: #a78bfa;"></i>
-    <span>ODC</span>
-  </label>
-  <label class="lc" style="cursor:pointer; user-select:none; margin-bottom:0; padding: 6px;">
-    <input type="checkbox" id="toggle-odp" checked onchange="toggleLayers()" style="width:14px;height:14px;cursor:pointer">
-    <i style="background: #f59e0b;"></i>
-    <span>ODP</span>
-  </label>
-  <label class="lc" style="cursor:pointer; user-select:none; margin-bottom:0; padding: 6px;">
-    <input type="checkbox" id="toggle-active" checked onchange="toggleLayers()" style="width:14px;height:14px;cursor:pointer">
-    <i style="background: #38bdf8;"></i>
-    <span>Aktif</span>
-  </label>
-  <label class="lc" style="cursor:pointer; user-select:none; margin-bottom:0; padding: 6px;">
-    <input type="checkbox" id="toggle-free" checked onchange="toggleLayers()" style="width:14px;height:14px;cursor:pointer">
-    <i style="background: #34d399;"></i>
-    <span>Free</span>
-  </label>
-  <label class="lc" style="cursor:pointer; user-select:none; margin-bottom:0; padding: 6px;">
-    <input type="checkbox" id="toggle-suspended" checked onchange="toggleLayers()" style="width:14px;height:14px;cursor:pointer">
-    <i style="background: #f87171;"></i>
-    <span>Isolir</span>
-  </label>
-  <label class="lc" style="cursor:pointer; user-select:none; margin-bottom:0; padding: 6px;" title="Tiket Gangguan Aktif">
-    <input type="checkbox" id="toggle-tickets" checked onchange="toggleLayers()" style="width:14px;height:14px;cursor:pointer">
-    <i style="background: #ef4444; border-radius: 0; transform: rotate(45deg);"></i>
-    <span>Gangguan</span>
-  </label>
-</div>
+    .lc span {
+      font-size: 11px;
+      font-weight: 700;
+      color: #f1f5f9;
+    }
 
-<div class="map-info">
-  <div class="d-flex align-items-center justify-content-between">
-    <span><i class="bi bi-info-circle me-1"></i> Mode: <b>Satelit (Navigasi)</b></span>
-    <span class="badge bg-primary">GPS Ready</span>
-  </div>
-</div>
+    /* Custom Leaflet DivIcon Styling */
+    .custom-div-icon {
+      background: none !important;
+      border: none !important;
+    }
 
-<div id="map"></div>
+    /* Modern Zero-Watermark Dark Mode Map Tiles */
+    .leaflet-tile-dark {
+      filter: invert(100%) hue-rotate(180deg) brightness(92%) contrast(96%) !important;
+    }
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-<script id="settings-data" type="application/json"><%- JSON.stringify(settings) %></script>
-<script>
-  const appSettings = JSON.parse(document.getElementById('settings-data').textContent);
-  const officeCoords = {
-    lat: parseFloat(appSettings.office_lat) || -6.200000,
-    lng: parseFloat(appSettings.office_lng) || 106.816666
-  };
+    /* ODC Marker Styling */
+    .marker-odc-box {
+      background: linear-gradient(135deg, #a78bfa 0%, #7c3aed 100%);
+      border: 2px solid #ffffff;
+      box-shadow: 0 0 14px rgba(167, 139, 250, 0.8), 0 4px 10px rgba(0, 0, 0, 0.4);
+      border-radius: 9px;
+      width: 30px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      font-size: 15px;
+      position: relative;
+    }
 
-  // Initialize Map
-  const map = L.map('map').setView([officeCoords.lat, officeCoords.lng], 13);
+    .marker-odc-tag {
+      position: absolute;
+      bottom: -7px;
+      background: #4c1d95;
+      color: #ede9fe;
+      font-size: 7.5px;
+      font-weight: 900;
+      padding: 1px 4px;
+      border-radius: 4px;
+      border: 1px solid #c4b5fd;
+      white-space: nowrap;
+      line-height: 1;
+      letter-spacing: 0.5px;
+    }
 
-  // Layers
-  const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '© OSM'
-  });
+    /* ODP Marker Styling */
+    .marker-odp-box {
+      background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%);
+      border: 2px solid #ffffff;
+      box-shadow: 0 0 12px rgba(251, 191, 36, 0.8), 0 4px 10px rgba(0, 0, 0, 0.4);
+      border-radius: 8px;
+      width: 26px;
+      height: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      font-size: 13px;
+      position: relative;
+    }
 
-  const googleHybrid = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
-    maxZoom: 20,
-    subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
-    attribution: '© Google Sat'
-  });
+    .marker-odp-tag {
+      position: absolute;
+      bottom: -7px;
+      background: #78350f;
+      color: #fef3c7;
+      font-size: 7.5px;
+      font-weight: 900;
+      padding: 1px 4px;
+      border-radius: 4px;
+      border: 1px solid #fde68a;
+      white-space: nowrap;
+      line-height: 1;
+      letter-spacing: 0.5px;
+    }
 
-  const darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    maxZoom: 19,
-    subdomains: 'abcd',
-    attribution: '© CARTO'
-  });
+    /* Tech Modern Customer Pins */
+    .cust-pin-wrapper {
+      position: relative;
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
 
-  const activeTheme = (document.documentElement.getAttribute('data-theme') || localStorage.getItem('theme') || 'dark');
-  if (activeTheme === 'dark') {
-    darkLayer.addTo(map);
-  } else {
-    googleHybrid.addTo(map);
-  }
+    .cust-pin-pulse {
+      position: absolute;
+      top: -3px;
+      left: -3px;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      pointer-events: none;
+      animation: pulse-ring 2.2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+    }
 
-  const baseMaps = {
-    "Dark Mode": darkLayer,
-    "Satelit": googleHybrid,
-    "Standard (OSM)": osm
-  };
+    .pulse-active {
+      border: 2px solid rgba(56, 189, 248, 0.7);
+    }
 
-  L.control.layers(baseMaps).addTo(map);
+    .pulse-free {
+      border: 2px solid rgba(52, 211, 153, 0.7);
+    }
 
-  // Layer Groups for ODC, ODP, and Customers
-  const odcGroup = L.layerGroup().addTo(map);
-  const odpGroup = L.layerGroup().addTo(map);
-  const activeCustGroup = L.layerGroup().addTo(map);
-  const freeCustGroup = L.layerGroup().addTo(map);
-  const suspendedCustGroup = L.layerGroup().addTo(map);
-  const ticketGroup = L.layerGroup().addTo(map);
+    .pulse-suspended {
+      border: 2px solid rgba(248, 113, 113, 0.7);
+    }
 
-  // Data Injection with safety
-  let customers = [];
-  let odps = [];
-  let tickets = [];
-  try {
-    customers = <%- JSON.stringify(customers).replace(/<\/script/g, '<\\/script').replace(/<!--/g, '<\\!--') %>;
-    odps = <%- JSON.stringify(odps).replace(/<\/script/g, '<\\/script').replace(/<!--/g, '<\\!--') %>;
-    tickets = <%- JSON.stringify(tickets || []).replace(/<\/script/g, '<\\/script').replace(/<!--/g, '<\\!--') %>;
-  } catch (e) {
-    console.error("Data mapping error:", e);
-  }
+    @keyframes pulse-ring {
+      0% {
+        transform: scale(0.6);
+        opacity: 1;
+      }
 
-  // Add Ticket Markers
-  tickets.forEach(ticket => {
-    if (ticket.lat && ticket.lng) {
-      const tLat = parseFloat(ticket.lat);
-      const tLng = parseFloat(ticket.lng);
-      
-      const marker = L.marker([tLat, tLng], {
-        icon: L.divIcon({
-          html: '<i class="bi bi-exclamation-triangle-fill text-danger" style="font-size: 22px; text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff;"></i>',
-          className: 'custom-div-icon',
-          iconSize: [22, 22],
-          iconAnchor: [11, 11]
-        })
-      }).addTo(ticketGroup);
-      
-      marker.bindPopup(`
+      80%,
+      100% {
+        transform: scale(1.4);
+        opacity: 0;
+      }
+    }
+
+    .cust-pin {
+      width: 26px;
+      height: 26px;
+      border-radius: 50% 50% 50% 0;
+      transform: rotate(-45deg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid #ffffff;
+      position: relative;
+    }
+
+    .cust-pin i {
+      transform: rotate(45deg);
+      font-size: 13px;
+      color: #ffffff;
+    }
+
+    .cust-pin-active {
+      background: linear-gradient(135deg, #38bdf8 0%, #1d4ed8 100%);
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.7);
+    }
+
+    .cust-pin-free {
+      background: linear-gradient(135deg, #34d399 0%, #047857 100%);
+      box-shadow: 0 0 10px rgba(52, 211, 153, 0.7);
+    }
+
+    .cust-pin-suspended {
+      background: linear-gradient(135deg, #f87171 0%, #b91c1c 100%);
+      box-shadow: 0 0 10px rgba(248, 113, 113, 0.7);
+    }
+
+    .popup-dark {
+      color: #1e293b;
+    }
+
+    .popup-dark h6 {
+      margin: 0 0 5px 0;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 5px;
+      font-weight: bold;
+    }
+
+    .btn-wa {
+      background: #25d366;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 5px;
+      text-decoration: none;
+      display: inline-block;
+      margin-top: 8px;
+      font-size: 12px;
+    }
+
+    /* Flowing line animation */
+    @keyframes flow {
+      from {
+        stroke-dashoffset: 20;
+      }
+
+      to {
+        stroke-dashoffset: 0;
+      }
+    }
+
+    .flowing-line {
+      animation: flow 1s linear infinite;
+    }
+  </style>
+
+  <% const odcList=odps.filter(o=> o.type === 'ODC');
+    const odpList = odps.filter(o => !o.type || o.type === 'ODP');
+    const isFreeCust = (c) => (c.status && String(c.status).toLowerCase() === 'free') || (c.package_name &&
+    String(c.package_name).toLowerCase().includes('free')) || (c.package_price !== undefined && c.package_price !== null
+    && Number(c.package_price) === 0 && c.package_name);
+    const freeCount = customers.filter(isFreeCust).length;
+    const activeCount = customers.filter(c => c.status === 'active' && !isFreeCust(c)).length;
+    const suspendedCount = customers.filter(c => c.status !== 'active' && !isFreeCust(c)).length;
+    %>
+
+    <div class="tech-stats" style="grid-template-columns: repeat(5, 1fr);">
+      <div class="tsc" style="border-bottom: 3px solid #a78bfa;">
+        <span class="val">
+          <%= odcList.length %>
+        </span>
+        <span class="lbl">ODC</span>
+      </div>
+      <div class="tsc tsc-w">
+        <span class="val">
+          <%= odpList.length %>
+        </span>
+        <span class="lbl">ODP</span>
+      </div>
+      <div class="tsc" style="border-bottom: 3px solid #3b82f6;">
+        <span class="val">
+          <%= activeCount %>
+        </span>
+        <span class="lbl">Berbayar</span>
+      </div>
+      <div class="tsc tsc-s">
+        <span class="val">
+          <%= freeCount %>
+        </span>
+        <span class="lbl">Free</span>
+      </div>
+      <div class="tsc tsc-d">
+        <span class="val">
+          <%= suspendedCount %>
+        </span>
+        <span class="lbl">Isolir</span>
+      </div>
+    </div>
+
+    <div class="legend-grid" style="grid-template-columns: repeat(6, 1fr);">
+      <label class="lc" style="cursor:pointer; user-select:none; margin-bottom:0; padding: 6px;">
+        <input type="checkbox" id="toggle-odc" checked onchange="toggleLayers()"
+          style="width:14px;height:14px;cursor:pointer">
+        <i style="background: #a78bfa;"></i>
+        <span>ODC</span>
+      </label>
+      <label class="lc" style="cursor:pointer; user-select:none; margin-bottom:0; padding: 6px;">
+        <input type="checkbox" id="toggle-odp" checked onchange="toggleLayers()"
+          style="width:14px;height:14px;cursor:pointer">
+        <i style="background: #f59e0b;"></i>
+        <span>ODP</span>
+      </label>
+      <label class="lc" style="cursor:pointer; user-select:none; margin-bottom:0; padding: 6px;">
+        <input type="checkbox" id="toggle-active" checked onchange="toggleLayers()"
+          style="width:14px;height:14px;cursor:pointer">
+        <i style="background: #38bdf8;"></i>
+        <span>Aktif</span>
+      </label>
+      <label class="lc" style="cursor:pointer; user-select:none; margin-bottom:0; padding: 6px;">
+        <input type="checkbox" id="toggle-free" checked onchange="toggleLayers()"
+          style="width:14px;height:14px;cursor:pointer">
+        <i style="background: #34d399;"></i>
+        <span>Free</span>
+      </label>
+      <label class="lc" style="cursor:pointer; user-select:none; margin-bottom:0; padding: 6px;">
+        <input type="checkbox" id="toggle-suspended" checked onchange="toggleLayers()"
+          style="width:14px;height:14px;cursor:pointer">
+        <i style="background: #f87171;"></i>
+        <span>Isolir</span>
+      </label>
+      <label class="lc" style="cursor:pointer; user-select:none; margin-bottom:0; padding: 6px;"
+        title="Tiket Gangguan Aktif">
+        <input type="checkbox" id="toggle-tickets" checked onchange="toggleLayers()"
+          style="width:14px;height:14px;cursor:pointer">
+        <i style="background: #ef4444; border-radius: 0; transform: rotate(45deg);"></i>
+        <span>Gangguan</span>
+      </label>
+    </div>
+
+    <div class="map-info">
+      <div class="d-flex align-items-center justify-content-between">
+        <span><i class="bi bi-info-circle me-1"></i> Mode: <b>Satelit (Navigasi)</b></span>
+        <span class="badge bg-primary">GPS Ready</span>
+      </div>
+    </div>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script id="settings-data" type="application/json"><%- JSON.stringify(settings) %></script>
+    <script>
+      const appSettings = JSON.parse(document.getElementById('settings-data').textContent);
+      const officeCoords = {
+        lat: parseFloat(appSettings.office_lat) || -6.200000,
+        lng: parseFloat(appSettings.office_lng) || 106.816666
+      };
+
+      // Initialize Map
+      const map = L.map('map').setView([officeCoords.lat, officeCoords.lng], 13);
+
+      // Layers
+      const darkLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+        maxZoom: 20,
+        subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+        className: 'leaflet-tile-dark',
+        attribution: '© Google Maps (Dark)'
+      });
+
+      const googleHybrid = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+        maxZoom: 20,
+        subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+        attribution: '© Google Satellite'
+      });
+
+      const googleStreets = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+        maxZoom: 20,
+        subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+        attribution: '© Google Streets'
+      });
+
+      const activeTheme = (document.documentElement.getAttribute('data-theme') || localStorage.getItem('theme') || 'dark');
+      if (activeTheme === 'dark') {
+        darkLayer.addTo(map);
+      } else {
+        googleHybrid.addTo(map);
+      }
+
+      const baseMaps = {
+        "Mode Gelap (Dark Mode)": darkLayer,
+        "Satelit (Hybrid)": googleHybrid,
+        "Peta Jalan (Google Streets)": googleStreets
+      };
+
+      L.control.layers(baseMaps).addTo(map);
+
+      // Layer Groups for ODC, ODP, and Customers
+      const odcGroup = L.layerGroup().addTo(map);
+      const odpGroup = L.layerGroup().addTo(map);
+      const activeCustGroup = L.layerGroup().addTo(map);
+      const freeCustGroup = L.layerGroup().addTo(map);
+      const suspendedCustGroup = L.layerGroup().addTo(map);
+      const ticketGroup = L.layerGroup().addTo(map);
+
+      // Data Injection with safety
+      let customers = [];
+      let odps = [];
+      let tickets = [];
+      try {
+        customers = <% - JSON.stringify(customers).replace(/<\/script/g, '<\\/script').replace(/<!--/g, '<\\!--') %>;
+          odps = <% - JSON.stringify(odps).replace(/<\/script/g, '<\\/script').replace(/<!--/g, '<\\!--') %>;
+        tickets = <% - JSON.stringify(tickets || []).replace(/<\/script/g, '<\\/script').replace(/<!--/g, '<\\!--') %>;
+      } catch (e) {
+        console.error("Data mapping error:", e);
+      }
+
+      // Add Ticket Markers
+      tickets.forEach(ticket => {
+        if (ticket.lat && ticket.lng) {
+          const tLat = parseFloat(ticket.lat);
+          const tLng = parseFloat(ticket.lng);
+
+          const marker = L.marker([tLat, tLng], {
+            icon: L.divIcon({
+              html: '<i class="bi bi-exclamation-triangle-fill text-danger" style="font-size: 22px; text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff;"></i>',
+              className: 'custom-div-icon',
+              iconSize: [22, 22],
+              iconAnchor: [11, 11]
+            })
+          }).addTo(ticketGroup);
+
+          marker.bindPopup(`
         <div class="popup-dark">
           <h6 style="color: #ef4444; border-bottom: 1px solid #ef4444;"><i class="bi bi-exclamation-triangle-fill me-1"></i>${ticket.category}</h6>
           <div style="font-size:11px">
@@ -279,35 +479,35 @@
           </a>
         </div>
       `);
-    }
-  });
+        }
+      });
 
-  // Add ODP & ODC Markers
-  const odpMarkers = {};
-  odps.forEach(odp => {
-    if (odp.lat && odp.lng) {
-      const odpLat = parseFloat(odp.lat);
-      const odpLng = parseFloat(odp.lng);
-      odpMarkers[odp.id] = [odpLat, odpLng];
+      // Add ODP & ODC Markers
+      const odpMarkers = {};
+      odps.forEach(odp => {
+        if (odp.lat && odp.lng) {
+          const odpLat = parseFloat(odp.lat);
+          const odpLng = parseFloat(odp.lng);
+          odpMarkers[odp.id] = [odpLat, odpLng];
 
-      const isOdc = odp.type === 'ODC';
-      const targetGroup = isOdc ? odcGroup : odpGroup;
+          const isOdc = odp.type === 'ODC';
+          const targetGroup = isOdc ? odcGroup : odpGroup;
 
-      const iconHtml = isOdc
-        ? `<div class="marker-odc-box" title="${odp.name} (ODC)"><i class="bi bi-hdd-rack-fill"></i><span class="marker-odc-tag">ODC</span></div>`
-        : `<div class="marker-odp-box" title="${odp.name} (ODP)"><i class="bi bi-box-seam-fill"></i><span class="marker-odp-tag">ODP</span></div>`;
+          const iconHtml = isOdc
+            ? `<div class="marker-odc-box" title="${odp.name} (ODC)"><i class="bi bi-hdd-rack-fill"></i><span class="marker-odc-tag">ODC</span></div>`
+            : `<div class="marker-odp-box" title="${odp.name} (ODP)"><i class="bi bi-box-seam-fill"></i><span class="marker-odp-tag">ODP</span></div>`;
 
-      const marker = L.marker([odpLat, odpLng], {
-        icon: L.divIcon({
-          html: iconHtml,
-          className: 'custom-div-icon',
-          iconSize: isOdc ? [30, 30] : [26, 26],
-          iconAnchor: isOdc ? [15, 15] : [13, 13]
-        })
-      }).addTo(targetGroup);
-      
-      const nodeLabel = isOdc ? 'ODC Cabinet' : 'ODP Box';
-      marker.bindPopup(`
+          const marker = L.marker([odpLat, odpLng], {
+            icon: L.divIcon({
+              html: iconHtml,
+              className: 'custom-div-icon',
+              iconSize: isOdc ? [30, 30] : [26, 26],
+              iconAnchor: isOdc ? [15, 15] : [13, 13]
+            })
+          }).addTo(targetGroup);
+
+          const nodeLabel = isOdc ? 'ODC Cabinet' : 'ODP Box';
+          marker.bindPopup(`
         <div class="popup-dark">
           <div class="d-flex align-items-center justify-content-between mb-1">
             <h6>${odp.name}</h6>
@@ -324,166 +524,166 @@
           </a>
         </div>
       `);
-    }
-  });
+        }
+      });
 
-  const ponColors = [
-    '#f59e0b', // Amber/Yellow
-    '#10b981', // Emerald/Green
-    '#3b82f6', // Blue
-    '#ec4899', // Pink
-    '#8b5cf6', // Violet/Purple
-    '#ef4444', // Red
-    '#06b6d4', // Cyan
-    '#f97316', // Orange
-    '#14b8a6', // Teal
-    '#a855f7', // Purple
-    '#6366f1', // Indigo
-    '#84cc16'  // Lime
-  ];
-  
-  // Build a distinct color mapping for each PON group (olt_id + pon_port)
-  const ponColorMap = {};
-  let colorIdx = 0;
-  odps.forEach(odp => {
-    if (odp.olt_id && odp.pon_port && odp.pon_port.trim() !== '') {
-      const key = `${odp.olt_id}_${odp.pon_port.trim()}`;
-      if (!ponColorMap[key]) {
-        ponColorMap[key] = ponColors[colorIdx % ponColors.length];
-        colorIdx++;
-      }
-    }
-  });
+      const ponColors = [
+        '#f59e0b', // Amber/Yellow
+        '#10b981', // Emerald/Green
+        '#3b82f6', // Blue
+        '#ec4899', // Pink
+        '#8b5cf6', // Violet/Purple
+        '#ef4444', // Red
+        '#06b6d4', // Cyan
+        '#f97316', // Orange
+        '#14b8a6', // Teal
+        '#a855f7', // Purple
+        '#6366f1', // Indigo
+        '#84cc16'  // Lime
+      ];
 
-  // Add Office Marker
-  L.marker([officeCoords.lat, officeCoords.lng], {
-    icon: L.divIcon({
-      html: '<i class="bi bi-building-fill text-primary" style="font-size: 24px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));"></i>',
-      className: 'custom-div-icon',
-      iconSize: [24, 24],
-      iconAnchor: [12, 12]
-    })
-  }).addTo(map).bindPopup(`
+      // Build a distinct color mapping for each PON group (olt_id + pon_port)
+      const ponColorMap = {};
+      let colorIdx = 0;
+      odps.forEach(odp => {
+        if (odp.olt_id && odp.pon_port && odp.pon_port.trim() !== '') {
+          const key = `${odp.olt_id}_${odp.pon_port.trim()}`;
+          if (!ponColorMap[key]) {
+            ponColorMap[key] = ponColors[colorIdx % ponColors.length];
+            colorIdx++;
+          }
+        }
+      });
+
+      // Add Office Marker
+      L.marker([officeCoords.lat, officeCoords.lng], {
+        icon: L.divIcon({
+          html: '<i class="bi bi-building-fill text-primary" style="font-size: 24px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));"></i>',
+          className: 'custom-div-icon',
+          iconSize: [24, 24],
+          iconAnchor: [12, 12]
+        })
+      }).addTo(map).bindPopup(`
     <div class="popup-dark">
       <h6>Kantor Pusat / NOC</h6>
       <div>Lokasi pusat server & distribusi fiber optik.</div>
     </div>
   `);
 
-  // Draw lines from child ODP to parent ODP based on parent_odp_id, or connect to Office if root
-  odps.forEach(odp => {
-    if (odp.lat && odp.lng) {
-      let pathCoords;
-      let lineLabel;
-      const isOdc = odp.type === 'ODC';
-      const nodeGroup = isOdc ? odcGroup : odpGroup;
-      
-      if (odp.parent_odp_id && odpMarkers[odp.parent_odp_id]) {
-        const parentCoords = odpMarkers[odp.parent_odp_id];
-        pathCoords = [
-          [parseFloat(odp.lat), parseFloat(odp.lng)],
-          parentCoords
-        ];
-        lineLabel = `Kabel Uplink ${odp.type || 'ODP'}: ${odp.name} ↔ ${odp.parent_name || 'Uplink'} (PON: ${odp.pon_port || '-'})`;
-      } else {
-        pathCoords = [
-          [parseFloat(odp.lat), parseFloat(odp.lng)],
-          [officeCoords.lat, officeCoords.lng]
-        ];
-        lineLabel = `Kabel Feeder: Kantor Pusat ↔ ${odp.name} (PON: ${odp.pon_port || '-'})`;
-      }
-      
-      // Determine line color from the ODP's PON port
-      let ponColor = isOdc ? '#a78bfa' : '#94a3b8';
-      if (odp.olt_id && odp.pon_port && odp.pon_port.trim() !== '') {
-        const key = `${odp.olt_id}_${odp.pon_port.trim()}`;
-        ponColor = ponColorMap[key] || (isOdc ? '#a78bfa' : '#94a3b8');
-      }
+      // Draw lines from child ODP to parent ODP based on parent_odp_id, or connect to Office if root
+      odps.forEach(odp => {
+        if (odp.lat && odp.lng) {
+          let pathCoords;
+          let lineLabel;
+          const isOdc = odp.type === 'ODC';
+          const nodeGroup = isOdc ? odcGroup : odpGroup;
 
-      if (odp.cable_path) {
-        try {
-          const parsed = JSON.parse(odp.cable_path);
-          if (Array.isArray(parsed) && parsed.length >= 2) {
-            const cleaned = parsed
-              .filter(p => Array.isArray(p) && p.length >= 2)
-              .map(p => [parseFloat(p[0]), parseFloat(p[1])])
-              .filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]));
-            if (cleaned.length >= 2) pathCoords = cleaned;
+          if (odp.parent_odp_id && odpMarkers[odp.parent_odp_id]) {
+            const parentCoords = odpMarkers[odp.parent_odp_id];
+            pathCoords = [
+              [parseFloat(odp.lat), parseFloat(odp.lng)],
+              parentCoords
+            ];
+            lineLabel = `Kabel Uplink ${odp.type || 'ODP'}: ${odp.name} ↔ ${odp.parent_name || 'Uplink'} (PON: ${odp.pon_port || '-'})`;
+          } else {
+            pathCoords = [
+              [parseFloat(odp.lat), parseFloat(odp.lng)],
+              [officeCoords.lat, officeCoords.lng]
+            ];
+            lineLabel = `Kabel Feeder: Kantor Pusat ↔ ${odp.name} (PON: ${odp.pon_port || '-'})`;
           }
-        } catch (e) {}
-      }
 
-      L.polyline(pathCoords, {
-        color: ponColor,
-        weight: isOdc ? 5 : 4,
-        opacity: 0.9,
-        className: 'odp-cable-line'
-      }).addTo(nodeGroup).bindTooltip(lineLabel, { sticky: true });
-    }
-  });
+          // Determine line color from the ODP's PON port
+          let ponColor = isOdc ? '#a78bfa' : '#94a3b8';
+          if (odp.olt_id && odp.pon_port && odp.pon_port.trim() !== '') {
+            const key = `${odp.olt_id}_${odp.pon_port.trim()}`;
+            ponColor = ponColorMap[key] || (isOdc ? '#a78bfa' : '#94a3b8');
+          }
 
-  // Add Customer Markers
-  customers.forEach(cust => {
-    if (cust.lat && cust.lng) {
-      const is_free = (cust.status && String(cust.status).toLowerCase() === 'free') ||
-                      (cust.package_name && String(cust.package_name).toLowerCase().includes('free')) ||
-                      (cust.package_price !== undefined && cust.package_price !== null && Number(cust.package_price) === 0 && cust.package_name);
-      const is_active = cust.status === 'active' || is_free;
+          if (odp.cable_path) {
+            try {
+              const parsed = JSON.parse(odp.cable_path);
+              if (Array.isArray(parsed) && parsed.length >= 2) {
+                const cleaned = parsed
+                  .filter(p => Array.isArray(p) && p.length >= 2)
+                  .map(p => [parseFloat(p[0]), parseFloat(p[1])])
+                  .filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]));
+                if (cleaned.length >= 2) pathCoords = cleaned;
+              }
+            } catch (e) { }
+          }
 
-      let iconClass = 'cust-pin-suspended';
-      let pulseClass = 'pulse-suspended';
-      let custIcon = 'bi-house-x-fill';
-      let cableColor = '#f87171';
-      let targetGroup = suspendedCustGroup;
-
-      if (is_free) {
-        iconClass = 'cust-pin-free';
-        pulseClass = 'pulse-free';
-        custIcon = 'bi-gift-fill';
-        cableColor = '#34d399';
-        targetGroup = freeCustGroup;
-      } else if (is_active) {
-        iconClass = 'cust-pin-active';
-        pulseClass = 'pulse-active';
-        custIcon = 'bi-house-check-fill';
-        cableColor = '#38bdf8';
-        targetGroup = activeCustGroup;
-      }
-
-      const custLat = parseFloat(cust.lat);
-      const custLng = parseFloat(cust.lng);
-      
-      // Draw line to ODP if connected
-      if (cust.odp_id && odpMarkers[cust.odp_id]) {
-        let pathCoords = [
-          [custLat, custLng],
-          odpMarkers[cust.odp_id]
-        ];
-
-        if (cust.cable_path) {
-          try {
-            const parsed = JSON.parse(cust.cable_path);
-            if (Array.isArray(parsed) && parsed.length >= 2) {
-              const cleaned = parsed
-                .filter(p => Array.isArray(p) && p.length >= 2)
-                .map(p => [parseFloat(p[0]), parseFloat(p[1])])
-                .filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]));
-              if (cleaned.length >= 2) pathCoords = cleaned;
-            }
-          } catch (e) {}
+          L.polyline(pathCoords, {
+            color: ponColor,
+            weight: isOdc ? 5 : 4,
+            opacity: 0.9,
+            className: 'odp-cable-line'
+          }).addTo(nodeGroup).bindTooltip(lineLabel, { sticky: true });
         }
+      });
 
-        L.polyline(pathCoords, {
-          color: cableColor,
-          weight: 3,
-          opacity: 0.8,
-          dashArray: '10, 10',
-          className: 'flowing-line',
-          interactive: false
-        }).addTo(targetGroup);
-      }
+      // Add Customer Markers
+      customers.forEach(cust => {
+        if (cust.lat && cust.lng) {
+          const is_free = (cust.status && String(cust.status).toLowerCase() === 'free') ||
+            (cust.package_name && String(cust.package_name).toLowerCase().includes('free')) ||
+            (cust.package_price !== undefined && cust.package_price !== null && Number(cust.package_price) === 0 && cust.package_name);
+          const is_active = cust.status === 'active' || is_free;
 
-      const markerHtml = `
+          let iconClass = 'cust-pin-suspended';
+          let pulseClass = 'pulse-suspended';
+          let custIcon = 'bi-house-x-fill';
+          let cableColor = '#f87171';
+          let targetGroup = suspendedCustGroup;
+
+          if (is_free) {
+            iconClass = 'cust-pin-free';
+            pulseClass = 'pulse-free';
+            custIcon = 'bi-gift-fill';
+            cableColor = '#34d399';
+            targetGroup = freeCustGroup;
+          } else if (is_active) {
+            iconClass = 'cust-pin-active';
+            pulseClass = 'pulse-active';
+            custIcon = 'bi-house-check-fill';
+            cableColor = '#38bdf8';
+            targetGroup = activeCustGroup;
+          }
+
+          const custLat = parseFloat(cust.lat);
+          const custLng = parseFloat(cust.lng);
+
+          // Draw line to ODP if connected
+          if (cust.odp_id && odpMarkers[cust.odp_id]) {
+            let pathCoords = [
+              [custLat, custLng],
+              odpMarkers[cust.odp_id]
+            ];
+
+            if (cust.cable_path) {
+              try {
+                const parsed = JSON.parse(cust.cable_path);
+                if (Array.isArray(parsed) && parsed.length >= 2) {
+                  const cleaned = parsed
+                    .filter(p => Array.isArray(p) && p.length >= 2)
+                    .map(p => [parseFloat(p[0]), parseFloat(p[1])])
+                    .filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]));
+                  if (cleaned.length >= 2) pathCoords = cleaned;
+                }
+              } catch (e) { }
+            }
+
+            L.polyline(pathCoords, {
+              color: cableColor,
+              weight: 3,
+              opacity: 0.8,
+              dashArray: '10, 10',
+              className: 'flowing-line',
+              interactive: false
+            }).addTo(targetGroup);
+          }
+
+          const markerHtml = `
         <div class="cust-pin-wrapper" title="${cust.name}">
           <div class="cust-pin-pulse ${pulseClass}"></div>
           <div class="cust-pin ${iconClass}">
@@ -492,28 +692,28 @@
         </div>
       `;
 
-      const marker = L.marker([custLat, custLng], {
-        icon: L.divIcon({
-          html: markerHtml,
-          className: 'custom-div-icon',
-          iconSize: [28, 28],
-          iconAnchor: [14, 14]
-        })
-      }).addTo(targetGroup);
+          const marker = L.marker([custLat, custLng], {
+            icon: L.divIcon({
+              html: markerHtml,
+              className: 'custom-div-icon',
+              iconSize: [28, 28],
+              iconAnchor: [14, 14]
+            })
+          }).addTo(targetGroup);
 
-      function normalizePhone(phone) {
-        const raw = String(phone || '').trim();
-        const digits = raw.replace(/\D/g, '');
-        if (!digits) return '';
-        if (digits.startsWith('62')) return digits;
-        if (digits.startsWith('0')) return `62${digits.slice(1)}`;
-        if (digits.length >= 9) return `62${digits}`;
-        return digits;
-      }
-      const normalizedPhone = normalizePhone(cust.phone);
-      const waLink = normalizedPhone ? `https://wa.me/${normalizedPhone}?text=${encodeURIComponent('Halo ' + String(cust.name || '').trim())}` : '#';
+          function normalizePhone(phone) {
+            const raw = String(phone || '').trim();
+            const digits = raw.replace(/\D/g, '');
+            if (!digits) return '';
+            if (digits.startsWith('62')) return digits;
+            if (digits.startsWith('0')) return `62${digits.slice(1)}`;
+            if (digits.length >= 9) return `62${digits}`;
+            return digits;
+          }
+          const normalizedPhone = normalizePhone(cust.phone);
+          const waLink = normalizedPhone ? `https://wa.me/${normalizedPhone}?text=${encodeURIComponent('Halo ' + String(cust.name || '').trim())}` : '#';
 
-      marker.bindPopup(`
+          marker.bindPopup(`
         <div class="popup-dark">
           <h6>${cust.name}</h6>
           <div style="font-size:11px">
@@ -531,115 +731,115 @@
           </div>
         </div>
       `);
-    }
-  });
+        }
+      });
 
-  // Geolocation for Tech
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(position => {
-      const myLat = position.coords.latitude;
-      const myLng = position.coords.longitude;
-      
-      L.marker([myLat, myLng], {
-        icon: L.divIcon({
-          html: '<i class="bi bi-person-circle text-white" style="font-size:24px; text-shadow: 0 0 10px #3b82f6"></i>',
-          className: 'custom-div-icon',
-          iconSize: [24, 24],
-          iconAnchor: [12, 12]
-        })
-      }).addTo(map).bindPopup("<div class='popup-dark text-center'><b>Posisi Anda</b></div>");
-    });
-  }
+      // Geolocation for Tech
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(position => {
+          const myLat = position.coords.latitude;
+          const myLng = position.coords.longitude;
 
-  // Auto zoom
-  const group = L.featureGroup(Object.values(map._layers).filter(l => l instanceof L.Marker || l instanceof L.CircleMarker));
-  if (group.getLayers().length > 0) {
-    map.fitBounds(group.getBounds().pad(0.1));
-  }
+          L.marker([myLat, myLng], {
+            icon: L.divIcon({
+              html: '<i class="bi bi-person-circle text-white" style="font-size:24px; text-shadow: 0 0 10px #3b82f6"></i>',
+              className: 'custom-div-icon',
+              iconSize: [24, 24],
+              iconAnchor: [12, 12]
+            })
+          }).addTo(map).bindPopup("<div class='popup-dark text-center'><b>Posisi Anda</b></div>");
+        });
+      }
 
-  window.toggleLayers = function() {
-    const showOdc = document.getElementById('toggle-odc') ? document.getElementById('toggle-odc').checked : true;
-    const showOdp = document.getElementById('toggle-odp') ? document.getElementById('toggle-odp').checked : true;
-    const showActive = document.getElementById('toggle-active') ? document.getElementById('toggle-active').checked : true;
-    const showFree = document.getElementById('toggle-free') ? document.getElementById('toggle-free').checked : true;
-    const showSuspended = document.getElementById('toggle-suspended') ? document.getElementById('toggle-suspended').checked : true;
-    const showTickets = document.getElementById('toggle-tickets') ? document.getElementById('toggle-tickets').checked : true;
+      // Auto zoom
+      const group = L.featureGroup(Object.values(map._layers).filter(l => l instanceof L.Marker || l instanceof L.CircleMarker));
+      if (group.getLayers().length > 0) {
+        map.fitBounds(group.getBounds().pad(0.1));
+      }
 
-    if (showOdc) {
-      if (!map.hasLayer(odcGroup)) map.addLayer(odcGroup);
-      localStorage.setItem('map_show_odc', 'true');
-    } else {
-      if (map.hasLayer(odcGroup)) map.removeLayer(odcGroup);
-      localStorage.setItem('map_show_odc', 'false');
-    }
+      window.toggleLayers = function () {
+        const showOdc = document.getElementById('toggle-odc') ? document.getElementById('toggle-odc').checked : true;
+        const showOdp = document.getElementById('toggle-odp') ? document.getElementById('toggle-odp').checked : true;
+        const showActive = document.getElementById('toggle-active') ? document.getElementById('toggle-active').checked : true;
+        const showFree = document.getElementById('toggle-free') ? document.getElementById('toggle-free').checked : true;
+        const showSuspended = document.getElementById('toggle-suspended') ? document.getElementById('toggle-suspended').checked : true;
+        const showTickets = document.getElementById('toggle-tickets') ? document.getElementById('toggle-tickets').checked : true;
 
-    if (showOdp) {
-      if (!map.hasLayer(odpGroup)) map.addLayer(odpGroup);
-      localStorage.setItem('map_show_odp', 'true');
-    } else {
-      if (map.hasLayer(odpGroup)) map.removeLayer(odpGroup);
-      localStorage.setItem('map_show_odp', 'false');
-    }
+        if (showOdc) {
+          if (!map.hasLayer(odcGroup)) map.addLayer(odcGroup);
+          localStorage.setItem('map_show_odc', 'true');
+        } else {
+          if (map.hasLayer(odcGroup)) map.removeLayer(odcGroup);
+          localStorage.setItem('map_show_odc', 'false');
+        }
 
-    if (showActive) {
-      if (!map.hasLayer(activeCustGroup)) map.addLayer(activeCustGroup);
-      localStorage.setItem('map_show_active', 'true');
-    } else {
-      if (map.hasLayer(activeCustGroup)) map.removeLayer(activeCustGroup);
-      localStorage.setItem('map_show_active', 'false');
-    }
+        if (showOdp) {
+          if (!map.hasLayer(odpGroup)) map.addLayer(odpGroup);
+          localStorage.setItem('map_show_odp', 'true');
+        } else {
+          if (map.hasLayer(odpGroup)) map.removeLayer(odpGroup);
+          localStorage.setItem('map_show_odp', 'false');
+        }
 
-    if (showFree) {
-      if (!map.hasLayer(freeCustGroup)) map.addLayer(freeCustGroup);
-      localStorage.setItem('map_show_free', 'true');
-    } else {
-      if (map.hasLayer(freeCustGroup)) map.removeLayer(freeCustGroup);
-      localStorage.setItem('map_show_free', 'false');
-    }
+        if (showActive) {
+          if (!map.hasLayer(activeCustGroup)) map.addLayer(activeCustGroup);
+          localStorage.setItem('map_show_active', 'true');
+        } else {
+          if (map.hasLayer(activeCustGroup)) map.removeLayer(activeCustGroup);
+          localStorage.setItem('map_show_active', 'false');
+        }
 
-    if (showSuspended) {
-      if (!map.hasLayer(suspendedCustGroup)) map.addLayer(suspendedCustGroup);
-      localStorage.setItem('map_show_suspended', 'true');
-    } else {
-      if (map.hasLayer(suspendedCustGroup)) map.removeLayer(suspendedCustGroup);
-      localStorage.setItem('map_show_suspended', 'false');
-    }
+        if (showFree) {
+          if (!map.hasLayer(freeCustGroup)) map.addLayer(freeCustGroup);
+          localStorage.setItem('map_show_free', 'true');
+        } else {
+          if (map.hasLayer(freeCustGroup)) map.removeLayer(freeCustGroup);
+          localStorage.setItem('map_show_free', 'false');
+        }
 
-    if (showTickets) {
-      if (!map.hasLayer(ticketGroup)) map.addLayer(ticketGroup);
-      localStorage.setItem('map_show_tickets', 'true');
-    } else {
-      if (map.hasLayer(ticketGroup)) map.removeLayer(ticketGroup);
-      localStorage.setItem('map_show_tickets', 'false');
-    }
-  };
+        if (showSuspended) {
+          if (!map.hasLayer(suspendedCustGroup)) map.addLayer(suspendedCustGroup);
+          localStorage.setItem('map_show_suspended', 'true');
+        } else {
+          if (map.hasLayer(suspendedCustGroup)) map.removeLayer(suspendedCustGroup);
+          localStorage.setItem('map_show_suspended', 'false');
+        }
 
-  // Load preferences
-  const prefOdc = localStorage.getItem('map_show_odc') !== 'false';
-  const prefOdp = localStorage.getItem('map_show_odp') !== 'false';
-  const prefActive = localStorage.getItem('map_show_active') !== 'false';
-  const prefFree = localStorage.getItem('map_show_free') !== 'false';
-  const prefSuspended = localStorage.getItem('map_show_suspended') !== 'false';
-  const prefTickets = localStorage.getItem('map_show_tickets') !== 'false';
+        if (showTickets) {
+          if (!map.hasLayer(ticketGroup)) map.addLayer(ticketGroup);
+          localStorage.setItem('map_show_tickets', 'true');
+        } else {
+          if (map.hasLayer(ticketGroup)) map.removeLayer(ticketGroup);
+          localStorage.setItem('map_show_tickets', 'false');
+        }
+      };
 
-  if (document.getElementById('toggle-odc')) document.getElementById('toggle-odc').checked = prefOdc;
-  if (document.getElementById('toggle-odp')) document.getElementById('toggle-odp').checked = prefOdp;
-  if (document.getElementById('toggle-active')) document.getElementById('toggle-active').checked = prefActive;
-  if (document.getElementById('toggle-free')) document.getElementById('toggle-free').checked = prefFree;
-  if (document.getElementById('toggle-suspended')) document.getElementById('toggle-suspended').checked = prefSuspended;
-  if (document.getElementById('toggle-tickets')) document.getElementById('toggle-tickets').checked = prefTickets;
+      // Load preferences
+      const prefOdc = localStorage.getItem('map_show_odc') !== 'false';
+      const prefOdp = localStorage.getItem('map_show_odp') !== 'false';
+      const prefActive = localStorage.getItem('map_show_active') !== 'false';
+      const prefFree = localStorage.getItem('map_show_free') !== 'false';
+      const prefSuspended = localStorage.getItem('map_show_suspended') !== 'false';
+      const prefTickets = localStorage.getItem('map_show_tickets') !== 'false';
 
-  if (!prefOdc) map.removeLayer(odcGroup);
-  if (!prefOdp) map.removeLayer(odpGroup);
-  if (!prefActive) map.removeLayer(activeCustGroup);
-  if (!prefFree) map.removeLayer(freeCustGroup);
-  if (!prefSuspended) map.removeLayer(suspendedCustGroup);
-  if (!prefTickets) map.removeLayer(ticketGroup);
+      if (document.getElementById('toggle-odc')) document.getElementById('toggle-odc').checked = prefOdc;
+      if (document.getElementById('toggle-odp')) document.getElementById('toggle-odp').checked = prefOdp;
+      if (document.getElementById('toggle-active')) document.getElementById('toggle-active').checked = prefActive;
+      if (document.getElementById('toggle-free')) document.getElementById('toggle-free').checked = prefFree;
+      if (document.getElementById('toggle-suspended')) document.getElementById('toggle-suspended').checked = prefSuspended;
+      if (document.getElementById('toggle-tickets')) document.getElementById('toggle-tickets').checked = prefTickets;
 
-  // Fix for blank map on load
-  setTimeout(() => {
-    map.invalidateSize();
-  }, 500);
-</script>
+      if (!prefOdc) map.removeLayer(odcGroup);
+      if (!prefOdp) map.removeLayer(odpGroup);
+      if (!prefActive) map.removeLayer(activeCustGroup);
+      if (!prefFree) map.removeLayer(freeCustGroup);
+      if (!prefSuspended) map.removeLayer(suspendedCustGroup);
+      if (!prefTickets) map.removeLayer(ticketGroup);
 
-<%- include('partials/bottom_nav') %>
+      // Fix for blank map on load
+      setTimeout(() => {
+        map.invalidateSize();
+      }, 500);
+    </script>
+
+    <%- include('partials/bottom_nav') %>

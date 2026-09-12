@@ -3261,6 +3261,91 @@ Mengubah tampilan halaman login pelanggan [views/login.ejs](file:///d:/WEBAPP/my
   - Memverifikasi bahwa jika invoice lama berstatus partial (150.000 dibayar 100.000, sisa 50.000) dan invoice berjalan 150.000, maka `totalTagihan` adalah **200.000** (bukan 250.000) dan `sisaLalu` adalah **50.000** (bukan 100.000).
 - **Seluruh Test Suite (`jest`)**: 15/15 test suites PASSED, 222/222 tests PASSED (100%).
 
+---
 
+## [13.0.12] - 2026-09-12
+### Penambahan Fitur Custom ID Pelanggan di Pengaturan (`/admin/settings` & `/admin/customers`)
 
+### 1. Deskripsi Permasalahan & Latar Belakang
+- **Permintaan Pengguna**: *"https://localhost:3001/admin/customers. Kolom ID pelanggan, buatkan fitur untuk Custom ID Pelanggan di Pengaturan."*
+- **Latar Belakang**:
+  Format ID Pelanggan sebelumnya di-hardcode ke awalan `MDE-` dengan panjang 4 digit angka (`'MDE-' + String(c.id).padStart(4, '0')`). Bagi ISP atau entitas PT baru yang menggunakan aplikasi ini secara komersil atau memiliki penamaan kode pelanggan tersendiri (misal `PLG-0001`, `CUST/00001`, `NET.001`, atau tanpa pemisah `ID0001`), format `MDE-` perlu dapat dikustomisasi secara fleksibel langsung dari halaman Pengaturan Sistem tanpa memodifikasi kode sumber ataupun merusak *primary key* integer database.
 
+### 2. Solusi & Implementasi Teknis
+1. **Penyimpanan Pengaturan (`settings.json` & `config/settingsManager.js`)**:
+   - Menambahkan 3 parameter konfigurasi format:
+     - `customer_id_prefix`: Awalan teks ID (default: `'MDE'`).
+     - `customer_id_separator`: Karakter pemisah (default: `'-'`, pilihan: `'-'`, `'/'`, `'.'`, `'_'`, atau `''` [tanpa pemisah]).
+     - `customer_id_padding`: Panjang digit angka dengan padding nol di depan (default: `4`, pilihan: 3-8 digit).
+   - Membuat fungsi helper terpusat `formatCustomerId(id, customSettings = null)` di [`config/settingsManager.js`](file:///d:/WEBAPP/myadamedia-billing/config/settingsManager.js) dengan proteksi normalisasi:
+     - Mencegah duplikasi karakter pemisah jika pengguna mengetikkan awalan berakhiran pemisah (misal `MDE-` dengan pemisah `-` tetap menghasilkan `MDE-0001`, bukan `MDE--0001`).
+     - Menghasilkan hanya angka ber-padding jika awalan dikosongkan (`0001`).
+     - Graceful fallback jika ID null, kosong, atau non-numeric.
+
+2. **Dukungan Pencarian Dinamis (`services/customerService.js`)**:
+   - Memperbarui fungsi `getAllCustomers(search, sortBy)` agar klausa pencarian mencocokkan pola format kustom aktif secara dinamis:
+     `WHERE ((? || printf(?, c.id)) LIKE ? OR ('MDE-' || printf('%04d', c.id)) LIKE ? OR CAST(c.id AS TEXT) LIKE ? OR ...)`
+     sehingga pencarian dapat dilakukan dengan:
+     - Format custom baru (misal `PLG-0001` atau `CUST/00001`)
+     - Format legacy bawaan `MDE-0001` (*backward compatibility*)
+     - ID numerik murni `1`
+   - Memperbarui `findCustomerByAny(val)` agar mampu mengekstrak dan mengenali ID dari string ID pelanggan berformat kustom.
+
+3. **Injeksi Global View Locals (`app-customer.js` & `routes/adminPortal.js`)**:
+   - Mendaftarkan `res.locals.formatCustomerId = (id) => formatCustomerId(id)` pada middleware Express di [`app-customer.js`](file:///d:/WEBAPP/myadamedia-billing/app-customer.js).
+   - Meneruskan `formatCustomerId` dan `settings` pada render route `/admin/customers` dan `/admin/psb` di [`routes/adminPortal.js`](file:///d:/WEBAPP/myadamedia-billing/routes/adminPortal.js).
+   - Menambahkan validasi dan sanitasi parameter `customer_id_prefix`, `customer_id_separator`, dan `customer_id_padding` pada handler `POST /settings`.
+
+4. **Antarmuka Pengaturan Interaktif (`views/admin/settings.ejs`)**:
+   - Menambahkan kartu **Format Custom ID Pelanggan** pada blok Info Aplikasi dengan:
+     - Input Awalan (Prefix) dengan huruf kapital otomatis.
+     - Dropdown Pemisah (Separator: `-`, `/`, `.`, `_`, atau tanpa pemisah).
+     - Dropdown Panjang Digit (Padding: 3, 4, 5, 6, 7, 8 digit).
+     - Kotak **Live Interactive Preview** yang menampilkan simulasi tampilan ID secara real-time saat administrator mengetik atau memilih opsi (`MDE-0001`, `MDE-0042`, `MDE-0500`).
+
+5. **Pembaruan Tampilan Tabel & Modal (`views/admin/customers.ejs` & `views/admin/psb.ejs`)**:
+   - Mengganti teks statis `MDE-` pada kolom ID tabel dengan `<%= formatCustomerId(c.id) %>`.
+   - Mengintegrasikan fungsi format ID pada judul Modal Edit dan Modal Aktivasi.
+   - Memperbarui algoritma sorting kolom tabel agar membersihkan awalan teks secara dinamis saat melakukan pengurutan numerik.
+
+6. **Reset Database Komersil (`services/backupService.js`)**:
+   - Memasukkan default format ID (`MDE`, `-`, 4) ke dalam `newSettings` pada fitur Factory Reset / Flush Database agar sistem siap pakai dan bersih untuk PT baru.
+
+### 3. Hasil Pengujian & Verifikasi
+- **Automated Test Suite Baru (`tests/customerIdCustom.test.js`)**: 9/9 tests PASSED.
+  - Verifikasi default formatting `MDE-0001`.
+  - Verifikasi variasi custom prefix, separator, dan digit padding (`PLG/00007`, `CUST_015`, `NET.0088`, `ID000250`).
+  - Verifikasi deduplikasi trailing separator (`MDE-` -> `MDE-0001`).
+  - Verifikasi pencarian multi-format di database (custom format, legacy format, raw ID).
+  - Verifikasi render template EJS `/admin/settings` dan `/admin/customers`.
+- **Regression Testing**: 21/21 tests PASSED (100%) mencakup SSO Logo, QRIS Delete, Flush Database, dan Customer ID Custom.
+
+---
+
+## [2026-09-12] Perbaikan & Modernisasi Layer Peta Dark Mode & OpenStreetMap pada Peta Jaringan (`/admin/map`, `/tech/map`, `/investor/dashboard`)
+
+### 1. Penyebab Masalah (Root Cause)
+1. **Dark Mode (CartoDB)**: Penyedia tile eksternal CARTO (`basemaps.cartocdn.com/dark_all/`) memberlakukan kebijakan baru yang mewajibkan API Key komersial. Tanpa API Key, seluruh tile peta dicetak dengan watermark tebal bertuliskan *"API KEY REQUIRED carto.com/basemaps/apikey"*, sehingga peta tampak rusak dan tidak dapat digunakan.
+2. **OpenStreetMap**: Server tile resmi OpenStreetMap (`tile.openstreetmap.org`) membatasi akses aplikasi unauthenticated/browser direct request dan mengembalikan status `x-blocked: Access denied`, serta tidak memiliki konfigurasi `maxNativeZoom: 19`, sehingga ketika pengguna memperbesar peta (*zoom in*) hingga level 20 (yang didukung oleh layer Satelit Google), OpenStreetMap menampilkan kotak-kotak abu-abu kosong (*grey tiles*).
+
+### 2. Solusi & Perubahan yang Diterapkan
+1. **Modern High-Fidelity Zero-Watermark Dark Mode**:
+   - Mengganti layer Dark Mode CARTO dengan **Google Roads Dark Engine** (`https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}`) yang dipadukan dengan filter CSS `.leaflet-tile-dark { filter: invert(100%) hue-rotate(180deg) brightness(92%) contrast(96%) !important; }`.
+   - Menghasilkan tampilan mode gelap yang sangat kontras, tajam, presisi, 100% bebas watermark, dan mendukung zoom hingga level 20 tanpa error.
+2. **Perbaikan & Optimalisasi OpenStreetMap**:
+   - Menggunakan endpoint round-robin resmi `https://tile.openstreetmap.org/{z}/{x}/{y}.png`.
+   - Menambahkan opsi `maxNativeZoom: 19` dan `maxZoom: 20` agar saat pengguna melakukan zoom in ke tingkat 20, Leaflet secara otomatis melakukan upscaling cerdas terhadap tile tanpa menghasilkan area abu-abu kosong.
+3. **Penambahan Opsi Peta Jalan (Google Streets)**:
+   - Menambahkan opsi layer **Peta Jalan (Google Streets)** standar beresolusi tinggi di samping opsi **OpenStreetMap**, **Satelit (Hybrid)**, dan **Mode Gelap (Dark Mode)**.
+4. **Sinkronisasi Seluruh Modul Peta**:
+   - Memperbarui [`views/admin/map.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/admin/map.ejs).
+   - Memperbarui [`views/tech/map.ejs`](file:///d:/WEBAPP/myadamedia-billing/views/tech/map.ejs).
+   - Memperbarui [`investor/views/dashboard.ejs`](file:///d:/WEBAPP/myadamedia-billing/investor/views/dashboard.ejs).
+
+### 3. Hasil Pengujian & Verifikasi
+- Pengujian rendering browser headless Chrome pada `views/admin/map.ejs`:
+  - Layer **Mode Gelap (Dark Mode)** tampil sempurna, kontras tinggi, dan 100% bersih tanpa watermark "API KEY REQUIRED".
+  - Layer **Peta Jalan (Google Streets)** dan **Satelit (Hybrid)** terender dengan sangat cepat dan mulus.
+  - Sesuai permintaan pengguna, opsi **OpenStreetMap** telah dieliminasi sepenuhnya dari seluruh antarmuka peta (`/admin/map`, `/tech/map`, `/investor/dashboard`).
+  - Switcher layer kini menyajikan 3 pilihan terbaik, stabil, dan beresolusi tinggi: **Mode Gelap (Dark Mode)**, **Satelit (Hybrid)**, dan **Peta Jalan (Google Streets)**.
+- Unit testing Jest `tests/qrisDelete.test.js` & `tests/customerIdCustom.test.js`: Seluruh pengujian PASSED (100%).

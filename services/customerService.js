@@ -3,7 +3,7 @@
  */
 const db = require('../config/database');
 const { logger } = require('../config/logger');
-const { getCurrentDateInTimezone } = require('../config/settingsManager');
+const { getCurrentDateInTimezone, formatCustomerId, getSettingsWithCache } = require('../config/settingsManager');
 
 // ─── CUSTOMERS ───────────────────────────────────────────────
 function getAllCustomers(search = '', sortBy = 'name_asc') {
@@ -46,7 +46,23 @@ function getAllCustomers(search = '', sortBy = 'name_asc') {
 
   if (search) {
     const s = `%${search}%`;
-    return db.prepare(base + ` WHERE ('MDE-' || printf('%04d', c.id)) LIKE ? OR c.name LIKE ? OR c.nik_sim LIKE ? OR c.phone LIKE ? OR c.genieacs_tag LIKE ? OR c.address LIKE ? ORDER BY ${orderClause}`).all(s, s, s, s, s, s);
+    const settings = getSettingsWithCache();
+    const prefix = typeof settings.customer_id_prefix === 'string' ? settings.customer_id_prefix.trim() : 'MDE';
+    const sep = typeof settings.customer_id_separator === 'string' ? settings.customer_id_separator : '-';
+    let pad = parseInt(settings.customer_id_padding, 10);
+    if (isNaN(pad) || pad < 1 || pad > 8) pad = 4;
+
+    let cleanPrefix = prefix;
+    if (sep && cleanPrefix.endsWith(sep)) {
+      cleanPrefix = cleanPrefix.slice(0, -sep.length);
+    }
+    const customPrefixPattern = cleanPrefix ? `${cleanPrefix}${sep}` : '';
+    const padFormat = `%0${pad}d`;
+
+    return db.prepare(base + ` WHERE ((? || printf(?, c.id)) LIKE ? OR ('MDE-' || printf('%04d', c.id)) LIKE ? OR CAST(c.id AS TEXT) LIKE ? OR c.name LIKE ? OR c.nik_sim LIKE ? OR c.phone LIKE ? OR c.genieacs_tag LIKE ? OR c.address LIKE ?) ORDER BY ${orderClause}`).all(
+      customPrefixPattern, padFormat, s,
+      s, s, s, s, s, s, s
+    );
   }
   return db.prepare(base + ` ORDER BY ${orderClause}`).all();
 }
@@ -452,10 +468,18 @@ function findCustomerByAny(val) {
     }
   }
 
-  // 5. Try ID if numeric
+  // 5. Try ID if numeric or formatted Customer ID (e.g. MDE-0001, PLG-0042)
   if (/^\d+$/.test(cleanVal) && cleanVal.length < 8) {
-    const c = getCustomerById(parseInt(cleanVal));
+    const c = getCustomerById(parseInt(cleanVal, 10));
     if (c) return c;
+  }
+  const custIdMatch = cleanVal.match(/^(?:[A-Za-z0-9]+[-/_.]?)?(\d+)$/);
+  if (custIdMatch) {
+    const parsedId = parseInt(custIdMatch[1], 10);
+    if (!isNaN(parsedId) && parsedId > 0) {
+      const c = getCustomerById(parsedId);
+      if (c) return c;
+    }
   }
   
   return null;
@@ -698,5 +722,6 @@ module.exports = {
   getAllCustomers, getCustomerById, createCustomer, updateCustomer, deleteCustomer, getCustomerStats,
   getAllPackages, getPackageById, createPackage, updatePackage, deletePackage,
   suspendCustomer, activateCustomer, terminateCustomer, findCustomerByAny, updateCustomerCablePath,
-  resetPromoCyclesUsed, syncCustomerIsolation, syncCustomerActivation, syncCustomerInactivation
+  resetPromoCyclesUsed, syncCustomerIsolation, syncCustomerActivation, syncCustomerInactivation,
+  formatCustomerId
 };

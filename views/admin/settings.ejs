@@ -215,6 +215,60 @@
               Format didukung: PNG, JPG, WebP, SVG (Maks. 2MB). Rekomendasi tinggi 40-80px berlatar transparan.
             </div>
           </div>
+
+          <!-- Custom Customer ID Format Component -->
+          <div class="fg mb16" style="background:var(--bg2, rgba(255,255,255,0.03)); border:1px solid var(--border, #334155); border-radius:10px; padding:14px;">
+            <label class="fl" style="font-weight:600; margin-bottom:4px; display:flex; align-items:center; gap:6px;">
+              <i class="bi bi-person-badge" style="color:#38bdf8"></i> Format Custom ID Pelanggan
+            </label>
+            <div style="font-size:11px; color:var(--muted); margin-bottom:12px;">
+              Kustomisasi tampilan nomor ID Pelanggan di tabel Pelanggan, Modal Edit, Cetak Invoice, dan pencarian sistem.
+            </div>
+
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:10px; margin-bottom:12px;">
+              <div>
+                <label class="fl" style="font-size:11px;">Awalan (Prefix)</label>
+                <input class="fc mono" name="customer_id_prefix" id="cfg_cust_prefix" 
+                       value="<%= settings.customer_id_prefix !== undefined ? settings.customer_id_prefix : 'MDE' %>" 
+                       placeholder="Contoh: MDE" maxlength="12" style="font-weight:600;" oninput="updateCustomerIdPreview()">
+              </div>
+              <div>
+                <label class="fl" style="font-size:11px;">Pemisah (Separator)</label>
+                <% const currentSep = settings.customer_id_separator !== undefined ? settings.customer_id_separator : '-'; %>
+                <select class="fc mono" name="customer_id_separator" id="cfg_cust_sep" onchange="updateCustomerIdPreview()">
+                  <option value="-" <%= currentSep === '-' ? 'selected' : '' %>>- (Tanda Hubung)</option>
+                  <option value="/" <%= currentSep === '/' ? 'selected' : '' %>>/ (Garis Miring)</option>
+                  <option value="." <%= currentSep === '.' ? 'selected' : '' %>>. (Titik)</option>
+                  <option value="_" <%= currentSep === '_' ? 'selected' : '' %>>_ (Garis Bawah)</option>
+                  <option value="" <%= currentSep === '' ? 'selected' : '' %>>[Tanpa Pemisah]</option>
+                </select>
+              </div>
+              <div>
+                <label class="fl" style="font-size:11px;">Panjang Digit (Padding)</label>
+                <% const currentPad = Number(settings.customer_id_padding) || 4; %>
+                <select class="fc mono" name="customer_id_padding" id="cfg_cust_pad" onchange="updateCustomerIdPreview()">
+                  <option value="3" <%= currentPad === 3 ? 'selected' : '' %>>3 Digit (001)</option>
+                  <option value="4" <%= currentPad === 4 ? 'selected' : '' %>>4 Digit (0001 - Default)</option>
+                  <option value="5" <%= currentPad === 5 ? 'selected' : '' %>>5 Digit (00001)</option>
+                  <option value="6" <%= currentPad === 6 ? 'selected' : '' %>>6 Digit (000001)</option>
+                  <option value="7" <%= currentPad === 7 ? 'selected' : '' %>>7 Digit (0000001)</option>
+                  <option value="8" <%= currentPad === 8 ? 'selected' : '' %>>8 Digit (00000001)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Live Interactive Preview Box -->
+            <div style="background:var(--bg, #0f172a); border:1px dashed var(--border, #475569); border-radius:8px; padding:10px 12px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:11px; color:var(--muted);"><i class="bi bi-eye"></i> Preview Tampilan:</span>
+                <span id="cust_id_preview_1" class="badge bm mono" style="font-size:12px; font-weight:700; letter-spacing:0.5px; background:rgba(56,189,248,0.15); color:#38bdf8; border:1px solid rgba(56,189,248,0.3); padding:4px 8px;">MDE-0001</span>
+                <span id="cust_id_preview_2" class="badge bm mono" style="font-size:12px; font-weight:600; opacity:0.85; background:rgba(255,255,255,0.05); color:var(--text, #e2e8f0); padding:4px 8px;">MDE-0042</span>
+                <span id="cust_id_preview_3" class="badge bm mono" style="font-size:12px; font-weight:600; opacity:0.85; background:rgba(255,255,255,0.05); color:var(--text, #e2e8f0); padding:4px 8px;">MDE-0500</span>
+              </div>
+              <small style="font-size:10px; color:var(--muted);"><i class="bi bi-info-circle"></i> Tersimpan otomatis saat form Pengaturan disimpan</small>
+            </div>
+          </div>
+
           <div class="fg">
             <label class="fl">URL Publik Aplikasi (Public Base URL)</label>
             <input class="fc" name="public_base_url" value="<%= settings.public_base_url || '' %>" placeholder="https://billing.myadamedia.net">
@@ -940,6 +994,33 @@ async function clearEwalletLogs() {
   }
 }
 
+function updateCustomerIdPreview() {
+  const prefixInput = document.getElementById('cfg_cust_prefix');
+  const sepSelect = document.getElementById('cfg_cust_sep');
+  const padSelect = document.getElementById('cfg_cust_pad');
+  if (!prefixInput || !sepSelect || !padSelect) return;
+
+  const prefix = prefixInput.value.trim().toUpperCase();
+  const sep = sepSelect.value;
+  const pad = parseInt(padSelect.value, 10) || 4;
+
+  function fmt(id) {
+    const padStr = String(id).padStart(pad, '0');
+    if (!prefix) return padStr;
+    let p = prefix;
+    if (sep && p.endsWith(sep)) p = p.slice(0, -sep.length);
+    return p + sep + padStr;
+  }
+
+  const p1 = document.getElementById('cust_id_preview_1');
+  const p2 = document.getElementById('cust_id_preview_2');
+  const p3 = document.getElementById('cust_id_preview_3');
+  if (p1) p1.textContent = fmt(1);
+  if (p2) p2.textContent = fmt(42);
+  if (p3) p3.textContent = fmt(500);
+}
+
+setTimeout(updateCustomerIdPreview, 50);
 setTimeout(loadEwalletLogs, 200);
 setTimeout(updateNotifHint, 250);
 setTimeout(()=>document.querySelectorAll('.alert').forEach(a=>a.style.display='none'),5000);

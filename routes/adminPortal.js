@@ -3,7 +3,7 @@
  */
 const express = require('express');
 const router = express.Router();
-const { getSetting, getSettings, saveSettings, getNowLocal, getCurrentDateInTimezone, getCurrentTimeInfo, getNowLocalISO, formatDateLocal } = require('../config/settingsManager');
+const { getSetting, getSettings, saveSettings, getNowLocal, getCurrentDateInTimezone, getCurrentTimeInfo, getNowLocalISO, formatDateLocal, formatCustomerId } = require('../config/settingsManager');
 const { logger } = require('../config/logger');
 const db = require('../config/database');
 const customerDevice = require('../services/customerDeviceService');
@@ -1675,7 +1675,8 @@ router.get('/customers', requireAdminSession, requireSidebarMenuAccess('customer
   res.render('admin/customers', {
     title: 'Data Pelanggan', company: company(), activePage: 'customers',
     customers: filteredCustomers, stats, packages, routers, olts, odps, collectors, search, filterStatus, sort, msg: flashMsg(req),
-    settings: getSettings()
+    settings: getSettings(),
+    formatCustomerId: (id) => formatCustomerId(id)
   });
 });
 
@@ -1694,7 +1695,8 @@ router.get('/psb', requireAdminSession, requireSidebarMenuAccess('psb'), (req, r
   res.render('admin/psb', {
     title: 'Pendaftaran Sambungan Baru (PSB)', company: company(), activePage: 'psb',
     customers: inactiveCustomers, stats, packages, routers, olts, odps, collectors, search, sort, msg: flashMsg(req),
-    settings: getSettings()
+    settings: getSettings(),
+    formatCustomerId: (id) => formatCustomerId(id)
   });
 });
 
@@ -3925,6 +3927,17 @@ router.post('/settings', requireAdminSession, express.urlencoded({ extended: tru
     if (newSettings.server_port) newSettings.server_port = parseInt(newSettings.server_port);
     if (newSettings.mikrotik_port) newSettings.mikrotik_port = parseInt(newSettings.mikrotik_port);
     if (newSettings.whatsapp_broadcast_delay) newSettings.whatsapp_broadcast_delay = parseInt(newSettings.whatsapp_broadcast_delay);
+
+    if (newSettings.customer_id_prefix !== undefined) {
+      newSettings.customer_id_prefix = String(newSettings.customer_id_prefix).trim().toUpperCase();
+    }
+    if (newSettings.customer_id_separator !== undefined) {
+      newSettings.customer_id_separator = String(newSettings.customer_id_separator).trim();
+    }
+    if (newSettings.customer_id_padding !== undefined) {
+      const pad = parseInt(newSettings.customer_id_padding, 10);
+      newSettings.customer_id_padding = (!isNaN(pad) && pad >= 1 && pad <= 8) ? pad : 4;
+    }
 
     newSettings.login_otp_enabled = (newSettings.login_otp_enabled === 'true');
     newSettings.telegram_enabled = (newSettings.telegram_enabled === 'true');

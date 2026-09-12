@@ -253,6 +253,40 @@ function stopSettingsWatcher() {
   }
 }
 
+/**
+ * Helper untuk memformat ID Pelanggan secara dinamis sesuai konfigurasi di Pengaturan
+ * (Prefix, Separator, Padding)
+ * Default: MDE-0001
+ * 
+ * @param {number|string} id - ID numerik pelanggan
+ * @param {object} [customSettings] - Override settings jika diperlukan
+ * @returns {string} ID pelanggan terformat, misalnya 'MDE-0001', 'PLG/00042', dll.
+ */
+function formatCustomerId(id, customSettings = null) {
+  if (id === null || id === undefined || id === '') return '';
+  const num = parseInt(id, 10);
+  if (isNaN(num)) return String(id);
+
+  const s = customSettings || getSettingsWithCache();
+  const prefix = typeof s.customer_id_prefix === 'string' ? s.customer_id_prefix.trim() : 'MDE';
+  const separator = typeof s.customer_id_separator === 'string' ? s.customer_id_separator : '-';
+  let padding = parseInt(s.customer_id_padding, 10);
+  if (isNaN(padding) || padding < 1 || padding > 8) padding = 4;
+
+  const padStr = String(Math.max(0, num)).padStart(padding, '0');
+
+  if (!prefix) {
+    return padStr;
+  }
+
+  let cleanPrefix = prefix;
+  if (separator && cleanPrefix.endsWith(separator)) {
+    cleanPrefix = cleanPrefix.slice(0, -separator.length);
+  }
+
+  return `${cleanPrefix}${separator}${padStr}`;
+}
+
 module.exports = {
   getSettings,
   getSettingsWithCache,
@@ -261,6 +295,7 @@ module.exports = {
   saveSettings,
   getNowLocal,
   formatDateLocal,
+  formatCustomerId,
   getCurrentDateInTimezone,
   getCurrentTimeInfo,
   getNowLocalISO,

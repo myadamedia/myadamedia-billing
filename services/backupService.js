@@ -720,6 +720,9 @@ function flushDatabase(options = {}) {
       company_address: '',
       operational_hours: 'Senin - Sabtu: 08.00 - 17.00 WIB',
       public_base_url: '',
+      customer_id_prefix: 'MDE',
+      customer_id_separator: '-',
+      customer_id_padding: 4,
 
       // MikroTik / Router
       mikrotik_host: '',
