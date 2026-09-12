@@ -3631,6 +3631,15 @@ router.post('/settings/qris-upload', requireAdminSession, qrisUpload.single('qri
     const dir = path.join(__dirname, '../public/uploads/qris');
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
+    // Hapus QRIS lama jika ada
+    const currentSettings = getSettings();
+    if (currentSettings && currentSettings.qris_static_qr_url && currentSettings.qris_static_qr_url.startsWith('/uploads/qris/')) {
+      const oldPath = path.join(__dirname, '../public', currentSettings.qris_static_qr_url);
+      if (fs.existsSync(oldPath)) {
+        try { fs.unlinkSync(oldPath); } catch (e) { }
+      }
+    }
+
     const name = `qris-${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`;
     const fullPath = path.join(dir, name);
     fs.writeFileSync(fullPath, f.buffer);
@@ -3718,6 +3727,34 @@ router.post('/settings/logo-delete', requireAdminSession, (req, res) => {
     req.session._msg = { type: 'success', text: 'Logo berhasil dihapus. Sidebar kembali menggunakan teks nama perusahaan.' };
   } catch (e) {
     req.session._msg = { type: 'error', text: 'Gagal menghapus logo: ' + (e?.message || e) };
+  }
+  res.redirect('/admin/settings');
+});
+
+router.post('/settings/qris-delete', requireAdminSession, (req, res) => {
+  try {
+    const currentSettings = getSettings();
+    if (currentSettings && currentSettings.qris_static_qr_url) {
+      if (currentSettings.qris_static_qr_url.startsWith('/uploads/qris/')) {
+        const oldPath = path.join(__dirname, '../public', currentSettings.qris_static_qr_url);
+        if (fs.existsSync(oldPath)) {
+          try { fs.unlinkSync(oldPath); } catch (e) { }
+        }
+      }
+    }
+
+    const ok = saveSettings({ qris_static_qr_url: '', qris_static_payload: '' });
+    if (!ok) throw new Error('Gagal mengosongkan pengaturan QRIS.');
+
+    req.session._msg = { type: 'success', text: 'Gambar QRIS dan payload berhasil dihapus.' };
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.json({ success: true, message: 'Gambar QRIS berhasil dihapus.' });
+    }
+  } catch (e) {
+    req.session._msg = { type: 'error', text: 'Gagal menghapus QRIS: ' + (e?.message || e) };
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.status(500).json({ success: false, error: e?.message || e });
+    }
   }
   res.redirect('/admin/settings');
 });

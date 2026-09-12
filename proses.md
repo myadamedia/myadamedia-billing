@@ -2,6 +2,46 @@
 
 ---
 
+## [2026-09-12] Implementasi Fitur Hapus QRIS Statis (Semi-Otomatis) pada Pengaturan Admin (/admin/settings)
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna meminta penambahan fitur untuk menghapus gambar QRIS yang sudah di-upload pada menu **Pengaturan Aplikasi / Sistem** (`/admin/settings`) di bagian **QRIS Statis (Semi-Otomatis)**. Sebelumnya, administrator hanya dapat meng-upload file QRIS baru, namun tidak memiliki opsi untuk menghapus gambar QRIS yang tersimpan di server dan mengosongkan pengaturannya.
+
+### 2. Analisis Masalah & Penyebab Utama (Root Cause Analysis)
+1. **Ketiadaan Route Handler Penghapusan**: Belum ada route `POST /settings/qris-delete` pada `routes/adminPortal.js` untuk menangani penghapusan file fisik dari storage dan pembersihan pengaturan.
+2. **Ketiadaan Komponen UI Interaktif**: Pada template `views/admin/settings.ejs`, thumbnail preview QRIS hanya ditampilkan sebagai gambar statis tanpa tombol hapus maupun form handler.
+3. **Akumulasi File Sampah (Orphaned Files)**: Pada route upload QRIS (`POST /settings/qris-upload`), file gambar QRIS lama sebelumnya tidak dibersihkan saat file baru di-upload.
+
+### 3. Solusi Terpilih (Clean Architecture & SOLID)
+1. **Backend Route Controller (`routes/adminPortal.js`)**:
+   - Menambahkan endpoint `POST /settings/qris-delete`:
+     - Memeriksa sesi admin via middleware `requireAdminSession`.
+     - Mendeteksi apakah file QRIS tersimpan di direktori lokal (`/uploads/qris/`). Jika ada, hapus file fisik dari disk menggunakan `fs.unlinkSync` dalam blok pengaman `try/catch`.
+     - Mengosongkan field `qris_static_qr_url: ''` dan `qris_static_payload: ''` via `saveSettings()`.
+     - Menyediakan respon flash alert `"Gambar QRIS dan payload berhasil dihapus."` serta dukungan respon JSON untuk pemanggilan asynchronous.
+   - Menyempurnakan route `POST /settings/qris-upload` agar secara otomatis menghapus file QRIS fisik lama saat administrator meng-upload gambar QRIS baru.
+2. **Frontend View (`views/admin/settings.ejs`)**:
+   - Memperbarui blok preview QRIS menjadi kartu interaktif dengan status *"QRIS Statis Aktif Terpasang"*, URL file, thumbnail berlatar putih dengan shadow, serta tombol aksi **Hapus QRIS** (`btn btn-d btn-sm`) dengan ikon `bi-trash`.
+   - Menambahkan dialog konfirmasi JavaScript (`confirm(...)`) sebelum pengiriman form untuk mencegah ketidaksengajaan.
+   - Menambahkan form tersembunyi `<form id="deleteQrisForm" method="POST" action="/admin/settings/qris-delete" style="display:none;"></form>` di akhir template.
+3. **Automated Unit Testing (`tests/qrisDelete.test.js`)**:
+   - Dibuat test suite baru dengan Jest yang menguji:
+     - Rendering tombol "Hapus QRIS" dan form delete ketika `qris_static_qr_url` terisi.
+     - Sembunyinya tombol "Hapus QRIS" ketika `qris_static_qr_url` kosong.
+     - Logika penghapusan file fisik pada direktori storage.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`routes/adminPortal.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/routes/adminPortal.js): Penambahan endpoint `POST /settings/qris-delete` dan pembersihan file lama pada `qris-upload`.
+- `[MODIFY]` [`views/admin/settings.ejs`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/views/admin/settings.ejs): Penambahan kartu preview interaktif, tombol aksi Hapus QRIS, dan hidden form `deleteQrisForm`.
+- `[NEW]` [`tests/qrisDelete.test.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/tests/qrisDelete.test.js): Automated Jest unit test.
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/proses.md): Dokumentasi log audit sistem.
+
+### 5. Hasil Pengujian & Verifikasi
+- **Jest Unit Test Suite (`tests/qrisDelete.test.js`)**: 3/3 tests passed (100%).
+- **Regression Tests (`tests/ssoLogo.test.js`, `tests/settingsValidator.test.js`)**: 24/24 tests passed tanpa regresi.
+
+---
+
 ## [2026-09-12] Implementasi Logo Dinamis pada SSO Portal Gateway (/sso) Sesuai Pengaturan Logo Perusahaan
 
 ### 1. Deskripsi Permasalahan & Kebutuhan

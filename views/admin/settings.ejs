@@ -534,10 +534,24 @@
               })();
             </script>
             <% if (settings.qris_static_qr_url) { %>
-              <div style="margin-top:10px; display:flex; gap:12px; align-items:center; flex-wrap:wrap">
-                <div style="font-size:10px; color:var(--muted)">Preview:</div>
-                <img src="<%= settings.qris_static_qr_url %>" alt="QRIS" style="height:72px; width:72px; object-fit:contain; background:#fff; border-radius:12px; padding:8px; border:1px solid rgba(0,0,0,0.08)">
-                <div style="font-size:10px; color:var(--muted)">Gunakan tombol <span style="font-weight:700">QR</span> di menu Billing untuk membuat nominal unik per invoice.</div>
+              <div style="margin-top:12px; padding:12px; background:var(--bg, #0f172a); border:1px dashed var(--border, #475569); border-radius:10px; display:flex; align-items:center; gap:14px; flex-wrap:wrap">
+                <div style="background:#fff; border-radius:8px; padding:6px; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 8px rgba(0,0,0,0.15)">
+                  <img src="<%= settings.qris_static_qr_url %>" alt="QRIS" style="height:72px; width:72px; object-fit:contain">
+                </div>
+                <div style="flex:1; min-width:200px">
+                  <div style="font-size:12px; font-weight:600; color:#10b981; display:flex; align-items:center; gap:4px">
+                    <i class="bi bi-check-circle-fill"></i> QRIS Statis Aktif Terpasang
+                  </div>
+                  <div style="font-size:11px; color:var(--muted); margin-top:2px; word-break:break-all">
+                    URL: <%= settings.qris_static_qr_url %>
+                  </div>
+                  <div style="font-size:10px; color:var(--muted); margin-top:4px">
+                    Gunakan tombol <span style="font-weight:700">QR</span> di menu Billing untuk membuat nominal unik per invoice.
+                  </div>
+                </div>
+                <button type="button" class="btn btn-d btn-sm" onclick="if(confirm('Hapus gambar QRIS yang sudah di-upload? Gambar dan URL QRIS statis akan dikosongkan.')) document.getElementById('deleteQrisForm').submit();" title="Hapus QRIS" style="white-space:nowrap">
+                  <i class="bi bi-trash"></i> Hapus QRIS
+                </button>
               </div>
             <% } %>
 
@@ -932,5 +946,6 @@ setTimeout(()=>document.querySelectorAll('.alert').forEach(a=>a.style.display='n
 </script>
 <form id="logoUploadForm" method="POST" action="/admin/settings/logo-upload" enctype="multipart/form-data" style="display:none;"></form>
 <form id="deleteLogoForm" method="POST" action="/admin/settings/logo-delete" style="display:none;"></form>
+<form id="deleteQrisForm" method="POST" action="/admin/settings/qris-delete" style="display:none;"></form>
 </body>
 </html>
