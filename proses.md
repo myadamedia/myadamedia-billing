@@ -3349,3 +3349,64 @@ Mengubah tampilan halaman login pelanggan [views/login.ejs](file:///d:/WEBAPP/my
   - Sesuai permintaan pengguna, opsi **OpenStreetMap** telah dieliminasi sepenuhnya dari seluruh antarmuka peta (`/admin/map`, `/tech/map`, `/investor/dashboard`).
   - Switcher layer kini menyajikan 3 pilihan terbaik, stabil, dan beresolusi tinggi: **Mode Gelap (Dark Mode)**, **Satelit (Hybrid)**, dan **Peta Jalan (Google Streets)**.
 - Unit testing Jest `tests/qrisDelete.test.js` & `tests/customerIdCustom.test.js`: Seluruh pengujian PASSED (100%).
+
+---
+
+## [2026-09-12] Perbaikan Address List LIST_ISOLIR Permanen & Penanganan Otomatis Pergantian IP saat ONT/ONU Restart
+
+### 1. Penyebab Masalah (Root Cause)
+1. **Parameter `timeout=23h` pada Profil PPPoE (`services/mikrotikService.js`)**:
+   - Pada fungsi `ensurePppProfileIsolirAddressListHook`, skrip `on-up` profil isolir MikroTik menyertakan perintah:
+     ```routeros
+     /ip firewall address-list add list=LIST_ISOLIR address=$remote-address comment=$user timeout=23h
+     ```
+   - Parameter `timeout=23h` menyebabkan entri address-list didaftarkan sebagai entri sementara (*dynamic temporary entry*) dengan masa berlaku 23 jam.
+   - Ketika 23 jam terlewati, MikroTik secara otomatis menghapus IP dari `LIST_ISOLIR`.
+   - Karena modem/ONT pelanggan tetap menyala dan terhubung 24/7 tanpa putus berhari-hari, event `on-up` tidak terpicu kembali, sehingga IP pelanggan lenyap dari `LIST_ISOLIR` dan pelanggan dapat mengakses internet normal kembali (*bypass isolir*) meskipun di database masih berstatus `suspended`.
+2. **Kondisi Pergantian IP saat ONT/ONU Direstart Pelanggan**:
+   - Jika pelanggan mematikan, mencabut adaptor, atau merestart ONT/ONU, session PPPoE baru akan terbentuk dan seringkali MikroTik memberikan IP baru dari pool.
+   - Tanpa mekanisme pembersihan entri usang dan pembaruan otomatis, IP baru yang didapat berpotensi belum tercatat atau IP lama masih tertinggal, terutama jika profil isolir belum memiliki skrip hook terpadu atau koneksi terautentikasi melalui RADIUS.
+
+### 2. Solusi & Perubahan yang Diterapkan
+1. **Penghapusan Parameter `timeout=23h` & Perlindungan Anti-Expired (`services/mikrotikService.js`)**:
+   - Menghapus parameter `timeout=23h` pada skrip `on-up` baru maupun generator skrip isolir, sehingga entri menjadi **permanen (static)** sampai pelanggan resmi diaktifkan kembali.
+   - Menambahkan pembersihan otomatis terhadap skrip lama: jika profil eksisting di MikroTik mengandung `timeout=\S+`, sistem otomatis menghapus timeout tersebut dan memperbarui profil ke mode permanen.
+2. **Skrip Profil On-Up & On-Down Cerdas (Multi-Layer IP Handling)**:
+   - Skrip `on-up` pada profil PPPoE isolir kini menjalankan:
+     ```routeros
+     /ip firewall address-list remove [find list=LIST_ISOLIR comment=$user]; /ip firewall address-list remove [find list=LIST_ISOLIR address=$remote-address]; /ip firewall address-list add list=LIST_ISOLIR address=$remote-address comment=$user
+     ```
+   - **Mekanisme Kerja**: Saat ONT direstart dan PPPoE konek kembali dengan IP baru:
+     - Perintah pertama membersihkan IP lama milik user tersebut dari `LIST_ISOLIR` (berdasarkan `comment=$user`).
+     - Perintah kedua membersihkan duplikasi.
+     - Perintah ketiga mendaftarkan **IP baru** yang didapat (`$remote-address`) ke `LIST_ISOLIR` secara permanen.
+3. **Fungsi Manajemen Address List & Penanganan Pergantian IP**:
+   - `addIpToIsolirAddressList(ip, comment, routerId, reuseConn)`: Menambahkan IP ke `LIST_ISOLIR` permanen dan mengonversi entri dynamic/timeout menjadi permanen.
+   - `removeIpFromIsolirAddressList(ip, comment, routerId, reuseConn)`: Menghapus IP dan/atau comment user dari `LIST_ISOLIR` saat diaktifkan kembali.
+   - `handlePppoeIpChanged(username, newIp, oldIp, routerId, reuseConn)`: Mendeteksi jika pelanggan isolir berganti IP pasca restart ONT, menghapus IP lama, dan menyuntikkan IP baru secara permanen.
+   - `reconcileIsolirAddressList(routerId, reuseConn)`: Audit otomatis seluruh pelanggan `suspended` di database, memastikan seluruh IP sesi aktif atau IP statis terdaftar di `LIST_ISOLIR`, serta mengonversi entri timeout ke permanen.
+4. **Integrasi Customer Service (`services/customerService.js`)**:
+   - Pada `syncCustomerIsolation`: Memprioritaskan pemutusan sesi (`kickPppoeUser`) segera dan menyuntikkan IP statis/remote address ke `LIST_ISOLIR` permanen.
+   - Pada `syncCustomerActivation`: Menghapus entri IP dan comment user dari `LIST_ISOLIR` router saat pelanggan kembali `active`.
+5. **Integrasi Pemantauan Berkala (`services/cronService.js`)**:
+   - Pada pemantauan PPPoE setiap 2 menit: Jika pelanggan `suspended`/`isolated` sedang online di PPPoE, sistem memanggil `handlePppoeIpChanged` untuk memastikan IP barunya masuk `LIST_ISOLIR` dan IP lama dibersihkan.
+   - Pada isolir harian jam 02:00: Menjalankan `reconcileIsolirAddressList()`.
+   - Menambahkan cron audit berkala setiap 30 menit (`*/30 * * * *`) untuk menyinkronkan seluruh address list router.
+6. **Integrasi RADIUS Server (`services/radiusService.js`)**:
+   - Pada pemrosesan paket Accounting `Start` dan `Interim-Update`, jika pelanggan berstatus `suspended` dan `framedIp` terdeteksi, sistem langsung memanggil `handlePppoeIpChanged` untuk memastikan IP baru masuk `LIST_ISOLIR`.
+7. **Portal Isolir Admin (`services/isolatedPortalService.js`)**:
+   - Tombol "Sinkronkan Isolir" (`/admin/isolated-portal/sync`) kini otomatis menjalankan `reconcileIsolirAddressList()`.
+
+### 3. Hasil Pengujian & Verifikasi
+- **Unit Test Baru (`tests/isolirAddressListPermanent.test.js`)**: 4/4 Tests PASSED (100%).
+  - Verifikasi `ensurePppProfileIsolirAddressListHook` membersihkan `timeout=23h` dan menyertakan pembersihan comment user saat ONT restart.
+  - Verifikasi `handlePppoeIpChanged` menghapus IP lama (`10.10.10.25`) dan memasukkan IP baru (`10.10.10.88`) secara permanen ke `LIST_ISOLIR` saat ONT restart.
+  - Verifikasi `handlePppoeIpChanged` menolak memasukkan pelanggan aktif ke `LIST_ISOLIR`.
+  - Verifikasi `reconcileIsolirAddressList` mengonversi entri timeout/dynamic menjadi permanen.
+- **Regression Testing**:
+  - `tests/customerUpdatePppoe.test.js`: 5/5 PASSED.
+  - `tests/radiusCustomerSession.test.js`: 6/6 PASSED.
+  - `tests/settingsValidator.test.js`: 9/9 PASSED.
+  - `tests/qrisDelete.test.js`: 5/5 PASSED.
+  - `tests/ssoLogo.test.js`: 13/13 PASSED.
+

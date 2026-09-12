@@ -104,6 +104,14 @@ function startCronJobs() {
       }
     }
     logger.info(`[CRON] Selesai pengecekan isolir. Total ${isolatedCount} pelanggan baru di-isolir.`);
+
+    // Rekonsiliasi audit seluruh pelanggan isolir ke LIST_ISOLIR router
+    try {
+      await mikrotikService.reconcileIsolirAddressList();
+      logger.info('[CRON] Rekonsiliasi audit LIST_ISOLIR router berhasil diselesaikan.');
+    } catch (rErr) {
+      logger.warn(`[CRON] Rekonsiliasi isolir address list warning: ${rErr.message}`);
+    }
   });
 
   cron.schedule('0 9 * * *', async () => {
@@ -821,6 +829,16 @@ function startCronJobs() {
         const phone = customer && customer.phone ? customer.phone : '-';
         const profile = secret.profile || (customer && customer.package_name ? customer.package_name : '-');
 
+        // SINKRONISASI IP ISOLIR PASCA RESTART ONT:
+        // Jika pelanggan berstatus suspended / isolated dan sedang online di PPPoE:
+        if (customer && (customer.status === 'suspended' || customer.status === 'isolated') && isOnline && activeRow && activeRow.address) {
+          const currentIp = String(activeRow.address).trim();
+          const oldIp = (prevIp && prevIp !== '-' && prevIp !== currentIp) ? prevIp : null;
+          mikrotikService.handlePppoeIpChanged(username, currentIp, oldIp, customer.router_id).catch(err => {
+            logger.warn(`[CRON] Sinkronisasi IP isolir baru untuk ${username}: ${err.message}`);
+          });
+        }
+
         if (prevStatus === 'online' && currentStatus === 'offline') {
           logger.warn(`[CRON] PPPoE User ${username} (${customerName}) terdeteksi DISCONNECTED.`);
           pppoeUserStates.set(username, { status: 'offline', lastIp });
@@ -926,6 +944,19 @@ function startCronJobs() {
       }
     } catch (err) {
       logger.error(`[CRON] Error PPPoE Telegram Monitoring: ${err.message}`);
+    }
+  });
+
+  // 10. Rekonsiliasi Audit Address List LIST_ISOLIR Berkala - Setiap 30 Menit
+  cron.schedule('*/30 * * * *', async () => {
+    try {
+      logger.info('[CRON] Menjalankan audit rekonsiliasi LIST_ISOLIR router...');
+      const summary = await mikrotikService.reconcileIsolirAddressList();
+      if (summary.suspendedEnsured > 0 || summary.dynamicEntriesCleaned > 0) {
+        logger.info(`[CRON] Rekonsiliasi LIST_ISOLIR selesai: ${summary.suspendedEnsured} IP isolir dipulihkan, ${summary.dynamicEntriesCleaned} entri timeout diperbaiki.`);
+      }
+    } catch (err) {
+      logger.error(`[CRON] Error audit rekonsiliasi LIST_ISOLIR: ${err.message}`);
     }
   });
 

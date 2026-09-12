@@ -134,6 +134,14 @@ async function syncAllOverdueCustomers() {
     }
   }
 
+  // Rekonsiliasi audit LIST_ISOLIR router
+  try {
+    const mikrotikSvc = require('./mikrotikService');
+    await mikrotikSvc.reconcileIsolirAddressList();
+  } catch (rErr) {
+    logger.warn(`[IsolatedPortalService] Reconcile warning: ${rErr.message}`);
+  }
+
   return {
     success: true,
     isolatedCount,
@@ -192,9 +200,11 @@ function generateMikrotikIsolatedScript(billingHost = '192.168.1.100', httpPort 
   scriptLines.push('# 9. Blokir Sisa Traffic UDP/ICMP Pelanggan Terisolir');
   scriptLines.push('/ip firewall filter add chain=forward src-address-list=LIST_ISOLIR action=drop comment="BILLING_ISOLIR_BLOCK_REST"');
   scriptLines.push('');
-  scriptLines.push('# 10. Contoh PPPoE Profile On-Up Command:');
-  scriptLines.push('# Set script berikut pada PPPoE Profile On-Up untuk memasukkan IP secara otomatis:');
-  scriptLines.push('# /ip firewall address-list add list=LIST_ISOLIR address=$remote-address comment=$user');
+  scriptLines.push('# 10. Contoh PPPoE Profile On-Up & On-Down Command (Anti-Expired & Auto-Update IP saat ONT Restart):');
+  scriptLines.push('# On-Up:');
+  scriptLines.push('# /ip firewall address-list remove [find list=LIST_ISOLIR comment=$user]; /ip firewall address-list remove [find list=LIST_ISOLIR address=$remote-address]; /ip firewall address-list add list=LIST_ISOLIR address=$remote-address comment=$user');
+  scriptLines.push('# On-Down:');
+  scriptLines.push('# /ip firewall address-list remove [find list=LIST_ISOLIR address=$remote-address]; /ip firewall address-list remove [find list=LIST_ISOLIR comment=$user]');
 
   return scriptLines.join('\n');
 }

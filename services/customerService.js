@@ -541,6 +541,20 @@ async function syncCustomerIsolation(idOrCustomer) {
     } catch (kErr) {
       logger.warn(`[syncCustomerIsolation] kickPppoeUser fallback error: ${kErr.message}`);
     }
+
+    // 4. Direct inject static IP / remote address ke LIST_ISOLIR permanen jika router_id tersedia
+    if (customer.router_id) {
+      try {
+        if (customer.static_ip) {
+          await mikrotikSvc.addIpToIsolirAddressList(customer.static_ip, customer.pppoe_username, customer.router_id);
+        }
+        if (customer.pppoe_remote_address) {
+          await mikrotikSvc.addIpToIsolirAddressList(customer.pppoe_remote_address, customer.pppoe_username, customer.router_id);
+        }
+      } catch (addrErr) {
+        logger.warn(`[syncCustomerIsolation] Direct address-list add error: ${addrErr.message}`);
+      }
+    }
   } else if (customer.connection_type === 'hotspot' && customer.hotspot_username) {
     try {
       await mikrotikSvc.setHotspotUserDisabled(customer.hotspot_username, true, customer.router_id);
@@ -599,6 +613,19 @@ async function syncCustomerActivation(idOrCustomer) {
       await mikrotikSvc.kickPppoeUser(customer.pppoe_username, customer.router_id);
     } catch (kErr) {
       logger.warn(`[syncCustomerActivation] kickPppoeUser error: ${kErr.message}`);
+    }
+
+    // Bersihkan IP dan comment dari LIST_ISOLIR jika router_id tersedia
+    if (customer.router_id) {
+      try {
+        await mikrotikSvc.removeIpFromIsolirAddressList(
+          customer.static_ip || customer.pppoe_remote_address || null,
+          customer.pppoe_username,
+          customer.router_id
+        );
+      } catch (remErr) {
+        logger.warn(`[syncCustomerActivation] removeIpFromIsolirAddressList error: ${remErr.message}`);
+      }
     }
   } else if (customer.connection_type === 'hotspot' && customer.hotspot_username) {
     const pkg = getPackageById(customer.package_id);
