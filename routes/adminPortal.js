@@ -5733,6 +5733,25 @@ function formatPromoMessage(template, customer = {}, pkg = {}, options = {}) {
   return formatted;
 }
 
+// Helper: Safe Audit Logger
+function safeLogAudit(actorName, action, entityType = 'whatsapp', details = {}) {
+  try {
+    if (typeof auditSvc?.logAudit === 'function') {
+      auditSvc.logAudit(actorName, action, entityType, details);
+    } else if (typeof auditSvc?.logAuditTrail === 'function') {
+      auditSvc.logAuditTrail({
+        action,
+        entity_type: entityType,
+        actor_type: 'admin',
+        actor_name: actorName || 'Admin',
+        details: details || { message: action }
+      });
+    }
+  } catch (err) {
+    logger.warn('[Audit] Gagal mencatat audit log: ' + err.message);
+  }
+}
+
 router.get('/whatsapp', requireAdminSession, requireSidebarMenuAccess('whatsapp'), async (req, res) => {
   res.render('admin/whatsapp', {
     title: 'Status WhatsApp', company: company(), activePage: 'whatsapp', msg: flashMsg(req)
@@ -6240,7 +6259,7 @@ router.post('/whatsapp/promo-broadcast/test', requireAdminSession, bannerUpload.
       throw new Error('Gagal mengirim pesan uji coba ke ' + test_phone);
     }
 
-    auditSvc.logAudit(req.session?.adminUsername || 'Admin', 'Kirim Uji Coba Broadcast Promo ke ' + test_phone, 'whatsapp');
+    safeLogAudit(req.session?.adminUsername || 'Admin', 'Kirim Uji Coba Broadcast Promo ke ' + test_phone, 'whatsapp');
     res.json({ ok: true, message: `Pesan uji coba promo berhasil dikirim ke ${test_phone}!` });
   } catch (err) {
     res.status(400).json({ ok: false, error: err.message });
@@ -6361,7 +6380,7 @@ router.post('/whatsapp/promo-broadcast', requireAdminSession, bannerUpload.singl
       hourlyLimit: hourlyLimit
     };
 
-    auditSvc.logAudit(req.session?.adminUsername || 'Admin', `Memulai Broadcast Promo (${uniqueRecipients.length} penerima)`, 'whatsapp');
+    safeLogAudit(req.session?.adminUsername || 'Admin', `Memulai Broadcast Promo (${uniqueRecipients.length} penerima)`, 'whatsapp');
 
     // Async execution loop
     const sendPromoAsync = async () => {
@@ -6456,7 +6475,7 @@ router.post('/whatsapp/promo-broadcast', requireAdminSession, bannerUpload.singl
 
       global.promoBroadcastStatus.active = false;
       logger.info(`[PromoBroadcast] Selesai. Terkirim: ${global.promoBroadcastStatus.sent}, Gagal: ${global.promoBroadcastStatus.failed}`);
-      auditSvc.logAudit('System', `Broadcast Promo selesai: ${global.promoBroadcastStatus.sent} terkirim, ${global.promoBroadcastStatus.failed} gagal`, 'whatsapp');
+      safeLogAudit('System', `Broadcast Promo selesai: ${global.promoBroadcastStatus.sent} terkirim, ${global.promoBroadcastStatus.failed} gagal`, 'whatsapp');
     };
 
     sendPromoAsync();

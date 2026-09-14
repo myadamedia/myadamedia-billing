@@ -217,7 +217,26 @@ function cleanupOldAuditTrail(days = 90) {
   }
 }
 
+/**
+ * Helper ringkas untuk mencatat audit log
+ * @param {string} actorName
+ * @param {string} actionText
+ * @param {string} [entityType='general']
+ * @param {Object} [details={}]
+ */
+function logAudit(actorName, actionText, entityType = 'general', details = {}) {
+  return logAuditTrail({
+    action: actionText,
+    entity_type: entityType,
+    entity_id: null,
+    actor_type: 'admin',
+    actor_name: actorName || 'Admin',
+    details: details || { message: actionText }
+  });
+}
+
 module.exports = {
+  logAudit,
   logAuditTrail,
   getAuditTrail,
   getAuditStats,
