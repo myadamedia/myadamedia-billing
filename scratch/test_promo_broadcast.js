@@ -32,6 +32,7 @@ try {
     company: 'MyAdamedia ISP',
     activePage: 'promo_broadcast',
     packages,
+    customers: customerSvc.getAllCustomers(),
     activeBanners,
     allBanners,
     preselectedPackageId: null,
@@ -229,3 +230,4 @@ try {
 }
 
 console.log('\n--- ALL VIEWS TEST PASSED! ---');
+setTimeout(() => process.exit(0), 200);

@@ -6128,12 +6128,25 @@ router.get('/whatsapp/promo-broadcast', requireAdminSession, requireSidebarMenuA
     `Ada pertanyaan? Balas pesan ini untuk terhubung dengan staf kami.\n` +
     `Salam hangat,\n*{{perusahaan}}*`;
 
+  const allCust = customerSvc.getAllCustomers();
+  const customers = allCust.map(c => ({
+    id: c.id,
+    name: c.name || 'Pelanggan',
+    phone: c.phone || '',
+    status: c.status || 'active',
+    package_id: c.package_id || null,
+    package_name: c.package_name || '-',
+    speed_down: c.speed_down || 0,
+    address: c.address || ''
+  }));
+
   res.render('admin/promo_broadcast', {
     title: 'Broadcast Promo WhatsApp',
     company: comp,
     activePage: 'promo_broadcast',
     msg: flashMsg(req),
     packages,
+    customers,
     activeBanners,
     allBanners,
     preselectedPackageId,
@@ -6284,6 +6297,29 @@ router.post('/whatsapp/promo-broadcast', requireAdminSession, bannerUpload.singl
         if (clean.length >= 8) {
           targetRecipients.push({ name: 'Calon Pelanggan', phone: clean });
         }
+      }
+    }
+
+    // Filter berdasarkan ceklis pelanggan jika form mengirimkan daftar ceklis
+    if (target !== 'manual') {
+      let selectedIds = [];
+      if (req.body.selected_customers) {
+        if (Array.isArray(req.body.selected_customers)) {
+          selectedIds = req.body.selected_customers.map(s => String(s).trim());
+        } else if (typeof req.body.selected_customers === 'string') {
+          selectedIds = req.body.selected_customers.split(',').map(s => String(s).trim()).filter(Boolean);
+        }
+      }
+
+      if (req.body.has_customer_checklist === '1') {
+        if (selectedIds.length === 0) {
+          throw new Error('Tidak ada pelanggan yang dipilih. Silakan centang setidaknya 1 pelanggan dari daftar ceklis.');
+        }
+        const selectedSet = new Set(selectedIds);
+        targetRecipients = targetRecipients.filter(c => selectedSet.has(String(c.id)));
+      } else if (selectedIds.length > 0) {
+        const selectedSet = new Set(selectedIds);
+        targetRecipients = targetRecipients.filter(c => selectedSet.has(String(c.id)));
       }
     }
 

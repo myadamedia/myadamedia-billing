@@ -11,6 +11,11 @@
     .wa-tab:hover { background: rgba(255,255,255,0.06); color: var(--text); }
     .wa-tab.active { background: #10b981; color: white; box-shadow: 0 4px 14px rgba(16,185,129,0.3); }
 
+    .cust-filter-btn { border-radius: 20px !important; }
+    .cust-filter-btn.active { background: #10b981 !important; color: white !important; border-color: #10b981 !important; }
+    .cust-row { transition: background 0.15s ease; }
+    .cust-row:hover { background: rgba(255,255,255,0.04); }
+
     .promo-layout { display: grid; grid-template-columns: 1fr 380px; gap: 24px; align-items: start; }
     @media (max-width: 1080px) {
       .promo-layout { grid-template-columns: 1fr; }
@@ -368,6 +373,101 @@
                   </div>
                 </div>
               </div>
+
+              <!-- Customer Checklist Box -->
+              <div id="customerChecklistContainer" style="margin-top: 16px;">
+                <input type="hidden" name="has_customer_checklist" value="1">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
+                  <label class="fl" style="margin-bottom: 0;">
+                    <i class="bi bi-check2-square text-emerald-400"></i> Ceklis Daftar Pelanggan Penerima
+                    (<span id="custCheckCount" style="color:#10b981; font-weight:800;">0</span>/<span id="custTotalCount">0</span> dipilih)
+                  </label>
+                  <div style="display: flex; gap: 6px;">
+                    <button type="button" id="btnSelectAllCust" class="btn btn-g btn-sm" style="font-size: 11px; padding: 4px 10px;">
+                      <i class="bi bi-check-all"></i> Pilih Semua
+                    </button>
+                    <button type="button" id="btnDeselectAllCust" class="btn btn-g btn-sm" style="font-size: 11px; padding: 4px 10px;">
+                      <i class="bi bi-dash-square"></i> Batal Semua
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Search & Quick Filter Toolbar -->
+                <div style="display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;">
+                  <div style="flex: 1; min-width: 200px; position: relative;">
+                    <input type="text" id="custSearchInput" class="fc" placeholder="Cari nama, ID pelanggan, no WA, atau paket..." style="font-size: 12px; padding: 7px 12px;">
+                  </div>
+                  <div style="display: flex; gap: 4px;">
+                    <button type="button" class="btn btn-g btn-sm cust-filter-btn active" data-filter="all" style="font-size: 11px; padding: 4px 8px;">Semua</button>
+                    <button type="button" class="btn btn-g btn-sm cust-filter-btn" data-filter="active" style="font-size: 11px; padding: 4px 8px;">Aktif</button>
+                    <button type="button" class="btn btn-g btn-sm cust-filter-btn" data-filter="suspended" style="font-size: 11px; padding: 4px 8px;">Isolir</button>
+                    <button type="button" class="btn btn-g btn-sm cust-filter-btn" data-filter="inactive" style="font-size: 11px; padding: 4px 8px;">Nonaktif</button>
+                  </div>
+                </div>
+
+                <!-- Scrollable Checklist Table -->
+                <div style="max-height: 280px; overflow-y: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--bg2);">
+                  <table class="tbl" style="margin: 0; font-size: 12px; width: 100%;">
+                    <thead>
+                      <tr style="position: sticky; top: 0; background: var(--bg); z-index: 2; border-bottom: 1px solid var(--border);">
+                        <th style="width: 38px; text-align: center; padding: 8px;">
+                          <input type="checkbox" id="masterCheckbox" checked style="cursor: pointer;">
+                        </th>
+                        <th style="padding: 8px;">ID Pelanggan</th>
+                        <th style="padding: 8px;">Nama Pelanggan</th>
+                        <th style="padding: 8px;">No WhatsApp</th>
+                        <th style="padding: 8px;">Paket Saat Ini</th>
+                        <th style="padding: 8px; text-align: center;">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody id="custTableBody">
+                      <% if (typeof customers !== 'undefined' && customers && customers.length > 0) { %>
+                        <% customers.forEach(c => { 
+                            const custIdFormatted = 'MDE-' + String(c.id).padStart(4, '0');
+                            const searchStr = `${c.name} ${c.phone || ''} ${c.package_name || ''} ${custIdFormatted}`.toLowerCase();
+                        %>
+                          <tr class="cust-row" data-id="<%= c.id %>" data-status="<%= c.status %>" data-pkg-id="<%= c.package_id || '' %>" data-search="<%= searchStr %>">
+                            <td style="text-align: center; padding: 8px;">
+                              <input type="checkbox" name="selected_customers" value="<%= c.id %>" class="cust-checkbox" checked style="cursor: pointer;">
+                            </td>
+                            <td style="padding: 8px; font-weight: 700; color: var(--muted); font-size: 11px;">
+                              <%= custIdFormatted %>
+                            </td>
+                            <td style="padding: 8px; font-weight: 600;">
+                              <%= c.name %>
+                            </td>
+                            <td style="padding: 8px; font-family: monospace; font-size: 11px;">
+                              <%= c.phone || '-' %>
+                            </td>
+                            <td style="padding: 8px;">
+                              <span class="badge bm" style="font-size: 10px; padding: 2px 6px;"><%= c.package_name %></span>
+                            </td>
+                            <td style="padding: 8px; text-align: center;">
+                              <% if (c.status === 'active') { %>
+                                <span class="badge bs" style="font-size: 10px; padding: 2px 6px;">Aktif</span>
+                              <% } else if (c.status === 'suspended') { %>
+                                <span class="badge bd" style="font-size: 10px; padding: 2px 6px;">Isolir</span>
+                              <% } else { %>
+                                <span class="badge bm" style="font-size: 10px; padding: 2px 6px;">Nonaktif</span>
+                              <% } %>
+                            </td>
+                          </tr>
+                        <% }) %>
+                      <% } else { %>
+                        <tr>
+                          <td colspan="6" style="text-align: center; padding: 20px; color: var(--muted);">
+                            Tidak ada data pelanggan yang tersedia.
+                          </td>
+                        </tr>
+                      <% } %>
+                    </tbody>
+                  </table>
+                </div>
+                <div style="font-size: 11px; color: var(--muted); margin-top: 6px; display: flex; justify-content: space-between;">
+                  <span><i class="bi bi-info-circle"></i> Hanya pelanggan yang dicentang yang akan dikirimi broadcast promo.</span>
+                  <span id="checklistFilterInfo">Menampilkan semua pelanggan</span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -579,6 +679,176 @@ const btnStartBroadcast = document.getElementById('btnStartBroadcast');
 targetSelect.addEventListener('change', function() {
   targetPackageContainer.style.display = (this.value === 'specific_package') ? 'block' : 'none';
   targetManualContainer.style.display = (this.value === 'manual') ? 'block' : 'none';
+  applyTargetToChecklist();
+});
+
+// Customer Checklist Logic
+const customerChecklistContainer = document.getElementById('customerChecklistContainer');
+const custCheckCount = document.getElementById('custCheckCount');
+const custTotalCount = document.getElementById('custTotalCount');
+const btnSelectAllCust = document.getElementById('btnSelectAllCust');
+const btnDeselectAllCust = document.getElementById('btnDeselectAllCust');
+const custSearchInput = document.getElementById('custSearchInput');
+const custFilterBtns = document.querySelectorAll('.cust-filter-btn');
+const masterCheckbox = document.getElementById('masterCheckbox');
+const custRows = document.querySelectorAll('.cust-row');
+const custCheckboxes = document.querySelectorAll('.cust-checkbox');
+const checklistFilterInfo = document.getElementById('checklistFilterInfo');
+const targetPackageSelect = document.querySelector('select[name="target_package_id"]');
+
+function updateCustomerChecklistCounts() {
+  let selected = 0;
+  let visible = 0;
+
+  custRows.forEach(row => {
+    const cb = row.querySelector('.cust-checkbox');
+    if (row.style.display !== 'none') {
+      visible++;
+      if (cb && cb.checked) selected++;
+    }
+  });
+
+  if (custCheckCount) custCheckCount.textContent = selected;
+  if (custTotalCount) custTotalCount.textContent = visible;
+
+  if (masterCheckbox) {
+    masterCheckbox.checked = (visible > 0 && selected === visible);
+    masterCheckbox.indeterminate = (selected > 0 && selected < visible);
+  }
+}
+
+function applyTargetToChecklist() {
+  const targetVal = targetSelect.value;
+  if (targetVal === 'manual') {
+    if (customerChecklistContainer) customerChecklistContainer.style.display = 'none';
+    return;
+  }
+
+  if (customerChecklistContainer) customerChecklistContainer.style.display = 'block';
+
+  custRows.forEach(row => {
+    const cb = row.querySelector('.cust-checkbox');
+    if (!cb) return;
+
+    const status = row.dataset.status;
+    const pkgId = row.dataset.pkgId;
+
+    if (targetVal === 'all') {
+      cb.checked = true;
+    } else if (targetVal === 'active') {
+      cb.checked = (status === 'active');
+    } else if (targetVal === 'suspended') {
+      cb.checked = (status === 'suspended');
+    } else if (targetVal === 'inactive') {
+      cb.checked = (status === 'inactive' || status === 'terminated');
+    } else if (targetVal === 'specific_package') {
+      const selectedPkgId = targetPackageSelect ? targetPackageSelect.value : '';
+      cb.checked = (String(pkgId) === String(selectedPkgId));
+    }
+  });
+
+  updateCustomerChecklistCounts();
+}
+
+if (targetPackageSelect) {
+  targetPackageSelect.addEventListener('change', function() {
+    if (targetSelect.value === 'specific_package') {
+      applyTargetToChecklist();
+    }
+  });
+}
+
+if (masterCheckbox) {
+  masterCheckbox.addEventListener('change', function() {
+    const isChecked = this.checked;
+    custRows.forEach(row => {
+      if (row.style.display !== 'none') {
+        const cb = row.querySelector('.cust-checkbox');
+        if (cb) cb.checked = isChecked;
+      }
+    });
+    updateCustomerChecklistCounts();
+  });
+}
+
+if (btnSelectAllCust) {
+  btnSelectAllCust.addEventListener('click', function() {
+    custRows.forEach(row => {
+      if (row.style.display !== 'none') {
+        const cb = row.querySelector('.cust-checkbox');
+        if (cb) cb.checked = true;
+      }
+    });
+    updateCustomerChecklistCounts();
+  });
+}
+
+if (btnDeselectAllCust) {
+  btnDeselectAllCust.addEventListener('click', function() {
+    custRows.forEach(row => {
+      if (row.style.display !== 'none') {
+        const cb = row.querySelector('.cust-checkbox');
+        if (cb) cb.checked = false;
+      }
+    });
+    updateCustomerChecklistCounts();
+  });
+}
+
+custCheckboxes.forEach(cb => {
+  cb.addEventListener('change', updateCustomerChecklistCounts);
+});
+
+function filterCustomerRows() {
+  const query = (custSearchInput ? custSearchInput.value : '').toLowerCase().trim();
+  const activeFilterBtn = document.querySelector('.cust-filter-btn.active');
+  const statusFilter = activeFilterBtn ? activeFilterBtn.dataset.filter : 'all';
+
+  let visibleCount = 0;
+
+  custRows.forEach(row => {
+    const searchData = row.dataset.search || '';
+    const status = row.dataset.status;
+    const matchesQuery = !query || searchData.includes(query);
+
+    let matchesStatus = true;
+    if (statusFilter === 'active') {
+      matchesStatus = (status === 'active');
+    } else if (statusFilter === 'suspended') {
+      matchesStatus = (status === 'suspended');
+    } else if (statusFilter === 'inactive') {
+      matchesStatus = (status === 'inactive' || status === 'terminated');
+    }
+
+    if (matchesQuery && matchesStatus) {
+      row.style.display = '';
+      visibleCount++;
+    } else {
+      row.style.display = 'none';
+    }
+  });
+
+  if (checklistFilterInfo) {
+    if (query) {
+      checklistFilterInfo.textContent = `Filter: "${query}" (${visibleCount} ditemukan)`;
+    } else {
+      checklistFilterInfo.textContent = `Menampilkan ${visibleCount} pelanggan`;
+    }
+  }
+
+  updateCustomerChecklistCounts();
+}
+
+if (custSearchInput) {
+  custSearchInput.addEventListener('input', filterCustomerRows);
+}
+
+custFilterBtns.forEach(btn => {
+  btn.addEventListener('click', function() {
+    custFilterBtns.forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    filterCustomerRows();
+  });
 });
 
 // Banner source radio buttons
@@ -760,6 +1030,7 @@ messageBox.addEventListener('input', updateLivePreview);
 // Init on page load
 updateLivePreview();
 updatePreviewImageFromExisting();
+applyTargetToChecklist();
 
 // TEST SEND (UJI COBA)
 btnTestSend.addEventListener('click', async function() {
@@ -805,10 +1076,29 @@ btnTestSend.addEventListener('click', async function() {
 
 // FORM SUBMISSION CONFIRMATION
 promoBroadcastForm.addEventListener('submit', function(e) {
-  const targetLabel = targetSelect.options[targetSelect.selectedIndex].text;
-  const ok = confirm(`Mulai proses broadcast promo massal sekarang?\n\nTarget: ${targetLabel}\n\nPesan akan dikirim secara berurutan dengan jeda aman anti-spam.`);
-  if (!ok) {
-    e.preventDefault();
+  const targetVal = targetSelect.value;
+  if (targetVal !== 'manual') {
+    let checkedCount = 0;
+    custCheckboxes.forEach(cb => {
+      if (cb.checked) checkedCount++;
+    });
+
+    if (checkedCount === 0) {
+      alert('Peringatan: Tidak ada pelanggan yang dicentang. Silakan pilih minimal 1 pelanggan pada daftar ceklis.');
+      e.preventDefault();
+      return;
+    }
+
+    const targetLabel = targetSelect.options[targetSelect.selectedIndex].text;
+    const ok = confirm(`Mulai proses broadcast promo massal sekarang?\n\nTarget: ${targetLabel}\nJumlah Penerima Terpilih: ${checkedCount} pelanggan\n\nPesan akan dikirim secara berurutan dengan jeda aman anti-spam.`);
+    if (!ok) {
+      e.preventDefault();
+    }
+  } else {
+    const ok = confirm(`Mulai proses broadcast promo ke nomor WhatsApp manual sekarang?\n\nPesan akan dikirim secara berurutan dengan jeda aman anti-spam.`);
+    if (!ok) {
+      e.preventDefault();
+    }
   }
 });
 
