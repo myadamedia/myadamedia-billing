@@ -18,6 +18,7 @@ const MENU_DEFINITIONS = [
   { key: 'olts', section: 'main', href: '/admin/olts', icon: 'bi bi-hdd-fill', labelKey: 'admin.nav.olt_management', labelDefault: 'Manajemen OLT', roles: ['superadmin', 'noc'], activePages: ['olts'] },
   { key: 'whatsapp', section: 'main', href: '/admin/whatsapp', icon: 'bi bi-whatsapp', labelKey: 'admin.nav.whatsapp', labelDefault: 'WhatsApp', roles: ['superadmin', 'noc', 'finance'], activePages: ['whatsapp', 'broadcast', 'whatsapp_monitoring', 'whatsapp_templates'] },
   { key: 'isolated_portal', section: 'main', href: '/admin/isolated-portal', icon: 'bi bi-shield-slash-fill', labelKey: 'admin.nav.isolated_portal', labelDefault: 'Portal Isolir', roles: ['superadmin', 'teknisi', 'noc', 'finance'], activePages: ['isolated_portal'] },
+  { key: 'promo_banners', section: 'main', href: '/admin/promo-banners', icon: 'bi bi-images', labelKey: 'admin.nav.promo_banners', labelDefault: 'Banner Promosi', roles: ['superadmin', 'finance'], activePages: ['promo_banners'] },
 
   { key: 'psb', section: 'billing', href: '/admin/psb', icon: 'bi bi-person-plus', labelKey: 'admin.nav.psb', labelDefault: 'PSB', roles: ['superadmin', 'finance', 'teknisi', 'noc'], activePages: ['psb'] },
   { key: 'customers', section: 'billing', href: '/admin/customers', icon: 'bi bi-people', labelKey: 'admin.nav.customers', labelDefault: 'Pelanggan', roles: ['superadmin', 'finance', 'teknisi', 'kolektor', 'noc'], bottomNav: true, activePages: ['customers'] },
@@ -63,6 +64,7 @@ const DEFAULT_MENU_STATES = {
   olts: STATE_VISIBLE,
   whatsapp: STATE_VISIBLE,
   isolated_portal: STATE_VISIBLE,
+  promo_banners: STATE_VISIBLE,
   psb: STATE_VISIBLE,
   customers: STATE_VISIBLE,
   packages: STATE_VISIBLE,

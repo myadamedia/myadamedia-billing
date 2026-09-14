@@ -109,7 +109,7 @@
     /* Login Card Glassmorphism */
     .login-wrapper {
       width: 100%;
-      max-width: 440px;
+      max-width: 460px;
       margin: 0 auto;
     }
 
@@ -288,43 +288,269 @@
       margin: 0;
       line-height: 1.4;
     }
+
+    /* ── PROMO BANNER SLIDER STYLES ON LOGIN (ABOVE FORM) ── */
+    .login-promo-wrapper {
+      width: 100%;
+    }
+    .promo-carousel {
+      border-radius: 18px;
+      overflow: hidden;
+      border: 1px solid var(--card-border);
+      background: #020617;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+    }
+    .promo-carousel-inner {
+      border-radius: 18px;
+    }
+    .promo-slide-link {
+      display: block;
+      text-decoration: none;
+      color: inherit;
+      position: relative;
+    }
+    .login-promo-container {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 8.5;
+      min-height: 160px;
+      max-height: 220px;
+      background: #020617;
+      overflow: hidden;
+    }
+    .promo-banner-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      transition: transform 0.45s ease;
+    }
+    .promo-slide-link:hover .promo-banner-img {
+      transform: scale(1.025);
+    }
+    .promo-gradient-scrim {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(0deg, rgba(2, 6, 23, 0.90) 0%, rgba(2, 6, 23, 0.35) 45%, rgba(2, 6, 23, 0.05) 100%);
+      pointer-events: none;
+    }
+    .promo-caption-box {
+      position: absolute;
+      bottom: 12px;
+      left: 14px;
+      right: 14px;
+      z-index: 2;
+      pointer-events: none;
+    }
+    .promo-badge {
+      background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+      color: #ffffff;
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      padding: 3px 7px;
+      border-radius: 6px;
+      box-shadow: 0 2px 8px rgba(245, 158, 11, 0.35);
+      display: inline-flex;
+      align-items: center;
+    }
+    .promo-caption-title {
+      color: #ffffff;
+      font-weight: 800;
+      font-size: 15px;
+      margin: 4px 0 0 0;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+      line-height: 1.3;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .promo-caption-desc {
+      color: #e2e8f0;
+      font-size: 11.5px;
+      margin-top: 2px;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .promo-cta-wrap {
+      position: absolute;
+      bottom: 10px;
+      right: 12px;
+      z-index: 2;
+    }
+    .btn-promo-cta {
+      background: rgba(255, 255, 255, 0.95);
+      color: #0f172a !important;
+      font-weight: 700;
+      font-size: 11px;
+      border-radius: 10px;
+      padding: 4px 10px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      border: none;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+    }
+    .promo-slide-link:hover .btn-promo-cta {
+      background: #ffffff;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+    }
+    .promo-indicators {
+      bottom: 6px;
+      margin-bottom: 0;
+      z-index: 3;
+    }
+    .promo-indicators button {
+      width: 18px;
+      height: 3px;
+      border-radius: 3px;
+      border: none;
+      background-color: rgba(255, 255, 255, 0.45);
+      transition: all 0.25s ease;
+    }
+    .promo-indicators button.active {
+      width: 26px;
+      background-color: #6366f1;
+    }
+    .promo-ctrl-btn {
+      width: 38px;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+      z-index: 4;
+    }
+    .promo-carousel:hover .promo-ctrl-btn {
+      opacity: 0.9;
+    }
+    .promo-ctrl-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: rgba(15, 23, 42, 0.7);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      display: grid;
+      place-items: center;
+      color: #ffffff;
+      font-size: 13px;
+      transition: all 0.2s ease;
+    }
+    .promo-ctrl-btn:hover .promo-ctrl-icon {
+      background: #6366f1;
+      transform: scale(1.1);
+    }
   </style>
 </head>
 
 <body>
 
-  <div class="login-wrapper">
-    
-    <!-- MAIN LOGIN CARD -->
-    <div class="login-card">
+  <% const hasLoginBanners = typeof promoBanners !== 'undefined' && promoBanners && promoBanners.length > 0; %>
+
+  <div class="container py-4 my-auto">
+    <div class="row justify-content-center align-items-center">
       
-      <!-- HEADER -->
-      <div class="login-header-box">
-        <button id="themeToggleBtn" type="button" class="btn-theme-toggle" aria-label="Pilih Tema">
-          <i class="bi bi-sun-fill sun-icon"></i>
-          <i class="bi bi-moon-stars-fill moon-icon"></i>
-          <span class="d-none d-sm-inline ms-1">Tema</span>
-        </button>
+      <!-- LOGIN CARD (CENTERED) -->
+      <div class="col-12 col-sm-10 col-md-8 col-lg-5 col-xl-4">
+        <div class="login-wrapper">
+          <!-- MAIN LOGIN CARD -->
+          <div class="login-card">
+      
+            <!-- HEADER -->
+            <div class="login-header-box">
+              <button id="themeToggleBtn" type="button" class="btn-theme-toggle" aria-label="Pilih Tema">
+                <i class="bi bi-sun-fill sun-icon"></i>
+                <i class="bi bi-moon-stars-fill moon-icon"></i>
+                <span class="d-none d-sm-inline ms-1">Tema</span>
+              </button>
 
-        <div class="brand-logo-container">
-          <img src="/img/logo.png" alt="Logo" onerror="this.style.display='none'">
-        </div>
-        <h4 class="fw-bold mb-1" style="color: var(--text-main);"><%= typeof t === 'function' ? t('customer.portal_title', 'Portal Pelanggan') : 'Portal Pelanggan' %></h4>
-        <p class="text-sub small mb-0"><%= (settings && settings.company_header) ? settings.company_header : 'Layanan Internet Fiber Tercepat' %></p>
-      </div>
+              <div class="brand-logo-container">
+                <img src="/img/logo.png" alt="Logo" onerror="this.style.display='none'">
+              </div>
+              <h4 class="fw-bold mb-1" style="color: var(--text-main);"><%= typeof t === 'function' ? t('customer.portal_title', 'Portal Pelanggan') : 'Portal Pelanggan' %></h4>
+              <p class="text-sub small mb-0"><%= (settings && settings.company_header) ? settings.company_header : 'Layanan Internet Fiber Tercepat' %></p>
+            </div>
 
-      <!-- FORM BODY -->
-      <div class="login-body-box">
+            <!-- FORM BODY -->
+            <div class="login-body-box">
 
-        <!-- Error Flash Alert -->
-        <% if (typeof error !== 'undefined' && error) { %>
-          <div class="alert alert-danger glass-card border-0 mb-4 p-3 text-center small" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4);">
-            <i class="bi bi-exclamation-triangle-fill me-2"></i>
-            <%= error === 'Nomor HP tidak valid atau belum terdaftar.' ? 'ID / Nomor HP tidak terdaftar di sistem.' : error %>
-          </div>
-        <% } %>
+              <!-- Error Flash Alert -->
+              <% if (typeof error !== 'undefined' && error) { %>
+                <div class="alert alert-danger glass-card border-0 mb-4 p-3 text-center small" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4);">
+                  <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                  <%= error === 'Nomor HP tidak valid atau belum terdaftar.' ? 'ID / Nomor HP tidak terdaftar di sistem.' : error %>
+                </div>
+              <% } %>
 
-        <form method="POST" action="/customer/login">
+              <!-- PROMO BANNER SLIDER (ABOVE FORM) -->
+              <% if (hasLoginBanners) { %>
+                <div class="login-promo-wrapper mb-4">
+                  <div id="promoCarouselLogin" class="carousel slide promo-carousel shadow-sm" data-bs-ride="carousel" data-bs-interval="5000" data-bs-pause="hover">
+                    <!-- Indicators -->
+                    <% if (promoBanners.length > 1) { %>
+                      <div class="carousel-indicators promo-indicators">
+                        <% promoBanners.forEach((banner, idx) => { %>
+                          <button type="button" data-bs-target="#promoCarouselLogin" data-bs-slide-to="<%= idx %>" class="<%= idx === 0 ? 'active' : '' %>" aria-current="<%= idx === 0 ? 'true' : 'false' %>" aria-label="Promo Slide <%= idx + 1 %>"></button>
+                        <% }) %>
+                      </div>
+                    <% } %>
+
+                    <!-- Slides -->
+                    <div class="carousel-inner promo-carousel-inner">
+                      <% promoBanners.forEach((banner, idx) => { %>
+                        <div class="carousel-item promo-carousel-item <%= idx === 0 ? 'active' : '' %>">
+                          <% if (banner.target_url) { %>
+                            <a href="<%= banner.target_url %>" class="promo-slide-link" target="<%= banner.target_url.startsWith('http') ? '_blank' : '_self' %>">
+                          <% } else { %>
+                            <div class="promo-slide-link">
+                          <% } %>
+                            <div class="promo-img-container login-promo-container">
+                              <img src="<%= banner.image_url %>" class="promo-banner-img" alt="<%= banner.title %>" loading="lazy">
+                              <div class="promo-gradient-scrim"></div>
+                              <% if (banner.title || banner.description) { %>
+                                <div class="promo-caption-box" <%- banner.target_url ? 'style="right: 105px;"' : '' %>>
+                                  <span class="badge promo-badge mb-1"><i class="bi bi-tag-fill me-1"></i> PROMO</span>
+                                  <h4 class="promo-caption-title"><%= banner.title %></h4>
+                                  <% if (banner.description) { %>
+                                    <p class="promo-caption-desc mb-0"><%= banner.description %></p>
+                                  <% } %>
+                                </div>
+                              <% } %>
+                              <% if (banner.target_url) { %>
+                                <div class="promo-cta-wrap">
+                                  <span class="btn btn-sm btn-promo-cta">
+                                    Lihat Promo <i class="bi bi-arrow-right-short ms-1"></i>
+                                  </span>
+                                </div>
+                              <% } %>
+                            </div>
+                          <% if (banner.target_url) { %>
+                            </a>
+                          <% } else { %>
+                            </div>
+                          <% } %>
+                        </div>
+                      <% }) %>
+                    </div>
+
+                    <!-- Controls (only if > 1 banner) -->
+                    <% if (promoBanners.length > 1) { %>
+                      <button class="carousel-control-prev promo-ctrl-btn prev" type="button" data-bs-target="#promoCarouselLogin" data-bs-slide="prev">
+                        <span class="promo-ctrl-icon"><i class="bi bi-chevron-left"></i></span>
+                        <span class="visually-hidden">Sebelumnya</span>
+                      </button>
+                      <button class="carousel-control-next promo-ctrl-btn next" type="button" data-bs-target="#promoCarouselLogin" data-bs-slide="next">
+                        <span class="promo-ctrl-icon"><i class="bi bi-chevron-right"></i></span>
+                        <span class="visually-hidden">Berikutnya</span>
+                      </button>
+                    <% } %>
+                  </div>
+                </div>
+              <% } %>
+
+              <form method="POST" action="/customer/login">
           
           <div class="mb-3">
             <label class="form-label text-sub small fw-semibold">ID Pelanggan / Nomor HP</label>
@@ -401,6 +627,9 @@
     </div> <!-- End Login Card -->
 
   </div> <!-- End Wrapper -->
+      </div> <!-- End Column -->
+    </div> <!-- End Row -->
+  </div> <!-- End Container -->
 
   <% if (typeof pwa_install !== 'undefined') { %>
     <%- include('partials/pwa_install', { hasBottomNav: false }) %>

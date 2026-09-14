@@ -19,6 +19,7 @@ const fs = require('fs');
 const QRCode = require('qrcode');
 const Jimp = require('jimp');
 const { BinaryBitmap, HybridBinarizer, RGBLuminanceSource, MultiFormatReader, BarcodeFormat, DecodeHintType } = require('@zxing/library');
+const promoBannerSvc = require('../services/promoBannerService');
 
 // Configure multer for customer photo uploads
 const storage = multer.diskStorage({
@@ -77,6 +78,16 @@ const uploadProof = multer({
       cb(new Error('Hanya file gambar yang diperbolehkan (JPEG, PNG, WebP)'));
     }
   }
+});
+
+// Inject promo banners aktif ke seluruh view customer portal (Login, Dashboard, dll)
+router.use((req, res, next) => {
+  try {
+    res.locals.promoBanners = promoBannerSvc.getActiveBanners();
+  } catch (e) {
+    res.locals.promoBanners = [];
+  }
+  next();
 });
 
 const waSendDedup = new Map();
@@ -1893,7 +1904,8 @@ router.get('/dashboard', async (req, res) => {
     customerBalance,
     isLoggedIn: true,
     showPPOB,
-    notif: msgNotif
+    notif: msgNotif,
+    promoBanners: res.locals.promoBanners || []
   });
 });
 

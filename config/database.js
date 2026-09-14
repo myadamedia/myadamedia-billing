@@ -559,6 +559,20 @@ db.exec(`
     created_at DATETIME DEFAULT (NOW_LOCAL()),
     updated_at DATETIME DEFAULT (NOW_LOCAL())
   );
+
+  CREATE TABLE IF NOT EXISTS promo_banners (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    image_url TEXT NOT NULL,
+    target_url TEXT DEFAULT '',
+    description TEXT DEFAULT '',
+    sort_order INTEGER DEFAULT 0,
+    is_active INTEGER DEFAULT 1,
+    created_at DATETIME DEFAULT (NOW_LOCAL()),
+    updated_at DATETIME DEFAULT (NOW_LOCAL())
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_promo_banners_active ON promo_banners(is_active, sort_order);
 `);
 
 // Migrasi otomatis kolom share_type dan fixed_dividend_amount pada tabel investors

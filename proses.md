@@ -2,6 +2,45 @@
 
 ---
 
+## [2026-09-14] Implementasi Fitur Slider Banner Promosi (Customer Dashboard & Login) serta Integrasi Manajemen Banner di Admin Dashboard (/admin/promo-banners)
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna meminta penambahan fitur **Slider Banner Promosi** pada:
+1. **Customer Dashboard** (`http://localhost:3001/customer/dashboard`): Menampilkan slider/carousel banner promosi interaktif yang memuat penawaran, diskon, atau pengumuman dari ISP.
+2. **Customer Login** (`http://localhost:3001/customer/login`): Menampilkan slider banner promosi adaptif (layout split 2-kolom di layar desktop, dan stacked di mobile) sehingga calon pelanggan dan pelanggan lama dapat melihat penawaran menarik saat hendak masuk.
+3. **Integrasi Admin Dashboard** (`http://localhost:3001/admin/promo-banners`): Modul manajemen lengkap di panel admin untuk mengunggah gambar banner, mengisi judul, deskripsi, link aksi target (opsional), urutan tampil (sort order), switch toggle aktif/nonaktif, serta tombol hapus banner yang menghapus data dari database sekaligus berkas fisik dari server.
+
+### 2. Analisis Arsitektur & Keamanan (Clean Architecture & SOLID Implementation)
+1. **Pilihan Arsitektur Terpilih**:
+   - Memilih **Opsi B: Database Relasional SQLite (`promo_banners`)** yang dipadukan dengan Service Layer modular (`services/promoBannerService.js`).
+   - Menyediakan integritas data ACID (WAL mode), isolasi query, dan performa tinggi dibanding menyimpan dalam JSON array.
+2. **Keamanan Upload & Sanitasi Berkas**:
+   - Middleware `multer` dengan batasan ukuran 5 MB.
+   - Whitelist ekstensi berkas (`.jpg`, `.jpeg`, `.png`, `.webp`) dan verifikasi header MIME type (`image/jpeg`, `image/png`, `image/webp`).
+   - Nama berkas dibuat unik dan acak menggunakan `crypto.randomBytes` (`banner-${Date.now()}-${random}.${ext}`) untuk mencegah tumpang tindih (*overwrite*) dan serangan *path traversal*.
+   - Penghapusan berkas fisik di `public/uploads/banners/` diverifikasi dengan `fs.existsSync` dan blok `try-catch` agar tidak menyebabkan server crash bila berkas sudah tidak ada.
+3. **Pencatatan Audit Trail**:
+   - Terintegrasi dengan `services/auditTrailService.js` untuk mencatat aksi `CREATE` dan `DELETE` promo banner secara akuntabel oleh admin yang bersangkutan.
+4. **UX & Responsive Handling**:
+   - Mendukung tema Gelap (*Dark Mode*) dan Terang (*Light Mode*) dengan contrast-scrim gradient.
+   - *Graceful collapse*: Jika belum ada banner aktif, kontainer slider otomatis disembunyikan tanpa merusak layout atau menyisakan ruang kosong.
+   - *Single banner handling*: Jika hanya ada 1 banner aktif, tombol navigasi panah dan indikator pagination otomatis dinonaktifkan.
+
+### 3. File & Komponen yang Diubah/Dibuat:
+1. `config/database.js`: Menambahkan DDL tabel `promo_banners` dan indeks `idx_promo_banners_active`.
+2. `services/promoBannerService.js`: [FILE BARU] Service layer CRUD banner promosi dan manajemen berkas fisik.
+3. `services/sidebarMenuService.js`: Mendaftarkan menu navigasi `promo_banners` pada seksi `main` di Sidebar Admin.
+4. `routes/adminPortal.js`: Menambahkan rute GET `/admin/promo-banners`, POST `/admin/promo-banners/upload`, POST `/admin/promo-banners/delete/:id`, POST `/admin/promo-banners/toggle/:id`, dan POST `/admin/promo-banners/update/:id`.
+5. `views/admin/promo_banners.ejs`: [FILE BARU] Halaman antarmuka manajemen banner lengkap dengan card grid, live preview, modal upload, modal edit, dan konfirmasi hapus.
+6. `views/admin/dashboard.ejs`: Menambahkan kartu pintasan *Quick Actions* "Banner Promo" di dashboard admin.
+7. `routes/customerPortal.js`: Menyediakan middleware global untuk menginjeksi `promoBanners` aktif ke seluruh view portal pelanggan (login dan dashboard).
+8. `views/dashboard.ejs`: Komponen slider banner promosi responsif dengan carousel Bootstrap 5 di halaman dashboard pelanggan. Posisi slider disesuaikan diletakkan tepat di bawah kartu Hero Banner (sapaan pelanggan & status tagihan) agar informasi akun dan tagihan tetap menjadi prioritas visual utama.
+9. `views/login.ejs`: Komponen slider banner promosi di halaman login pelanggan. Posisi slider dipindahkan ke dalam kartu login tepat di atas formulir input "ID Pelanggan / Nomor HP" (layout single centered card yang serasi di desktop maupun mobile).
+10. `views/register.ejs`: Komponen slider banner promosi responsif Bootstrap 5 di halaman pendaftaran pelanggan baru (`/customer/register`), diletakkan tepat di bawah item fitur "Dukungan Bantuan 24/7" pada kolom hero info.
+11. `public/uploads/banners/`: [DIREKTORI BARU] Folder penyimpanan berkas gambar banner.
+
+---
+
 ## [2026-09-12] Implementasi Fitur Factory Reset Total (Mode 2: Siap PT / Klien Baru) pada Menu Backup & Recovery (/admin/backup)
 
 ### 1. Deskripsi Permasalahan & Kebutuhan

@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="<%= lang || 'id' %>">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title><%= title %> | <%= company %></title>
+  <meta name="theme-color" content="#0f172a">
+  <link rel="manifest" href="/admin/manifest.webmanifest">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="/css/admin.css?v=2">
+  <style>
+    /* ── PROMO BANNER CARDS & PREVIEWS ── */
+    .banner-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 18px;
+      margin-bottom: 24px;
+    }
+    .banner-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.12);
+      transition: all 0.25s ease;
+    }
+    .banner-card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(99, 102, 241, 0.45);
+      box-shadow: 0 10px 28px rgba(0,0,0,0.2);
+    }
+    .banner-img-wrap {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 7;
+      background: #020617;
+      overflow: hidden;
+    }
+    .banner-img-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      transition: transform 0.3s ease;
+    }
+    .banner-card:hover .banner-img-wrap img {
+      transform: scale(1.03);
+    }
+    .banner-status-badge {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+    .status-active {
+      background: rgba(16, 185, 129, 0.85);
+      color: #ffffff;
+    }
+    .status-inactive {
+      background: rgba(239, 68, 68, 0.85);
+      color: #ffffff;
+    }
+    .banner-order-badge {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      padding: 3px 8px;
+      border-radius: 8px;
+      background: rgba(15, 23, 42, 0.75);
+      color: #cbd5e1;
+      font-size: 11px;
+      font-weight: 600;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+    .banner-content {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+    }
+    .banner-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+      margin: 0 0 6px 0;
+      line-height: 1.35;
+    }
+    .banner-desc {
+      font-size: 12px;
+      color: var(--muted);
+      margin: 0 0 12px 0;
+      line-height: 1.45;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      flex: 1;
+    }
+    .banner-meta {
+      font-size: 11px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+    }
+    .banner-meta i {
+      color: var(--primary);
+    }
+    .banner-meta a {
+      color: var(--primary);
+      text-decoration: none;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 180px;
+    }
+    .banner-meta a:hover {
+      text-decoration: underline;
+    }
+    .banner-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    /* Modal Dropzone */
+    .dropzone-box {
+      border: 2px dashed var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      text-align: center;
+      background: rgba(255,255,255,0.02);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+    .dropzone-box:hover, .dropzone-box.dragover {
+      border-color: #6366f1;
+      background: rgba(99,102,241,0.06);
+    }
+    .dropzone-preview {
+      display: none;
+      width: 100%;
+      aspect-ratio: 16 / 7;
+      object-fit: cover;
+      border-radius: 12px;
+      margin-top: 12px;
+    }
+    /* Modal backdrop & window */
+    .custom-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 1100;
+      background: rgba(2, 6, 23, 0.75);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      padding: 16px;
+      align-items: center;
+      justify-content: center;
+      overflow-y: auto;
+    }
+    .custom-modal-card {
+      width: min(100%, 540px);
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+      overflow: hidden;
+      margin: auto;
+    }
+    .custom-modal-hd {
+      padding: 18px 22px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .custom-modal-bd {
+      padding: 22px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+<%- include('partials/sidebar', { activePage: 'promo_banners', company }) %>
+<div class="mw">
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="tb-title">
+      <button class="hb-menu" onclick="toggleSidebar()"><i class="bi bi-list"></i></button>
+      <i class="bi bi-images"></i> <%= title %>
+    </div>
+    <div class="tb-right">
+      <span class="adm-badge"><i class="bi bi-person-fill"></i> <%= (typeof session !== 'undefined' && session.isCashier) ? 'Kasir' : 'Admin' %></span>
+      <a href="/admin/logout" class="btn btn-g btn-sm"><i class="bi bi-box-arrow-left"></i> <%= t('common.logout', 'Logout') %></a>
+    </div>
+  </div>
+
+  <div class="page">
+    <!-- HERO BANNER -->
+    <div class="card mb-4" style="background: linear-gradient(135deg, #4f46e5 0%, #312e81 100%); border: 1px solid rgba(99,102,241,0.5); border-radius: 20px; padding: 24px; position: relative; overflow: hidden; margin-bottom: 24px; box-shadow: 0 12px 36px rgba(79,70,229,0.25);">
+      <div style="position: absolute; right: -20px; bottom: -25px; font-size: 160px; color: rgba(255,255,255,0.08); pointer-events: none;">
+        <i class="bi bi-images"></i>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; position: relative; z-index: 1;">
+        <div>
+          <div style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 14px; border-radius: 20px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.35); color: #ffffff; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 10px;">
+            <i class="bi bi-megaphone-fill"></i> CUSTOMER PORTAL & LOGIN PROMO SLIDER
+          </div>
+          <h2 style="font-size: 24px; font-weight: 800; color: #ffffff; margin: 0 0 6px 0; letter-spacing: -0.5px;">
+            Manajemen Banner Promosi
+          </h2>
+          <p style="font-size: 13px; color: rgba(255,255,255,0.92); margin: 0; max-width: 650px; line-height: 1.5; font-weight: 500;">
+            Unggah dan kelola gambar banner promosi yang tampil otomatis pada slider di halaman <strong>Dashboard Pelanggan</strong> dan <strong>Halaman Login Pelanggan</strong>.
+          </p>
+        </div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <button type="button" class="btn btn-sm" onclick="openAddBannerModal()" style="border-radius: 12px; font-weight: 800; padding: 10px 18px; background: #ffffff; color: #4f46e5; border: none; box-shadow: 0 6px 20px rgba(0,0,0,0.15);">
+            <i class="bi bi-plus-circle-fill me-1"></i> Upload Banner Baru
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- FLASH MESSAGE -->
+    <% if (msg) { %>
+    <div class="alert alert-<%= msg.type==='success'?'s':'d' %>" style="margin-bottom: 20px;">
+      <i class="bi bi-<%= msg.type==='success'?'check-circle':'exclamation-circle' %>"></i> <%= msg.text %>
+    </div>
+    <% } %>
+
+    <!-- STATS COUNTER BAR -->
+    <%
+      const totalBanners = (banners || []).length;
+      const activeBanners = (banners || []).filter(b => b.is_active === 1).length;
+      const inactiveBanners = totalBanners - activeBanners;
+    %>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 24px;">
+      <div class="card" style="padding: 16px; border-radius: 16px; display: flex; align-items: center; gap: 14px;">
+        <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(99,102,241,0.18); color: #818cf8; display: grid; place-items: center; font-size: 20px;">
+          <i class="bi bi-collection-play-fill"></i>
+        </div>
+        <div>
+          <div style="font-size: 11px; color: var(--muted); font-weight: 700; text-transform: uppercase;">Total Banner</div>
+          <div style="font-size: 20px; font-weight: 800; color: var(--text);"><%= totalBanners %></div>
+        </div>
+      </div>
+
+      <div class="card" style="padding: 16px; border-radius: 16px; display: flex; align-items: center; gap: 14px;">
+        <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(16,185,129,0.18); color: #34d399; display: grid; place-items: center; font-size: 20px;">
+          <i class="bi bi-check-circle-fill"></i>
+        </div>
+        <div>
+          <div style="font-size: 11px; color: var(--muted); font-weight: 700; text-transform: uppercase;">Aktif Tayang</div>
+          <div style="font-size: 20px; font-weight: 800; color: #10b981;"><%= activeBanners %></div>
+        </div>
+      </div>
+
+      <div class="card" style="padding: 16px; border-radius: 16px; display: flex; align-items: center; gap: 14px;">
+        <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(239,68,68,0.18); color: #f87171; display: grid; place-items: center; font-size: 20px;">
+          <i class="bi bi-pause-circle-fill"></i>
+        </div>
+        <div>
+          <div style="font-size: 11px; color: var(--muted); font-weight: 700; text-transform: uppercase;">Nonaktif</div>
+          <div style="font-size: 20px; font-weight: 800; color: #ef4444;"><%= inactiveBanners %></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BANNER GRID VIEW -->
+    <div class="card mb-4">
+      <div class="card-hd" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <h6 style="margin: 0;"><i class="bi bi-grid-fill me-1"></i> Daftar Banner Promosi</h6>
+        <div style="font-size: 12px; color: var(--muted);">
+          Rekomendasi rasio gambar: <strong>16:7</strong> atau <strong>16:9</strong> (Min. 1200x525 px)
+        </div>
+      </div>
+      <div class="card-bd">
+        <% if (banners && banners.length > 0) { %>
+          <div class="banner-grid">
+            <% banners.forEach(banner => { %>
+              <div class="banner-card">
+                <div class="banner-img-wrap">
+                  <img src="<%= banner.image_url %>" alt="<%= banner.title %>" loading="lazy">
+                  <span class="banner-order-badge">Urutan: #<%= banner.sort_order %></span>
+                  <span class="banner-status-badge <%= banner.is_active === 1 ? 'status-active' : 'status-inactive' %>">
+                    <i class="bi bi-circle-fill" style="font-size: 7px;"></i> <%= banner.is_active === 1 ? 'Aktif' : 'Nonaktif' %>
+                  </span>
+                </div>
+                <div class="banner-content">
+                  <h4 class="banner-title"><%= banner.title %></h4>
+                  <p class="banner-desc"><%= banner.description || 'Tidak ada deskripsi' %></p>
+                  
+                  <div class="banner-meta">
+                    <div>
+                      <i class="bi bi-link-45deg"></i>
+                      <% if (banner.target_url) { %>
+                        <a href="<%= banner.target_url %>" target="_blank" title="<%= banner.target_url %>"><%= banner.target_url %></a>
+                      <% } else { %>
+                        <span class="text-muted">- Tanpa Link -</span>
+                      <% } %>
+                    </div>
+                  </div>
+
+                  <div class="banner-actions">
+                    <!-- Toggle Status Button -->
+                    <form action="/admin/promo-banners/toggle/<%= banner.id %>" method="POST" style="display:inline; flex:1;">
+                      <button type="submit" class="btn <%= banner.is_active === 1 ? 'btn-g' : 'btn-p' %> btn-sm" style="width:100%; border-radius: 10px;">
+                        <i class="bi bi-power me-1"></i> <%= banner.is_active === 1 ? 'Nonaktifkan' : 'Aktifkan' %>
+                      </button>
+                    </form>
+
+                    <!-- Edit Button -->
+                    <button type="button" class="btn btn-g btn-sm" onclick="openEditModalById('<%= banner.id %>')" style="border-radius: 10px;" title="Edit Metadata">
+                      <i class="bi bi-pencil-fill"></i>
+                    </button>
+
+                    <!-- Delete Button -->
+                    <button type="button" class="btn btn-d btn-sm" onclick="confirmDeleteBannerById('<%= banner.id %>')" style="border-radius: 10px;" title="Hapus Banner">
+                      <i class="bi bi-trash-fill"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            <% }) %>
+          </div>
+        <% } else { %>
+          <div style="text-align: center; padding: 48px 20px; color: var(--muted);">
+            <div style="font-size: 54px; margin-bottom: 12px; color: var(--border);"><i class="bi bi-images"></i></div>
+            <h5 style="color: var(--text); font-weight: 700; margin-bottom: 6px;">Belum Ada Banner Promosi</h5>
+            <p style="font-size: 13px; max-width: 450px; margin: 0 auto 20px auto;">
+              Tambahkan banner promosi pertama Anda untuk mempublikasikan penawaran paket, promo diskon, atau pengumuman penting kepada pelanggan.
+            </p>
+            <button type="button" class="btn btn-p btn-sm" onclick="openAddBannerModal()" style="border-radius: 12px; font-weight: 700; padding: 8px 18px;">
+              <i class="bi bi-plus-circle me-1"></i> Upload Banner Sekarang
+            </button>
+          </div>
+        <% } %>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: TAMBAH BANNER BARU -->
+<div id="addBannerModal" class="custom-modal">
+  <div class="custom-modal-card">
+    <div class="custom-modal-hd">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div style="width:36px; height:36px; border-radius:10px; background:rgba(99,102,241,0.15); color:#818cf8; display:grid; place-items:center; font-size:18px;">
+          <i class="bi bi-cloud-arrow-up-fill"></i>
+        </div>
+        <div>
+          <div style="font-weight:800; font-size:15px; color:var(--text);">Upload Banner Promosi Baru</div>
+          <div style="font-size:11px; color:var(--muted);">Tampilkan promo menarik untuk pelanggan</div>
+        </div>
+      </div>
+      <button type="button" class="btn btn-g btn-sm" onclick="closeAddBannerModal()" style="padding:4px 8px;"><i class="bi bi-x-lg"></i></button>
+    </div>
+    
+    <form action="/admin/promo-banners/upload" method="POST" enctype="multipart/form-data" id="addBannerForm">
+      <div class="custom-modal-bd">
+        <!-- File Dropzone -->
+        <div class="fg" style="margin-bottom: 16px;">
+          <label class="fl">Pilih File Gambar Banner <span class="text-danger">*</span></label>
+          <div class="dropzone-box" id="dropzoneBox" onclick="document.getElementById('bannerFileInput').click()">
+            <i class="bi bi-image" style="font-size: 32px; color: var(--primary);"></i>
+            <div style="font-size: 13px; font-weight: 700; color: var(--text); margin-top: 6px;">Klik untuk memilih file atau seret gambar ke sini</div>
+            <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">Mendukung format JPG, PNG, WebP (Maks. 5 MB)</div>
+            <img id="previewImg" class="dropzone-preview" alt="Pratinjau">
+          </div>
+          <input type="file" name="banner_image" id="bannerFileInput" accept="image/png,image/jpeg,image/webp" style="display:none" required onchange="handleFileSelected(this)">
+        </div>
+
+        <!-- Judul Banner -->
+        <div class="fg" style="margin-bottom: 16px;">
+          <label class="fl">Judul Banner Promosi <span class="text-danger">*</span></label>
+          <input type="text" name="title" class="fc" placeholder="Misal: Promo Upgrade Speed 50 Mbps Diskon 30%" required>
+        </div>
+
+        <!-- Deskripsi Banner -->
+        <div class="fg" style="margin-bottom: 16px;">
+          <label class="fl">Deskripsi Singkat / Subjudul</label>
+          <textarea name="description" class="fc" rows="2" placeholder="Misal: Berlaku hingga akhir bulan ini untuk seluruh pelanggan setia RTRW Net."></textarea>
+        </div>
+
+        <!-- Target URL -->
+        <div class="fg" style="margin-bottom: 16px;">
+          <label class="fl">Link Aksi Target (Opsional)</label>
+          <input type="text" name="target_url" class="fc" placeholder="Misal: https://wa.me/628123456789 atau /customer/dashboard#billing-section">
+          <div class="hint" style="margin-top:4px;">Jika diisi, banner dapat diklik pelanggan untuk langsung membuka halaman tujuan atau WhatsApp CS.</div>
+        </div>
+
+        <!-- Sort Order & Active -->
+        <div class="form-row" style="gap: 16px;">
+          <div class="fg" style="flex: 1;">
+            <label class="fl">Urutan Tampil (Sort Order)</label>
+            <input type="number" name="sort_order" class="fc" value="0" min="0">
+            <div class="hint" style="margin-top:4px;">Angka lebih kecil tampil lebih awal.</div>
+          </div>
+          <div class="fg" style="flex: 1; display:flex; flex-direction:column; justify-content:center;">
+            <label class="fl">Status Tayang</label>
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; color:var(--text); margin-top:6px;">
+              <input type="checkbox" name="is_active" value="1" checked style="width:18px; height:18px; accent-color:#6366f1;">
+              Langsung Aktifkan
+            </label>
+          </div>
+        </div>
+      </div>
+      
+      <div style="padding: 16px 22px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; background: rgba(0,0,0,0.1);">
+        <button type="button" class="btn btn-g btn-sm" onclick="closeAddBannerModal()">Batal</button>
+        <button type="submit" class="btn btn-p btn-sm" style="font-weight:700;">
+          <i class="bi bi-cloud-upload me-1"></i> Simpan & Publikasikan
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL: EDIT BANNER -->
+<div id="editBannerModal" class="custom-modal">
+  <div class="custom-modal-card">
+    <div class="custom-modal-hd">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div style="width:36px; height:36px; border-radius:10px; background:rgba(99,102,241,0.15); color:#818cf8; display:grid; place-items:center; font-size:18px;">
+          <i class="bi bi-pencil-square"></i>
+        </div>
+        <div>
+          <div style="font-weight:800; font-size:15px; color:var(--text);">Edit Info Banner Promosi</div>
+          <div style="font-size:11px; color:var(--muted);">Ubah judul, link aksi, atau urutan banner</div>
+        </div>
+      </div>
+      <button type="button" class="btn btn-g btn-sm" onclick="closeEditModal()" style="padding:4px 8px;"><i class="bi bi-x-lg"></i></button>
+    </div>
+    
+    <form action="" method="POST" id="editBannerForm">
+      <div class="custom-modal-bd">
+        <div class="fg" style="margin-bottom: 16px;">
+          <label class="fl">Judul Banner Promosi <span class="text-danger">*</span></label>
+          <input type="text" name="title" id="edit_title" class="fc" required>
+        </div>
+
+        <div class="fg" style="margin-bottom: 16px;">
+          <label class="fl">Deskripsi Singkat / Subjudul</label>
+          <textarea name="description" id="edit_description" class="fc" rows="2"></textarea>
+        </div>
+
+        <div class="fg" style="margin-bottom: 16px;">
+          <label class="fl">Link Aksi Target (Opsional)</label>
+          <input type="text" name="target_url" id="edit_target_url" class="fc">
+        </div>
+
+        <div class="form-row" style="gap: 16px;">
+          <div class="fg" style="flex: 1;">
+            <label class="fl">Urutan Tampil (Sort Order)</label>
+            <input type="number" name="sort_order" id="edit_sort_order" class="fc" min="0">
+          </div>
+          <div class="fg" style="flex: 1; display:flex; flex-direction:column; justify-content:center;">
+            <label class="fl">Status Tayang</label>
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; color:var(--text); margin-top:6px;">
+              <input type="checkbox" name="is_active" id="edit_is_active" value="1" style="width:18px; height:18px; accent-color:#6366f1;">
+              Status Aktif
+            </label>
+          </div>
+        </div>
+      </div>
+      
+      <div style="padding: 16px 22px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; background: rgba(0,0,0,0.1);">
+        <button type="button" class="btn btn-g btn-sm" onclick="closeEditModal()">Batal</button>
+        <button type="submit" class="btn btn-p btn-sm" style="font-weight:700;">
+          <i class="bi bi-save me-1"></i> Simpan Perubahan
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL: KONFIRMASI HAPUS -->
+<div id="deleteBannerModal" class="custom-modal">
+  <div class="custom-modal-card" style="max-width: 420px;">
+    <div class="custom-modal-hd">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div style="width:36px; height:36px; border-radius:10px; background:rgba(239,68,68,0.15); color:#ef4444; display:grid; place-items:center; font-size:18px;">
+          <i class="bi bi-exclamation-triangle-fill"></i>
+        </div>
+        <div style="font-weight:800; font-size:15px; color:var(--text);">Hapus Banner Promosi?</div>
+      </div>
+      <button type="button" class="btn btn-g btn-sm" onclick="closeDeleteModal()" style="padding:4px 8px;"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="custom-modal-bd">
+      <p style="font-size:13px; color:var(--text); margin:0 0 10px 0;">
+        Apakah Anda yakin ingin menghapus banner <strong id="deleteBannerTitle"></strong>?
+      </p>
+      <div class="hint" style="color:#f87171;">
+        Berkas gambar fisik dan rekaman data akan dihapus permanen dari server.
+      </div>
+    </div>
+    <form action="" method="POST" id="deleteBannerForm">
+      <div style="padding: 16px 22px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; background: rgba(0,0,0,0.1);">
+        <button type="button" class="btn btn-g btn-sm" onclick="closeDeleteModal()">Batal</button>
+        <button type="submit" class="btn btn-d btn-sm" style="font-weight:700;">
+          <i class="bi bi-trash-fill me-1"></i> Ya, Hapus Sekarang
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  function openAddBannerModal() {
+    document.getElementById('addBannerModal').style.display = 'flex';
+  }
+  function closeAddBannerModal() {
+    document.getElementById('addBannerModal').style.display = 'none';
+  }
+
+  function handleFileSelected(input) {
+    if (input.files && input.files[0]) {
+      const file = input.files[0];
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const preview = document.getElementById('previewImg');
+        preview.src = e.target.result;
+        preview.style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  const bannersData = <%- JSON.stringify(banners || []) %>;
+
+  function openEditModalById(id) {
+    const banner = bannersData.find(b => String(b.id) === String(id));
+    if (!banner) return;
+    document.getElementById('editBannerForm').action = '/admin/promo-banners/update/' + banner.id;
+    document.getElementById('edit_title').value = banner.title || '';
+    document.getElementById('edit_description').value = banner.description || '';
+    document.getElementById('edit_target_url').value = banner.target_url || '';
+    document.getElementById('edit_sort_order').value = banner.sort_order || 0;
+    document.getElementById('edit_is_active').checked = banner.is_active === 1;
+    document.getElementById('editBannerModal').style.display = 'flex';
+  }
+  function closeEditModal() {
+    document.getElementById('editBannerModal').style.display = 'none';
+  }
+
+  function confirmDeleteBannerById(id) {
+    const banner = bannersData.find(b => String(b.id) === String(id));
+    const title = banner ? banner.title : '';
+    document.getElementById('deleteBannerForm').action = '/admin/promo-banners/delete/' + id;
+    document.getElementById('deleteBannerTitle').innerText = '"' + title + '"';
+    document.getElementById('deleteBannerModal').style.display = 'flex';
+  }
+  function closeDeleteModal() {
+    document.getElementById('deleteBannerModal').style.display = 'none';
+  }
+
+  // Close modals when clicking backdrop
+  window.onclick = function(event) {
+    const addM = document.getElementById('addBannerModal');
+    const editM = document.getElementById('editBannerModal');
+    const delM = document.getElementById('deleteBannerModal');
+    if (event.target === addM) closeAddBannerModal();
+    if (event.target === editM) closeEditModal();
+    if (event.target === delM) closeDeleteModal();
+  };
+</script>
+</body>
+</html>

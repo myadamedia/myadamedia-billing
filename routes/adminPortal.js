@@ -23,7 +23,9 @@ const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage() });
 const qrisUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
 const logoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+const bannerUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 const dbBackupUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
+const promoBannerSvc = require('../services/promoBannerService');
 const backupSvc = require('../services/backupService');
 const monitoringSvc = require('../services/monitoringService');
 const inventorySvc = require('../services/inventoryService');
@@ -3759,6 +3761,158 @@ router.post('/settings/qris-delete', requireAdminSession, (req, res) => {
     }
   }
   res.redirect('/admin/settings');
+});
+
+// ─── PROMO BANNERS MANAGEMENT ──────────────────────────────────────────────
+router.get('/promo-banners', requireAdminSession, requireSidebarMenuAccess('promo_banners'), (req, res) => {
+  const banners = promoBannerSvc.getAllBanners();
+  res.render('admin/promo_banners', {
+    title: 'Manajemen Banner Promosi',
+    company: company(),
+    activePage: 'promo_banners',
+    banners,
+    msg: flashMsg(req)
+  });
+});
+
+router.post('/promo-banners/upload', requireAdminSession, bannerUpload.single('banner_image'), (req, res) => {
+  try {
+    const f = req.file;
+    if (!f || !f.buffer || !f.originalname) {
+      throw new Error('File gambar banner tidak ditemukan. Silakan pilih file gambar terlebih dahulu.');
+    }
+
+    const ext = String(path.extname(f.originalname || '') || '').toLowerCase();
+    const allowedExt = new Set(['.png', '.jpg', '.jpeg', '.webp']);
+    const allowedMime = new Set(['image/png', 'image/jpeg', 'image/webp']);
+    if (!allowedExt.has(ext) || !allowedMime.has(String(f.mimetype || '').toLowerCase())) {
+      throw new Error('Format file tidak didukung. Gunakan format JPG, PNG, atau WebP.');
+    }
+
+    const title = String(req.body.title || '').trim();
+    if (!title) {
+      throw new Error('Judul banner wajib diisi.');
+    }
+
+    const dir = promoBannerSvc.BANNER_UPLOAD_DIR;
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+    const safeRand = crypto.randomBytes(4).toString('hex');
+    const filename = `banner-${Date.now()}-${safeRand}${ext}`;
+    const fullPath = path.join(dir, filename);
+    fs.writeFileSync(fullPath, f.buffer);
+
+    const imageUrl = `/uploads/banners/${filename}`;
+    const targetUrl = String(req.body.target_url || '').trim();
+    const description = String(req.body.description || '').trim();
+    const sortOrder = parseInt(req.body.sort_order, 10) || 0;
+    const isActive = req.body.is_active === '0' || req.body.is_active === 0 ? 0 : 1;
+
+    const created = promoBannerSvc.createBanner({
+      title,
+      image_url: imageUrl,
+      target_url: targetUrl,
+      description,
+      sort_order: sortOrder,
+      is_active: isActive
+    });
+
+    if (auditSvc && typeof auditSvc.logAuditTrail === 'function') {
+      auditSvc.logAuditTrail({
+        action: 'CREATE',
+        entity_type: 'promo_banner',
+        entity_id: String(created.id),
+        actor_type: 'admin',
+        actor_name: req.session?.adminName || 'Admin',
+        details: { title, imageUrl, targetUrl },
+        ip_address: req.ip || '',
+        user_agent: req.headers['user-agent'] || ''
+      });
+    }
+
+    req.session._msg = { type: 'success', text: `Banner promosi "${title}" berhasil di-upload dan disimpan.` };
+  } catch (err) {
+    req.session._msg = { type: 'error', text: 'Gagal upload banner: ' + (err?.message || err) };
+  }
+  res.redirect('/admin/promo-banners');
+});
+
+router.post('/promo-banners/delete/:id', requireAdminSession, (req, res) => {
+  const id = req.params.id;
+  try {
+    const banner = promoBannerSvc.getBannerById(id);
+    if (!banner) throw new Error('Banner tidak ditemukan.');
+
+    promoBannerSvc.deleteBanner(id);
+
+    if (auditSvc && typeof auditSvc.logAuditTrail === 'function') {
+      auditSvc.logAuditTrail({
+        action: 'DELETE',
+        entity_type: 'promo_banner',
+        entity_id: String(id),
+        actor_type: 'admin',
+        actor_name: req.session?.adminName || 'Admin',
+        details: { title: banner.title, imageUrl: banner.image_url },
+        ip_address: req.ip || '',
+        user_agent: req.headers['user-agent'] || ''
+      });
+    }
+
+    req.session._msg = { type: 'success', text: `Banner "${banner.title}" berhasil dihapus dari sistem.` };
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.json({ ok: true, message: 'Banner berhasil dihapus.' });
+    }
+  } catch (err) {
+    req.session._msg = { type: 'error', text: 'Gagal menghapus banner: ' + (err?.message || err) };
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.status(500).json({ ok: false, error: err?.message || err });
+    }
+  }
+  res.redirect('/admin/promo-banners');
+});
+
+router.post('/promo-banners/toggle/:id', requireAdminSession, (req, res) => {
+  const id = req.params.id;
+  try {
+    const isNowActive = promoBannerSvc.toggleBannerStatus(id);
+    const statusText = isNowActive ? 'diaktifkan' : 'dinonaktifkan';
+    req.session._msg = { type: 'success', text: `Status banner berhasil ${statusText}.` };
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.json({ ok: true, is_active: isNowActive ? 1 : 0 });
+    }
+  } catch (err) {
+    req.session._msg = { type: 'error', text: 'Gagal mengubah status banner: ' + (err?.message || err) };
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.status(500).json({ ok: false, error: err?.message || err });
+    }
+  }
+  res.redirect('/admin/promo-banners');
+});
+
+router.post('/promo-banners/update/:id', requireAdminSession, (req, res) => {
+  const id = req.params.id;
+  try {
+    const title = String(req.body.title || '').trim();
+    if (!title) throw new Error('Judul banner wajib diisi.');
+
+    const targetUrl = String(req.body.target_url || '').trim();
+    const description = String(req.body.description || '').trim();
+    const sortOrder = parseInt(req.body.sort_order, 10) || 0;
+    const isActive = req.body.is_active ? 1 : 0;
+
+    promoBannerSvc.updateBanner(id, {
+      title,
+      target_url: targetUrl,
+      description,
+      sort_order: sortOrder,
+      is_active: isActive
+    });
+
+    req.session._msg = { type: 'success', text: `Banner "${title}" berhasil diperbarui.` };
+  } catch (err) {
+    req.session._msg = { type: 'error', text: 'Gagal memperbarui banner: ' + (err?.message || err) };
+  }
+  res.redirect('/admin/promo-banners');
 });
 
 
