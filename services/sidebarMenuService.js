@@ -16,7 +16,7 @@ const MENU_DEFINITIONS = [
   { key: 'acs_pro', section: 'main', href: '/admin/acs', icon: 'bi bi-hdd-network', labelKey: 'admin.nav.acs_pro', labelDefault: 'GenieACS Pro', roles: ['superadmin', 'noc'], activePages: ['acs_pro'] },
   { key: 'onu_provision', section: 'main', href: '/admin/onu-provision', icon: 'bi bi-hdd-network-fill', labelKey: 'admin.nav.onu_provision', labelDefault: 'ONU Provision', roles: ['superadmin', 'teknisi', 'noc'], activePages: ['onu_provision'] },
   { key: 'olts', section: 'main', href: '/admin/olts', icon: 'bi bi-hdd-fill', labelKey: 'admin.nav.olt_management', labelDefault: 'Manajemen OLT', roles: ['superadmin', 'noc'], activePages: ['olts'] },
-  { key: 'whatsapp', section: 'main', href: '/admin/whatsapp', icon: 'bi bi-whatsapp', labelKey: 'admin.nav.whatsapp', labelDefault: 'WhatsApp', roles: ['superadmin', 'noc', 'finance'], activePages: ['whatsapp', 'broadcast', 'whatsapp_monitoring', 'whatsapp_templates'] },
+  { key: 'whatsapp', section: 'main', href: '/admin/whatsapp', icon: 'bi bi-whatsapp', labelKey: 'admin.nav.whatsapp', labelDefault: 'WhatsApp', roles: ['superadmin', 'noc', 'finance'], activePages: ['whatsapp', 'broadcast', 'promo_broadcast', 'whatsapp_monitoring', 'whatsapp_templates'] },
   { key: 'isolated_portal', section: 'main', href: '/admin/isolated-portal', icon: 'bi bi-shield-slash-fill', labelKey: 'admin.nav.isolated_portal', labelDefault: 'Portal Isolir', roles: ['superadmin', 'teknisi', 'noc', 'finance'], activePages: ['isolated_portal'] },
   { key: 'promo_banners', section: 'main', href: '/admin/promo-banners', icon: 'bi bi-images', labelKey: 'admin.nav.promo_banners', labelDefault: 'Banner Promosi', roles: ['superadmin', 'finance'], activePages: ['promo_banners'] },
 

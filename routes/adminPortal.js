@@ -5577,6 +5577,20 @@ global.broadcastStatus = {
   hourlyLimit: 100
 };
 
+// Global Promo Broadcast Tracker
+global.promoBroadcastStatus = {
+  active: false,
+  total: 0,
+  sent: 0,
+  failed: 0,
+  startTime: null,
+  paused: false,
+  stopped: false,
+  currentBatch: 0,
+  messagesPerHour: 0,
+  hourlyLimit: 80
+};
+
 // Helper: Random delay generator untuk smart rate limiting
 function getRandomDelay(baseDelayMs, varianceMs = 3000) {
   const minDelay = Math.max(baseDelayMs - varianceMs, 2000);
@@ -5678,6 +5692,46 @@ function isTemporaryError(errorMessage) {
 
 // Global message history untuk duplicate detection
 global.broadcastMessageHistory = new Map();
+
+// Helper: Format Pesan Broadcast Promo dengan Placeholder Lengkap
+function formatPromoMessage(template, customer = {}, pkg = {}, options = {}) {
+  const req = options.req || null;
+  const protocol = req ? req.protocol : 'http';
+  const host = req ? req.get('host') : 'localhost:3001';
+  const comp = company();
+  const companyPhone = getSetting('company_phone', '') || getSetting('admin_wa', '');
+
+  const custName = customer?.name || 'Pelanggan';
+  const pkgName = pkg?.name || customer?.package_name || '-';
+  const speed = pkg?.speed_down ? `${Math.round(pkg.speed_down / 1000)} Mbps` : (customer?.speed_down ? `${Math.round(customer.speed_down / 1000)} Mbps` : '-');
+  const normalPrice = pkg?.price ? parseInt(pkg.price) : 0;
+  const promoPrice = (pkg?.promo_price !== null && pkg?.promo_price !== undefined) ? parseInt(pkg.promo_price) : normalPrice;
+  const hemat = Math.max(0, normalPrice - promoPrice);
+  const promoCycles = pkg?.promo_cycles ? parseInt(pkg.promo_cycles) : 0;
+  const durasiPromo = promoCycles > 0 ? `${promoCycles} Bulan Pertama` : 'Periode Promo Terbatas';
+  const deskripsiPaket = pkg?.description || 'Akses internet unlimited, stabil, dan berkecepatan tinggi.';
+
+  const linkDaftar = `${protocol}://${host}/customer/register`;
+  const linkPortal = `${protocol}://${host}/customer/login`;
+
+  let formatted = String(template || '')
+    .replace(/{{nama}}/gi, custName)
+    .replace(/{{nama_paket}}/gi, pkgName)
+    .replace(/{{paket}}/gi, pkgName)
+    .replace(/{{kecepatan}}/gi, speed)
+    .replace(/{{harga_normal}}/gi, `Rp ${normalPrice.toLocaleString('id-ID')}`)
+    .replace(/{{harga_promo}}/gi, `Rp ${promoPrice.toLocaleString('id-ID')}`)
+    .replace(/{{hemat}}/gi, `Rp ${hemat.toLocaleString('id-ID')}`)
+    .replace(/{{durasi_promo}}/gi, durasiPromo)
+    .replace(/{{deskripsi_paket}}/gi, deskripsiPaket)
+    .replace(/{{link_daftar}}/gi, linkDaftar)
+    .replace(/{{link_portal}}/gi, linkPortal)
+    .replace(/{{link}}/gi, linkPortal)
+    .replace(/{{perusahaan}}/gi, comp)
+    .replace(/{{kontak_wa}}/gi, companyPhone || '-');
+
+  return formatted;
+}
 
 router.get('/whatsapp', requireAdminSession, requireSidebarMenuAccess('whatsapp'), async (req, res) => {
   res.render('admin/whatsapp', {
@@ -6048,6 +6102,334 @@ router.post('/whatsapp/broadcast', requireAdminSession, express.urlencoded({ ext
     req.session._msg = { type: 'error', text: 'Gagal Broadcast: ' + e.message };
   }
   res.redirect('/admin/whatsapp/broadcast');
+});
+
+// ─── PROMO BROADCAST ────────────────────────────────────────────────────────
+router.get('/whatsapp/promo-broadcast', requireAdminSession, requireSidebarMenuAccess('whatsapp'), (req, res) => {
+  const comp = company();
+  const packages = customerSvc.getAllPackages();
+  const activeBanners = promoBannerSvc.getActiveBanners();
+  const allBanners = promoBannerSvc.getAllBanners();
+  const preselectedPackageId = req.query.package_id ? parseInt(req.query.package_id) : null;
+  const preselectedBannerId = req.query.banner_id ? parseInt(req.query.banner_id) : null;
+
+  const defaultPromoTemplate =
+    `🔥 *PROMO SPESIAL DARI {{perusahaan}}!* 🔥\n\n` +
+    `Halo *{{nama}}*, ada penawaran terbaik untuk upgrade internet Anda!\n\n` +
+    `🚀 *Paket Promo:* {{nama_paket}}\n` +
+    `⚡ *Kecepatan:* Hingga {{kecepatan}}\n` +
+    `💰 *Harga Promo:* *{{harga_promo}}*/bulan *(Hemat {{hemat}})*\n` +
+    `🏷️ *Harga Normal:* ~{{harga_normal}}~\n` +
+    `⏳ *Masa Berlaku:* {{durasi_promo}}\n\n` +
+    `✨ *Keunggulan Layanan:*\n{{deskripsi_paket}}\n\n` +
+    `Nikmati internet stabil dan cepat tanpa batas! Daftar atau upgrade sekarang melalui:\n` +
+    `👉 Link Registrasi: {{link_daftar}}\n` +
+    `👉 Portal Pelanggan: {{link_portal}}\n\n` +
+    `Ada pertanyaan? Balas pesan ini untuk terhubung dengan staf kami.\n` +
+    `Salam hangat,\n*{{perusahaan}}*`;
+
+  res.render('admin/promo_broadcast', {
+    title: 'Broadcast Promo WhatsApp',
+    company: comp,
+    activePage: 'promo_broadcast',
+    msg: flashMsg(req),
+    packages,
+    activeBanners,
+    allBanners,
+    preselectedPackageId,
+    preselectedBannerId,
+    defaultPromoTemplate,
+    promoBroadcastStatus: global.promoBroadcastStatus,
+    getSetting
+  });
+});
+
+router.get('/api/whatsapp/promo-broadcast-status', requireAdminSession, (req, res) => {
+  res.json(global.promoBroadcastStatus);
+});
+
+// API: Pause Promo Broadcast
+router.post('/api/whatsapp/promo-broadcast-pause', requireAdminSession, (req, res) => {
+  if (!global.promoBroadcastStatus.active) {
+    return res.json({ ok: false, error: 'Tidak ada broadcast promo yang sedang berjalan.' });
+  }
+  global.promoBroadcastStatus.paused = true;
+  logger.info('[PromoBroadcast] Broadcast promo dipause oleh admin.');
+  res.json({ ok: true, message: 'Broadcast promo berhasil dipause.' });
+});
+
+// API: Resume Promo Broadcast
+router.post('/api/whatsapp/promo-broadcast-resume', requireAdminSession, (req, res) => {
+  if (!global.promoBroadcastStatus.active) {
+    return res.json({ ok: false, error: 'Tidak ada broadcast promo yang sedang berjalan.' });
+  }
+  global.promoBroadcastStatus.paused = false;
+  logger.info('[PromoBroadcast] Broadcast promo dilanjutkan oleh admin.');
+  res.json({ ok: true, message: 'Broadcast promo berhasil dilanjutkan.' });
+});
+
+// API: Stop Promo Broadcast
+router.post('/api/whatsapp/promo-broadcast-stop', requireAdminSession, (req, res) => {
+  if (!global.promoBroadcastStatus.active) {
+    return res.json({ ok: false, error: 'Tidak ada broadcast promo yang sedang berjalan.' });
+  }
+  global.promoBroadcastStatus.stopped = true;
+  global.promoBroadcastStatus.paused = false;
+  logger.info('[PromoBroadcast] Broadcast promo dihentikan oleh admin.');
+  res.json({ ok: true, message: 'Broadcast promo berhasil dihentikan.' });
+});
+
+// Route: Uji Coba Kirim Promo (Single Test Send)
+router.post('/whatsapp/promo-broadcast/test', requireAdminSession, bannerUpload.single('promo_image'), async (req, res) => {
+  try {
+    const { test_phone, package_id, banner_id, message } = req.body;
+    if (!test_phone) throw new Error('Nomor WhatsApp tujuan uji coba wajib diisi.');
+    if (!message) throw new Error('Isi pesan tidak boleh kosong.');
+
+    let digits = String(test_phone).replace(/\D/g, '');
+    if (digits.length < 8) throw new Error('Format nomor WhatsApp uji coba tidak valid (minimal 8 digit).');
+
+    let pkg = null;
+    if (package_id) {
+      pkg = customerSvc.getPackageById(package_id);
+    }
+
+    const testCust = { name: 'Calon Pelanggan (Tester)', package_name: pkg?.name || 'Paket Internet Promo' };
+    const formattedMsg = formatPromoMessage(message, testCust, pkg, { req });
+
+    let imageBuffer = null;
+    if (req.file && req.file.buffer) {
+      imageBuffer = req.file.buffer;
+    } else if (banner_id) {
+      const banner = promoBannerSvc.getBannerById(banner_id);
+      if (banner && banner.image_url) {
+        let relativePath = banner.image_url.startsWith('/') ? banner.image_url.slice(1) : banner.image_url;
+        const fullPath = path.join(__dirname, '..', 'public', relativePath);
+        if (fs.existsSync(fullPath)) {
+          imageBuffer = fs.readFileSync(fullPath);
+        }
+      }
+    }
+
+    const { sendWA, sendWAImage, whatsappStatus } = await import('../services/whatsappBot.mjs');
+    if (!whatsappStatus || whatsappStatus.connection !== 'open') {
+      throw new Error('Bot WhatsApp belum terhubung. Pastikan sesi WhatsApp terhubung di menu Status Sesi.');
+    }
+
+    let ok = false;
+    if (imageBuffer) {
+      ok = await sendWAImage(test_phone, imageBuffer, formattedMsg);
+    } else {
+      ok = await sendWA(test_phone, formattedMsg);
+    }
+
+    if (!ok) {
+      throw new Error('Gagal mengirim pesan uji coba ke ' + test_phone);
+    }
+
+    auditSvc.logAudit(req.session?.adminUsername || 'Admin', 'Kirim Uji Coba Broadcast Promo ke ' + test_phone, 'whatsapp');
+    res.json({ ok: true, message: `Pesan uji coba promo berhasil dikirim ke ${test_phone}!` });
+  } catch (err) {
+    res.status(400).json({ ok: false, error: err.message });
+  }
+});
+
+// Route: Kirim Promo Massal (Mass Promo Broadcast)
+router.post('/whatsapp/promo-broadcast', requireAdminSession, bannerUpload.single('promo_image'), async (req, res) => {
+  try {
+    const { target, target_package_id, manual_numbers, package_id, banner_id, message, delay: customDelay, batchSize: customBatchSize, hourlyLimit: customHourlyLimit } = req.body;
+    if (!message) throw new Error('Pesan broadcast promo tidak boleh kosong.');
+
+    if (global.promoBroadcastStatus.active) {
+      throw new Error('Ada proses broadcast promo yang sedang berjalan. Silakan tunggu hingga selesai atau hentikan proses sebelumnya.');
+    }
+
+    // Resolve Image Buffer once
+    let imageBuffer = null;
+    if (req.file && req.file.buffer) {
+      imageBuffer = req.file.buffer;
+    } else if (banner_id) {
+      const banner = promoBannerSvc.getBannerById(banner_id);
+      if (banner && banner.image_url) {
+        let relativePath = banner.image_url.startsWith('/') ? banner.image_url.slice(1) : banner.image_url;
+        const fullPath = path.join(__dirname, '..', 'public', relativePath);
+        if (fs.existsSync(fullPath)) {
+          imageBuffer = fs.readFileSync(fullPath);
+        }
+      }
+    }
+
+    const baseDelayMs = (parseInt(customDelay) || getSetting('whatsapp_broadcast_delay', 5)) * 1000;
+    const batchSize = parseInt(customBatchSize) || 15;
+    const batchPauseMs = 120000; // 2 minutes
+    const hourlyLimit = parseInt(customHourlyLimit) || 80;
+
+    let targetRecipients = [];
+    const allCust = customerSvc.getAllCustomers();
+
+    if (target === 'all') {
+      targetRecipients = allCust;
+    } else if (target === 'active') {
+      targetRecipients = allCust.filter(c => c.status === 'active');
+    } else if (target === 'suspended') {
+      targetRecipients = allCust.filter(c => c.status === 'suspended');
+    } else if (target === 'inactive') {
+      targetRecipients = allCust.filter(c => c.status === 'inactive' || c.status === 'terminated');
+    } else if (target === 'specific_package' && target_package_id) {
+      targetRecipients = allCust.filter(c => String(c.package_id) === String(target_package_id));
+    } else if (target === 'manual') {
+      const lines = String(manual_numbers || '').split(/[\r\n,;]+/);
+      for (const line of lines) {
+        const clean = line.trim();
+        if (clean.length >= 8) {
+          targetRecipients.push({ name: 'Calon Pelanggan', phone: clean });
+        }
+      }
+    }
+
+    // Filter unique valid phones
+    const uniqueRecipients = [];
+    const seenPhones = new Set();
+    for (const r of targetRecipients) {
+      let ph = String(r.phone || '').replace(/\D/g, '');
+      if (ph.length >= 8 && !seenPhones.has(ph)) {
+        seenPhones.add(ph);
+        uniqueRecipients.push(r);
+      }
+    }
+
+    if (uniqueRecipients.length === 0) {
+      throw new Error('Tidak ada nomor penerima yang valid untuk target yang dipilih.');
+    }
+
+    let promoPkg = null;
+    if (package_id) {
+      promoPkg = customerSvc.getPackageById(package_id);
+    }
+
+    const { sendWA, sendWAImage, whatsappStatus } = await import('../services/whatsappBot.mjs');
+    if (!whatsappStatus || whatsappStatus.connection !== 'open') {
+      throw new Error('Bot WhatsApp belum terhubung. Pastikan sesi WhatsApp aktif di menu Status Sesi.');
+    }
+
+    global.promoBroadcastStatus = {
+      active: true,
+      total: uniqueRecipients.length,
+      sent: 0,
+      failed: 0,
+      startTime: new Date(),
+      paused: false,
+      stopped: false,
+      currentBatch: 0,
+      messagesPerHour: 0,
+      hourlyLimit: hourlyLimit
+    };
+
+    auditSvc.logAudit(req.session?.adminUsername || 'Admin', `Memulai Broadcast Promo (${uniqueRecipients.length} penerima)`, 'whatsapp');
+
+    // Async execution loop
+    const sendPromoAsync = async () => {
+      let batchCount = 0;
+      let messagesInCurrentHour = 0;
+      let hourStartTime = Date.now();
+
+      for (let i = 0; i < uniqueRecipients.length; i++) {
+        if (global.promoBroadcastStatus.stopped) {
+          logger.info('[PromoBroadcast] Broadcast promo dihentikan oleh admin.');
+          break;
+        }
+
+        while (global.promoBroadcastStatus.paused) {
+          await new Promise(r => setTimeout(r, 2000));
+          if (global.promoBroadcastStatus.stopped) break;
+        }
+
+        if (global.promoBroadcastStatus.stopped) break;
+
+        // Hourly rate limiting
+        const elapsedHour = Date.now() - hourStartTime;
+        if (elapsedHour >= 3600000) {
+          messagesInCurrentHour = 0;
+          hourStartTime = Date.now();
+        }
+
+        if (messagesInCurrentHour >= hourlyLimit) {
+          const waitTime = 3600000 - elapsedHour;
+          logger.info(`[PromoBroadcast] Hourly limit tercapai (${hourlyLimit} pesan). Menunggu ${Math.floor(waitTime / 60000)} menit...`);
+          await new Promise(r => setTimeout(r, waitTime));
+          messagesInCurrentHour = 0;
+          hourStartTime = Date.now();
+        }
+
+        const recipient = uniqueRecipients[i];
+        let attemptCount = 0;
+        const maxAttempts = 3;
+
+        while (attemptCount < maxAttempts) {
+          try {
+            const randomDelay = getRandomDelay(baseDelayMs, 2000);
+            await new Promise(r => setTimeout(r, randomDelay));
+
+            let formattedMsg = formatPromoMessage(message, recipient, promoPkg, { req });
+            formattedMsg = addMessageVariation(formattedMsg, i);
+
+            let ok = false;
+            if (imageBuffer) {
+              ok = await sendWAImage(recipient.phone, imageBuffer, formattedMsg);
+            } else {
+              ok = await sendWA(recipient.phone, formattedMsg);
+            }
+
+            if (!ok) {
+              throw new Error('Gagal mengirim WhatsApp ke ' + recipient.phone);
+            }
+
+            global.promoBroadcastStatus.sent++;
+            messagesInCurrentHour++;
+            global.promoBroadcastStatus.messagesPerHour = messagesInCurrentHour;
+            batchCount++;
+
+            if (batchCount >= batchSize && i < uniqueRecipients.length - 1) {
+              logger.info(`[PromoBroadcast] Selesai batch ${global.promoBroadcastStatus.currentBatch + 1} (${batchSize} pesan). Pause ${Math.floor(batchPauseMs / 1000)} detik...`);
+              global.promoBroadcastStatus.currentBatch++;
+              await new Promise(r => setTimeout(r, batchPauseMs));
+              batchCount = 0;
+            }
+
+            break;
+          } catch (e) {
+            attemptCount++;
+            const errorMsg = e.message || e.toString();
+
+            if (isPermanentError(errorMsg)) {
+              logger.warn(`[PromoBroadcast] SKIP: Error permanent untuk ${recipient.phone} - ${errorMsg}`);
+              global.promoBroadcastStatus.failed++;
+              break;
+            }
+
+            logger.error(`[PromoBroadcast] Gagal kirim ke ${recipient.phone} (attempt ${attemptCount}/${maxAttempts}): ${errorMsg}`);
+            if (attemptCount >= maxAttempts) {
+              global.promoBroadcastStatus.failed++;
+            } else {
+              const backoffDelay = getBackoffDelay(attemptCount);
+              await new Promise(r => setTimeout(r, backoffDelay));
+            }
+          }
+        }
+      }
+
+      global.promoBroadcastStatus.active = false;
+      logger.info(`[PromoBroadcast] Selesai. Terkirim: ${global.promoBroadcastStatus.sent}, Gagal: ${global.promoBroadcastStatus.failed}`);
+      auditSvc.logAudit('System', `Broadcast Promo selesai: ${global.promoBroadcastStatus.sent} terkirim, ${global.promoBroadcastStatus.failed} gagal`, 'whatsapp');
+    };
+
+    sendPromoAsync();
+
+    req.session._msg = { type: 'success', text: `Broadcast promo sedang diproses untuk ${uniqueRecipients.length} penerima.` };
+  } catch (err) {
+    req.session._msg = { type: 'error', text: 'Gagal Broadcast Promo: ' + err.message };
+  }
+  res.redirect('/admin/whatsapp/promo-broadcast');
 });
 
 router.post('/whatsapp/auto-billing', requireAdminSession, express.urlencoded({ extended: true }), (req, res) => {

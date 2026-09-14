@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="<%= lang || 'id' %>">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title><%= t('admin.promo_broadcast.title', 'Broadcast Promo WhatsApp') %> | <%= company %></title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="/css/admin.css?v=2">
+  <style>
+    .wa-tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 10px; flex-wrap: wrap; }
+    .wa-tab { padding: 8px 16px; border-radius: 10px; cursor: pointer; color: var(--muted); transition: all 0.2s; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+    .wa-tab:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+    .wa-tab.active { background: #10b981; color: white; box-shadow: 0 4px 14px rgba(16,185,129,0.3); }
+
+    .promo-layout { display: grid; grid-template-columns: 1fr 380px; gap: 24px; align-items: start; }
+    @media (max-width: 1080px) {
+      .promo-layout { grid-template-columns: 1fr; }
+    }
+
+    .var-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; margin-bottom: 12px; }
+    .var-tag { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 6px; background: rgba(99,102,241,0.12); color: #818cf8; border: 1px solid rgba(99,102,241,0.25); cursor: pointer; transition: all 0.15s ease; user-select: none; }
+    .var-tag:hover { background: #6366f1; color: #fff; transform: translateY(-1px); }
+
+    /* Phone Mockup Styling */
+    .phone-mockup {
+      background: #0f172a;
+      border: 10px solid #1e293b;
+      border-radius: 36px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.08);
+      overflow: hidden;
+      width: 100%;
+      max-width: 360px;
+      margin: 0 auto;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    .phone-notch {
+      height: 18px;
+      background: #1e293b;
+      width: 130px;
+      margin: 0 auto;
+      border-bottom-left-radius: 12px;
+      border-bottom-right-radius: 12px;
+    }
+    .wa-chat-header {
+      background: #075e54;
+      color: #ffffff;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .wa-avatar {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: #25d366;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+    .wa-chat-body {
+      background: #0b141a;
+      background-image: radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px);
+      background-size: 16px 16px;
+      padding: 16px 12px;
+      min-height: 420px;
+      max-height: 520px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+    }
+    .wa-bubble {
+      background: #005c4b;
+      color: #e9edef;
+      padding: 8px 10px;
+      border-radius: 10px 10px 2px 10px;
+      max-width: 90%;
+      align-self: flex-end;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+      position: relative;
+      font-size: 13px;
+      line-height: 1.45;
+      word-break: break-word;
+    }
+    .wa-bubble-img {
+      width: 100%;
+      max-height: 180px;
+      object-fit: cover;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      display: none;
+    }
+    .wa-bubble-time {
+      font-size: 10px;
+      color: rgba(255,255,255,0.6);
+      text-align: right;
+      margin-top: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 3px;
+    }
+
+    .banner-radio-card {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      background: var(--bg2);
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+    .banner-radio-card:hover {
+      border-color: #6366f1;
+    }
+    .banner-thumb-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+      max-height: 220px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .banner-thumb-item {
+      border: 2px solid transparent;
+      border-radius: 8px;
+      overflow: hidden;
+      cursor: pointer;
+      position: relative;
+      background: #000;
+      transition: all 0.15s ease;
+    }
+    .banner-thumb-item img {
+      width: 100%;
+      height: 70px;
+      object-fit: cover;
+      display: block;
+    }
+    .banner-thumb-item.selected {
+      border-color: #10b981;
+      box-shadow: 0 0 0 2px rgba(16,185,129,0.3);
+    }
+    .banner-thumb-item .b-badge {
+      position: absolute;
+      bottom: 2px;
+      left: 2px;
+      right: 2px;
+      background: rgba(0,0,0,0.7);
+      color: #fff;
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 4px;
+      text-overflow: ellipsis;
+      overflow: hidden;
+      white-space: nowrap;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+<%- include('partials/sidebar', { activePage: activePage || 'promo_broadcast', company }) %>
+<div class="mw">
+  <div class="topbar">
+    <div class="tb-title">
+      <button class="hb-menu" onclick="toggleSidebar()"><i class="bi bi-list"></i></button>
+      <i class="bi bi-tag-fill text-emerald-400"></i> <%= t('admin.promo_broadcast.title', 'Broadcast Promo WhatsApp') %>
+    </div>
+    <div class="tb-right">
+      <span class="adm-badge"><i class="bi bi-person-fill"></i> <%= (typeof session !== 'undefined' && session.isCashier) ? t('admin.role.cashier', 'Kasir') : t('admin.role.admin', 'Admin') %></span>
+      <a href="/admin/logout" class="btn btn-g btn-sm"><i class="bi bi-box-arrow-left"></i></a>
+    </div>
+  </div>
+
+  <div class="page">
+    <% const waTab = 'promo'; %>
+
+    <% if (msg) { %>
+    <div class="alert alert-<%= msg.type==='success'?'s':'d' %>">
+      <i class="bi bi-<%= msg.type==='success'?'check-circle':'exclamation-circle' %>"></i> <%= msg.text %>
+    </div>
+    <% } %>
+
+    <!-- HERO BANNER -->
+    <div class="card mb-4" style="background: linear-gradient(135deg, #059669 0%, #0d9488 40%, #2563eb 100%); border: 1px solid rgba(16,185,129,0.4); border-radius: 20px; padding: 24px; position: relative; overflow: hidden; margin-bottom: 24px; box-shadow: 0 12px 36px rgba(13,148,136,0.25);">
+      <div style="position: absolute; right: -15px; bottom: -25px; font-size: 150px; color: rgba(255,255,255,0.08); pointer-events: none;">
+        <i class="bi bi-tag"></i>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; position: relative; z-index: 1;">
+        <div>
+          <div style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 14px; border-radius: 20px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.35); color: #ffffff; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 10px;">
+            <i class="bi bi-whatsapp"></i> BROADCAST PROMO & MARKETING
+          </div>
+          <h2 style="font-size: 24px; font-weight: 800; color: #ffffff; margin: 0 0 6px 0; letter-spacing: -0.5px;">
+            Kirim WhatsApp Paket Promosi & Banner Media
+          </h2>
+          <p style="font-size: 13px; color: rgba(255,255,255,0.92); margin: 0; max-width: 680px; line-height: 1.5; font-weight: 500;">
+            Promosikan paket internet pilihan lengkap dengan harga promo, diskon hemat, gambar banner menarik, dan target segmentasi pelanggan secara otomatis melalui WhatsApp Baileys.
+          </p>
+        </div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <a href="/admin/packages" class="btn btn-sm" style="border-radius: 12px; font-weight: 800; padding: 10px 18px; background: #ffffff; color: #0d9488; border: none; box-shadow: 0 6px 20px rgba(0,0,0,0.15);">
+            <i class="bi bi-box-seam me-1"></i> Paket Internet
+          </a>
+          <a href="/admin/promo-banners" class="btn btn-sm" style="border-radius: 12px; font-weight: 800; padding: 10px 18px; background: rgba(255,255,255,0.2); color: #ffffff; border: 1px solid rgba(255,255,255,0.4); backdrop-filter: blur(10px);">
+            <i class="bi bi-images me-1"></i> Banner Promosi
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- TABS NAVIGATION -->
+    <div class="wa-tabs">
+      <a href="/admin/whatsapp" class="wa-tab"><i class="bi bi-phone"></i> Status Sesi</a>
+      <a href="/admin/whatsapp/broadcast" class="wa-tab"><i class="bi bi-megaphone"></i> Broadcast & Pengingat</a>
+      <a href="/admin/whatsapp/promo-broadcast" class="wa-tab active"><i class="bi bi-tag-fill"></i> Broadcast Promo</a>
+      <a href="/admin/whatsapp/templates" class="wa-tab"><i class="bi bi-chat-left-quote"></i> Template Pesan</a>
+      <a href="/admin/whatsapp/monitoring" class="wa-tab"><i class="bi bi-bell"></i> Monitoring Alert</a>
+    </div>
+
+    <!-- MAIN TWO-COLUMN LAYOUT -->
+    <div class="promo-layout">
+      <!-- LEFT COLUMN: FORM & CONTROLS -->
+      <div>
+        <form id="promoBroadcastForm" method="POST" action="/admin/whatsapp/promo-broadcast" enctype="multipart/form-data">
+          <!-- CARD 1: PAKET PROMOSI -->
+          <div class="card mb-3">
+            <div class="card-hd" style="display:flex; justify-content:space-between; align-items:center;">
+              <h6><i class="bi bi-box-seam text-emerald-400"></i> 1. Pilih Paket yang Dipromosikan</h6>
+              <span class="badge bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs px-2 py-0.5 rounded">Auto-Template</span>
+            </div>
+            <div class="card-bd">
+              <div class="form-row">
+                <div class="fg" style="width: 100%;">
+                  <label class="fl">Pilih Paket Internet</label>
+                  <select class="fs" id="packageSelect" name="package_id" style="width: 100%; font-size: 14px; font-weight: 600;">
+                    <option value="">-- Tanpa Paket Spesifik (Template Umum) --</option>
+                    <% packages.forEach(p => { 
+                        const isPromo = p.promo_price !== null && p.promo_price !== undefined;
+                        const normal = parseInt(p.price || 0);
+                        const promo = isPromo ? parseInt(p.promo_price) : normal;
+                        const speed = p.speed_down ? Math.round(p.speed_down / 1000) : 0;
+                        const selected = (preselectedPackageId && preselectedPackageId === p.id) ? 'selected' : '';
+                    %>
+                      <option value="<%= p.id %>" 
+                        data-name="<%= p.name %>"
+                        data-price="<%= normal %>"
+                        data-promo-price="<%= promo %>"
+                        data-speed="<%= speed %> Mbps"
+                        data-cycles="<%= p.promo_cycles || 0 %>"
+                        data-desc="<%= p.description || '' %>"
+                        <%= selected %>>
+                        <%= p.name %> — <%= speed %> Mbps | Normal: Rp <%= normal.toLocaleString('id-ID') %> <%= isPromo ? ('-> PROMO: Rp ' + promo.toLocaleString('id-ID')) : '' %>
+                      </option>
+                    <% }) %>
+                  </select>
+                  <div style="display:flex; align-items:center; justify-content:space-between; margin-top: 8px;">
+                    <label style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text); cursor:pointer;">
+                      <input type="checkbox" id="autoGenerateTemplate" checked> Terapkan format pesan otomatis saat paket dipilih
+                    </label>
+                    <button type="button" id="btnResetTemplate" class="btn btn-g btn-sm" style="font-size:11px; padding:3px 8px;">
+                      <i class="bi bi-arrow-counterclockwise"></i> Reset Template
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- CARD 2: BANNER PROMOSI (GAMBAR) -->
+          <div class="card mb-3">
+            <div class="card-hd">
+              <h6><i class="bi bi-image text-emerald-400"></i> 2. Banner Media Promosi (Opsional)</h6>
+            </div>
+            <div class="card-bd">
+              <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 12px;">
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; cursor: pointer;">
+                  <input type="radio" name="banner_source" value="existing" <%= allBanners.length > 0 ? 'checked' : '' %>>
+                  Pilih dari Banner Promosi Tersimpan
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; cursor: pointer;">
+                  <input type="radio" name="banner_source" value="upload" <%= allBanners.length === 0 ? 'checked' : '' %>>
+                  Upload Gambar Baru dari Komputer
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; cursor: pointer;">
+                  <input type="radio" name="banner_source" value="none">
+                  Tanpa Gambar (Hanya Teks)
+                </label>
+              </div>
+
+              <!-- Option 1: Existing Banners Grid -->
+              <div id="existingBannersContainer">
+                <% if (allBanners.length > 0) { %>
+                  <input type="hidden" name="banner_id" id="selectedBannerId" value="<%= preselectedBannerId || (allBanners[0] ? allBanners[0].id : '') %>">
+                  <div class="banner-thumb-grid">
+                    <% allBanners.forEach((b, idx) => { 
+                        const isSel = (preselectedBannerId && preselectedBannerId === b.id) || (!preselectedBannerId && idx === 0);
+                    %>
+                      <div class="banner-thumb-item <%= isSel ? 'selected' : '' %>" 
+                           data-id="<%= b.id %>" 
+                           data-url="<%= b.image_url %>" 
+                           data-title="<%= b.title %>"
+                           onclick="selectBannerThumbnail(this)">
+                        <img src="<%= b.image_url %>" alt="<%= b.title %>">
+                        <div class="b-badge"><%= b.title %></div>
+                      </div>
+                    <% }) %>
+                  </div>
+                <% } else { %>
+                  <div class="alert alert-i" style="font-size: 12px; margin-bottom: 0;">
+                    <i class="bi bi-info-circle"></i> Belum ada banner promosi tersimpan di sistem. Anda bisa langsung mengunggah gambar baru di bawah atau kelola di menu <a href="/admin/promo-banners" class="underline font-bold">Banner Promosi</a>.
+                  </div>
+                <% } %>
+              </div>
+
+              <!-- Option 2: Upload File -->
+              <div id="uploadBannerContainer" style="display: none; margin-top: 10px;">
+                <div class="fg">
+                  <label class="fl">Pilih File Gambar (JPG/PNG/WEBP, Maks 5MB)</label>
+                  <input type="file" class="fc" name="promo_image" id="promoImageFile" accept="image/*">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- CARD 3: TARGET AUDIENCE -->
+          <div class="card mb-3">
+            <div class="card-hd">
+              <h6><i class="bi bi-people-fill text-emerald-400"></i> 3. Target Penerima Broadcast</h6>
+            </div>
+            <div class="card-bd">
+              <div class="form-row">
+                <div class="fg" style="width: 100%;">
+                  <label class="fl">Segmentasi Pelanggan</label>
+                  <select class="fs" name="target" id="targetSelect" required style="width: 100%; font-size: 14px; font-weight: 600;">
+                    <option value="all">Semua Pelanggan (Aktif, Isolir, & Nonaktif)</option>
+                    <option value="active">Hanya Pelanggan Aktif (Loyal / Cross-Sell)</option>
+                    <option value="suspended">Hanya Pelanggan Terisolir (Win-Back Promo)</option>
+                    <option value="inactive">Pelanggan Nonaktif / Terminasi (Re-Aktivasi)</option>
+                    <option value="specific_package">Target Upsell: Pelanggan yang Memakai Paket Tertentu</option>
+                    <option value="manual">Input Nomor WhatsApp Manual / Calon Pelanggan Baru</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Extra for specific package -->
+              <div id="targetPackageContainer" style="display: none; margin-top: 10px;">
+                <div class="fg">
+                  <label class="fl">Pilih Paket Pelanggan yang Ingin Ditargetkan (Upsell)</label>
+                  <select class="fs" name="target_package_id" style="width: 100%;">
+                    <% packages.forEach(p => { %>
+                      <option value="<%= p.id %>"><%= p.name %> (<%= p.customer_count || 0 %> pelanggan)</option>
+                    <% }) %>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Extra for manual numbers -->
+              <div id="targetManualContainer" style="display: none; margin-top: 10px;">
+                <div class="fg">
+                  <label class="fl">Daftar Nomor WhatsApp (Pisahkan dengan enter atau koma)</label>
+                  <textarea class="fc" name="manual_numbers" rows="4" placeholder="Contoh:&#10;081234567890&#10;081987654321&#10;6285200001111" style="font-family: monospace; font-size: 12px;"></textarea>
+                  <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">
+                    Nomor dapat diawali dengan 08... atau 628...
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- CARD 4: ISI PESAN PROMOSI -->
+          <div class="card mb-3">
+            <div class="card-hd">
+              <h6><i class="bi bi-chat-text-fill text-emerald-400"></i> 4. Pesan WhatsApp</h6>
+            </div>
+            <div class="card-bd">
+              <label class="fl">Sisipkan Variabel Dinamis (Klik untuk Menambahkan)</label>
+              <div class="var-tags">
+                <span class="var-tag" onclick="insertVar('{{nama}}')">{{nama}}</span>
+                <span class="var-tag" onclick="insertVar('{{nama_paket}}')">{{nama_paket}}</span>
+                <span class="var-tag" onclick="insertVar('{{kecepatan}}')">{{kecepatan}}</span>
+                <span class="var-tag" onclick="insertVar('{{harga_promo}}')">{{harga_promo}}</span>
+                <span class="var-tag" onclick="insertVar('{{harga_normal}}')">{{harga_normal}}</span>
+                <span class="var-tag" onclick="insertVar('{{hemat}}')">{{hemat}}</span>
+                <span class="var-tag" onclick="insertVar('{{durasi_promo}}')">{{durasi_promo}}</span>
+                <span class="var-tag" onclick="insertVar('{{deskripsi_paket}}')">{{deskripsi_paket}}</span>
+                <span class="var-tag" onclick="insertVar('{{link_daftar}}')">{{link_daftar}}</span>
+                <span class="var-tag" onclick="insertVar('{{link_portal}}')">{{link_portal}}</span>
+                <span class="var-tag" onclick="insertVar('{{perusahaan}}')">{{perusahaan}}</span>
+                <span class="var-tag" onclick="insertVar('{{kontak_wa}}')">{{kontak_wa}}</span>
+              </div>
+
+              <div class="fg" style="width: 100%;">
+                <textarea class="fc" name="message" id="messageBox" rows="12" required style="width: 100%; font-family: monospace; font-size: 13px; line-height: 1.5;"><%= defaultPromoTemplate %></textarea>
+                <div style="display:flex; justify-content:space-between; font-size: 11px; color: var(--muted); margin-top: 6px;">
+                  <span><i class="bi bi-info-circle"></i> Gunakan <b>*tebal*</b>, <i>_miring_</i>, atau ~coret~.</span>
+                  <span id="charCount">0 karakter</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- CARD 5: PENGATURAN RATE LIMIT & SAFETY -->
+          <div class="card mb-3">
+            <div class="card-hd">
+              <h6><i class="bi bi-shield-check text-emerald-400"></i> 5. Pengaturan Jeda & Anti-Spam</h6>
+            </div>
+            <div class="card-bd">
+              <div class="form-row">
+                <div class="fg">
+                  <label class="fl">Jeda Antar Pesan (Detik)</label>
+                  <input class="fc" type="number" name="delay" value="<%= getSetting('whatsapp_broadcast_delay', 5) %>" min="2" max="60">
+                  <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">Saran: minimal 5 detik.</div>
+                </div>
+                <div class="fg">
+                  <label class="fl">Batas Pesan Per Batch</label>
+                  <input class="fc" type="number" name="batchSize" value="15" min="5" max="50">
+                  <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">Jeda 2 menit setiap kelipatan batch.</div>
+                </div>
+                <div class="fg">
+                  <label class="fl">Maksimal Pesan / Jam</label>
+                  <input class="fc" type="number" name="hourlyLimit" value="80" min="20" max="200">
+                  <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">Perlindungan limit harian WhatsApp.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- CARD 6: UJI COBA KIRIM (TEST SEND) -->
+          <div class="card mb-3" style="background: rgba(16,185,129,0.04); border: 1px solid rgba(16,185,129,0.3);">
+            <div class="card-hd" style="border-bottom: 1px solid rgba(16,185,129,0.2);">
+              <h6><i class="bi bi-send-check text-emerald-400"></i> Uji Coba Kirim (Test Send)</h6>
+            </div>
+            <div class="card-bd">
+              <p style="font-size: 12px; color: var(--muted); margin-bottom: 10px;">
+                Kirim 1 pesan promo uji coba ke nomor WhatsApp Anda sendiri untuk memastikan tata letak teks, placeholder, dan gambar tampil sempurna sebelum disebarkan massal.
+              </p>
+              <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <input type="text" class="fc" id="testPhoneInput" placeholder="Contoh: 081234567890" style="max-width: 260px; font-weight: 600;">
+                <button type="button" id="btnTestSend" class="btn btn-sm" style="background: #10b981; color: #fff; font-weight: 700; padding: 9px 18px; border-radius: 8px;">
+                  <i class="bi bi-send-fill me-1"></i> Kirim Uji Coba Sekarang
+                </button>
+                <div id="testSendStatus" style="font-size: 12px; font-weight: 600; display: none;"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SUBMIT MASS BROADCAST -->
+          <div class="card">
+            <div class="card-bd" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+              <div style="font-size: 12px; color: var(--muted);">
+                <i class="bi bi-exclamation-triangle-fill text-yellow-500"></i> Pastikan bot WhatsApp terhubung sebelum memulai broadcast massal.
+              </div>
+              <button type="submit" id="btnStartBroadcast" class="btn btn-p" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); font-weight: 800; padding: 12px 24px; border: none; font-size: 15px; box-shadow: 0 4px 14px rgba(16,185,129,0.4);">
+                <i class="bi bi-megaphone-fill me-1"></i> Mulai Broadcast Promo Massal
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <!-- RIGHT COLUMN: LIVE PHONE PREVIEW & MONITORING -->
+      <div>
+        <div style="position: sticky; top: 20px;">
+          <!-- LIVE PHONE MOCKUP -->
+          <div class="card mb-3" style="padding: 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <span style="font-size: 12px; font-weight: 800; text-transform: uppercase; color: var(--muted); letter-spacing: 0.5px;">
+                <i class="bi bi-phone"></i> Live Preview WhatsApp
+              </span>
+              <span class="badge bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs px-2 py-0.5 rounded">
+                Real-Time
+              </span>
+            </div>
+
+            <div class="phone-mockup">
+              <div class="phone-notch"></div>
+              <div class="wa-chat-header">
+                <div class="wa-avatar">
+                  <i class="bi bi-whatsapp"></i>
+                </div>
+                <div>
+                  <div style="font-size: 13px; font-weight: 700; line-height: 1.2;"><%= company %></div>
+                  <div style="font-size: 10px; color: #a7f3d0;">Online • Akun Resmi</div>
+                </div>
+              </div>
+              <div class="wa-chat-body" id="previewChatBody">
+                <div class="wa-bubble" id="previewBubble">
+                  <img src="" alt="Promo Banner" id="previewBubbleImg" class="wa-bubble-img">
+                  <div id="previewBubbleText" style="white-space: pre-wrap;"></div>
+                  <div class="wa-bubble-time">
+                    <span id="previewTime">12:00</span>
+                    <i class="bi bi-check2-all" style="color: #53bdeb;"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- PROGRESS MONITORING WIDGET -->
+          <div class="card" id="progressMonitorCard" style="display: none;">
+            <div class="card-hd" style="display: flex; justify-content: space-between; align-items: center;">
+              <h6><i class="bi bi-activity text-emerald-400"></i> Status Broadcast</h6>
+              <span id="monitorStatusBadge" class="badge bp">Memproses...</span>
+            </div>
+            <div class="card-bd">
+              <div style="margin-bottom: 12px;">
+                <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; margin-bottom: 4px;">
+                  <span>Progress Pengiriman:</span>
+                  <span id="monitorPercentage">0%</span>
+                </div>
+                <div style="width: 100%; height: 10px; background: rgba(255,255,255,0.1); border-radius: 6px; overflow: hidden;">
+                  <div id="monitorProgressBar" style="width: 0%; height: 100%; background: #10b981; transition: width 0.3s ease;"></div>
+                </div>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; text-align: center; margin-bottom: 14px;">
+                <div style="background: var(--bg2); padding: 8px; border-radius: 8px; border: 1px solid var(--border);">
+                  <div style="font-size: 10px; color: var(--muted); font-weight: 600;">TOTAL</div>
+                  <div style="font-size: 16px; font-weight: 800;" id="statTotal">0</div>
+                </div>
+                <div style="background: rgba(16,185,129,0.1); padding: 8px; border-radius: 8px; border: 1px solid rgba(16,185,129,0.3);">
+                  <div style="font-size: 10px; color: #10b981; font-weight: 600;">TERKIRIM</div>
+                  <div style="font-size: 16px; font-weight: 800; color: #10b981;" id="statSent">0</div>
+                </div>
+                <div style="background: rgba(239,68,68,0.1); padding: 8px; border-radius: 8px; border: 1px solid rgba(239,68,68,0.3);">
+                  <div style="font-size: 10px; color: #ef4444; font-weight: 600;">GAGAL</div>
+                  <div style="font-size: 16px; font-weight: 800; color: #ef4444;" id="statFailed">0</div>
+                </div>
+              </div>
+
+              <!-- CONTROLS -->
+              <div style="display: flex; gap: 8px;">
+                <button type="button" id="btnPauseBroadcast" class="btn btn-g btn-sm" style="flex: 1;">
+                  <i class="bi bi-pause-fill"></i> Pause
+                </button>
+                <button type="button" id="btnResumeBroadcast" class="btn btn-p btn-sm" style="flex: 1; display: none; background: #10b981;">
+                  <i class="bi bi-play-fill"></i> Lanjutkan
+                </button>
+                <button type="button" id="btnStopBroadcast" class="btn btn-d btn-sm" style="flex: 1;">
+                  <i class="bi bi-stop-fill"></i> Hentikan
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// State & Elements
+const companyName = <%- JSON.stringify(company) %>;
+const defaultTemplate = <%- JSON.stringify(defaultPromoTemplate) %>;
+const messageBox = document.getElementById('messageBox');
+const charCount = document.getElementById('charCount');
+const packageSelect = document.getElementById('packageSelect');
+const autoGenerateCheckbox = document.getElementById('autoGenerateTemplate');
+const btnResetTemplate = document.getElementById('btnResetTemplate');
+const targetSelect = document.getElementById('targetSelect');
+const targetPackageContainer = document.getElementById('targetPackageContainer');
+const targetManualContainer = document.getElementById('targetManualContainer');
+const previewBubbleText = document.getElementById('previewBubbleText');
+const previewBubbleImg = document.getElementById('previewBubbleImg');
+const previewTime = document.getElementById('previewTime');
+const testPhoneInput = document.getElementById('testPhoneInput');
+const btnTestSend = document.getElementById('btnTestSend');
+const testSendStatus = document.getElementById('testSendStatus');
+const promoBroadcastForm = document.getElementById('promoBroadcastForm');
+const btnStartBroadcast = document.getElementById('btnStartBroadcast');
+
+// Target dropdown change
+targetSelect.addEventListener('change', function() {
+  targetPackageContainer.style.display = (this.value === 'specific_package') ? 'block' : 'none';
+  targetManualContainer.style.display = (this.value === 'manual') ? 'block' : 'none';
+});
+
+// Banner source radio buttons
+const bannerSourceRadios = document.querySelectorAll('input[name="banner_source"]');
+const existingBannersContainer = document.getElementById('existingBannersContainer');
+const uploadBannerContainer = document.getElementById('uploadBannerContainer');
+const promoImageFile = document.getElementById('promoImageFile');
+const selectedBannerIdInput = document.getElementById('selectedBannerId');
+
+bannerSourceRadios.forEach(radio => {
+  radio.addEventListener('change', function() {
+    if (this.value === 'existing') {
+      if (existingBannersContainer) existingBannersContainer.style.display = 'block';
+      uploadBannerContainer.style.display = 'none';
+      updatePreviewImageFromExisting();
+    } else if (this.value === 'upload') {
+      if (existingBannersContainer) existingBannersContainer.style.display = 'none';
+      uploadBannerContainer.style.display = 'block';
+      updatePreviewImageFromFile();
+    } else {
+      if (existingBannersContainer) existingBannersContainer.style.display = 'none';
+      uploadBannerContainer.style.display = 'none';
+      previewBubbleImg.style.display = 'none';
+      previewBubbleImg.src = '';
+    }
+  });
+});
+
+function selectBannerThumbnail(element) {
+  document.querySelectorAll('.banner-thumb-item').forEach(el => el.classList.remove('selected'));
+  element.classList.add('selected');
+  if (selectedBannerIdInput) {
+    selectedBannerIdInput.value = element.dataset.id;
+  }
+  updatePreviewImageFromExisting();
+}
+
+function updatePreviewImageFromExisting() {
+  const selectedEl = document.querySelector('.banner-thumb-item.selected');
+  if (selectedEl && selectedEl.dataset.url) {
+    previewBubbleImg.src = selectedEl.dataset.url;
+    previewBubbleImg.style.display = 'block';
+  } else {
+    previewBubbleImg.style.display = 'none';
+    previewBubbleImg.src = '';
+  }
+}
+
+function updatePreviewImageFromFile() {
+  if (promoImageFile.files && promoImageFile.files[0]) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      previewBubbleImg.src = e.target.result;
+      previewBubbleImg.style.display = 'block';
+    };
+    reader.readAsDataURL(promoImageFile.files[0]);
+  } else {
+    previewBubbleImg.style.display = 'none';
+    previewBubbleImg.src = '';
+  }
+}
+
+if (promoImageFile) {
+  promoImageFile.addEventListener('change', updatePreviewImageFromFile);
+}
+
+// Package change auto-template
+packageSelect.addEventListener('change', function() {
+  if (autoGenerateCheckbox.checked && this.value) {
+    const opt = this.options[this.selectedIndex];
+    const name = opt.dataset.name || 'Paket Internet';
+    const speed = opt.dataset.speed || '20 Mbps';
+    const price = parseInt(opt.dataset.price || 0);
+    const promoPrice = parseInt(opt.dataset.promoPrice || price);
+    const hemat = Math.max(0, price - promoPrice);
+    const cycles = parseInt(opt.dataset.cycles || 0);
+    const durasi = cycles > 0 ? `${cycles} Bulan Pertama` : 'Periode Promo Terbatas';
+    const desc = opt.dataset.desc || 'Akses internet unlimited stabil super cepat.';
+
+    let tmpl = defaultTemplate
+      .replace(/{{nama_paket}}/g, name)
+      .replace(/{{kecepatan}}/g, speed)
+      .replace(/{{harga_normal}}/g, 'Rp ' + price.toLocaleString('id-ID'))
+      .replace(/{{harga_promo}}/g, 'Rp ' + promoPrice.toLocaleString('id-ID'))
+      .replace(/{{hemat}}/g, 'Rp ' + hemat.toLocaleString('id-ID'))
+      .replace(/{{durasi_promo}}/g, durasi)
+      .replace(/{{deskripsi_paket}}/g, desc);
+
+    messageBox.value = tmpl;
+    updateLivePreview();
+  } else if (!this.value && autoGenerateCheckbox.checked) {
+    messageBox.value = defaultTemplate;
+    updateLivePreview();
+  }
+});
+
+btnResetTemplate.addEventListener('click', function() {
+  if (confirm('Kembalikan isi pesan ke template standar?')) {
+    messageBox.value = defaultTemplate;
+    updateLivePreview();
+  }
+});
+
+// Insert variable button
+function insertVar(varText) {
+  const start = messageBox.selectionStart;
+  const end = messageBox.selectionEnd;
+  const text = messageBox.value;
+  messageBox.value = text.substring(0, start) + varText + text.substring(end);
+  messageBox.selectionStart = messageBox.selectionEnd = start + varText.length;
+  messageBox.focus();
+  updateLivePreview();
+}
+
+// Format WhatsApp Markdown for Phone Mockup
+function formatWhatsAppText(text) {
+  if (!text) return '';
+  let escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  // Bold *text*
+  escaped = escaped.replace(/\*(.*?)\*/g, '<b>$1</b>');
+  // Italic _text_
+  escaped = escaped.replace(/_(.*?)_/g, '<i>$1</i>');
+  // Strikethrough ~text~
+  escaped = escaped.replace(/~(.*?)~/g, '<del>$1</del>');
+  // Monospace ```text```
+  escaped = escaped.replace(/```(.*?)```/gs, '<code style="background:rgba(0,0,0,0.3);padding:2px 4px;border-radius:4px;">$1</code>');
+
+  return escaped;
+}
+
+// Update Live Phone Preview
+function updateLivePreview() {
+  const rawText = messageBox.value || '';
+  charCount.textContent = `${rawText.length} karakter`;
+
+  // Get selected package info for preview replacements
+  const opt = packageSelect.options[packageSelect.selectedIndex];
+  const pkgName = opt?.dataset.name || 'Fiber Home Fast';
+  const pkgSpeed = opt?.dataset.speed || '30 Mbps';
+  const pkgPrice = parseInt(opt?.dataset.price || 250000);
+  const pkgPromo = parseInt(opt?.dataset.promoPrice || 199000);
+  const pkgHemat = Math.max(0, pkgPrice - pkgPromo);
+  const pkgCycles = parseInt(opt?.dataset.cycles || 3);
+  const pkgDurasi = pkgCycles > 0 ? `${pkgCycles} Bulan Pertama` : 'Periode Promo Terbatas';
+  const pkgDesc = opt?.dataset.desc || 'Internet tanpa batas kuota (unlimited) dan full fiber optik.';
+
+  const host = window.location.origin;
+
+  let replaced = rawText
+    .replace(/{{nama}}/gi, 'Budi Santoso')
+    .replace(/{{nama_paket}}/gi, pkgName)
+    .replace(/{{paket}}/gi, pkgName)
+    .replace(/{{kecepatan}}/gi, pkgSpeed)
+    .replace(/{{harga_normal}}/gi, 'Rp ' + pkgPrice.toLocaleString('id-ID'))
+    .replace(/{{harga_promo}}/gi, 'Rp ' + pkgPromo.toLocaleString('id-ID'))
+    .replace(/{{hemat}}/gi, 'Rp ' + pkgHemat.toLocaleString('id-ID'))
+    .replace(/{{durasi_promo}}/gi, pkgDurasi)
+    .replace(/{{deskripsi_paket}}/gi, pkgDesc)
+    .replace(/{{link_daftar}}/gi, `${host}/customer/register`)
+    .replace(/{{link_portal}}/gi, `${host}/customer/login`)
+    .replace(/{{link}}/gi, `${host}/customer/login`)
+    .replace(/{{perusahaan}}/gi, companyName)
+    .replace(/{{kontak_wa}}/gi, '0812-3456-7890');
+
+  previewBubbleText.innerHTML = formatWhatsAppText(replaced);
+
+  // Time stamp
+  const now = new Date();
+  const timeStr = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+  previewTime.textContent = timeStr;
+}
+
+messageBox.addEventListener('input', updateLivePreview);
+
+// Init on page load
+updateLivePreview();
+updatePreviewImageFromExisting();
+
+// TEST SEND (UJI COBA)
+btnTestSend.addEventListener('click', async function() {
+  const phone = testPhoneInput.value.trim();
+  if (!phone || phone.length < 8) {
+    alert('Masukkan nomor WhatsApp tujuan uji coba yang valid (contoh: 081234567890).');
+    testPhoneInput.focus();
+    return;
+  }
+
+  const origBtnText = btnTestSend.innerHTML;
+  btnTestSend.disabled = true;
+  btnTestSend.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Mengirim Uji Coba...';
+  testSendStatus.style.display = 'block';
+  testSendStatus.style.color = '#a7f3d0';
+  testSendStatus.innerHTML = '<i class="bi bi-hourglass-split"></i> Menghubungi bot WhatsApp...';
+
+  try {
+    const formData = new FormData(promoBroadcastForm);
+    formData.append('test_phone', phone);
+
+    const res = await fetch('/admin/whatsapp/promo-broadcast/test', {
+      method: 'POST',
+      body: formData
+    });
+
+    const data = await res.json();
+    if (data.ok) {
+      testSendStatus.style.color = '#10b981';
+      testSendStatus.innerHTML = '<i class="bi bi-check-circle-fill"></i> ' + data.message;
+    } else {
+      testSendStatus.style.color = '#ef4444';
+      testSendStatus.innerHTML = '<i class="bi bi-x-circle-fill"></i> ' + (data.error || 'Gagal mengirim uji coba.');
+    }
+  } catch (err) {
+    testSendStatus.style.color = '#ef4444';
+    testSendStatus.innerHTML = '<i class="bi bi-x-circle-fill"></i> Error: ' + err.message;
+  } finally {
+    btnTestSend.disabled = false;
+    btnTestSend.innerHTML = origBtnText;
+  }
+});
+
+// FORM SUBMISSION CONFIRMATION
+promoBroadcastForm.addEventListener('submit', function(e) {
+  const targetLabel = targetSelect.options[targetSelect.selectedIndex].text;
+  const ok = confirm(`Mulai proses broadcast promo massal sekarang?\n\nTarget: ${targetLabel}\n\nPesan akan dikirim secara berurutan dengan jeda aman anti-spam.`);
+  if (!ok) {
+    e.preventDefault();
+  }
+});
+
+// STATUS POLLING & CONTROLS
+const progressMonitorCard = document.getElementById('progressMonitorCard');
+const monitorStatusBadge = document.getElementById('monitorStatusBadge');
+const monitorPercentage = document.getElementById('monitorPercentage');
+const monitorProgressBar = document.getElementById('monitorProgressBar');
+const statTotal = document.getElementById('statTotal');
+const statSent = document.getElementById('statSent');
+const statFailed = document.getElementById('statFailed');
+const btnPause = document.getElementById('btnPauseBroadcast');
+const btnResume = document.getElementById('btnResumeBroadcast');
+const btnStop = document.getElementById('btnStopBroadcast');
+
+async function checkPromoBroadcastStatus() {
+  try {
+    const res = await fetch('/admin/api/whatsapp/promo-broadcast-status');
+    const status = await res.json();
+
+    if (status.active) {
+      progressMonitorCard.style.display = 'block';
+      statTotal.textContent = status.total;
+      statSent.textContent = status.sent;
+      statFailed.textContent = status.failed;
+
+      const processed = status.sent + status.failed;
+      const pct = status.total > 0 ? Math.round((processed / status.total) * 100) : 0;
+      monitorPercentage.textContent = pct + '%';
+      monitorProgressBar.style.width = pct + '%';
+
+      if (status.paused) {
+        monitorStatusBadge.className = 'badge bg-yellow-500/20 text-yellow-400 border border-yellow-500/30';
+        monitorStatusBadge.textContent = 'Dipause';
+        btnPause.style.display = 'none';
+        btnResume.style.display = 'inline-flex';
+      } else {
+        monitorStatusBadge.className = 'badge bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+        monitorStatusBadge.textContent = `Mengirim (${processed}/${status.total})`;
+        btnPause.style.display = 'inline-flex';
+        btnResume.style.display = 'none';
+      }
+
+      btnStartBroadcast.disabled = true;
+      btnStartBroadcast.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Broadcast Sedang Berjalan...';
+    } else {
+      if (status.total > 0 && (status.sent + status.failed === status.total || status.stopped)) {
+        progressMonitorCard.style.display = 'block';
+        statTotal.textContent = status.total;
+        statSent.textContent = status.sent;
+        statFailed.textContent = status.failed;
+
+        const processed = status.sent + status.failed;
+        const pct = status.total > 0 ? Math.round((processed / status.total) * 100) : 0;
+        monitorPercentage.textContent = pct + '%';
+        monitorProgressBar.style.width = pct + '%';
+
+        if (status.stopped) {
+          monitorStatusBadge.className = 'badge bg-red-500/20 text-red-400 border border-red-500/30';
+          monitorStatusBadge.textContent = 'Dihentikan Admin';
+        } else {
+          monitorStatusBadge.className = 'badge bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+          monitorStatusBadge.textContent = 'Selesai';
+        }
+
+        btnPause.style.display = 'none';
+        btnResume.style.display = 'none';
+        btnStop.disabled = true;
+
+        btnStartBroadcast.disabled = false;
+        btnStartBroadcast.innerHTML = '<i class="bi bi-megaphone-fill me-1"></i> Mulai Broadcast Promo Massal';
+      } else {
+        progressMonitorCard.style.display = 'none';
+        btnStartBroadcast.disabled = false;
+        btnStartBroadcast.innerHTML = '<i class="bi bi-megaphone-fill me-1"></i> Mulai Broadcast Promo Massal';
+      }
+    }
+  } catch (err) {
+    console.error('Failed to fetch promo broadcast status:', err);
+  }
+}
+
+btnPause.addEventListener('click', async function() {
+  try {
+    await fetch('/admin/api/whatsapp/promo-broadcast-pause', { method: 'POST' });
+    checkPromoBroadcastStatus();
+  } catch (err) { alert(err.message); }
+});
+
+btnResume.addEventListener('click', async function() {
+  try {
+    await fetch('/admin/api/whatsapp/promo-broadcast-resume', { method: 'POST' });
+    checkPromoBroadcastStatus();
+  } catch (err) { alert(err.message); }
+});
+
+btnStop.addEventListener('click', async function() {
+  if (confirm('Hentikan seluruh proses broadcast promo sekarang?')) {
+    try {
+      await fetch('/admin/api/whatsapp/promo-broadcast-stop', { method: 'POST' });
+      checkPromoBroadcastStatus();
+    } catch (err) { alert(err.message); }
+  }
+});
+
+setInterval(checkPromoBroadcastStatus, 2500);
+checkPromoBroadcastStatus();
+</script>
+</body>
+</html>
