@@ -601,7 +601,12 @@
           </div>
 
           <!-- PROGRESS MONITORING WIDGET -->
-          <div class="card" id="progressMonitorCard" style="display: none;">
+          <%
+            const isMonitorActive = promoBroadcastStatus && (promoBroadcastStatus.active || (promoBroadcastStatus.total > 0 && (promoBroadcastStatus.sent + promoBroadcastStatus.failed === promoBroadcastStatus.total || promoBroadcastStatus.stopped)));
+            const hasFailedInitial = promoBroadcastStatus && Array.isArray(promoBroadcastStatus.failedRecipients) && promoBroadcastStatus.failedRecipients.length > 0;
+            const initialFailedList = hasFailedInitial ? promoBroadcastStatus.failedRecipients : [];
+          %>
+          <div class="card" id="progressMonitorCard" style="display: <%= isMonitorActive ? 'block' : 'none' %>;">
             <div class="card-hd" style="display: flex; justify-content: space-between; align-items: center;">
               <h6><i class="bi bi-activity text-emerald-400"></i> Status Broadcast</h6>
               <span id="monitorStatusBadge" class="badge bp">Memproses...</span>
@@ -620,15 +625,15 @@
               <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; text-align: center; margin-bottom: 14px;">
                 <div style="background: var(--bg2); padding: 8px; border-radius: 8px; border: 1px solid var(--border);">
                   <div style="font-size: 10px; color: var(--muted); font-weight: 600;">TOTAL</div>
-                  <div style="font-size: 16px; font-weight: 800;" id="statTotal">0</div>
+                  <div style="font-size: 16px; font-weight: 800;" id="statTotal"><%= promoBroadcastStatus ? (promoBroadcastStatus.total || 0) : 0 %></div>
                 </div>
                 <div style="background: rgba(16,185,129,0.1); padding: 8px; border-radius: 8px; border: 1px solid rgba(16,185,129,0.3);">
                   <div style="font-size: 10px; color: #10b981; font-weight: 600;">TERKIRIM</div>
-                  <div style="font-size: 16px; font-weight: 800; color: #10b981;" id="statSent">0</div>
+                  <div style="font-size: 16px; font-weight: 800; color: #10b981;" id="statSent"><%= promoBroadcastStatus ? (promoBroadcastStatus.sent || 0) : 0 %></div>
                 </div>
                 <div style="background: rgba(239,68,68,0.1); padding: 8px; border-radius: 8px; border: 1px solid rgba(239,68,68,0.3);">
                   <div style="font-size: 10px; color: #ef4444; font-weight: 600;">GAGAL</div>
-                  <div style="font-size: 16px; font-weight: 800; color: #ef4444;" id="statFailed">0</div>
+                  <div style="font-size: 16px; font-weight: 800; color: #ef4444;" id="statFailed"><%= promoBroadcastStatus ? (promoBroadcastStatus.failed || 0) : 0 %></div>
                 </div>
               </div>
 
@@ -643,6 +648,59 @@
                 <button type="button" id="btnStopBroadcast" class="btn btn-d btn-sm" style="flex: 1;">
                   <i class="bi bi-stop-fill"></i> Hentikan
                 </button>
+              </div>
+
+              <!-- DAFTAR NOMOR GAGAL TERKIRIM -->
+              <div id="failedRecipientsBox" style="display: <%= hasFailedInitial ? 'block' : 'none' %>; margin-top: 14px; border-top: 1px solid rgba(239,68,68,0.25); padding-top: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <i class="bi bi-exclamation-triangle-fill" style="color: #ef4444; font-size: 13px;"></i>
+                    <span style="font-weight: 700; font-size: 12px; color: #ef4444;">Nomor Gagal Terkirim</span>
+                    <span id="failedRecipientsBadge" class="badge" style="background: rgba(239,68,68,0.2); color: #ef4444; border: 1px solid rgba(239,68,68,0.3); font-size: 10px; padding: 2px 6px;"><%= initialFailedList.length %></span>
+                  </div>
+                  <div style="display: flex; gap: 4px;">
+                    <button type="button" id="btnCopyFailedPhones" class="btn btn-sm" style="font-size: 10px; padding: 3px 8px; border-radius: 6px; background: rgba(239,68,68,0.15); color: #ef4444; border: 1px solid rgba(239,68,68,0.3); cursor: pointer;" title="Salin semua nomor WhatsApp yang gagal ke clipboard">
+                      <i class="bi bi-clipboard"></i> Salin No HP
+                    </button>
+                    <button type="button" id="btnRetryFailedManual" class="btn btn-sm" style="font-size: 10px; padding: 3px 8px; border-radius: 6px; background: rgba(255,255,255,0.06); color: var(--text); border: 1px solid var(--border); cursor: pointer;" title="Masukkan nomor gagal ke Target Manual untuk dicoba kirim ulang">
+                      <i class="bi bi-arrow-repeat"></i> Kirim Ulang Manual
+                    </button>
+                  </div>
+                </div>
+
+                <div style="max-height: 220px; overflow-y: auto; border: 1px solid rgba(239,68,68,0.2); border-radius: 8px; background: var(--bg2);">
+                  <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+                    <thead>
+                      <tr style="background: rgba(239,68,68,0.1); border-bottom: 1px solid rgba(239,68,68,0.2); text-align: left; position: sticky; top: 0; z-index: 1;">
+                        <th style="padding: 6px 8px; font-weight: 700; color: #f87171;">No. WhatsApp</th>
+                        <th style="padding: 6px 8px; font-weight: 700; color: #f87171;">Nama</th>
+                        <th style="padding: 6px 8px; font-weight: 700; color: #f87171;">Alasan Gagal</th>
+                      </tr>
+                    </thead>
+                    <tbody id="failedRecipientsTableBody">
+                      <% if (hasFailedInitial) { %>
+                        <% initialFailedList.forEach(item => { %>
+                          <tr style="border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 11px;">
+                            <td style="padding: 6px 8px; vertical-align: top; white-space: nowrap;">
+                              <div style="font-weight: 700; color: #ef4444; font-family: monospace;"><%= item.phone || '-' %></div>
+                              <div style="font-size: 9px; color: var(--muted);"><%= item.time || '' %></div>
+                            </td>
+                            <td style="padding: 6px 8px; vertical-align: top;">
+                              <div style="font-weight: 600; color: var(--text); max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="<%= item.name || 'Pelanggan' %>">
+                                <%= item.name || 'Pelanggan' %>
+                              </div>
+                            </td>
+                            <td style="padding: 6px 8px; vertical-align: top;">
+                              <div style="color: #f87171; font-size: 10px; line-height: 1.25; word-break: break-word;" title="<%= item.reason || '' %>">
+                                <%= item.reason || 'Gagal terkirim' %>
+                              </div>
+                            </td>
+                          </tr>
+                        <% }) %>
+                      <% } %>
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </div>
@@ -1113,6 +1171,56 @@ const statFailed = document.getElementById('statFailed');
 const btnPause = document.getElementById('btnPauseBroadcast');
 const btnResume = document.getElementById('btnResumeBroadcast');
 const btnStop = document.getElementById('btnStopBroadcast');
+const failedRecipientsBox = document.getElementById('failedRecipientsBox');
+const failedRecipientsBadge = document.getElementById('failedRecipientsBadge');
+const failedRecipientsTableBody = document.getElementById('failedRecipientsTableBody');
+const btnCopyFailedPhones = document.getElementById('btnCopyFailedPhones');
+const btnRetryFailedManual = document.getElementById('btnRetryFailedManual');
+
+let currentFailedList = <%- JSON.stringify((promoBroadcastStatus && promoBroadcastStatus.failedRecipients) || []) %>;
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function renderFailedRecipients(failedRecipients) {
+  if (!failedRecipientsBox || !failedRecipientsTableBody) return;
+  currentFailedList = Array.isArray(failedRecipients) ? failedRecipients : [];
+
+  if (currentFailedList.length > 0) {
+    failedRecipientsBox.style.display = 'block';
+    if (failedRecipientsBadge) failedRecipientsBadge.textContent = currentFailedList.length;
+
+    failedRecipientsTableBody.innerHTML = currentFailedList.map(item => `
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 11px;">
+        <td style="padding: 6px 8px; vertical-align: top; white-space: nowrap;">
+          <div style="font-weight: 700; color: #ef4444; font-family: monospace;">${escapeHtml(item.phone || '-')}</div>
+          <div style="font-size: 9px; color: var(--muted);">${escapeHtml(item.time || '')}</div>
+        </td>
+        <td style="padding: 6px 8px; vertical-align: top;">
+          <div style="font-weight: 600; color: var(--text); max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(item.name || 'Pelanggan')}">
+            ${escapeHtml(item.name || 'Pelanggan')}
+          </div>
+        </td>
+        <td style="padding: 6px 8px; vertical-align: top;">
+          <div style="color: #f87171; font-size: 10px; line-height: 1.25; word-break: break-word;" title="${escapeHtml(item.reason || '')}">
+            ${escapeHtml(item.reason || 'Gagal terkirim')}
+          </div>
+        </td>
+      </tr>
+    `).join('');
+  } else {
+    failedRecipientsBox.style.display = 'none';
+    if (failedRecipientsBadge) failedRecipientsBadge.textContent = '0';
+    failedRecipientsTableBody.innerHTML = '';
+  }
+}
 
 async function checkPromoBroadcastStatus() {
   try {
@@ -1144,6 +1252,15 @@ async function checkPromoBroadcastStatus() {
 
       btnStartBroadcast.disabled = true;
       btnStartBroadcast.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Broadcast Sedang Berjalan...';
+
+      if (status.failedRecipients && status.failedRecipients.length > 0) {
+        renderFailedRecipients(status.failedRecipients);
+      } else if (status.failed > 0 && (!status.failedRecipients || status.failedRecipients.length === 0)) {
+        if (failedRecipientsBox) failedRecipientsBox.style.display = 'block';
+        if (failedRecipientsBadge) failedRecipientsBadge.textContent = status.failed;
+      } else {
+        renderFailedRecipients([]);
+      }
     } else {
       if (status.total > 0 && (status.sent + status.failed === status.total || status.stopped)) {
         progressMonitorCard.style.display = 'block';
@@ -1170,10 +1287,20 @@ async function checkPromoBroadcastStatus() {
 
         btnStartBroadcast.disabled = false;
         btnStartBroadcast.innerHTML = '<i class="bi bi-megaphone-fill me-1"></i> Mulai Broadcast Promo Massal';
+
+        if (status.failedRecipients && status.failedRecipients.length > 0) {
+          renderFailedRecipients(status.failedRecipients);
+        } else if (status.failed > 0 && (!status.failedRecipients || status.failedRecipients.length === 0)) {
+          if (failedRecipientsBox) failedRecipientsBox.style.display = 'block';
+          if (failedRecipientsBadge) failedRecipientsBadge.textContent = status.failed;
+        } else {
+          renderFailedRecipients([]);
+        }
       } else {
         progressMonitorCard.style.display = 'none';
         btnStartBroadcast.disabled = false;
         btnStartBroadcast.innerHTML = '<i class="bi bi-megaphone-fill me-1"></i> Mulai Broadcast Promo Massal';
+        renderFailedRecipients([]);
       }
     }
   } catch (err) {
@@ -1203,6 +1330,77 @@ btnStop.addEventListener('click', async function() {
     } catch (err) { alert(err.message); }
   }
 });
+
+// Copy all failed phone numbers to clipboard
+if (btnCopyFailedPhones) {
+  btnCopyFailedPhones.addEventListener('click', function() {
+    if (!currentFailedList || currentFailedList.length === 0) {
+      alert('Tidak ada nomor gagal yang dapat disalin.');
+      return;
+    }
+    const phones = currentFailedList.map(r => r.phone).filter(Boolean).join('\n');
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(phones).then(() => {
+        showCopySuccess();
+      }).catch(() => {
+        fallbackCopyText(phones);
+      });
+    } else {
+      fallbackCopyText(phones);
+    }
+  });
+}
+
+function showCopySuccess() {
+  const origHtml = btnCopyFailedPhones.innerHTML;
+  btnCopyFailedPhones.innerHTML = '<i class="bi bi-check2"></i> Tersalin!';
+  btnCopyFailedPhones.style.background = 'rgba(16,185,129,0.2)';
+  btnCopyFailedPhones.style.color = '#10b981';
+  btnCopyFailedPhones.style.borderColor = 'rgba(16,185,129,0.4)';
+  setTimeout(() => {
+    btnCopyFailedPhones.innerHTML = origHtml;
+    btnCopyFailedPhones.style.background = 'rgba(239,68,68,0.15)';
+    btnCopyFailedPhones.style.color = '#ef4444';
+    btnCopyFailedPhones.style.borderColor = 'rgba(239,68,68,0.3)';
+  }, 2000);
+}
+
+function fallbackCopyText(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.left = '-999999px';
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand('copy');
+    showCopySuccess();
+  } catch (err) {
+    alert('Gagal menyalin nomor: ' + err);
+  }
+  document.body.removeChild(ta);
+}
+
+// Re-try failed recipients by inserting them into Manual Target
+if (btnRetryFailedManual) {
+  btnRetryFailedManual.addEventListener('click', function() {
+    if (!currentFailedList || currentFailedList.length === 0) {
+      alert('Tidak ada nomor gagal.');
+      return;
+    }
+    const phones = currentFailedList.map(r => r.phone).filter(Boolean).join('\n');
+    const manualTextarea = document.querySelector('textarea[name="manual_numbers"]');
+    if (manualTextarea && targetSelect) {
+      targetSelect.value = 'manual';
+      targetPackageContainer.style.display = 'none';
+      targetManualContainer.style.display = 'block';
+      applyTargetToChecklist();
+      manualTextarea.value = phones;
+      manualTextarea.focus();
+      targetSelect.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  });
+}
 
 setInterval(checkPromoBroadcastStatus, 2500);
 checkPromoBroadcastStatus();

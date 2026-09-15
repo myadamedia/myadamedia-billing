@@ -5583,6 +5583,7 @@ global.promoBroadcastStatus = {
   total: 0,
   sent: 0,
   failed: 0,
+  failedRecipients: [],
   startTime: null,
   paused: false,
   stopped: false,
@@ -6372,6 +6373,7 @@ router.post('/whatsapp/promo-broadcast', requireAdminSession, bannerUpload.singl
       total: uniqueRecipients.length,
       sent: 0,
       failed: 0,
+      failedRecipients: [],
       startTime: new Date(),
       paused: false,
       stopped: false,
@@ -6459,12 +6461,30 @@ router.post('/whatsapp/promo-broadcast', requireAdminSession, bannerUpload.singl
             if (isPermanentError(errorMsg)) {
               logger.warn(`[PromoBroadcast] SKIP: Error permanent untuk ${recipient.phone} - ${errorMsg}`);
               global.promoBroadcastStatus.failed++;
+              if (!Array.isArray(global.promoBroadcastStatus.failedRecipients)) {
+                global.promoBroadcastStatus.failedRecipients = [];
+              }
+              global.promoBroadcastStatus.failedRecipients.push({
+                name: recipient.name || 'Pelanggan',
+                phone: recipient.phone,
+                reason: errorMsg || 'Nomor tidak terdaftar / invalid',
+                time: new Date().toLocaleTimeString('id-ID')
+              });
               break;
             }
 
             logger.error(`[PromoBroadcast] Gagal kirim ke ${recipient.phone} (attempt ${attemptCount}/${maxAttempts}): ${errorMsg}`);
             if (attemptCount >= maxAttempts) {
               global.promoBroadcastStatus.failed++;
+              if (!Array.isArray(global.promoBroadcastStatus.failedRecipients)) {
+                global.promoBroadcastStatus.failedRecipients = [];
+              }
+              global.promoBroadcastStatus.failedRecipients.push({
+                name: recipient.name || 'Pelanggan',
+                phone: recipient.phone,
+                reason: errorMsg || 'Gagal terkirim setelah 3x percobaan',
+                time: new Date().toLocaleTimeString('id-ID')
+              });
             } else {
               const backoffDelay = getBackoffDelay(attemptCount);
               await new Promise(r => setTimeout(r, backoffDelay));
