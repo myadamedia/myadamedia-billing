@@ -1396,9 +1396,6 @@ async function ensurePppProfileIsolirAddressListHook(profileName, routerId = nul
       `/ip firewall address-list remove [find list=${ISOLIR_ADDR_LIST} comment=$user]; ` +
       `/ip firewall address-list remove [find list=${ISOLIR_ADDR_LIST} address=$remote-address]; ` +
       `/ip firewall address-list add list=${ISOLIR_ADDR_LIST} address=$remote-address comment=$user`;
-    const hookDown =
-      `/ip firewall address-list remove [find list=${ISOLIR_ADDR_LIST} address=$remote-address]; ` +
-      `/ip firewall address-list remove [find list=${ISOLIR_ADDR_LIST} comment=$user]`;
 
     if (!prof) {
       logger.info(`[MikroTik] Profil PPPoE "${name}" belum ada di router. Membuat profil isolir baru secara otomatis.`);
@@ -1407,7 +1404,7 @@ async function ensurePppProfileIsolirAddressListHook(profileName, routerId = nul
           name: name,
           'rate-limit': '512k/512k',
           'on-up': hookUp,
-          'on-down': hookDown,
+          'on-down': '',
           comment: `Profil Isolir Otomatis ${getSetting('company_header', 'Billing System')}`
         });
         const recheckRows = await menu.get();
@@ -1438,7 +1435,6 @@ async function ensurePppProfileIsolirAddressListHook(profileName, routerId = nul
     }
 
     const addSnip = `address-list add list=${ISOLIR_ADDR_LIST}`;
-    const remSnip = `remove [find list=${ISOLIR_ADDR_LIST}`;
     const commentCleanSnip = `remove [find list=${ISOLIR_ADDR_LIST} comment=$user]`;
 
     if (!updatedOnUp.includes(addSnip)) {
@@ -1450,11 +1446,15 @@ async function ensurePppProfileIsolirAddressListHook(profileName, routerId = nul
       }
     }
 
+    // 2. Bersihkan skrip penghapusan LIST_ISOLIR dari on-down profil isolir!
+    // Pelanggan isolir yang disconnect/reboot ONT TIDAK BOLEH dihapus dari LIST_ISOLIR oleh router.
+    // Penghapusan hanya boleh dipicu oleh billing saat pelanggan diaktifkan kembali (pembayaran lunas).
     let updatedOnDown = onDown;
-    if (!updatedOnDown.includes(remSnip)) {
-      updatedOnDown = updatedOnDown ? `${updatedOnDown}; ${hookDown}` : hookDown;
-    } else if (!updatedOnDown.includes(commentCleanSnip)) {
-      updatedOnDown = `${updatedOnDown}; ${commentCleanSnip}`;
+    if (updatedOnDown.includes(ISOLIR_ADDR_LIST)) {
+      updatedOnDown = updatedOnDown
+        .replace(new RegExp(`/?ip\\s+firewall\\s+address-list\\s+remove\\s+\\[find\\s+list=${ISOLIR_ADDR_LIST}[^\\]]*\\];?`, 'gi'), '')
+        .replace(new RegExp(`remove\\s+\\[find\\s+list=${ISOLIR_ADDR_LIST}[^\\]]*\\];?`, 'gi'), '')
+        .trim();
     }
 
     if (updatedOnUp !== onUp || updatedOnDown !== onDown) {
@@ -1896,16 +1896,31 @@ async function reconcileIsolirAddressList(routerId = null, reuseConn = null) {
       const isolirEntries = await addrListMenu.where('list', ISOLIR_ADDR_LIST).get();
       const existingIsolir = Array.isArray(isolirEntries) ? isolirEntries : [];
 
-      // 3. Ubah entri yang memiliki timeout/dynamic menjadi permanen
+      // 3. Pastikan seluruh entri dynamic/timeout memiliki entri statis permanen
       for (const entry of existingIsolir) {
         const entryId = entry['.id'] || entry.id;
         const isDynamic = entry.dynamic === 'true' || entry.dynamic === true;
         const hasTimeout = Boolean(entry.timeout && entry.timeout !== '00:00:00');
-        if (isDynamic || hasTimeout) {
-          const ip = entry.address;
-          const comment = entry.comment || 'LIST_ISOLIR_PERMANENT';
+        const ip = String(entry.address || '').trim();
+        if (!ip) continue;
+        const comment = entry.comment || 'LIST_ISOLIR_PERMANENT';
+
+        if (isDynamic) {
+          // Entri dinamis (dari RADIUS / PPP) tidak bisa dihapus via API,
+          // namun kita pastikan ada salinan entri statis permanen agar jika PPP disconnect, IP tidak hilang.
+          const hasStatic = existingIsolir.some(e => String(e.address).trim() === ip && e.dynamic !== 'true' && e.dynamic !== true);
+          if (!hasStatic) {
+            try {
+              await addrListMenu.add({ list: ISOLIR_ADDR_LIST, address: ip, comment });
+              summary.dynamicEntriesCleaned++;
+              logger.info(`[reconcileIsolir] Entri dinamis ${ip} (${comment}) dikunci dengan entri statis permanen.`);
+            } catch (dynErr) {
+              logger.warn(`[reconcileIsolir] Gagal kunci entri dinamis ${ip}: ${dynErr.message}`);
+            }
+          }
+        } else if (hasTimeout) {
           try {
-            await addrListMenu.remove(entryId);
+            if (entryId) await addrListMenu.remove(entryId);
             await addrListMenu.add({ list: ISOLIR_ADDR_LIST, address: ip, comment });
             summary.dynamicEntriesCleaned++;
           } catch (cleanErr) {
@@ -1914,13 +1929,19 @@ async function reconcileIsolirAddressList(routerId = null, reuseConn = null) {
         }
       }
 
-      // Ambil ulang address-list setelah pembersihan timeout
+      // Ambil ulang address-list setelah pembersihan timeout/dynamic
       const refreshedEntries = await addrListMenu.where('list', ISOLIR_ADDR_LIST).get();
       const currentEntries = Array.isArray(refreshedEntries) ? refreshedEntries : [];
       const currentIpSet = new Set(currentEntries.map(e => String(e.address).trim()));
 
-      // 4. Ambil data pelanggan dari database untuk router ini
-      const routerCustomers = db.prepare('SELECT * FROM customers WHERE router_id = ?').all(r.id);
+      // 4. Ambil seluruh pelanggan suspended untuk router ini (termasuk router_id null/0 untuk default router)
+      const isDefaultRouter = (targetRouters.length === 1) || (targetRouters[0] && targetRouters[0].id === r.id);
+      const routerCustomers = db.prepare(`
+        SELECT * FROM customers
+        WHERE (${isDefaultRouter ? 'router_id = ? OR router_id IS NULL OR router_id = 0' : 'router_id = ?'})
+          AND (status = 'suspended' OR status = 'isolated')
+      `).all(r.id);
+
       const activeSessions = await activeMenu.get();
       const activeSessionMap = new Map();
       (Array.isArray(activeSessions) ? activeSessions : []).forEach(s => {
@@ -1928,56 +1949,90 @@ async function reconcileIsolirAddressList(routerId = null, reuseConn = null) {
       });
 
       for (const cust of routerCustomers) {
-        if (cust.status === 'suspended' || cust.status === 'isolated') {
-          let activeIp = null;
-          if (cust.pppoe_username && activeSessionMap.has(cust.pppoe_username)) {
-            const sess = activeSessionMap.get(cust.pppoe_username);
-            const sessIp = sess.address ? String(sess.address).trim() : '';
-            if (sessIp && /^(\d{1,3}\.){3}\d{1,3}$/.test(sessIp)) {
-              activeIp = sessIp;
+        let activeIp = null;
+        if (cust.pppoe_username && activeSessionMap.has(cust.pppoe_username)) {
+          const sess = activeSessionMap.get(cust.pppoe_username);
+          const sessIp = sess.address ? String(sess.address).trim() : '';
+          if (sessIp && /^(\d{1,3}\.){3}\d{1,3}$/.test(sessIp)) {
+            activeIp = sessIp;
+          }
+        }
+
+        const ipsToEnsure = [];
+        if (activeIp) ipsToEnsure.push(activeIp);
+        if (cust.static_ip && /^(\d{1,3}\.){3}\d{1,3}$/.test(cust.static_ip.trim())) {
+          ipsToEnsure.push(cust.static_ip.trim());
+        }
+        if (cust.pppoe_remote_address && /^(\d{1,3}\.){3}\d{1,3}$/.test(cust.pppoe_remote_address.trim())) {
+          ipsToEnsure.push(cust.pppoe_remote_address.trim());
+        }
+
+        // Fallback: Jika pelanggan sedang offline di PPPoE dan tidak memiliki static IP di DB,
+        // ambil IP terakhir dari radius_acct agar address-list tidak hilang saat ONT dimatikan/reboot
+        if (ipsToEnsure.length === 0 && cust.pppoe_username) {
+          try {
+            const lastAcct = db.prepare(`
+              SELECT framedipaddress FROM radius_acct
+              WHERE username = ? AND framedipaddress IS NOT NULL AND framedipaddress != ''
+              ORDER BY radacctid DESC LIMIT 1
+            `).get(cust.pppoe_username);
+            if (lastAcct && lastAcct.framedipaddress && /^(\d{1,3}\.){3}\d{1,3}$/.test(lastAcct.framedipaddress.trim())) {
+              ipsToEnsure.push(lastAcct.framedipaddress.trim());
             }
+          } catch (acctErr) {
+            // ignore
           }
+        }
 
-          const ipsToEnsure = [];
-          if (activeIp) ipsToEnsure.push(activeIp);
-          if (cust.static_ip && /^(\d{1,3}\.){3}\d{1,3}$/.test(cust.static_ip.trim())) {
-            ipsToEnsure.push(cust.static_ip.trim());
-          }
-          if (cust.pppoe_remote_address && /^(\d{1,3}\.){3}\d{1,3}$/.test(cust.pppoe_remote_address.trim())) {
-            ipsToEnsure.push(cust.pppoe_remote_address.trim());
-          }
+        const comment = String(cust.pppoe_username || cust.name || 'ISOLIR').trim();
 
-          const comment = String(cust.pppoe_username || cust.name || 'ISOLIR').trim();
-
-          // Jika ada sesi aktif dan IP berubah dari entri comment lama di LIST_ISOLIR, bersihkan yang lama
-          if (activeIp && cust.pppoe_username) {
-            for (const entry of currentEntries) {
-              if (entry.comment === cust.pppoe_username && entry.address !== activeIp) {
-                const eid = entry['.id'] || entry.id;
-                if (eid) {
-                  try {
-                    await addrListMenu.remove(eid);
-                    currentIpSet.delete(entry.address);
-                    logger.info(`[reconcileIsolir] IP usang ${entry.address} milik user ${cust.pppoe_username} pasca restart ONT dibersihkan.`);
-                  } catch (remErr) {
-                    logger.warn(`[reconcileIsolir] Gagal hapus IP usang ${entry.address}: ${remErr.message}`);
-                  }
+        // Jika ada sesi aktif dan IP berubah dari entri comment lama di LIST_ISOLIR, bersihkan yang lama
+        if (activeIp && cust.pppoe_username) {
+          for (const entry of currentEntries) {
+            if (entry.comment === cust.pppoe_username && entry.address !== activeIp) {
+              const eid = entry['.id'] || entry.id;
+              const isDyn = entry.dynamic === 'true' || entry.dynamic === true;
+              if (eid && !isDyn) {
+                try {
+                  await addrListMenu.remove(eid);
+                  currentIpSet.delete(entry.address);
+                  logger.info(`[reconcileIsolir] IP usang ${entry.address} milik user ${cust.pppoe_username} pasca restart ONT dibersihkan.`);
+                } catch (remErr) {
+                  logger.warn(`[reconcileIsolir] Gagal hapus IP usang ${entry.address}: ${remErr.message}`);
                 }
               }
             }
           }
+        }
 
-          for (const ip of ipsToEnsure) {
-            if (!currentIpSet.has(ip)) {
-              try {
-                await addrListMenu.add({ list: ISOLIR_ADDR_LIST, address: ip, comment });
-                currentIpSet.add(ip);
-                summary.suspendedEnsured++;
-                logger.info(`[reconcileIsolir] IP ${ip} milik pelanggan suspended ${cust.name} dimasukkan ke ${ISOLIR_ADDR_LIST}.`);
-              } catch (addErr) {
-                logger.warn(`[reconcileIsolir] Gagal add IP ${ip}: ${addErr.message}`);
+        for (const ip of ipsToEnsure) {
+          if (!currentIpSet.has(ip)) {
+            try {
+              await addrListMenu.add({ list: ISOLIR_ADDR_LIST, address: ip, comment });
+              currentIpSet.add(ip);
+              summary.suspendedEnsured++;
+              logger.info(`[reconcileIsolir] IP ${ip} milik pelanggan suspended ${cust.name} dimasukkan ke ${ISOLIR_ADDR_LIST}.`);
+            } catch (addErr) {
+              logger.warn(`[reconcileIsolir] Gagal add IP ${ip}: ${addErr.message}`);
+            }
+          }
+        }
+
+        // Pastikan PPP Secret di MikroTik berprofil 'isolir'
+        if (cust.pppoe_username) {
+          try {
+            const secretMenu = conn.client.menu('/ppp/secret');
+            const sec = await secretMenu.where('name', cust.pppoe_username).getOnly();
+            const expectedProfile = cust.isolir_profile || 'isolir';
+            if (sec && sec.profile !== expectedProfile) {
+              const secId = sec['.id'] || sec.id;
+              if (secId) {
+                await secretMenu.set({ profile: expectedProfile }, secId);
+                logger.info(`[reconcileIsolir] Profile secret PPPoE ${cust.pppoe_username} dipulihkan ke "${expectedProfile}".`);
               }
             }
+          } catch (secErr) {
+            // ignore
           }
         }
       }

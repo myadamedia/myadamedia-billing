@@ -424,6 +424,21 @@ function handleAcctPacket(msg, rinfo) {
         `).run(nowStr, framedIp, existing.radacctid);
       }
 
+      // Jika pelanggan berstatus isolir/suspended, pastikan IP baru langsung masuk LIST_ISOLIR saat login
+      if (username && framedIp) {
+        try {
+          const cust = db.prepare("SELECT id, status, router_id FROM customers WHERE pppoe_username = ? LIMIT 1").get(username);
+          if (cust && (cust.status === 'suspended' || cust.status === 'isolated')) {
+            const mikrotikSvc = require('./mikrotikService');
+            mikrotikSvc.handlePppoeIpChanged(username, framedIp, null, cust.router_id).catch(err => {
+              logger.warn(`[RADIUS Acct Start] Gagal masukkan IP baru isolir ${framedIp} ke LIST_ISOLIR (${username}): ${err.message}`);
+            });
+          }
+        } catch (e) {
+          // ignore error
+        }
+      }
+
     } else if (isInterim) {
       // Auto-close sesi lama milik username ini yang acctsessionid-nya berbeda
       if (username) {

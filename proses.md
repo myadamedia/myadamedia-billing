@@ -3449,3 +3449,67 @@ Mengubah tampilan halaman login pelanggan [views/login.ejs](file:///d:/WEBAPP/my
   - `tests/qrisDelete.test.js`: 5/5 PASSED.
   - `tests/ssoLogo.test.js`: 13/13 PASSED.
 
+---
+
+## [2026-09-16] Perbaikan Menyeluruh Cron Job Suspend/Isolir & Stabilisasi Address List LIST_ISOLIR MikroTik
+
+### 1. Latar Belakang & Permasalahan
+Pada router MikroTik, IP pelanggan berstatus `suspended` / `isolated` pada address-list `LIST_ISOLIR` selalu hilang. Pelanggan yang menunggak dapat mengakses internet normal kembali (*bypass isolir*), dan halaman isolir tidak muncul.
+
+### 2. Akar Masalah (Root Cause Analysis)
+1. **Skrip `on-down` pada Profil PPP `isolir`**:
+   Skrip `on-down` di profil MikroTik mengeksekusi penghapusan dari `LIST_ISOLIR` saat sesi PPPoE terputus:
+   ```routeros
+   /ip firewall address-list remove [find list=LIST_ISOLIR address=$remote-address]; /ip firewall address-list remove [find list=LIST_ISOLIR comment=$user]
+   ```
+   Ketika billing melakukan *kick* segera setelah isolir, atau saat ONT pelanggan restart/mati lampu/fluktuasi optik, skrip `on-down` langsung menghapus IP dari `LIST_ISOLIR`. Ketika ONT mati atau sedang reboot, IP-nya lenyap dari router.
+2. **Cron Jam Kalong & FUP Menimpa Profil Pelanggan Isolir**:
+   - Cron Jam Kalong (00:00) mengubah profil ke `night_profile_name` tanpa memeriksa status pelanggan (`if (c.status === 'suspended') continue;`).
+   - Cron Jam Kalong (06:00) mengembalikan seluruh pelanggan ke `normalProfile` kecepatan penuh. Profil `isolir` di MikroTik tertimpa menjadi profil normal aktif.
+   - Cron FUP (per jam) mengubah profil ke `fup_profile_name` tanpa memverifikasi status pelanggan.
+3. **Cron Sinkronisasi IP 2-Menit Terkunci di Notifikasi Telegram & Bug Variabel**:
+   - Pengecekan sesi PPPoE aktif isolir diletakkan di dalam cron Telegram yang dipagari oleh `if (!notifyEnabled || !tgEnabled) return;`. Jika Telegram dinonaktifkan (`telegram_enabled: false`), fungsi ini tidak berjalan.
+   - Variabel `prevIp` dipanggil tanpa deklarasi sehingga melempar `ReferenceError: prevIp is not defined`.
+4. **Kelemahan Audit Rekonsiliasi `reconcileIsolirAddressList`**:
+   - Query pelanggan `WHERE router_id = ?` mengabaikan 67 dari 81 pelanggan yang memiliki `router_id IS NULL OR router_id = 0` (termasuk user suspended seperti `SERVERLITE`).
+   - Upaya menghapus entri dinamis (`dynamic=true`) melempar error RouterOS `cannot remove dynamic item`.
+   - Tidak ada fallback IP terakhir dari `radius_acct` saat ONT pelanggan sedang offline.
+   - Tidak memulihkan profil secret PPPoE di MikroTik jika profil tertimpa.
+5. **Paket RADIUS Accounting `Start` Melewatkan Pendaftaran ke `LIST_ISOLIR`**:
+   - Pemanggilan `handlePppoeIpChanged` hanya ada di `isInterim`. Pada saat user baru saja login (`isStart`), IP baru belum didaftarkan ke `LIST_ISOLIR`.
+6. **Guard `if (customer.router_id)` pada `customerService.js`**:
+   - Pada `syncCustomerIsolation` dan `syncCustomerActivation`, operasi address list dilewati jika `customer.router_id` bernilai `null` (default router).
+
+### 3. Solusi & Perubahan yang Diterapkan
+1. **`services/mikrotikService.js`**:
+   - Menghapus perintah penghapusan `LIST_ISOLIR` dari skrip `on-down` profil `isolir`. Profil `isolir` tidak boleh menghapus pelanggan isolir saat disconnect.
+   - Menambahkan pembersihan otomatis skrip `on-down` usang yang masih terpasang di router MikroTik.
+   - Memperluas query pelanggan pada `reconcileIsolirAddressList` agar mencakup pelanggan dengan `router_id IS NULL OR router_id = 0` untuk default router.
+   - Menangani entri dinamis (`dynamic=true`) secara aman dengan langsung menguncinya melalui penambahan entri statis permanen tanpa mencoba menghapus entri dinamis.
+   - Menambahkan fallback pencarian IP terakhir dari tabel `radius_acct` saat ONT pelanggan sedang offline sehingga IP tetap terkunci di `LIST_ISOLIR`.
+   - Menambahkan verifikasi dan pemulihan otomatis profil `/ppp/secret` ke `isolir` jika profil di MikroTik sempat tertimpa.
+2. **`services/cronService.js`**:
+   - Menambahkan guard isolir pada Cron Jam Kalong Mulai (00:00) dan Jam Kalong Selesai (06:00): pelanggan dengan status `suspended` / `isolated` dilewati (`continue`).
+   - Menambahkan guard isolir pada Cron FUP (per jam): pelanggan `suspended` / `isolated` dilewati (`continue`).
+   - Memperbaiki bug sintaks `prevIp` pada pemantauan PPPoE Telegram.
+   - Membuat job cron mandiri setiap 2 menit khusus untuk deteksi dan sinkronisasi IP isolir aktif via `handlePppoeIpChanged` tanpa bergantung pada Telegram.
+   - Mengubah frekuensi audit rekonsiliasi isolir dari setiap 30 menit menjadi setiap 15 menit (`*/15 * * * *`).
+3. **`services/customerService.js`**:
+   - Mengarahkan router target ke default router (`customer.router_id || null`) pada `syncCustomerIsolation` dan `syncCustomerActivation` sehingga pelanggan dengan `router_id: null` tetap disinkronkan ke router MikroTik.
+4. **`services/radiusService.js`**:
+   - Menambahkan pemanggilan `handlePppoeIpChanged` langsung pada event RADIUS Accounting `isStart`.
+5. **`tests/isolirAddressListPermanent.test.js`**:
+   - Menyesuaikan pengujian unit test dan menambahkan test case ke-5 untuk verifikasi pemulihan secret profile ke `isolir` dan pengambilan fallback IP dari `radius_acct` saat ONT offline.
+
+### 4. Hasil Pengujian & Verifikasi
+- **Unit Test (`tests/isolirAddressListPermanent.test.js`)**: 5/5 PASSED (100%).
+  - `ensurePppProfileIsolirAddressListHook strips timeout=23h and adds ONT restart IP cleanup to existing profile`: PASSED.
+  - `handlePppoeIpChanged inserts new IP and removes old IP for suspended customers upon ONT restart`: PASSED.
+  - `handlePppoeIpChanged refuses to add active (non-suspended) customers to LIST_ISOLIR`: PASSED.
+  - `reconcileIsolirAddressList upgrades dynamic/timeout entries to permanent entries`: PASSED.
+  - `reconcileIsolirAddressList restores secret profile to isolir and uses radius_acct fallback IP for offline customers`: PASSED.
+- **Regression Testing**:
+  - `tests/customerUpdatePppoe.test.js`: 5/5 PASSED.
+  - `tests/radiusCustomerSession.test.js`: 6/6 PASSED.
+
+

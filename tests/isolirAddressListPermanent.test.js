@@ -78,8 +78,9 @@ describe('Permanent LIST_ISOLIR & ONT Restart IP Change Tests', () => {
     expect(setPayload['on-up']).toContain('remove [find list=LIST_ISOLIR comment=$user]');
     expect(setPayload['on-up']).toContain('address-list add list=LIST_ISOLIR address=$remote-address comment=$user');
 
-    // Verifikasi on-down menyertakan pembersihan comment=$user
-    expect(setPayload['on-down']).toContain('comment=$user');
+    // Verifikasi on-down tidak lagi menghapus LIST_ISOLIR agar IP isolir tidak hilang saat ONT disconnect/reboot
+    expect(setPayload['on-down']).not.toContain('LIST_ISOLIR');
+    expect(setPayload['on-down']).not.toContain('comment=$user');
   });
 
   test('handlePppoeIpChanged inserts new IP and removes old IP for suspended customers upon ONT restart', async () => {
@@ -156,6 +157,7 @@ describe('Permanent LIST_ISOLIR & ONT Restart IP Change Tests', () => {
 
   test('reconcileIsolirAddressList upgrades dynamic/timeout entries to permanent entries', async () => {
     const addressListRows = [
+      { '.id': '*20', list: 'LIST_ISOLIR', address: '192.168.10.40', comment: 'user_timeout_only', timeout: '08:00:00', dynamic: 'false' },
       { '.id': '*21', list: 'LIST_ISOLIR', address: '192.168.10.50', comment: 'user_expiring', timeout: '14:22:05', dynamic: 'true' }
     ];
     let removedEntries = [];
@@ -188,12 +190,20 @@ describe('Permanent LIST_ISOLIR & ONT Restart IP Change Tests', () => {
       set: jest.fn().mockResolvedValue(true)
     };
 
+    const mockSecretMenu = {
+      where: jest.fn(() => ({
+        getOnly: jest.fn().mockResolvedValue(null)
+      })),
+      set: jest.fn().mockResolvedValue(true)
+    };
+
     const mockConn = {
       client: {
         menu: jest.fn((path) => {
           if (path === '/ip/firewall/address-list') return mockAddrListMenu;
           if (path === '/ppp/active') return mockActiveMenu;
           if (path === '/ppp/profile') return mockProfileMenu;
+          if (path === '/ppp/secret') return mockSecretMenu;
           return {};
         })
       },
@@ -205,12 +215,93 @@ describe('Permanent LIST_ISOLIR & ONT Restart IP Change Tests', () => {
     jest.spyOn(mikrotikSvc, 'ensurePppProfileIsolirAddressListHook').mockResolvedValue({ ok: true });
 
     const summary = await mikrotikSvc.reconcileIsolirAddressList();
-    expect(summary.dynamicEntriesCleaned).toBe(1);
-    expect(removedEntries).toContain('*21');
+    expect(summary.dynamicEntriesCleaned).toBe(2);
+    // Entri timeout statis (*20) dihapus dan dibuat ulang permanen
+    expect(removedEntries).toContain('*20');
+    // Entri dynamic (*21) tidak di-remove untuk menghindari crash API RouterOS, melainkan langsung dikunci dengan entri statis
+    expect(removedEntries).not.toContain('*21');
 
     const recreated = addedEntries.find(e => e.address === '192.168.10.50');
     expect(recreated).toBeDefined();
     expect(recreated.list).toBe('LIST_ISOLIR');
     expect(recreated.timeout).toBeUndefined(); // Menjadi permanen
+  });
+
+  test('reconcileIsolirAddressList restores secret profile to isolir and uses radius_acct fallback IP for offline customers', async () => {
+    // Sisipkan record IP terakhir di radius_acct untuk user_isolir_test_1
+    db.prepare(`
+      INSERT INTO radius_acct (acctsessionid, username, nasipaddress, acctstarttime, acctupdatetime, framedipaddress)
+      VALUES ('sess_test_fallback', 'user_isolir_test_1', '127.0.0.1', datetime('now'), datetime('now'), '10.10.10.77')
+    `).run();
+
+    let addedEntries = [];
+    let setSecretCalls = [];
+
+    const mockAddrListMenu = {
+      where: jest.fn(() => ({
+        get: jest.fn().mockResolvedValue([])
+      })),
+      add: jest.fn().mockImplementation((payload) => {
+        addedEntries.push(payload);
+        return Promise.resolve(true);
+      }),
+      remove: jest.fn().mockResolvedValue(true)
+    };
+
+    const mockActiveMenu = {
+      get: jest.fn().mockResolvedValue([]) // ONT offline
+    };
+
+    const mockProfileMenu = {
+      get: jest.fn().mockResolvedValue([]),
+      set: jest.fn().mockResolvedValue(true)
+    };
+
+    const mockSecretMenu = {
+      where: jest.fn(() => ({
+        getOnly: jest.fn().mockImplementation(() => {
+          // Profil tertimpa menjadi 'Paket-Normal'
+          return Promise.resolve({ '.id': '*sec_1', name: 'user_isolir_test_1', profile: 'Paket-Normal' });
+        })
+      })),
+      set: jest.fn().mockImplementation((payload, id) => {
+        setSecretCalls.push({ payload, id });
+        return Promise.resolve(true);
+      })
+    };
+
+    const mockConn = {
+      client: {
+        menu: jest.fn((path) => {
+          if (path === '/ip/firewall/address-list') return mockAddrListMenu;
+          if (path === '/ppp/active') return mockActiveMenu;
+          if (path === '/ppp/profile') return mockProfileMenu;
+          if (path === '/ppp/secret') return mockSecretMenu;
+          return {};
+        })
+      },
+      api: { close: jest.fn() }
+    };
+
+    jest.spyOn(mikrotikSvc, 'getAllRouters').mockReturnValue([{ id: 1, name: 'Main Router' }]);
+    jest.spyOn(mikrotikSvc, 'getConnection').mockResolvedValue(mockConn);
+    jest.spyOn(mikrotikSvc, 'ensurePppProfileIsolirAddressListHook').mockResolvedValue({ ok: true });
+
+    const summary = await mikrotikSvc.reconcileIsolirAddressList();
+
+    // 1. Verifikasi profil secret PPP di router berhasil dipulihkan ke 'isolir'
+    expect(setSecretCalls.length).toBeGreaterThan(0);
+    const restoredSecret = setSecretCalls.find(s => s.id === '*sec_1');
+    expect(restoredSecret).toBeDefined();
+    expect(restoredSecret.payload.profile).toBe('isolir');
+
+    // 2. Verifikasi fallback IP '10.10.10.77' dari radius_acct berhasil dimasukkan ke LIST_ISOLIR
+    const addedFallback = addedEntries.find(e => e.address === '10.10.10.77');
+    expect(addedFallback).toBeDefined();
+    expect(addedFallback.list).toBe('LIST_ISOLIR');
+    expect(addedFallback.comment).toBe('user_isolir_test_1');
+
+    // Bersihkan data test radius_acct
+    db.prepare("DELETE FROM radius_acct WHERE acctsessionid = 'sess_test_fallback'").run();
   });
 });

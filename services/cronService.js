@@ -519,6 +519,8 @@ function startCronJobs() {
 
       for (const c of customers) {
         if (!c.package_id || !c.pppoe_username) continue;
+        // Pelanggan berstatus suspended / isolated TIDAK BOLEH diubah ke Night Profile!
+        if (c.status === 'suspended' || c.status === 'isolated') continue;
         
         const pkg = customerSvc.getPackageById(c.package_id);
         if (pkg && pkg.use_night_speed === 1 && pkg.night_profile_name) {
@@ -546,6 +548,8 @@ function startCronJobs() {
 
       for (const c of customers) {
         if (!c.package_id || !c.pppoe_username) continue;
+        // Pelanggan berstatus suspended / isolated TIDAK BOLEH di-restore ke Profile Normal!
+        if (c.status === 'suspended' || c.status === 'isolated') continue;
 
         const pkg = customerSvc.getPackageById(c.package_id);
         if (pkg && pkg.use_night_speed === 1) {
@@ -632,6 +636,8 @@ function startCronJobs() {
 
       for (const c of customers) {
         if (!c.package_id || !c.pppoe_username) continue;
+        // Pelanggan berstatus suspended / isolated TIDAK BOLEH diubah ke FUP Profile!
+        if (c.status === 'suspended' || c.status === 'isolated') continue;
         
         const pkg = customerSvc.getPackageById(c.package_id);
         if (!pkg || pkg.use_fup !== 1 || !pkg.fup_limit_gb || pkg.fup_limit_gb <= 0 || !pkg.fup_profile_name) continue;
@@ -822,6 +828,7 @@ function startCronJobs() {
 
         const prevStateObj = pppoeUserStates.get(username);
         const prevStatus = prevStateObj ? prevStateObj.status : null;
+        const prevIp = (prevStateObj && prevStateObj.lastIp && prevStateObj.lastIp !== '-') ? prevStateObj.lastIp : null;
         const lastIp = activeRow ? (activeRow.address || '-') : (prevStateObj ? prevStateObj.lastIp : '-');
 
         const customer = customerMap.get(username);
@@ -947,8 +954,51 @@ function startCronJobs() {
     }
   });
 
-  // 10. Rekonsiliasi Audit Address List LIST_ISOLIR Berkala - Setiap 30 Menit
-  cron.schedule('*/30 * * * *', async () => {
+  // 10. Sinkronisasi Realtime IP Pelanggan Isolir Aktif - Setiap 2 Menit (Mandiri)
+  cron.schedule('*/2 * * * *', async () => {
+    try {
+      const getRoutersFn = (mikrotikService && mikrotikService.getAllRouters) || (() => []);
+      const routers = getRoutersFn();
+      const targetRouters = Array.isArray(routers) && routers.length > 0 ? routers : [{ id: null }];
+
+      const suspendedCusts = db.prepare(`
+        SELECT id, name, pppoe_username, router_id, status, static_ip, pppoe_remote_address
+        FROM customers
+        WHERE (status = 'suspended' OR status = 'isolated')
+          AND TRIM(COALESCE(pppoe_username, '')) != ''
+      `).all();
+
+      if (!suspendedCusts || suspendedCusts.length === 0) return;
+      const suspendedMap = new Map();
+      suspendedCusts.forEach(c => suspendedMap.set(String(c.pppoe_username).trim(), c));
+
+      for (const r of targetRouters) {
+        const rid = r.id || null;
+        try {
+          const actives = await mikrotikService.getPppoeActive(rid);
+          if (!Array.isArray(actives)) continue;
+
+          for (const s of actives) {
+            const uName = String(s.name || '').trim();
+            if (suspendedMap.has(uName)) {
+              const currentIp = String(s.address || '').trim();
+              if (currentIp && /^(\d{1,3}\.){3}\d{1,3}$/.test(currentIp)) {
+                const cust = suspendedMap.get(uName);
+                await mikrotikService.handlePppoeIpChanged(uName, currentIp, null, rid || cust.router_id);
+              }
+            }
+          }
+        } catch (rErr) {
+          // Skip logging jika router offline agar tidak membebani log
+        }
+      }
+    } catch (err) {
+      logger.error(`[CRON] Error Realtime Isolir Sync: ${err.message}`);
+    }
+  });
+
+  // 11. Rekonsiliasi Audit Address List LIST_ISOLIR Berkala - Setiap 15 Menit
+  cron.schedule('*/15 * * * *', async () => {
     try {
       logger.info('[CRON] Menjalankan audit rekonsiliasi LIST_ISOLIR router...');
       const summary = await mikrotikService.reconcileIsolirAddressList();
