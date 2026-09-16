@@ -3512,4 +3512,54 @@ Pada router MikroTik, IP pelanggan berstatus `suspended` / `isolated` pada addre
   - `tests/customerUpdatePppoe.test.js`: 5/5 PASSED.
   - `tests/radiusCustomerSession.test.js`: 6/6 PASSED.
 
+---
+
+## [2026-09-16] Eksklusi Pelanggan Berstatus Terminate pada Distribusi Jatuh Tempo (v14.0.7)
+
+### 1. Permasalahan yang Ditemukan
+Pelanggan yang berstatus berhenti berlangganan / putus (`status = 'terminated'` atau `'terminate'`) masih muncul dan terhitung dalam modul **Distribusi Jatuh Tempo** (`/admin/billing/due-distribution`). Akibatnya:
+- Statistik total pelanggan dan estimasi potensi pendapatan per tanggal pada kartu tanggal 1–31 menjadi tidak akurat karena masih memperhitungkan pelanggan yang layanannya telah dihentikan.
+- Pada modal popup rincian pelanggan per tanggal (`/admin/billing/due-distribution/details`), nama pelanggan yang sudah terminate masih tercantum dalam daftar tagihan.
+
+### 2. Penyebab Utama (Root Cause)
+Pada file [services/billingService.js](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/billingService.js):
+- Fungsi `getDueDistributionSummary(month, year)` dan `getDueDistributionDetailsByDay(day, month, year)` sebelumnya menggunakan filter query database:
+  ```sql
+  WHERE c.status != 'inactive' AND c.package_id IS NOT NULL
+  ```
+- Karena status terminasi pelanggan di sistem bernilai `'terminated'` atau `'terminate'`, kondisi `c.status != 'inactive'` bernilai `true`. Pelanggan terminate tersebut akhirnya tetap terambil dari database dan masuk ke dalam kalkulasi distribusi tanggal jatuh tempo.
+
+### 3. Solusi & Perubahan yang Diterapkan
+1. **Pembaruan Query Filter Pelanggan di `services/billingService.js`**:
+   - Memperbarui query pada `getDueDistributionSummary`:
+     ```sql
+     WHERE LOWER(c.status) NOT IN ('inactive', 'terminated', 'terminate') AND c.package_id IS NOT NULL
+     ```
+   - Memperbarui query pada `getDueDistributionDetailsByDay`:
+     ```sql
+     WHERE LOWER(c.status) NOT IN ('inactive', 'terminated', 'terminate') AND c.package_id IS NOT NULL
+     ```
+   - Memastikan properti `id` disertakan bersama `customer_id` pada item daftar `customerDetails` untuk konsistensi API frontend & modal.
+2. **Pembuatan Unit Test Otomatis (`tests/dueDistributionTerminate.test.js`)**:
+   - Memverifikasi pelanggan aktif terhitung normal pada summary dan modal details.
+   - Memverifikasi pelanggan berstatus `terminated` langsung dieksklusi secara instan dari summary dan modal details.
+   - Memverifikasi varian status `terminate` dan `inactive` turut dieksklusi secara ketat.
+   - Memverifikasi re-aktivasi pelanggan mengembalikan data mereka ke distribusi jatuh tempo.
+
+### 4. Dampak Terhadap Sistem
+- **Akurasi Data Distribusi Jatuh Tempo 100%**: Kartu tanggal 1–31 dan modal rincian pelanggan hanya menampilkan data pelanggan aktif dan pelanggan isolir/suspend yang masih memiliki kewajiban pembayaran berjalan.
+- **Konsistensi Laporan**: Angka total pelanggan, potensi penerimaan tagihan, dan sisa belum bayar pada header ringkasan atas sinkron dengan data riil pelanggan aktif.
+- **Zero Regression**: Tidak memengaruhi modul manajemen tagihan (`/admin/billing`) maupun pencatatan invoice historis.
+
+### 5. Hasil Pengujian & Verifikasi
+- **Unit Test (`tests/dueDistributionTerminate.test.js`)**: 4/4 PASSED (100%).
+  - `Active customer should be included in due distribution summary and details`: PASSED.
+  - `Terminated customer (status=terminated) should be strictly EXCLUDED from due distribution`: PASSED.
+  - `Customer with status=terminate or status=inactive should also be EXCLUDED`: PASSED.
+  - `Re-activating customer should make them appear back in due distribution`: PASSED.
+- **Regression Testing**:
+  - `tests/customerTerminate.test.js`: 4/4 PASSED.
+  - `tests/isolirAddressListPermanent.test.js`: 5/5 PASSED.
+
+
 

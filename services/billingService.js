@@ -921,13 +921,13 @@ function getDueDistributionSummary(month, year) {
   const y = parseInt(year, 10) || new Date().getFullYear();
   const maxDays = daysInMonth(y, m);
 
-  // Ambil seluruh pelanggan aktif/suspended (Kecuali Paket Free / Gratis)
+  // Ambil seluruh pelanggan aktif/suspended (Kecuali Paket Free / Gratis & Kecuali Status Terminate/Inactive)
   const customers = db.prepare(`
     SELECT c.id, c.name, c.phone, c.address, c.isolate_day, c.install_date, c.status as customer_status,
            p.name as package_name, p.price as package_price
     FROM customers c
     LEFT JOIN packages p ON c.package_id = p.id
-    WHERE c.status != 'inactive' AND c.package_id IS NOT NULL
+    WHERE LOWER(c.status) NOT IN ('inactive', 'terminated', 'terminate') AND c.package_id IS NOT NULL
   `).all().filter(c => !isFreePackage({ price: c.package_price, name: c.package_name }));
 
   // Ambil seluruh invoice periode bulan & tahun tersebut
@@ -1029,7 +1029,7 @@ function getDueDistributionDetailsByDay(day, month, year) {
            p.name as package_name, p.price as package_price
     FROM customers c
     LEFT JOIN packages p ON c.package_id = p.id
-    WHERE c.status != 'inactive' AND c.package_id IS NOT NULL
+    WHERE LOWER(c.status) NOT IN ('inactive', 'terminated', 'terminate') AND c.package_id IS NOT NULL
     ORDER BY c.name ASC
   `).all().filter(c => !isFreePackage({ price: c.package_price, name: c.package_name }));
 
@@ -1099,6 +1099,7 @@ function getDueDistributionDetailsByDay(day, month, year) {
       unpaidAmount += itemUnpaidAmount;
 
       customerDetails.push({
+        id: c.id,
         customer_id: c.id,
         name: c.name,
         phone: c.phone || c.genieacs_tag || c.pppoe_username || '-',
