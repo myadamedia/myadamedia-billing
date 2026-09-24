@@ -75,31 +75,35 @@ function startCronJobs() {
 
   // 2. Isolir Otomatis setiap hari jam 02:00
   cron.schedule('0 2 * * *', async () => {
-    const today = new Date().getDate();
-    // Kita cek semua pelanggan setiap hari untuk isolir otomatis
-    logger.info(`[CRON] Menjalankan pengecekan isolir otomatis harian (Tanggal ${today})`);
+    const now = getCurrentDateInTimezone();
+    const today = now.getDate();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+
+    logger.info(`[CRON] Menjalankan pengecekan isolir otomatis harian (Tanggal ${today}/${currentMonth}/${currentYear})`);
     
     const customers = customerSvc.getAllCustomers();
     let isolatedCount = 0;
 
     for (const c of customers) {
-      // Cek apakah isolir otomatis aktif untuk user ini dan hari ini adalah tanggal isolirnya
-      const customerIsolirDay = c.isolate_day || 10;
       const isAutoIsolateEnabled = c.auto_isolate !== 0; // default aktif jika null/1
+      if (!isAutoIsolateEnabled) continue;
+      if (c.status !== 'active') continue;
 
-      if (isAutoIsolateEnabled && today >= customerIsolirDay) {
-        // Jika pelanggan aktif tapi punya tagihan belum bayar
-        if (c.status === 'active' && c.unpaid_count > 0) {
-          try {
-            logger.info(`[CRON] Isolir otomatis pelanggan: ${c.name} (${c.pppoe_username}) - Tanggal Tagihan: ${customerIsolirDay}`);
-            
-            // Gunakan fungsi terpusat untuk isolir
-            await customerSvc.suspendCustomer(c.id);
-            
-            isolatedCount++;
-          } catch (err) {
-            logger.error(`[CRON] Gagal isolir ${c.name}: ${err.message}`);
-          }
+      // Validasi ketat: Cek apakah pelanggan benar-benar memiliki tagihan yang SUDAH JATUH TEMPO
+      const isOverdue = billingSvc.isCustomerOverdue(c, now);
+
+      if (isOverdue) {
+        try {
+          const customerIsolirDay = billingSvc.getCustomerDueDay(c);
+          logger.info(`[CRON] Isolir otomatis pelanggan: ${c.name} (${c.pppoe_username}) - Jatuh Tempo: Tgl ${customerIsolirDay}`);
+          
+          // Gunakan fungsi terpusat untuk isolir
+          await customerSvc.suspendCustomer(c.id);
+          
+          isolatedCount++;
+        } catch (err) {
+          logger.error(`[CRON] Gagal isolir ${c.name}: ${err.message}`);
         }
       }
     }
@@ -201,7 +205,7 @@ function startCronJobs() {
       const unpaidCount = Number(c.unpaid_count || 0) || 0;
       if (unpaidCount <= 0) continue;
 
-      const dueDay = Number(c.isolate_day || 0) || Number(getSetting('isolir_day', 10) || 10) || 10;
+      const dueDay = billingSvc.getCustomerDueDay(c);
       const daysUntilIsolir = getDaysUntilIsolation(today, dueDay);
       const shouldSend = activeDays.includes(daysUntilIsolir);
       if (!shouldSend) continue;
@@ -402,7 +406,7 @@ function startCronJobs() {
       // HANYA kirim jika pelanggan berstatus ACTIVE (belum di-isolir)
       if (c.status !== 'active') continue;
 
-      const dueDay = Number(c.isolate_day || 0) || Number(getSetting('isolir_day', 10) || 10) || 10;
+      const dueDay = billingSvc.getCustomerDueDay(c);
       const daysUntilIsolir = getDaysUntilIsolation(today, dueDay);
       const shouldSend = activeDays.includes(daysUntilIsolir);
       if (!shouldSend) continue;

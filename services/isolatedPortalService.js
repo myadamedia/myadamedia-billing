@@ -102,8 +102,9 @@ function getSuspendedCustomers() {
  */
 async function syncAllOverdueCustomers() {
   const customerSvc = require('./customerService');
-  const now = new Date();
-  const today = now.getDate();
+  const billingSvc = require('./billingService');
+  const { getCurrentDateInTimezone } = require('../config/settingsManager');
+  const now = getCurrentDateInTimezone();
   
   const allCustomers = customerSvc.getAllCustomers();
   let isolatedCount = 0;
@@ -111,9 +112,8 @@ async function syncAllOverdueCustomers() {
 
   for (const c of allCustomers) {
     const isAutoIsolate = (c.auto_isolir !== undefined ? c.auto_isolir : c.auto_isolate) !== 0;
-    const isolateDay = Number(c.isolir_date || c.due_date || c.isolate_day || 10);
     
-    if (isAutoIsolate && c.status === 'active' && Number(c.unpaid_count) > 0 && today >= isolateDay) {
+    if (isAutoIsolate && c.status === 'active' && billingSvc.isCustomerOverdue(c, now)) {
       try {
         await customerSvc.suspendCustomer(c.id);
         isolatedCount++;

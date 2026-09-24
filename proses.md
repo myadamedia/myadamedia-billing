@@ -2,6 +2,63 @@
 
 ---
 
+## [2026-09-24] Perbaikan Sistem Cron Job Isolir Otomatis & Validasi Ketat Jatuh Tempo Tagihan (Prevent Premature Customer Suspension & Wrong WA Notifications)
+
+### 1. Deskripsi Permasalahan & Kebutuhan
+Pengguna melaporkan adanya *bug* kritis pada sistem cron job aplikasi di lingkungan produksi:
+- Pelanggan yang belum melewati tanggal jatuh tempo pembayaran (termasuk pelanggan yang baru terpasang di bulan berjalan atau pelanggan yang memiliki tagihan untuk bulan mendatang/advance billing) secara keliru diubah statusnya menjadi `suspended` (terisolir) oleh cron job harian pada pukul 02:00 WIB.
+- Perubahan status pelanggan ke `suspended` secara otomatis memicu pengiriman pesan WhatsApp notifikasi isolir ke nomor pelanggan via `NotificationService.notifyCustomerIsolated(id)`, memicu kebingungan dan komplain dari pelanggan yang sebenarnya belum jatuh tempo.
+
+### 2. Analisis Masalah & Penyebab Utama (Root Cause Analysis)
+1. **Evaluasi Naif `today >= customerIsolirDay && c.unpaid_count > 0` Tanpa Pengecekan Periode Tagihan**:
+   Pada `services/cronService.js` Task 2, sistem hanya mengevaluasi apakah hari kalender hari ini $\ge$ `c.isolate_day` dan apakah subquery `c.unpaid_count > 0`.
+   - Jika admin membuatkan tagihan untuk bulan depan (misal invoice Oktober sementara hari ini 21 September), maka `unpaid_count = 1`. Karena `21 >= 20`, cron menganggap tagihan tersebut telah jatuh tempo dan mengisolir pelanggan di bulan September untuk tagihan Oktober.
+   - Jika pelanggan baru dipasang pada tanggal 15 September dengan `isolate_day = 10`, hari ke-10 September sudah terlewati sebelum pelanggan berlangganan. Saat cron berjalan di tanggal 16 September, `today (16) >= isolate_day (10)` bernilai `true`, sehingga pelanggan baru tersebut langsung terisolir 1 hari setelah pemasangan.
+   - Sebaliknya, jika pelanggan menunggak bulan lalu (Agustus) namun hari ini tanggal 5 September dan `isolate_day = 20`, logika `5 >= 20` menghasilkan `false` sehingga penunggak bulan lalu malah tidak terisolir hingga tanggal 20.
+2. **Hardcode Fallback `isolate_day` ke Nilai 10, Mengabaikan `settings.isolir_day`**:
+   Pada `settings.json`, administrator telah menetapkan `"isolir_day": 20`. Namun di kode Task 2 di-hardcode `const customerIsolirDay = c.isolate_day || 10;`. Jika data pelanggan belum memiliki nilai `isolate_day` (atau null), sistem mengisolir pelanggan pada tanggal 10 (10 hari lebih cepat dari kebijakan ISP).
+3. **Inkonsistensi Zona Waktu (*Timezone Skew*)**:
+   Task 2 menggunakan `const today = new Date().getDate();` (berbasis jam sistem server/UTC). Jika server VPS menggunakan zona waktu UTC, eksekusi cron jam 02:00 UTC terjadi pada jam 09:00 WIB, atau sebaliknya dapat mengalami pergeseran tanggal saat pergantian hari.
+4. **Kelemahan Serupa pada Fungsi Isolir Massal Manual (`isolatedPortalService.js`)**:
+   Fungsi `syncAllOverdueCustomers()` pada `services/isolatedPortalService.js` (tombol "Isolir Otomatis Massal" di panel admin `/admin/isolated-portal/sync-overdue`) menggunakan logika naif yang sama: `today >= isolateDay && Number(c.unpaid_count) > 0`.
+5. **Trigger Otomatis WhatsApp Isolir pada Transisi Status**:
+   Pada `services/customerService.js` (`updateCustomer`), transisi status ke `suspended` memicu `NotificationService.notifyCustomerIsolated(id)`. Karena pemanggilan `suspendCustomer` terjadi secara salah pada pelanggan yang belum jatuh tempo, pelanggan tersebut otomatis menerima pesan WhatsApp isolir.
+
+### 3. Solusi Terpilih (Clean Architecture & SOLID Implementation)
+1. **Domain & Billing Service Layer (`services/billingService.js`)**:
+   - Memperbarui `getCustomerDueDay(customer)` agar mengambil hari jatuh tempo secara bertingkat: `c.isolate_day` $\rightarrow$ `c.install_date` $\rightarrow$ `settings.isolir_day` (default 20) $\rightarrow$ 20.
+   - Mengimplementasikan `isInvoiceOverdue(invoice, customer, now)`:
+     - Tagihan berstatus `paid` atau sisa tagihan $\le 0$: `false`.
+     - Tagihan tahun/bulan lampau yang belum lunas: PASTI OVERDUE (`true`).
+     - Tagihan tahun/bulan masa depan (*advance billing*): BELUM OVERDUE (`false`).
+     - Tagihan bulan berjalan:
+       - Memeriksa tanggal pemasangan pelanggan (`install_date`). Jika pelanggan baru dipasang di bulan yang sama setelah tanggal jatuh tempo (`install_date > dueDay`), invoice bulan pemasangan TIDAK OVERDUE di bulan tersebut.
+       - Overdue jika hari ini $\ge$ `dueDay`.
+   - Mengimplementasikan `getOverdueInvoicesForCustomer(customerId, now)` dan `isCustomerOverdue(customerOrId, now)` untuk verifikasi status penunggak secara presisi.
+2. **Cron Service Layer (`services/cronService.js`)**:
+   - Memperbarui Task 2 (Isolir Otomatis Pukul 02:00 WIB) agar:
+     - Menggunakan `now = getCurrentDateInTimezone()` untuk integritas zona waktu WIB.
+     - Mengganti pengecekan naif dengan `billingSvc.isCustomerOverdue(c, now)`.
+     - Menggunakan `billingSvc.getCustomerDueDay(c)` untuk logging audit.
+   - Memperbarui Task 3 & 3b (Pengingat Tagihan & Pengingat Sebelum Isolir) agar fallback `dueDay` mengacu pada `billingSvc.getCustomerDueDay(c)`.
+3. **Isolated Portal Service Layer (`services/isolatedPortalService.js`)**:
+   - Memperbarui `syncAllOverdueCustomers()` agar menggunakan `billingSvc.isCustomerOverdue(c, now)` sehingga fitur isolir on-demand di panel admin memiliki konsistensi logika 100% dengan cron harian.
+4. **Automated Unit Testing (`tests/cronIsolationOverdue.test.js`)**:
+   - Dibuat suite pengujian otomatis Jest komprehensif yang menguji seluruh skenario jatuh tempo dan integrasi isolir.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`services/billingService.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/billingService.js): Penambahan `isInvoiceOverdue`, `getOverdueInvoicesForCustomer`, `isCustomerOverdue`, penyempurnaan `getCustomerDueDay`, dan ekspor fungsi.
+- `[MODIFY]` [`services/cronService.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/cronService.js): Perbaikan Task 2 dengan `getCurrentDateInTimezone` & `isCustomerOverdue`, serta Task 3 & 3b dengan `getCustomerDueDay`.
+- `[MODIFY]` [`services/isolatedPortalService.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/isolatedPortalService.js): Sinkronisasi isolir massal menggunakan `isCustomerOverdue`.
+- `[NEW]` [`tests/cronIsolationOverdue.test.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/tests/cronIsolationOverdue.test.js): Automated Jest unit test suite dengan 13 test cases.
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/proses.md): Dokumentasi log audit sistem.
+
+### 5. Hasil Pengujian & Verifikasi
+- **Jest Unit Test Suite (`tests/cronIsolationOverdue.test.js`)**: 13/13 tests passed (100%).
+- **Full System Regression Tests (`tests/notificationService.test.js`, `tests/customerTerminate.test.js`, `tests/customerUpdatePppoe.test.js`)**: 16/16 tests passed tanpa regresi.
+
+---
+
 ## [2026-09-14] Implementasi Fitur Slider Banner Promosi (Customer Dashboard & Login) serta Integrasi Manajemen Banner di Admin Dashboard (/admin/promo-banners)
 
 ### 1. Deskripsi Permasalahan & Kebutuhan

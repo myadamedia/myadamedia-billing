@@ -3,7 +3,7 @@
  */
 const db = require('../config/database');
 const auditTrail = require('./auditTrailService');
-const { getCurrentDateInTimezone } = require('../config/settingsManager');
+const { getCurrentDateInTimezone, getSetting } = require('../config/settingsManager');
 
 function daysInMonth(year, month1to12) {
   return new Date(year, month1to12, 0).getDate();
@@ -900,17 +900,125 @@ function createInstallProrataCatchUpInvoice(customerId) {
 }
 
 function getCustomerDueDay(c) {
-  let day = parseInt(c.isolate_day, 10);
+  let day = parseInt(c?.isolate_day, 10);
   if (!day || isNaN(day) || day < 1 || day > 31) {
-    if (c.install_date && typeof c.install_date === 'string') {
+    if (c?.install_date && typeof c.install_date === 'string') {
       const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(c.install_date.trim());
       if (match) {
         day = parseInt(match[3], 10);
       }
     }
   }
-  if (!day || isNaN(day) || day < 1 || day > 31) day = 10;
+  if (!day || isNaN(day) || day < 1 || day > 31) {
+    day = parseInt(getSetting('isolir_day', 20), 10);
+  }
+  if (!day || isNaN(day) || day < 1 || day > 31) day = 20;
   return day;
+}
+
+/**
+ * Memeriksa apakah suatu invoice tertentu benar-benar telah melewati tanggal jatuh tempo (Overdue).
+ * Aturan:
+ * 1. Invoice harus berstatus 'unpaid' atau 'partial' dengan sisa tagihan > 0.
+ * 2. Tagihan tahun/bulan lampau yang belum lunas: PASTI OVERDUE.
+ * 3. Tagihan tahun/bulan masa depan (advance billing): TIDAK OVERDUE.
+ * 4. Tagihan bulan berjalan:
+ *    - Jika pelanggan baru terpasang di bulan yang sama SETELAH tanggal jatuh tempo (install_date > dueDay),
+ *      invoice pertama tersebut TIDAK OVERDUE di bulan yang sama.
+ *    - Overdue jika tanggal hari ini >= tanggal jatuh tempo pelanggan (dueDay).
+ */
+function isInvoiceOverdue(inv, customer, now = getCurrentDateInTimezone()) {
+  if (!inv) return false;
+  if (inv.status !== 'unpaid' && inv.status !== 'partial') return false;
+
+  const totalAmt = Number(inv.amount || 0);
+  const paidAmt = Number(inv.paid_amount || 0);
+  const balanceDue = inv.balance_due !== undefined ? Number(inv.balance_due) : (totalAmt - paidAmt);
+  if (balanceDue <= 0) return false;
+
+  const periodYear = Number(inv.period_year);
+  const periodMonth = Number(inv.period_month);
+  if (!periodYear || !periodMonth) return false;
+
+  const nowDate = now instanceof Date ? now : new Date(now);
+  const nowYear = nowDate.getFullYear();
+  const nowMonth = nowDate.getMonth() + 1;
+  const nowDay = nowDate.getDate();
+
+  // 1. Tahun Lampau: Pasti overdue
+  if (periodYear < nowYear) return true;
+  // 2. Tahun Masa Depan: Belum overdue
+  if (periodYear > nowYear) return false;
+
+  // 3. Tahun Sama, Bulan Lampau: Pasti overdue
+  if (periodMonth < nowMonth) return true;
+  // 4. Tahun Sama, Bulan Masa Depan: Belum overdue
+  if (periodMonth > nowMonth) return false;
+
+  // 5. Tahun Sama, Bulan Sama (Bulan Berjalan):
+  const dueDay = getCustomerDueDay(customer);
+  const maxDaysInMonth = daysInMonth(periodYear, periodMonth);
+  const effectiveDueDay = Math.min(dueDay, maxDaysInMonth);
+
+  // Jika pelanggan baru dipasang di bulan yang sama setelah tanggal jatuh tempo:
+  if (customer && customer.install_date && typeof customer.install_date === 'string') {
+    const inst = parseInstallYMD(customer.install_date);
+    if (inst && inst.y === periodYear && inst.m === periodMonth) {
+      if (inst.d > effectiveDueDay) {
+        return false;
+      }
+    }
+  }
+
+  return nowDay >= effectiveDueDay;
+}
+
+/**
+ * Mengambil seluruh invoice pelanggan yang benar-benar telah jatuh tempo (Overdue).
+ */
+function getOverdueInvoicesForCustomer(customerId, now = getCurrentDateInTimezone()) {
+  const cid = Number(customerId);
+  if (!cid || !Number.isFinite(cid)) return [];
+
+  const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(cid);
+  if (!customer) return [];
+
+  const unpaidInvoices = db.prepare(`
+    SELECT * FROM invoices
+    WHERE customer_id = ? AND status IN ('unpaid', 'partial')
+    ORDER BY period_year ASC, period_month ASC, id ASC
+  `).all(cid);
+
+  return unpaidInvoices.filter(inv => isInvoiceOverdue(inv, customer, now));
+}
+
+/**
+ * Mengecek apakah pelanggan memiliki minimal 1 invoice yang berstatus Overdue.
+ */
+function isCustomerOverdue(customerOrId, now = getCurrentDateInTimezone()) {
+  let customer = null;
+  let customerId = null;
+
+  if (typeof customerOrId === 'object' && customerOrId !== null) {
+    customer = customerOrId;
+    customerId = customer.id;
+  } else {
+    customerId = Number(customerOrId);
+    if (!customerId || !Number.isFinite(customerId)) return false;
+    customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(customerId);
+  }
+
+  if (!customer) return false;
+
+  const unpaidInvoices = db.prepare(`
+    SELECT * FROM invoices
+    WHERE customer_id = ? AND status IN ('unpaid', 'partial')
+    ORDER BY period_year ASC, period_month ASC, id ASC
+  `).all(customerId);
+
+  if (!unpaidInvoices || unpaidInvoices.length === 0) return false;
+
+  return unpaidInvoices.some(inv => isInvoiceOverdue(inv, customer, now));
 }
 
 /**
@@ -1158,5 +1266,9 @@ module.exports = {
   updatePaymentInfo,
   isFreePackage,
   getDueDistributionSummary,
-  getDueDistributionDetailsByDay
+  getDueDistributionDetailsByDay,
+  getCustomerDueDay,
+  isInvoiceOverdue,
+  getOverdueInvoicesForCustomer,
+  isCustomerOverdue
 };
