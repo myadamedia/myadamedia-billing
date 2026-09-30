@@ -7,10 +7,8 @@
   <link rel="stylesheet" href="/css/admin.css?v=2">
   <link rel="stylesheet" href="/css/xterm.min.css" onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css';">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="/js/xterm.min.js"></script>
-  <script>if (typeof Terminal === 'undefined') document.write('<script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"><\\/script>');</script>
-  <script src="/js/xterm-addon-fit.min.js"></script>
-  <script>if (typeof FitAddon === 'undefined') document.write('<script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"><\\/script>');</script>
+  <script src="/js/xterm.min.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js';"></script>
+  <script src="/js/xterm-addon-fit.min.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js';"></script>
   <style>
     /* Hero Banner Modernization - Adaptive */
     .hero-banner {
@@ -1270,6 +1268,11 @@ async function fetchTrafficPoint() {
         liveChart.update('none');
       }
     }
+  } catch (e) {
+    console.error('Error fetching traffic stream point:', e);
+  }
+}
+
 // ─── MIKROTIK WEB TERMINAL (XTERM.JS + WEBSOCKET) ───────────────────────────
 let terminalInstance = null;
 let terminalFitAddon = null;

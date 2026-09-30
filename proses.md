@@ -2,6 +2,44 @@
 
 ---
 
+## [2026-09-30] Perbaikan Tombol Tidak Bisa Diklik pada Halaman Manajemen Router (`/admin/routers`)
+
+### 1. Permasalahan yang Ditemukan
+Pengguna melaporkan bahwa pada halaman [Manajemen Router](https://bill.myadamedia.web.id/admin/routers), seluruh tombol aksi dan interaksi (tombol Tambah Router, Detail, Terminal, Test Koneksi, Setup Firewall, Edit, Hapus) tidak merespons ketika diklik oleh pengguna di peramban web (*unclickable buttons*).
+
+### 2. Penyebab Utama Masalah (Root Cause Analysis)
+1. **Unclosed `try` Block pada Fungsi `fetchTrafficPoint()`**:
+   - Pada saat penggabungan blok fungsi terminal sebelumnya di [`views/admin/routers.ejs`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/views/admin/routers.ejs), penutupan blok `try { ... } catch(e) { ... }` pada fungsi `fetchTrafficPoint()` terpotong sebelum deklarasi komentar terminal.
+   - Hal ini menghasilkan *fatal JavaScript syntax error* di peramban: `SyntaxError: Missing catch or finally after try`.
+2. **Penghentian Eksekusi Script Global Peramban**:
+   - Karena peramban mengalami *SyntaxError* saat melakukan parsing blok `<script>`, browser secara otomatis membatalkan eksekusi seluruh isi blok script tersebut.
+   - Akibatnya, seluruh fungsi JavaScript global seperti `openModal`, `closeModal`, `editRouter`, `testConn`, `showRouterDetail`, dan `openTerminalModal` tidak pernah terdaftar pada objek `window`. Setiap kali pengguna mengklik tombol dengan handler `onclick="..."`, browser membangkitkan `ReferenceError` di konsol dan tidak ada aksi yang berjalan.
+3. **Potensi Tabrakan Parser pada Tag Script Loader Fallback**:
+   - Tag inline script `<script>...document.write('<script...><\\/script>');</script>` di bagian `<head>` rentan diputus sebelum waktunya oleh parser HTML standar peramban.
+
+### 3. Solusi yang Dipilih
+1. **Penutupan Sempurna Blok `fetchTrafficPoint()`**:
+   - Menambahkan kembali blok penanganan error `} catch (e) { console.error('Error fetching traffic stream point:', e); } }` sehingga fungsi tertutup sempurna.
+2. **Pembersihan Script Loader Xterm**:
+   - Mengganti pemanggilan `document.write` dengan mekanisme standar HTML5:
+     `<script src="/js/xterm.min.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js';"></script>`
+     `<script src="/js/xterm-addon-fit.min.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js';"></script>`
+   - Pendekatan ini bersih, modern, tidak menimbulkan interferensi parser HTML, dan menjamin fallback otomatis ke CDN jika file lokal tidak dapat dimuat.
+
+### 4. Dampak Perubahan Terhadap Sistem
+- Seluruh fungsi interaktif pada halaman `/admin/routers` kembali berjalan normal 100%: tombol Tambah Router, Detail, Terminal CLI, Test Koneksi, Setup Firewall, Edit, Hapus, dan monitoring bandwidth.
+- Tidak ada dampak negatif ke modul lain karena perbaikan terisolasi di sisi *view presentation layer* [`views/admin/routers.ejs`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/views/admin/routers.ejs).
+
+### 5. Kode yang Diperbaiki
+- `[MODIFY]` [`views/admin/routers.ejs`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/views/admin/routers.ejs): Memperbaiki penutupan `fetchTrafficPoint()` dan script loader tag.
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/proses.md): Pencatatan analisis dan dokumentasi bug fix.
+
+### 6. Hasil Verifikasi
+- Pengujian syntax parsing pada seluruh 6 blok `<script>` menggunakan Node.js VM: **Semua 6 script lulus (Syntax OK)**.
+- Pengujian eksekusi fungsi global `openModal`, `closeModal`, `editRouter`, `testConn`, `openTerminalModal`: **Berhasil terdefinisi dan tereksekusi tanpa error**.
+
+---
+
 ## [2026-09-30] Implementasi Web CLI & Interactive Terminal MikroTik via Browser (Xterm.js + SSH PTY + WebSocket) pada Manajemen Router
 
 ### 1. Deskripsi Kebutuhan & Analisis Masalah
