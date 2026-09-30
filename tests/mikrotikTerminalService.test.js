@@ -59,4 +59,24 @@ describe('mikrotikTerminalService', () => {
     expect(mockWs.send).toHaveBeenCalledWith(expect.stringContaining('Router dengan ID #9999 tidak ditemukan'));
     expect(mockWs.close).toHaveBeenCalled();
   });
+
+  test('createTerminalTicket and validateTerminalTicket should work correctly', () => {
+    const { createTerminalTicket, validateTerminalTicket } = require('../services/mikrotikTerminalService');
+    const ticket1 = createTerminalTicket(5, 'superadmin');
+    expect(ticket1).toBeDefined();
+    expect(typeof ticket1).toBe('string');
+
+    // Validating with wrong router ID should fail and consume
+    expect(validateTerminalTicket(ticket1, 99)).toBeNull();
+
+    // Validating with right router ID should succeed
+    const ticket2 = createTerminalTicket(5, 'superadmin');
+    const valid = validateTerminalTicket(ticket2, 5);
+    expect(valid).toBeDefined();
+    expect(valid.adminUser).toBe('superadmin');
+    expect(valid.routerId).toBe(5);
+
+    // Validating second time should fail (one-time use)
+    expect(validateTerminalTicket(ticket2, 5)).toBeNull();
+  });
 });

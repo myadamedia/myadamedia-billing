@@ -1,14 +1,60 @@
 /**
  * mikrotikTerminalService.js
  * Service pengelola sesi SSH PTY interaktif dan jembatan WebSocket untuk MikroTik Web Terminal
- * Mendukung RouterOS v6 dan v7 dengan auto-resize, reconnection, dan proteksi kebocoran koneksi.
+ * Mendukung RouterOS v6 dan v7 dengan auto-resize, reconnection, tiket autentikasi, dan proteksi kebocoran koneksi.
  */
 
+const crypto = require('crypto');
 const { Client } = require('ssh2');
 const { WebSocketServer } = require('ws');
 const { URL } = require('url');
 const { logger } = require('../config/logger');
 const mikrotikService = require('./mikrotikService');
+
+// Map penyimpanan tiket sesi one-time untuk WebSocket upgrade yang aman melalui reverse proxy
+const terminalTickets = new Map();
+
+/**
+ * Membuat tiket sesi sementara sekali pakai (TTL: 60 detik)
+ * @param {number|string} routerId
+ * @param {string} adminUsername
+ * @returns {string} token tiket
+ */
+function createTerminalTicket(routerId, adminUsername) {
+  const ticket = crypto.randomBytes(24).toString('hex');
+  terminalTickets.set(ticket, {
+    routerId: Number(routerId),
+    adminUser: adminUsername || 'admin',
+    expiresAt: Date.now() + 60000 // 60 detik
+  });
+
+  // Hapus otomatis setelah lewat masa berlaku
+  setTimeout(() => {
+    terminalTickets.delete(ticket);
+  }, 65000);
+
+  return ticket;
+}
+
+/**
+ * Validasi dan konsumsi tiket sesi sekali pakai
+ * @param {string} ticket
+ * @param {number|string} routerId
+ * @returns {object|null}
+ */
+function validateTerminalTicket(ticket, routerId) {
+  if (!ticket) return null;
+  const data = terminalTickets.get(ticket);
+  if (!data) return null;
+
+  // Hapus segera agar bersifat sekali pakai (one-time use)
+  terminalTickets.delete(ticket);
+
+  if (Date.now() > data.expiresAt) return null;
+  if (data.routerId !== Number(routerId)) return null;
+
+  return data;
+}
 
 /**
  * Inisialisasi WebSocket Server untuk Web Terminal MikroTik
@@ -38,30 +84,59 @@ function setupMikrotikTerminalWs(server, sessionMiddleware) {
         return;
       }
 
-      // Validasi sesi Express Admin
-      sessionMiddleware(request, {}, () => {
+      const ticketParam = parsedUrl.searchParams.get('ticket');
+
+      // 1. Cek validasi tiket one-time terlebih dahulu (Metode paling andal di balik Nginx/Cloudflare)
+      if (ticketParam) {
+        const ticketData = validateTerminalTicket(ticketParam, routerId);
+        if (ticketData) {
+          wss.handleUpgrade(request, socket, head, (ws) => {
+            wss.emit('connection', ws, request, routerId, ticketData.adminUser);
+          });
+          return;
+        }
+        logger.warn(`[WS Terminal] Tiket terminal tidak valid atau kedaluwarsa untuk router #${routerId}`);
+      }
+
+      // 2. Fallback: Validasi via cookie sesi Express jika tidak ada tiket
+      request.originalUrl = request.url;
+      request.method = 'GET';
+
+      const mockRes = {
+        end: () => {},
+        getHeader: () => {},
+        setHeader: () => {},
+        writeHead: () => {}
+      };
+
+      sessionMiddleware(request, mockRes, () => {
         const session = request.session;
-        if (!session || !session.admin) {
-          logger.warn(`[WS Terminal] Percobaan akses tanpa autentikasi admin ke router #${routerId} dari ${request.socket.remoteAddress}`);
+        const isAuthorized = session && (session.isAdmin || session.adminUser || session.admin || session.isCashier);
+
+        if (!isAuthorized) {
+          logger.warn(`[WS Terminal] Akses terminal ditolak (belum login admin) untuk router #${routerId} dari ${request.socket?.remoteAddress}`);
           socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
           socket.destroy();
           return;
         }
 
+        const username = session.adminUser || session.cashierUsername || 'admin';
         wss.handleUpgrade(request, socket, head, (ws) => {
-          wss.emit('connection', ws, request, routerId);
+          wss.emit('connection', ws, request, routerId, username);
         });
       });
     } catch (err) {
       logger.error('[WS Terminal] Error saat HTTP upgrade:', err.message);
-      socket.write('HTTP/1.1 500 Internal Server Error\r\nConnection: close\r\n\r\n');
-      socket.destroy();
+      try {
+        socket.write('HTTP/1.1 500 Internal Server Error\r\nConnection: close\r\n\r\n');
+        socket.destroy();
+      } catch (e) {}
     }
   });
 
   // Tangani koneksi WebSocket yang telah terautentikasi
-  wss.on('connection', (ws, req, routerId) => {
-    handleTerminalSession(ws, req, routerId);
+  wss.on('connection', (ws, req, routerId, username) => {
+    handleTerminalSession(ws, req, routerId, username);
   });
 
   logger.info('[WS Terminal] MikroTik Web Terminal WebSocket Server siap pada /admin/ws/routers/:id/terminal');
@@ -73,8 +148,9 @@ function setupMikrotikTerminalWs(server, sessionMiddleware) {
  * @param {import('ws').WebSocket} ws
  * @param {import('http').IncomingMessage} req
  * @param {number} routerId
+ * @param {string} [authenticatedUser]
  */
-function handleTerminalSession(ws, req, routerId) {
+function handleTerminalSession(ws, req, routerId, authenticatedUser) {
   let router = null;
   try {
     router = mikrotikService.getRouterById(routerId);
@@ -91,7 +167,7 @@ function handleTerminalSession(ws, req, routerId) {
   }
 
   const sshPort = parseInt(router.ssh_port, 10) || 22;
-  const adminUser = req.session && req.session.admin ? req.session.admin.username : 'admin';
+  const adminUser = authenticatedUser || (req.session && (req.session.adminUser || req.session.cashierUsername)) || 'admin';
 
   logger.info(`[WS Terminal] Admin "${adminUser}" membuka terminal ke MikroTik "${router.name}" (${router.host}:${sshPort})`);
 
@@ -222,11 +298,11 @@ function handleTerminalSession(ws, req, routerId) {
     logger.error(`[WS Terminal] Error koneksi SSH ke router #${routerId} (${router.host}:${sshPort}): ${err.message}`);
     if (ws.readyState === ws.OPEN) {
       ws.send(
-        `\r\n\x1b[31;1m[Koneksi SSH Gagal]\x1b[0m ${err.message}\r\n` +
-        `\x1b[33mSolusi & Pemeriksaan:\x1b[0m\r\n` +
-        ` 1. Pastikan service SSH di MikroTik aktif (\x1b[36m/ip service enable ssh\x1b[0m di Winbox/Console).\r\n` +
-        ` 2. Pastikan IP Host (\x1b[36m${router.host}\x1b[0m) dan Port SSH (\x1b[36m${sshPort}\x1b[0m) sesuai serta firewall tidak memblokir.\r\n` +
-        ` 3. Pastikan username (\x1b[36m${router.user}\x1b[0m) dan password sesuai.\r\n\r\n`
+        `\r\n\x1b[31;1m[Koneksi SSH Gagal]\x1b[0m ${err.message}\r\n\r\n` +
+        `\x1b[33mPenyebab Umum & Solusi:\x1b[0m\r\n` +
+        ` 1. Port SSH (\x1b[36m${sshPort}\x1b[0m) belum aktif di MikroTik. Aktifkan dengan perintah: \x1b[32m/ip service enable ssh\x1b[0m atau sesuaikan port di \x1b[32m/ip service print\x1b[0m.\r\n` +
+        ` 2. Host IP (\x1b[36m${router.host}\x1b[0m) tidak dapat dijangkau dari server billing ini (cek routing atau firewall filter drop).\r\n` +
+        ` 3. Username (\x1b[36m${router.user}\x1b[0m) atau Password salah atau tidak memiliki policy 'ssh'.\r\n\r\n`
       );
     }
     cleanup();
@@ -286,5 +362,7 @@ function handleTerminalSession(ws, req, routerId) {
 
 module.exports = {
   setupMikrotikTerminalWs,
-  handleTerminalSession
+  handleTerminalSession,
+  createTerminalTicket,
+  validateTerminalTicket
 };

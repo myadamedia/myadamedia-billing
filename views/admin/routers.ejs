@@ -716,7 +716,7 @@
         </span>
       </div>
       <div class="terminal-actions">
-        <button type="button" class="terminal-btn" onclick="testSshCurrentRouter()" title="Uji Port SSH">
+        <button type="button" class="terminal-btn" id="testSshBtn" onclick="testSshCurrentRouter(this)" title="Uji Port SSH">
           <i class="bi bi-shield-check"></i> Test SSH
         </button>
         <button type="button" class="terminal-btn" onclick="clearTerminalScreen()" title="Bersihkan Layar (Ctrl+L)">
@@ -1309,7 +1309,7 @@ function openTerminalModal(routerId, routerName, routerHost, sshPort) {
   }, 100);
 }
 
-function initTerminalSession() {
+async function initTerminalSession() {
   const mountEl = document.getElementById('terminal-mount');
   if (!mountEl) return;
 
@@ -1370,12 +1370,33 @@ function initTerminalSession() {
     } catch (e) {}
   }
 
-  // Tampilkan status connecting
-  setTerminalStatus('connecting', 'Menghubungkan...');
+  // Tulis pesan status inisialisasi awal ke console
+  terminalInstance.write(`\x1b[90m[Menghubungkan ke ${activeTermRouterName} (${activeTermRouterHost}:${activeTermSshPort})...]\x1b[0m\r\n`);
 
-  // Siapkan URL WebSocket
+  // Tampilkan status connecting
+  setTerminalStatus('connecting', 'Meminta Izin Sesi...');
+
+  // 1. Ambil tiket sesi terminal one-time dari backend
+  let ticket = '';
+  try {
+    const tRes = await fetch(`/admin/api/routers/${activeTermRouterId}/terminal-ticket`);
+    const tData = await tRes.json();
+    if (tData.success && tData.ticket) {
+      ticket = tData.ticket;
+    }
+  } catch (e) {
+    console.warn('Gagal meminta tiket terminal, mencoba koneksi langsung...', e);
+    terminalInstance.write(`\x1b[33m[Info] Meminta tiket gagal, mencoba fallback via cookie...\x1b[0m\r\n`);
+  }
+
+  setTerminalStatus('connecting', 'Menghubungkan WebSocket...');
+
+  // 2. Siapkan URL WebSocket
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${protocol}//${window.location.host}/admin/ws/routers/${activeTermRouterId}/terminal`;
+  const query = ticket ? `?ticket=${encodeURIComponent(ticket)}` : '';
+  const wsUrl = `${protocol}//${window.location.host}/admin/ws/routers/${activeTermRouterId}/terminal${query}`;
+
+  let hasReceivedData = false;
 
   try {
     terminalSocket = new WebSocket(wsUrl);
@@ -1406,16 +1427,29 @@ function initTerminalSession() {
   };
 
   terminalSocket.onmessage = (event) => {
+    hasReceivedData = true;
     if (terminalInstance) {
       terminalInstance.write(event.data);
     }
   };
 
-  terminalSocket.onclose = () => {
+  terminalSocket.onclose = (event) => {
     setTerminalStatus('disconnected', 'Terputus');
     if (termPingInterval) {
       clearInterval(termPingInterval);
       termPingInterval = null;
+    }
+    const codeInfo = event.code ? ` (Kode: ${event.code}${event.reason ? ' - ' + event.reason : ''})` : '';
+    if (!hasReceivedData && terminalInstance) {
+      terminalInstance.write(`\r\n\x1b[31;1m[Koneksi Terputus]\x1b[0m Gagal terhubung ke console terminal MikroTik${codeInfo}.\r\n\r\n` +
+        `\x1b[33mPemeriksaan & Tindakan:\x1b[0m\r\n` +
+        ` 1. Klik tombol \x1b[36m[Test SSH]\x1b[0m di atas untuk memastikan port SSH (${activeTermRouterHost}:${activeTermSshPort}) terbuka dan dapat dijangkau dari server billing.\r\n` +
+        ` 2. Pastikan service SSH telah aktif di MikroTik (\x1b[32m/ip service enable ssh\x1b[0m atau cek di \x1b[32m/ip service print\x1b[0m).\r\n` +
+        ` 3. Pastikan port SSH (\x1b[36m${activeTermSshPort}\x1b[0m) tidak diblokir oleh firewall filter MikroTik.\r\n` +
+        ` 4. Jika menggunakan Nginx Reverse Proxy (Production), pastikan konfigurasi WebSocket upgrade (\x1b[32mproxy_set_header Upgrade $http_upgrade;\x1b[0m) sudah aktif.\r\n` +
+        ` 5. Klik tombol \x1b[36m[Reconnect]\x1b[0m untuk mencoba menyambungkan ulang.\r\n\r\n`);
+    } else if (hasReceivedData && terminalInstance) {
+      terminalInstance.write(`\r\n\x1b[33m[Sesi Ditutup]\x1b[0m Koneksi terminal telah berakhir${codeInfo}.\r\n`);
     }
   };
 
@@ -1514,19 +1548,32 @@ function toggleTerminalFullscreen() {
   }, 100);
 }
 
-async function testSshCurrentRouter() {
+async function testSshCurrentRouter(btnEl) {
   if (!activeTermRouterId) return;
-  const btn = event?.currentTarget;
+  const btn = btnEl || document.getElementById('testSshBtn') || (typeof event !== 'undefined' ? event?.currentTarget : null);
   const origText = btn ? btn.innerHTML : '';
   if (btn) {
     btn.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> Testing...';
     btn.disabled = true;
   }
+  if (terminalInstance) {
+    terminalInstance.write(`\r\n\x1b[33m[Uji Konektivitas SSH]\x1b[0m Memeriksa koneksi SSH ke ${activeTermRouterHost}:${activeTermSshPort}...\r\n`);
+  }
   try {
     const res = await fetch(`/admin/api/routers/${activeTermRouterId}/test-ssh`);
     const data = await res.json();
+    if (terminalInstance) {
+      if (data.success) {
+        terminalInstance.write(`\x1b[32m[Sukses]\x1b[0m ${data.message}\r\n\r\n`);
+      } else {
+        terminalInstance.write(`\x1b[31;1m[Gagal]\x1b[0m ${data.error}\r\n\r\n`);
+      }
+    }
     alert(data.success ? '✅ ' + data.message : '❌ ' + data.error);
   } catch (e) {
+    if (terminalInstance) {
+      terminalInstance.write(`\x1b[31;1m[Error]\x1b[0m Terjadi kesalahan: ${e.message}\r\n\r\n`);
+    }
     alert('Terjadi kesalahan saat menguji port SSH: ' + e.message);
   } finally {
     if (btn) {

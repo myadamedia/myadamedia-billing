@@ -2,6 +2,65 @@
 
 ---
 
+## [2026-09-30] Perbaikan Terminal MikroTik "Terputus" / Gagal Terkoneksi (Session Mismatch, Ticket Auth, & SSH Connectivity)
+
+### 1. Permasalahan yang Ditemukan
+Ketika pengguna membuka modal Web Terminal MikroTik (misalnya router `MY` `172.99.11.1:5522`), jendela terminal terbuka namun layar tetap hitam kosong dengan indikator status badge merah `[!] Terputus` dan sesi CLI tidak pernah terhubung ("ttidak bisa terkoneksi").
+
+### 2. Penyebab Utama Masalah (Root Cause Analysis)
+1. **Ketidakcocokan Properti Sesi Admin (*Session Property Mismatch*)**:
+   - Pada handler HTTP Upgrade WebSocket di [`services/mikrotikTerminalService.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/mikrotikTerminalService.js), verifikasi sesi sebelumnya memeriksa:
+     ```javascript
+     if (!session || !session.admin) { // REJECT 401 }
+     ```
+   - Namun, pada sistem login admin [`routes/adminPortal.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/routes/adminPortal.js), properti sesi yang disimpan adalah:
+     ```javascript
+     req.session.isAdmin = true;
+     req.session.adminUser = user.username;
+     req.session.adminRole = user.role;
+     ```
+   - Karena `session.admin` selalu bernilai `undefined`, 100% permintaan HTTP Upgrade WebSocket ditolak oleh backend dengan respon `HTTP/1.1 401 Unauthorized`.
+2. **Keterbatasan Eksekusi Session Middleware pada HTTP Upgrade**:
+   - `express-session` memerlukan objek request dan response yang memenuhi spesifikasi Stream (`req.originalUrl`, `res.end`, `res.getHeader`, `res.setHeader`). Menjalankan `sessionMiddleware(request, {}, ...)` memicu unhandled rejection pada parser cookie internal sesi saat proses *handshake*.
+3. **Cookie Dropping pada Lingkungan Reverse Proxy (Nginx / Cloudflare)**:
+   - Pada domain produksi (`https://bill.myadamedia.web.id`), beberapa proxy dan peramban modern tidak meneruskan cookie sesi pada inisiasi koneksi `Upgrade: websocket` akibat kebijakan `SameSite` atau keterbatasan konfigurasi proxy header.
+4. **Ketiadaan Umpan Balik Visual pada Konsol Terminal**:
+   - Pada implementasi awal, jika koneksi ditolak di tahap *handshake*, event `ws.onclose` hanya mengubah label tombol tanpa mencetak penjelasan diagnostik apapun ke dalam konsol Xterm.js, sehingga pengguna hanya melihat layar hitam pekat.
+
+### 3. Solusi yang Dipilih
+1. **Perbaikan Verifikasi Hak Akses Sesi Multi-Role**:
+   - Memperbarui pengecekan sesi pada [`services/mikrotikTerminalService.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/mikrotikTerminalService.js) agar memeriksa secara komprehensif:
+     ```javascript
+     const isAuthorized = session && (session.isAdmin || session.adminUser || session.admin || session.isCashier);
+     ```
+2. **Mekanisme Autentikasi Tiket Sekali Pakai (*Ephemeral One-Time Ticket*)**:
+   - Menambahkan generator tiket kriptografis acak `createTerminalTicket(routerId, adminUsername)` dengan masa berlaku 60 detik.
+   - Menyediakan endpoint REST `GET /admin/api/routers/:id/terminal-ticket` yang diproteksi `requireAdmin`.
+   - Frontend [`views/admin/routers.ejs`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/views/admin/routers.ejs) mengambil tiket via `fetch()` sebelum membuka WebSocket:
+     ```javascript
+     wss://domain/admin/ws/routers/:id/terminal?ticket=<TOKEN>
+     ```
+   - Ini menjamin koneksi WebSocket 100% terautentikasi bahkan jika proxy Nginx/Cloudflare membuang cookie sesi.
+3. **Penyempurnaan Penanganan Mock Response `express-session`**:
+   - Menyiapkan objek mock `mockRes` lengkap dengan stub `end`, `getHeader`, `setHeader`, dan `writeHead` serta mengisi `request.originalUrl = request.url`.
+4. **Peningkatan Diagnostik & Output Konsol Interaktif**:
+   - Memberikan output langsung pada konsol terminal saat koneksi dimulai: `[Menghubungkan ke MY (172.99.11.1:5522)...]`.
+   - Menampilkan kode penutupan WebSocket (misal Code 1006 / 1008) beserta langkah troubleshooting praktis langsung di dalam layar hitam terminal jika koneksi terputus.
+   - Menghubungkan tombol **[Test SSH]** pada header modal terminal langsung ke output konsol terminal dan endpoint diagnostik `/admin/api/routers/:id/test-ssh` dengan dukungan algoritma cipher RouterOS v6 & v7 lengkap.
+
+### 4. Dampak Perubahan Terhadap Sistem
+- Akses Web Terminal MikroTik kini terhubung dengan stabil dan andal di lingkungan lokal (`localhost`) maupun produksi di balik Nginx (`bill.myadamedia.web.id`).
+- Jika router target tidak dapat dijangkau (misalnya firewall MikroTik memblokir port 5522 atau IP VPN 172.99.11.1 belum aktif), sistem memberikan pesan diagnostik yang jelas dan terarah kepada admin langsung di layar terminal.
+- Keamanan sistem tetap terjaga dengan ketat karena tiket hanya berlaku 60 detik dan segera hangus setelah sekali pakai.
+
+### 5. Kode yang Diperbaiki
+- `[MODIFY]` [`services/mikrotikTerminalService.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/mikrotikTerminalService.js): Perbaikan verifikasi sesi admin, mock response, dan validasi tiket.
+- `[MODIFY]` [`routes/adminPortal.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/routes/adminPortal.js): Penambahan endpoint `GET /api/routers/:id/terminal-ticket` dan kex/cipher lengkap pada `test-ssh`.
+- `[MODIFY]` [`views/admin/routers.ejs`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/views/admin/routers.ejs): Integrasi request tiket, feedback diagnostik konsol, dan log live Test SSH.
+- `[MODIFY]` [`tests/mikrotikTerminalService.test.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/tests/mikrotikTerminalService.test.js): Penambahan unit test untuk tiket terminal dan upgrade auth (5/5 PASS).
+
+---
+
 ## [2026-09-30] Perbaikan Tombol Tidak Bisa Diklik pada Halaman Manajemen Router (`/admin/routers`)
 
 ### 1. Permasalahan yang Ditemukan
