@@ -23,11 +23,12 @@ describe('mikrotikTerminalService', () => {
 
   test('upgrade listener should ignore non-terminal URLs', () => {
     setupMikrotikTerminalWs(mockServer, mockSessionMiddleware);
-    const mockSocket = { write: jest.fn(), destroy: jest.fn() };
+    const mockSocket = { write: jest.fn(), destroy: jest.fn(), end: jest.fn() };
     const req = { url: '/some/other/websocket', headers: { host: 'localhost' } };
 
     mockServer.emit('upgrade', req, mockSocket, Buffer.from(''));
     expect(mockSocket.write).not.toHaveBeenCalled();
+    expect(mockSocket.end).not.toHaveBeenCalled();
     expect(mockSocket.destroy).not.toHaveBeenCalled();
   });
 
@@ -37,12 +38,11 @@ describe('mikrotikTerminalService', () => {
       next();
     };
     setupMikrotikTerminalWs(mockServer, unauthSessionMiddleware);
-    const mockSocket = { write: jest.fn(), destroy: jest.fn() };
+    const mockSocket = { write: jest.fn(), destroy: jest.fn(), end: jest.fn() };
     const req = { url: '/admin/ws/routers/1/terminal', headers: { host: 'localhost' }, socket: { remoteAddress: '127.0.0.1' } };
 
     mockServer.emit('upgrade', req, mockSocket, Buffer.from(''));
-    expect(mockSocket.write).toHaveBeenCalledWith(expect.stringContaining('401 Unauthorized'));
-    expect(mockSocket.destroy).toHaveBeenCalled();
+    expect(mockSocket.end).toHaveBeenCalledWith(expect.stringContaining('401 Unauthorized'));
   });
 
   test('handleTerminalSession should send error if router not found in database', () => {

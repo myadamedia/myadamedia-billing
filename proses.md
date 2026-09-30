@@ -13,36 +13,24 @@ Ketika pengguna membuka modal Web Terminal MikroTik (misalnya router `MY` `172.9
      ```javascript
      if (!session || !session.admin) { // REJECT 401 }
      ```
-   - Namun, pada sistem login admin [`routes/adminPortal.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/routes/adminPortal.js), properti sesi yang disimpan adalah:
-     ```javascript
-     req.session.isAdmin = true;
-     req.session.adminUser = user.username;
-     req.session.adminRole = user.role;
-     ```
-   - Karena `session.admin` selalu bernilai `undefined`, 100% permintaan HTTP Upgrade WebSocket ditolak oleh backend dengan respon `HTTP/1.1 401 Unauthorized`.
+   - Namun, pada sistem login admin [`routes/adminPortal.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/routes/adminPortal.js), properti sesi yang disimpan adalah `isAdmin` dan `adminUser`.
 2. **Keterbatasan Eksekusi Session Middleware pada HTTP Upgrade**:
-   - `express-session` memerlukan objek request dan response yang memenuhi spesifikasi Stream (`req.originalUrl`, `res.end`, `res.getHeader`, `res.setHeader`). Menjalankan `sessionMiddleware(request, {}, ...)` memicu unhandled rejection pada parser cookie internal sesi saat proses *handshake*.
-3. **Cookie Dropping pada Lingkungan Reverse Proxy (Nginx / Cloudflare)**:
-   - Pada domain produksi (`https://bill.myadamedia.web.id`), beberapa proxy dan peramban modern tidak meneruskan cookie sesi pada inisiasi koneksi `Upgrade: websocket` akibat kebijakan `SameSite` atau keterbatasan konfigurasi proxy header.
-4. **Ketiadaan Umpan Balik Visual pada Konsol Terminal**:
-   - Pada implementasi awal, jika koneksi ditolak di tahap *handshake*, event `ws.onclose` hanya mengubah label tombol tanpa mencetak penjelasan diagnostik apapun ke dalam konsol Xterm.js, sehingga pengguna hanya melihat layar hitam pekat.
+   - `express-session` memerlukan objek request dan response yang memenuhi spesifikasi Stream (`req.originalUrl`, `res.end`, `res.getHeader`, `res.setHeader`).
+3. **Endpoint Tiket Belum Aktif di Memori Server (Server Belum Direstart)**:
+   - Teruji secara langsung via HTTP probe bahwa route `/admin/api/routers/:id/terminal-ticket` mengembalikan **`HTTP 404 Not Found`** di server produksi `bill.myadamedia.web.id`. Hal ini terjadi karena proses Node.js di server VPS belum direstart (`pm2 restart app-customer`) sejak route baru ditambahkan ke kode sumber. Akibatnya, browser tidak mendapatkan tiket dan mencoba fallback ke WebSocket tanpa otorisasi yang kemudian ditutup paksa oleh browser dengan **`Kode: 1006`**.
+4. **Ketergantungan In-Memory Map pada Tiket (PM2 Cluster Incompatibility)**:
+   - Tiket sesi sebelumnya disimpan dalam `Map` memori lokal proses. Jika aplikasi dijalankan di lingkungan PM2 *cluster mode* dengan multi-worker, worker yang memvalidasi WebSocket upgrade tidak dapat membaca tiket yang dibuat oleh worker lain.
 
 ### 3. Solusi yang Dipilih
-1. **Perbaikan Verifikasi Hak Akses Sesi Multi-Role**:
-   - Memperbarui pengecekan sesi pada [`services/mikrotikTerminalService.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/mikrotikTerminalService.js) agar memeriksa secara komprehensif:
-     ```javascript
-     const isAuthorized = session && (session.isAdmin || session.adminUser || session.admin || session.isCashier);
-     ```
-2. **Mekanisme Autentikasi Tiket Sekali Pakai (*Ephemeral One-Time Ticket*)**:
-   - Menambahkan generator tiket kriptografis acak `createTerminalTicket(routerId, adminUsername)` dengan masa berlaku 60 detik.
-   - Menyediakan endpoint REST `GET /admin/api/routers/:id/terminal-ticket` yang diproteksi `requireAdmin`.
-   - Frontend [`views/admin/routers.ejs`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/views/admin/routers.ejs) mengambil tiket via `fetch()` sebelum membuka WebSocket:
-     ```javascript
-     wss://domain/admin/ws/routers/:id/terminal?ticket=<TOKEN>
-     ```
-   - Ini menjamin koneksi WebSocket 100% terautentikasi bahkan jika proxy Nginx/Cloudflare membuang cookie sesi.
-3. **Penyempurnaan Penanganan Mock Response `express-session`**:
-   - Menyiapkan objek mock `mockRes` lengkap dengan stub `end`, `getHeader`, `setHeader`, dan `writeHead` serta mengisi `request.originalUrl = request.url`.
+1. **Migrasi Tiket ke Stateless Token HMAC-SHA256**:
+   - Tiket kini di-generate menggunakan enkripsi `crypto.createHmac('sha256', secret)` yang membawa payload `{ routerId, adminUser, exp, nonce }`.
+   - Bersifat stateless dan 100% kompatibel di seluruh worker PM2 cluster maupun saat aplikasi direstart.
+2. **Perbaikan Penutupan Socket HTTP Upgrade**:
+   - Mengganti `socket.write()` + `socket.destroy()` dengan `socket.end()` berstandar HTTP (`HTTP/1.1 401 Unauthorized\r\nConnection: close...`) sehingga Nginx/Cloudflare tidak menganggapnya sebagai crash upstream (*502 Bad Gateway*).
+3. **Deteksi Error Tiket & Panduan Restart Proaktif pada UI Terminal**:
+   - Frontend [`views/admin/routers.ejs`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/views/admin/routers.ejs) kini secara eksplisit mendeteksi status respon tiket. Jika server mengembalikan 404 (menandakan server belum direstart), konsol terminal langsung menampilkan instruksi untuk merestart `pm2 restart app-customer`.
+4. **Pembaruan Versi Release (`version.txt: 15.0.1`)**:
+   - Memperbarui `version.txt` ke `15.0.1` agar admin dapat melakukan update langsung dari menu **Update GitHub** (`/admin/update`) di antarmuka web, lalu merestart aplikasi.
 4. **Peningkatan Diagnostik & Output Konsol Interaktif**:
    - Memberikan output langsung pada konsol terminal saat koneksi dimulai: `[Menghubungkan ke MY (172.99.11.1:5522)...]`.
    - Menampilkan kode penutupan WebSocket (misal Code 1006 / 1008) beserta langkah troubleshooting praktis langsung di dalam layar hitam terminal jika koneksi terputus.

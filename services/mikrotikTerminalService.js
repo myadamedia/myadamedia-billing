@@ -11,29 +11,38 @@ const { URL } = require('url');
 const { logger } = require('../config/logger');
 const mikrotikService = require('./mikrotikService');
 
-// Map penyimpanan tiket sesi one-time untuk WebSocket upgrade yang aman melalui reverse proxy
-const terminalTickets = new Map();
+const { getSetting } = require('../config/settingsManager');
+
+// Set penyimpanan nonce tiket yang telah terpakai untuk proteksi replay attack (TTL 70 detik)
+const consumedTickets = new Set();
+
+function getTerminalSecret() {
+  try {
+    return (getSetting && getSetting('session_secret')) || process.env.SESSION_SECRET || 'myadamedia-terminal-secret-key-38bdf8';
+  } catch (e) {
+    return process.env.SESSION_SECRET || 'myadamedia-terminal-secret-key-38bdf8';
+  }
+}
 
 /**
- * Membuat tiket sesi sementara sekali pakai (TTL: 60 detik)
+ * Membuat tiket sesi sementara sekali pakai berbasis HMAC-SHA256 (TTL: 60 detik)
+ * Stateless, tahan restart, dan bekerja di semua worker PM2 cluster mode
  * @param {number|string} routerId
  * @param {string} adminUsername
  * @returns {string} token tiket
  */
 function createTerminalTicket(routerId, adminUsername) {
-  const ticket = crypto.randomBytes(24).toString('hex');
-  terminalTickets.set(ticket, {
+  const secret = getTerminalSecret();
+  const nonce = crypto.randomBytes(16).toString('hex');
+  const payload = {
     routerId: Number(routerId),
     adminUser: adminUsername || 'admin',
-    expiresAt: Date.now() + 60000 // 60 detik
-  });
-
-  // Hapus otomatis setelah lewat masa berlaku
-  setTimeout(() => {
-    terminalTickets.delete(ticket);
-  }, 65000);
-
-  return ticket;
+    exp: Date.now() + 60000, // 60 detik
+    nonce
+  };
+  const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const sig = crypto.createHmac('sha256', secret).update(body).digest('base64url');
+  return `${body}.${sig}`;
 }
 
 /**
@@ -43,17 +52,43 @@ function createTerminalTicket(routerId, adminUsername) {
  * @returns {object|null}
  */
 function validateTerminalTicket(ticket, routerId) {
-  if (!ticket) return null;
-  const data = terminalTickets.get(ticket);
-  if (!data) return null;
+  if (!ticket || typeof ticket !== 'string') return null;
+  const parts = ticket.split('.');
+  if (parts.length !== 2) return null;
+  const [body, sig] = parts;
+  const secret = getTerminalSecret();
+  const expectedSig = crypto.createHmac('sha256', secret).update(body).digest('base64url');
+  
+  if (sig !== expectedSig) {
+    logger.warn('[WS Terminal] Signature tiket terminal tidak cocok');
+    return null;
+  }
 
-  // Hapus segera agar bersifat sekali pakai (one-time use)
-  terminalTickets.delete(ticket);
+  try {
+    const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf-8'));
+    if (Date.now() > payload.exp) {
+      logger.warn(`[WS Terminal] Tiket terminal kedaluwarsa untuk router #${routerId}`);
+      return null;
+    }
+    if (payload.routerId !== Number(routerId)) {
+      logger.warn(`[WS Terminal] Router ID tidak cocok: tiket=${payload.routerId}, target=${routerId}`);
+      return null;
+    }
+    if (consumedTickets.has(payload.nonce)) {
+      logger.warn('[WS Terminal] Tiket terminal sudah pernah dikonsumsi (replay attempt)');
+      return null;
+    }
 
-  if (Date.now() > data.expiresAt) return null;
-  if (data.routerId !== Number(routerId)) return null;
+    consumedTickets.add(payload.nonce);
+    setTimeout(() => {
+      consumedTickets.delete(payload.nonce);
+    }, 70000);
 
-  return data;
+    return payload;
+  } catch (e) {
+    logger.error(`[WS Terminal] Gagal parse payload tiket: ${e.message}`);
+    return null;
+  }
 }
 
 /**
@@ -79,8 +114,7 @@ function setupMikrotikTerminalWs(server, sessionMiddleware) {
 
       const routerId = parseInt(match[1], 10);
       if (isNaN(routerId) || routerId <= 0) {
-        socket.write('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n');
-        socket.destroy();
+        socket.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\nContent-Type: text/plain\r\nContent-Length: 11\r\n\r\nBad Request');
         return;
       }
 
@@ -115,8 +149,7 @@ function setupMikrotikTerminalWs(server, sessionMiddleware) {
 
         if (!isAuthorized) {
           logger.warn(`[WS Terminal] Akses terminal ditolak (belum login admin) untuk router #${routerId} dari ${request.socket?.remoteAddress}`);
-          socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
-          socket.destroy();
+          socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\nContent-Type: text/plain\r\nContent-Length: 12\r\n\r\nUnauthorized');
           return;
         }
 
@@ -128,8 +161,7 @@ function setupMikrotikTerminalWs(server, sessionMiddleware) {
     } catch (err) {
       logger.error('[WS Terminal] Error saat HTTP upgrade:', err.message);
       try {
-        socket.write('HTTP/1.1 500 Internal Server Error\r\nConnection: close\r\n\r\n');
-        socket.destroy();
+        socket.end('HTTP/1.1 500 Internal Server Error\r\nConnection: close\r\nContent-Type: text/plain\r\nContent-Length: 21\r\n\r\nInternal Server Error');
       } catch (e) {}
     }
   });
