@@ -133,7 +133,7 @@ app.use(express.text({
     req.rawBody = buf?.toString('utf8') || '';
   }
 }));
-app.use(session({
+const sessionMiddleware = session({
   secret: getSetting('session_secret', 'rahasia-portal-pelanggan-default-ganti-ini'),
   resave: false,
   saveUninitialized: false,
@@ -145,7 +145,8 @@ app.use(session({
     path: '/'
   },
   name: 'customer.sid'
-}));
+});
+app.use(sessionMiddleware);
 
 // Middleware Proteksi CSRF berbasis Referer/Origin (Aman untuk production tanpa merubah EJS)
 app.use((req, res, next) => {
@@ -1027,11 +1028,19 @@ function startServer(portToUse) {
     
     // Coba port alternatif jika port utama tidak tersedia
     try {
+        const { setupMikrotikTerminalWs } = require('./services/mikrotikTerminalService');
         const server = app.listen(portToUse, () => {
             logger.info(`Server berhasil berjalan pada port ${portToUse}`);
             logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
             // Update global.appSettings.port dengan port yang berhasil digunakan
             global.appSettings.port = portToUse.toString();
+            
+            // Inisialisasi WebSocket Server untuk MikroTik Web Terminal
+            try {
+                setupMikrotikTerminalWs(server, sessionMiddleware);
+            } catch (wsErr) {
+                logger.error('Gagal menginisialisasi WebSocket Terminal:', wsErr.message);
+            }
             
             // Voucher cache warmer dinonaktifkan — halaman voucher sekarang direct query ke MikroTik
             // const voucherCacheWarmer = require('./services/voucherCacheWarmer');
@@ -1049,6 +1058,13 @@ function startServer(portToUse) {
                     logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
                     // Update global.appSettings.port dengan port yang berhasil digunakan
                     global.appSettings.port = alternativePort.toString();
+                    
+                    // Inisialisasi WebSocket Server untuk MikroTik Web Terminal
+                    try {
+                        setupMikrotikTerminalWs(alternativeServer, sessionMiddleware);
+                    } catch (wsErr) {
+                        logger.error('Gagal menginisialisasi WebSocket Terminal:', wsErr.message);
+                    }
                     
                     // Voucher cache warmer dinonaktifkan — halaman voucher sekarang direct query ke MikroTik
                     // const voucherCacheWarmer = require('./services/voucherCacheWarmer');

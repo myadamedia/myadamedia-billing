@@ -6804,6 +6804,66 @@ router.get('/api/routers/:id/test', requireAdmin, async (req, res) => {
   }
 });
 
+router.get('/api/routers/:id/test-ssh', requireAdmin, async (req, res) => {
+  const r = mikrotikService.getRouterById(req.params.id);
+  if (!r) return res.json({ success: false, error: 'Router tidak ditemukan' });
+  const { Client } = require('ssh2');
+  const ssh = new Client();
+  const sshPort = parseInt(r.ssh_port, 10) || 22;
+  let done = false;
+  const timer = setTimeout(() => {
+    if (!done) {
+      done = true;
+      try { ssh.destroy(); } catch (e) {}
+      res.json({ success: false, error: `Koneksi SSH Timeout (Port ${sshPort}). Pastikan service SSH MikroTik aktif.` });
+    }
+  }, 7000);
+
+  ssh.on('ready', () => {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    try { ssh.end(); } catch (e) {}
+    res.json({ success: true, message: `Koneksi SSH ke port ${sshPort} berhasil!` });
+  });
+
+  ssh.on('error', (err) => {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    try { ssh.destroy(); } catch (e) {}
+    res.json({ success: false, error: `Gagal terhubung SSH: ${err.message}` });
+  });
+
+  ssh.on('keyboard-interactive', (name, instructions, instructionsLang, prompts, finish) => {
+    finish([r.password]);
+  });
+
+  try {
+    ssh.connect({
+      host: r.host,
+      port: sshPort,
+      username: r.user,
+      password: r.password,
+      readyTimeout: 6000,
+      tryKeyboard: true,
+      algorithms: {
+        serverHostKey: [
+          'ssh-rsa', 'ssh-dss', 'ecdsa-sha2-nistp256', 'ecdsa-sha2-nistp384',
+          'ecdsa-sha2-nistp521', 'rsa-sha2-512', 'rsa-sha2-256', 'ssh-ed25519'
+        ]
+      },
+      hostVerifier: () => true
+    });
+  } catch (e) {
+    if (!done) {
+      done = true;
+      clearTimeout(timer);
+      res.json({ success: false, error: e.message });
+    }
+  }
+});
+
 router.post('/api/routers/:id/setup-firewall', requireAdmin, async (req, res) => {
   try {
     const result = await mikrotikService.setupIsolirFirewall(req.params.id);

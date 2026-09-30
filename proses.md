@@ -2,6 +2,61 @@
 
 ---
 
+## [2026-09-30] Implementasi Web CLI & Interactive Terminal MikroTik via Browser (Xterm.js + SSH PTY + WebSocket) pada Manajemen Router
+
+### 1. Deskripsi Kebutuhan & Analisis Masalah
+Administrator dan teknisi jaringan ISP membutuhkan kemampuan mengakses konsol / CLI MikroTik langsung dari antarmuka web panel admin (`/admin/routers`) pada kolom aksi, tanpa harus membuka aplikasi desktop eksternal (seperti Winbox atau PuTTY) atau berpindah perangkat.
+- Pada tabel daftar router sebelumnya, kolom aksi hanya memiliki opsi: *Detail & Monitoring*, *Test Koneksi API*, *Setup Firewall Isolir*, *Edit*, dan *Hapus*.
+- Teknisi yang bertugas di lapangan atau admin yang menggunakan smartphone/tablet/laptop tanpa Winbox membutuhkan akses instan ke shell RouterOS untuk troubleshooting cepat (misalnya `ping`, `traceroute`, `/tool torch`, inspeksi log, atau eksekusi konfigurasi cepat).
+
+### 2. Analisis & Arsitektur Solusi
+1. **Pemilihan Protokol Komunikasi**:
+   - RouterOS API (port 8728) berbasis RPC terstruktur dan tidak mendukung PTY interaktif (tidak ada auto-complete `[TAB]`, warna ANSI, kontrol streaming interaktif `Ctrl+C`).
+   - Protokol **SSH (Port 22/custom)** dipilih karena menyediakan interactive shell PTY penuh layaknya terminal fisik atau terminal Winbox.
+2. **Arsitektur Sistem (Bidirectional Streaming)**:
+   - **Frontend UI Layer**: Memanfaatkan library standar industri **Xterm.js** (`@xterm/xterm`) dilengkapi **FitAddon** (`@xterm/addon-fit`) untuk perataan otomatis kolom & baris terminal, disematkan dalam modal pop-up responsif dengan opsi *Layar Penuh (Fullscreen)*.
+   - **Transport Layer**: Menggunakan **WebSocket (`ws`)** dengan endpoint terproteksi `/admin/ws/routers/:id/terminal`.
+   - **Backend Application Layer**: Dibuat service terisolasi [`services/mikrotikTerminalService.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/mikrotikTerminalService.js) yang menghubungkan socket WebSocket dengan instance `ssh2.Client`.
+   - **MikroTik RouterOS**: Menjalankan interactive shell `xterm-256color` dengan negosiasi cipher luas (kompatibel penuh dengan RouterOS v6 dan RouterOS v7).
+
+### 3. Mitigasi Risiko & Keamanan (Security Hardening & Clean Architecture)
+1. **Autentikasi Session pada HTTP Upgrade**:
+   - Handler upgrade WebSocket memverifikasi cookie sesi Express (`customer.sid`) menggunakan `sessionMiddleware` dan memastikan `req.session.admin` valid sebelum mengizinkan proses *upgrade*. Akses tanpa hak admin langsung ditolak dengan status HTTP 401 Unauthorized.
+2. **Pencegahan Kebocoran Koneksi (Connection & Memory Leak Prevention)**:
+   - Pembersihan deterministik (*deterministic cleanup*): Jika tab browser ditutup, modal ditutup, atau koneksi terputus, event `ws.on('close')` dan `ws.on('error')` langsung memanggil `sshStream.end()`, `sshClient.end()`, dan `sshClient.destroy()`, mencegah terjadinya *zombie connection* pada MikroTik.
+3. **Dukungan Port SSH Kustom (Non-Standar)**:
+   - Menambahkan kolom `ssh_port` (default `22`) pada tabel `routers` database SQLite beserta migrasi otomatis berbasis `PRAGMA table_info` pada [`config/database.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/config/database.js).
+   - Form Tambah Router dan Edit Router pada UI kini menyediakan input Port SSH.
+4. **Resiliensi Jaringan Offline / Intranet**:
+   - Asset frontend Xterm.js (`xterm.min.css`, `xterm.min.js`, `xterm-addon-fit.min.js`) di-bundle ke dalam folder `public/` lokal dan dilengkapi CDN fallback. Ini memastikan terminal tetap dapat berfungsi normal pada server lokal intranet/on-premise tanpa akses internet publik.
+5. **Diagnostik Koneksi SSH On-Demand**:
+   - Disediakan endpoint `GET /admin/api/routers/:id/test-ssh` dan tombol "Test SSH" pada header modal terminal untuk memverifikasi keterjangkauan port SSH router sebelum membuka sesi shell interaktif.
+
+### 4. Komponen & File Yang Diubah
+- `[MODIFY]` [`package.json`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/package.json): Menambahkan dependensi `"ws": "^8.18.0"`.
+- `[MODIFY]` [`config/database.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/config/database.js): Menambahkan kolom `ssh_port INTEGER DEFAULT 22` pada skema `routers` dan auto-migration check.
+- `[MODIFY]` [`services/mikrotikService.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/mikrotikService.js): Memperbarui `createRouter` dan `updateRouter` untuk mendukung penyimpanan `ssh_port` dan proteksi password tidak tertimpa kosong.
+- `[NEW]` [`services/mikrotikTerminalService.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/mikrotikTerminalService.js): Service inti WebSocket server, validasi otentikasi sesi, pembukaan shell PTY `ssh2`, penanganan data dua arah, dan auto-resize window terminal.
+- `[MODIFY]` [`app-customer.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/app-customer.js): Mengekstrak `sessionMiddleware` untuk di-share ke HTTP upgrade listener dan mengikat `setupMikrotikTerminalWs(server, sessionMiddleware)`.
+- `[MODIFY]` [`routes/adminPortal.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/routes/adminPortal.js): Menambahkan endpoint diagnostik `GET /admin/api/routers/:id/test-ssh`.
+- `[MODIFY]` [`views/admin/routers.ejs`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/views/admin/routers.ejs):
+  - Menambahkan tombol aksi "Terminal" berikon `bi-terminal` di kolom aksi tabel router.
+  - Menambahkan input Port SSH pada Modal Tambah dan Modal Edit Router.
+  - Menambahkan Modal Web Terminal MikroTik responsif dengan tombol Fullscreen, Reconnect, Clear, Test SSH, dan panduan shortcut keyboard.
+  - Menambahkan JavaScript controller terminal berbasis Xterm.js dan WebSocket.
+- `[NEW]` [`public/css/xterm.min.css`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/public/css/xterm.min.css): Asset stylesheet lokal untuk konsol terminal.
+- `[NEW]` [`public/js/xterm.min.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/public/js/xterm.min.js): Asset core engine Xterm.js lokal.
+- `[NEW]` [`public/js/xterm-addon-fit.min.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/public/js/xterm-addon-fit.min.js): Asset addon auto-fit kolom/baris terminal lokal.
+- `[NEW]` [`tests/mikrotikTerminalService.test.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/tests/mikrotikTerminalService.test.js): Automated unit test suite untuk WebSocket upgrade dan penanganan sesi terminal.
+- `[NEW]` [`README.md`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/README.md): Dokumentasi panduan instalasi, deployment, dan operasional aplikasi termasuk fitur Web Terminal.
+
+### 5. Hasil Pengujian & Verifikasi
+- **Automated Unit Testing (`tests/mikrotikTerminalService.test.js`)**: 4/4 passed (100%).
+- **Automated Database CRUD Testing (`services/mikrotikService.js`)**: Lulus verifikasi simpan, baca, dan update `ssh_port`.
+- **EJS Template Compilation Testing**: Lulus kompilasi sintaks EJS tanpa error.
+
+---
+
 ## [2026-09-24] Perbaikan Sistem Cron Job Isolir Otomatis & Validasi Ketat Jatuh Tempo Tagihan (Prevent Premature Customer Suspension & Wrong WA Notifications)
 
 ### 1. Deskripsi Permasalahan & Kebutuhan

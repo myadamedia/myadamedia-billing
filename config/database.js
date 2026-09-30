@@ -181,6 +181,7 @@ db.exec(`
     name TEXT NOT NULL,
     host TEXT NOT NULL,
     port INTEGER DEFAULT 8728,
+    ssh_port INTEGER DEFAULT 22,
     user TEXT NOT NULL,
     password TEXT NOT NULL,
     description TEXT DEFAULT '',
@@ -588,6 +589,17 @@ try {
   }
 } catch (err) {
   console.error('[DB Migration] Error migrating investors table:', err.message);
+}
+
+// Migrasi otomatis kolom ssh_port pada tabel routers
+try {
+  const routerCols = db.prepare("PRAGMA table_info(routers)").all();
+  const hasSshPort = routerCols.some(c => c.name === 'ssh_port');
+  if (!hasSshPort) {
+    db.prepare("ALTER TABLE routers ADD COLUMN ssh_port INTEGER DEFAULT 22").run();
+  }
+} catch (err) {
+  console.error('[DB Migration] Error migrating routers table:', err.message);
 }
 
 

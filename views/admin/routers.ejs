@@ -5,7 +5,12 @@
   <title><%= t('admin.nav.router_management', 'Manajemen Router') %> | <%= company %></title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="/css/admin.css?v=2">
+  <link rel="stylesheet" href="/css/xterm.min.css" onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css';">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="/js/xterm.min.js"></script>
+  <script>if (typeof Terminal === 'undefined') document.write('<script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"><\\/script>');</script>
+  <script src="/js/xterm-addon-fit.min.js"></script>
+  <script>if (typeof FitAddon === 'undefined') document.write('<script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"><\\/script>');</script>
   <style>
     /* Hero Banner Modernization - Adaptive */
     .hero-banner {
@@ -134,6 +139,127 @@
     .btn-live-traffic i {
       font-size: 13px;
     }
+
+    /* MikroTik Web Terminal Modal & Container Styling */
+    .terminal-modal-box {
+      max-width: 1050px;
+      width: 96%;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transition: all 0.2s ease;
+    }
+    .terminal-modal-box.fullscreen {
+      max-width: 100vw !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      border-radius: 0 !important;
+      margin: 0 !important;
+      border: none !important;
+    }
+    .terminal-header {
+      background: #161b22;
+      padding: 10px 16px;
+      border-bottom: 1px solid #30363d;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      user-select: none;
+    }
+    .terminal-title-area {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    .terminal-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #f0f6fc;
+    }
+    .terminal-badge {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-weight: 600;
+    }
+    .terminal-badge.connected {
+      background: rgba(46, 160, 67, 0.2);
+      color: #3fb950;
+      border: 1px solid rgba(46, 160, 67, 0.4);
+    }
+    .terminal-badge.connecting {
+      background: rgba(210, 153, 34, 0.2);
+      color: #d29922;
+      border: 1px solid rgba(210, 153, 34, 0.4);
+    }
+    .terminal-badge.disconnected {
+      background: rgba(248, 81, 73, 0.2);
+      color: #f85149;
+      border: 1px solid rgba(248, 81, 73, 0.4);
+    }
+    .terminal-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .terminal-btn {
+      background: #21262d;
+      color: #c9d1d9;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s ease;
+    }
+    .terminal-btn:hover {
+      background: #30363d;
+      color: #f0f6fc;
+      border-color: #8b949e;
+    }
+    .terminal-body {
+      background: #090d13;
+      padding: 8px 12px;
+      height: 520px;
+      position: relative;
+      overflow: hidden;
+      flex: 1;
+    }
+    .terminal-modal-box.fullscreen .terminal-body {
+      height: calc(100vh - 82px) !important;
+    }
+    #terminal-mount {
+      width: 100%;
+      height: 100%;
+    }
+    .terminal-footer {
+      background: #161b22;
+      padding: 6px 14px;
+      border-top: 1px solid #30363d;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: #8b949e;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    .spin {
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      100% { transform: rotate(360deg); }
+    }
   </style>
 </head>
 <body>
@@ -254,7 +380,10 @@
                   <button class="btn btn-p btn-icon btn-sm" title="Detail & Monitoring Interface" onclick="showRouterDetail(<%= r.id %>, '<%= r.name %>')">
                     <i class="bi bi-activity"></i> Detail
                   </button>
-                  <button class="btn btn-g btn-icon btn-sm" title="<%= t('admin.routers.actions.test', 'Test Koneksi') %>" onclick="testConn(<%= r.id %>)">
+                  <button class="btn btn-dark btn-icon btn-sm" style="background:#0f172a;border:1px solid #334155;color:#38bdf8" title="CLI / Terminal MikroTik" onclick="openTerminalModal(<%= r.id %>, '<%= r.name %>', '<%= r.host %>', <%= r.ssh_port || 22 %>)">
+                    <i class="bi bi-terminal"></i> Terminal
+                  </button>
+                  <button class="btn btn-g btn-icon btn-sm" title="<%= t('admin.routers.actions.test', 'Test Koneksi API') %>" onclick="testConn(<%= r.id %>)">
                     <i class="bi bi-plug"></i>
                   </button>
                   <button class="btn btn-g btn-icon btn-sm" title="Setup Firewall Isolir" onclick="setupFirewall(<%= r.id %>)">
@@ -519,6 +648,7 @@
         </div>
         <div class="form-row">
           <div class="fg"><label class="fl"><%= t('admin.routers.form.api_port', 'Port API') %> *</label><input class="fc" name="port" type="number" value="8728" required></div>
+          <div class="fg"><label class="fl">Port SSH *</label><input class="fc" name="ssh_port" type="number" value="22" required></div>
           <div class="fg"><label class="fl"><%= t('admin.routers.form.username', 'Username MikroTik') %> *</label><input class="fc" name="user" required></div>
         </div>
         <div class="form-row">
@@ -553,6 +683,7 @@
         </div>
         <div class="form-row">
           <div class="fg"><label class="fl"><%= t('admin.routers.form.api_port', 'Port API') %> *</label><input class="fc" name="port" id="e_port" type="number" required></div>
+          <div class="fg"><label class="fl">Port SSH *</label><input class="fc" name="ssh_port" id="e_ssh_port" type="number" value="22" required></div>
           <div class="fg"><label class="fl"><%= t('admin.routers.form.username', 'Username MikroTik') %> *</label><input class="fc" name="user" id="e_user" required></div>
         </div>
         <div class="form-row">
@@ -572,6 +703,48 @@
         <button type="submit" class="btn btn-p"><i class="bi bi-check-lg"></i> <%= t('admin.routers.actions.update', 'Update Router') %></button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- Modal CLI / Terminal MikroTik -->
+<div class="mo" id="terminalModal" style="z-index: 1050;">
+  <div class="terminal-modal-box" id="terminalBox">
+    <div class="terminal-header">
+      <div class="terminal-title-area">
+        <i class="bi bi-terminal-fill" style="color:#38bdf8;font-size:16px"></i>
+        <span class="terminal-title" id="terminalTitle">Terminal MikroTik</span>
+        <span id="termStatusBadge" class="terminal-badge connecting">
+          <i class="bi bi-arrow-repeat spin"></i> Menghubungkan...
+        </span>
+      </div>
+      <div class="terminal-actions">
+        <button type="button" class="terminal-btn" onclick="testSshCurrentRouter()" title="Uji Port SSH">
+          <i class="bi bi-shield-check"></i> Test SSH
+        </button>
+        <button type="button" class="terminal-btn" onclick="clearTerminalScreen()" title="Bersihkan Layar (Ctrl+L)">
+          <i class="bi bi-eraser"></i> Clear
+        </button>
+        <button type="button" class="terminal-btn" onclick="reconnectTerminal()" title="Sambung Ulang Koneksi">
+          <i class="bi bi-arrow-clockwise"></i> Reconnect
+        </button>
+        <button type="button" class="terminal-btn" onclick="toggleTerminalFullscreen()" id="termFullscreenBtn" title="Layar Penuh">
+          <i class="bi bi-arrows-fullscreen"></i>
+        </button>
+        <button type="button" class="terminal-btn" onclick="closeTerminalModal()" style="color:#f85149" title="Tutup Terminal">
+          <i class="bi bi-x-lg"></i>
+        </button>
+      </div>
+    </div>
+    <div class="terminal-body">
+      <div id="terminal-mount"></div>
+    </div>
+    <div class="terminal-footer">
+      <div>
+        <i class="bi bi-info-circle text-primary"></i>
+        <span>Shortcut: <b>[TAB]</b> Auto-complete | <b>[↑] [↓]</b> Riwayat | <b>[Ctrl+C]</b> Batal Ping/Torch | <b>[Ctrl+L]</b> Clear</span>
+      </div>
+      <div id="terminalSizeIndicator">80 x 24</div>
+    </div>
   </div>
 </div>
 
@@ -605,6 +778,7 @@ function editRouter(idx) {
   document.getElementById('e_name').value = r.name;
   document.getElementById('e_host').value = r.host;
   document.getElementById('e_port').value = r.port;
+  document.getElementById('e_ssh_port').value = r.ssh_port || 22;
   document.getElementById('e_user').value = r.user;
   document.getElementById('e_active').value = r.is_active;
   document.getElementById('e_desc').value = r.description || '';
@@ -1096,10 +1270,280 @@ async function fetchTrafficPoint() {
         liveChart.update('none');
       }
     }
-  } catch (e) {
-    console.error('Error fetching traffic stream point:', e);
+// ─── MIKROTIK WEB TERMINAL (XTERM.JS + WEBSOCKET) ───────────────────────────
+let terminalInstance = null;
+let terminalFitAddon = null;
+let terminalSocket = null;
+let activeTermRouterId = null;
+let activeTermRouterName = '';
+let activeTermRouterHost = '';
+let activeTermSshPort = 22;
+let termPingInterval = null;
+
+function setTerminalStatus(state, label) {
+  const badge = document.getElementById('termStatusBadge');
+  if (!badge) return;
+  badge.className = 'terminal-badge ' + state;
+  let icon = 'bi-circle-fill';
+  if (state === 'connecting') icon = 'bi-arrow-repeat spin';
+  else if (state === 'connected') icon = 'bi-check-circle-fill';
+  else if (state === 'disconnected') icon = 'bi-exclamation-circle-fill';
+  badge.innerHTML = `<i class="bi ${icon}"></i> ${label}`;
+}
+
+function openTerminalModal(routerId, routerName, routerHost, sshPort) {
+  activeTermRouterId = routerId;
+  activeTermRouterName = routerName || 'Router';
+  activeTermRouterHost = routerHost || '-';
+  activeTermSshPort = sshPort || 22;
+
+  document.getElementById('terminalTitle').textContent = `${activeTermRouterName} (${activeTermRouterHost}:${activeTermSshPort})`;
+  openModal('terminalModal');
+
+  // Berikan sedikit waktu agar modal container selesai render layoutnya sebelum mount xterm
+  setTimeout(() => {
+    initTerminalSession();
+  }, 100);
+}
+
+function initTerminalSession() {
+  const mountEl = document.getElementById('terminal-mount');
+  if (!mountEl) return;
+
+  // Bersihkan terminal lama jika ada
+  closeTerminalConnectionOnly();
+  mountEl.innerHTML = '';
+
+  // Inisialisasi Xterm.js
+  if (typeof Terminal === 'undefined') {
+    mountEl.innerHTML = '<div style="color:#ff7b72;padding:20px;font-family:monospace">Gagal memuat library Xterm.js. Pastikan koneksi internet aktif untuk memuat script console.</div>';
+    setTerminalStatus('disconnected', 'Gagal Load Xterm');
+    return;
+  }
+
+  terminalInstance = new Terminal({
+    fontFamily: 'ui-monospace, "SF Mono", Menlo, Monaco, Consolas, "Courier New", monospace',
+    fontSize: 13,
+    lineHeight: 1.25,
+    cursorBlink: true,
+    cursorStyle: 'block',
+    scrollback: 2000,
+    theme: {
+      background: '#090d13',
+      foreground: '#c9d1d9',
+      cursor: '#58a6ff',
+      cursorAccent: '#090d13',
+      selectionBackground: 'rgba(56, 189, 248, 0.35)',
+      black: '#090d13',
+      red: '#ff7b72',
+      green: '#3fb950',
+      yellow: '#d29922',
+      blue: '#58a6ff',
+      magenta: '#bc8cff',
+      cyan: '#39c5cf',
+      white: '#d1d7e0',
+      brightBlack: '#6e7681',
+      brightRed: '#ffa198',
+      brightGreen: '#56d364',
+      brightYellow: '#e3b341',
+      brightBlue: '#79c0ff',
+      brightMagenta: '#d2a8ff',
+      brightCyan: '#56d4dd',
+      brightWhite: '#ffffff'
+    }
+  });
+
+  if (typeof FitAddon !== 'undefined' && FitAddon.FitAddon) {
+    terminalFitAddon = new FitAddon.FitAddon();
+    terminalInstance.loadAddon(terminalFitAddon);
+  }
+
+  terminalInstance.open(mountEl);
+
+  if (terminalFitAddon) {
+    try {
+      terminalFitAddon.fit();
+      updateTerminalSizeIndicator();
+    } catch (e) {}
+  }
+
+  // Tampilkan status connecting
+  setTerminalStatus('connecting', 'Menghubungkan...');
+
+  // Siapkan URL WebSocket
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = `${protocol}//${window.location.host}/admin/ws/routers/${activeTermRouterId}/terminal`;
+
+  try {
+    terminalSocket = new WebSocket(wsUrl);
+  } catch (err) {
+    terminalInstance.write(`\r\n\x1b[31;1m[Error Browser] Gagal membuka WebSocket: ${err.message}\x1b[0m\r\n`);
+    setTerminalStatus('disconnected', 'Error');
+    return;
+  }
+
+  terminalSocket.onopen = () => {
+    setTerminalStatus('connected', 'Terhubung');
+    // Kirim ukuran terminal awal ke backend SSH
+    if (terminalInstance) {
+      terminalSocket.send(JSON.stringify({
+        type: 'resize',
+        cols: terminalInstance.cols,
+        rows: terminalInstance.rows
+      }));
+    }
+
+    // Keepalive ping setiap 25 detik
+    if (termPingInterval) clearInterval(termPingInterval);
+    termPingInterval = setInterval(() => {
+      if (terminalSocket && terminalSocket.readyState === WebSocket.OPEN) {
+        terminalSocket.send(JSON.stringify({ type: 'ping' }));
+      }
+    }, 25000);
+  };
+
+  terminalSocket.onmessage = (event) => {
+    if (terminalInstance) {
+      terminalInstance.write(event.data);
+    }
+  };
+
+  terminalSocket.onclose = () => {
+    setTerminalStatus('disconnected', 'Terputus');
+    if (termPingInterval) {
+      clearInterval(termPingInterval);
+      termPingInterval = null;
+    }
+  };
+
+  terminalSocket.onerror = (err) => {
+    setTerminalStatus('disconnected', 'Koneksi Error');
+  };
+
+  // Kirim setiap tombol yang diketik pengguna ke WebSocket
+  terminalInstance.onData((data) => {
+    if (terminalSocket && terminalSocket.readyState === WebSocket.OPEN) {
+      terminalSocket.send(data);
+    }
+  });
+
+  // Listener resize terminal
+  terminalInstance.onResize((size) => {
+    if (terminalSocket && terminalSocket.readyState === WebSocket.OPEN) {
+      terminalSocket.send(JSON.stringify({
+        type: 'resize',
+        cols: size.cols,
+        rows: size.rows
+      }));
+    }
+    updateTerminalSizeIndicator();
+  });
+
+  terminalInstance.focus();
+}
+
+function updateTerminalSizeIndicator() {
+  const ind = document.getElementById('terminalSizeIndicator');
+  if (ind && terminalInstance) {
+    ind.textContent = `${terminalInstance.cols} x ${terminalInstance.rows}`;
   }
 }
+
+function closeTerminalConnectionOnly() {
+  if (termPingInterval) {
+    clearInterval(termPingInterval);
+    termPingInterval = null;
+  }
+  if (terminalSocket) {
+    try {
+      terminalSocket.close();
+    } catch (e) {}
+    terminalSocket = null;
+  }
+  if (terminalInstance) {
+    try {
+      terminalInstance.dispose();
+    } catch (e) {}
+    terminalInstance = null;
+  }
+  terminalFitAddon = null;
+}
+
+function closeTerminalModal() {
+  closeTerminalConnectionOnly();
+  const box = document.getElementById('terminalBox');
+  if (box) box.classList.remove('fullscreen');
+  const btn = document.getElementById('termFullscreenBtn');
+  if (btn) btn.innerHTML = '<i class="bi bi-arrows-fullscreen"></i>';
+  closeModal('terminalModal');
+}
+
+function reconnectTerminal() {
+  if (!activeTermRouterId) return;
+  initTerminalSession();
+}
+
+function clearTerminalScreen() {
+  if (terminalInstance) {
+    terminalInstance.clear();
+    terminalInstance.focus();
+  }
+}
+
+function toggleTerminalFullscreen() {
+  const box = document.getElementById('terminalBox');
+  const btn = document.getElementById('termFullscreenBtn');
+  if (!box) return;
+  box.classList.toggle('fullscreen');
+  const isFs = box.classList.contains('fullscreen');
+  if (btn) {
+    btn.innerHTML = isFs ? '<i class="bi bi-fullscreen-exit"></i>' : '<i class="bi bi-arrows-fullscreen"></i>';
+  }
+  // Fit terminal setelah transisi resize
+  setTimeout(() => {
+    if (terminalFitAddon) {
+      try {
+        terminalFitAddon.fit();
+        updateTerminalSizeIndicator();
+      } catch (e) {}
+    }
+    if (terminalInstance) terminalInstance.focus();
+  }, 100);
+}
+
+async function testSshCurrentRouter() {
+  if (!activeTermRouterId) return;
+  const btn = event?.currentTarget;
+  const origText = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> Testing...';
+    btn.disabled = true;
+  }
+  try {
+    const res = await fetch(`/admin/api/routers/${activeTermRouterId}/test-ssh`);
+    const data = await res.json();
+    alert(data.success ? '✅ ' + data.message : '❌ ' + data.error);
+  } catch (e) {
+    alert('Terjadi kesalahan saat menguji port SSH: ' + e.message);
+  } finally {
+    if (btn) {
+      btn.innerHTML = origText;
+      btn.disabled = false;
+    }
+  }
+}
+
+// Window resize listener untuk auto fit terminal
+window.addEventListener('resize', () => {
+  if (document.getElementById('terminalModal')?.classList.contains('show')) {
+    if (terminalFitAddon) {
+      try {
+        terminalFitAddon.fit();
+        updateTerminalSizeIndicator();
+      } catch (e) {}
+    }
+  }
+});
 </script>
 </body>
 </html>

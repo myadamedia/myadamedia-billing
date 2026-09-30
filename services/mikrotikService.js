@@ -1260,17 +1260,22 @@ function getRouterById(id) {
 }
 
 function createRouter(data) {
+  const sshPort = parseInt(data.ssh_port, 10) || 22;
   return db.prepare(`
-    INSERT INTO routers (name, host, port, user, password, description, is_active)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(data.name, data.host, data.port || 8728, data.user, data.password, data.description || '', data.is_active || 1);
+    INSERT INTO routers (name, host, port, ssh_port, user, password, description, is_active)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(data.name, data.host, data.port || 8728, sshPort, data.user, data.password, data.description || '', data.is_active != null ? data.is_active : 1);
 }
 
 function updateRouter(id, data) {
+  const current = getRouterById(id);
+  if (!current) throw new Error('Router tidak ditemukan');
+  const password = (data.password && String(data.password).trim() !== '') ? data.password : current.password;
+  const sshPort = parseInt(data.ssh_port, 10) || current.ssh_port || 22;
   return db.prepare(`
-    UPDATE routers SET name=?, host=?, port=?, user=?, password=?, description=?, is_active=?
+    UPDATE routers SET name=?, host=?, port=?, ssh_port=?, user=?, password=?, description=?, is_active=?
     WHERE id=?
-  `).run(data.name, data.host, data.port || 8728, data.user, data.password, data.description || '', data.is_active || 1, id);
+  `).run(data.name, data.host, data.port || 8728, sshPort, data.user, password, data.description || '', data.is_active != null ? data.is_active : 1, id);
 }
 
 function deleteRouter(id) {
