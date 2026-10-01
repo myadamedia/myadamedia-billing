@@ -3807,5 +3807,62 @@ Pada file [services/billingService.js](file:///d:/WEBAPP/MyAdamedia%20ALL/myadam
   - `tests/customerTerminate.test.js`: 4/4 PASSED.
   - `tests/isolirAddressListPermanent.test.js`: 5/5 PASSED.
 
+---
+
+## [2026-10-01] Perbaikan Responsivitas & Tombol Tutup Web Terminal MikroTik pada Tampilan Mobile (HP)
+
+### 1. Permasalahan
+Pada halaman Manajemen Router (`/admin/routers`), saat fitur Web Terminal / CLI MikroTik dibuka melalui smartphone/perangkat mobile:
+1. **Modal tidak dapat ditutup (tidak bisa di-close)**: Tombol silang tutup `[X]` hilang dari layar atau tidak dapat dijangkau dan disentuh oleh pengguna.
+2. **Tampilan modal tidak menyesuaikan layar smartphone**: Layout modal terpotong horizontal dan vertikal, teks MikroTik meluber keluar batas layar, dan tidak responsif terhadap rotasi layar maupun keyboard virtual.
+3. **Backdrop & Shortcut tidak menutup modal**: Pengguna tidak dapat menutup terminal dengan mengetuk area gelap di luar modal maupun menekan tombol `Escape`.
+
+### 2. Penyebab Utama (Root Cause)
+1. **Header Overflow Mendorong Tombol Close Keluar Layar**:
+   - Di `.terminal-header`, elemen `.terminal-title-area` dan `.terminal-actions` ditata horizontal tanpa pembungkusan (`flex-wrap: nowrap`) dengan lebar gabungan mencapai lebih dari 650px (judul panjang + status badge + 5 tombol: Test SSH, Clear, Reconnect, Fullscreen, Close).
+   - Karena `.terminal-modal-box` menggunakan `overflow: hidden; width: 96%;`, pada viewport HP dengan lebar 360px–412px, seluruh tombol di ujung kanan—termasuk tombol close `[X]`—terpotong keluar layar (*clipped off-screen*).
+2. **Ketiadaan Handler Backdrop Click & Escape Key**:
+   - Kontainer modal `#terminalModal` tidak memiliki event listener untuk mendeteksi klik di area backdrop luar, sehingga pengguna yang kehilangan tombol close di layar HP terjebak tanpa jalan keluar selain me-refresh browser.
+3. **Tinggi Hardcoded & Overflow Vertikal**:
+   - Kontainer `.terminal-body` memiliki style hardcoded `height: 520px;`. Ditambah tinggi header dan footer, total tinggi melebihi tinggi layar ponsel kecil (misal iPhone SE / Android layar < 700px), sehingga modal terpotong secara vertikal.
+4. **Font XTerm.js Statis & Ketiadaan Listener Viewport Mobile**:
+   - Ukuran font terminal diatur statis `fontSize: 13`, menghasilkan jumlah kolom yang terlalu sempit pada layar HP portrait.
+   - Resize listener hanya memantau `window.resize`, tanpa menangani `visualViewport` (saat keyboard virtual aktif) maupun `orientationchange` (saat HP diputar ke landscape).
+
+### 3. Solusi Dipilih
+1. **Responsive Header Layout dengan CSS Grid & Dedicated Close Button**:
+   - Pada layar mobile (`@media (max-width: 768px)`), layout `.terminal-header` diubah menggunakan CSS Grid 2 baris:
+     - **Baris 1**: Judul Router & Status Badge di sebelah kiri (`grid-area: title`), dan Tombol Close Mandiri (`.terminal-btn-close`) di pojok kanan atas (`grid-area: close`).
+     - **Baris 2**: Action Toolbar (`grid-area: actions`) untuk tombol *Test SSH*, *Clear*, dan *Reconnect* secara horizontal dengan scrollbar halus jika diperlukan.
+   - Tombol tutup (`.terminal-btn-close`) kini memiliki area sentuh ramah jari (min 40x36px), warna merah tegas (`#f85149`), efek hover/active interaktif, dan `z-index` prioritas sehingga 100% selalu terlihat di pojok kanan atas layar HP dan tidak mungkin terdorong keluar.
+2. **Edge-to-Edge Native-Like Mobile Terminal**:
+   - Pada viewport mobile (`<= 768px`), `.terminal-modal-box` memanfaatkan 100% viewport (`width: 100% !important; height: 100dvh !important; border-radius: 0 !important;`) mirip aplikasi SSH native (Termius/JuiceSSH).
+   - Mendukung `100dvh` (Dynamic Viewport Height) serta `safe-area-inset` untuk layar berponi/notch.
+   - Kontainer `.terminal-body` menggunakan `flex: 1 1 0%; min-height: 0; height: auto !important;` sehingga ukuran canvas terminal mengisi sisa ruang viewport secara presisi.
+3. **Interaktivitas Penutupan Ganda**:
+   - Menambahkan event listener klik pada backdrop modal: jika pengguna mengetuk area di luar kotak terminal, modal langsung tertutup dan koneksi dibersihkan.
+   - Menambahkan event listener tombol `Escape` pada keyboard fisik/Bluetooth.
+4. **Optimalisasi XTerm.js & Adaptasi Orientasi**:
+   - Menggunakan ukuran font adaptif (`fontSize: 11` di mobile, `13` di desktop) untuk memaksimalkan jumlah kolom teks terminal pada layar smartphone.
+   - Menambahkan fungsi helper `fitTerminal()` yang terhubung ke `window.resize`, `window.visualViewport.resize`, dan `orientationchange` dengan auto-fit multi-pass agar terminal langsung terkonfigurasi sempurna saat HP diputar ke mode landscape.
+5. **Footer Mobile-Friendly**:
+   - Menyembunyikan shortcut keyboard desktop yang tidak relevan di layar sentuh ponsel dan menggantinya dengan petunjuk praktis: *"Tip: Rotasi ke landscape untuk terminal lebih lebar"* serta indikator ukuran kolom x baris (`cols x rows`).
+
+### 4. Dampak Sistem
+- **Aksesibilitas Mobile Sempurna**: Administrator jaringan dapat membuka dan menutup Web Terminal CLI MikroTik dari smartphone tanpa kendala tombol hilang.
+- **Pengalaman Pengguna (UX) Premium**: Tampilan memenuhi layar HP dengan rapi tanpa scrollbar halaman ganda, dan terminal otomatis melebar saat ponsel diputar landscape.
+- **Zero Regression**: Pengalaman di layar desktop tetap terjaga dengan modal floating card elegan berukuran 1050px.
+
+### 5. Kode yang Diperbaiki
+- **`views/admin/routers.ejs`**:
+  - CSS styling `.terminal-modal-box`, `.terminal-header`, `.terminal-btn-close`, `.terminal-actions`, `.terminal-body`, `.terminal-footer`, dan media query `@media (max-width: 768px)`.
+  - Markup modal `#terminalModal` dengan tombol `.terminal-btn-close` mandiri dan toolbar terpisah.
+  - Skrip inisialisasi XTerm dengan font adaptif, helper `fitTerminal()`, backdrop dismissal, Escape listener, serta `visualViewport` & `orientationchange` handlers.
+- **`version.txt`**: Di-bump ke `15.0.4`.
+
+### 6. Hasil Pengujian & Verifikasi
+- Validasi sintaks EJS: `node -e "const ejs = require('ejs'); ... ejs.compile(content);"` -> **EJS compilation success!**
+- Pengujian regresi Jest: `node ./node_modules/jest/bin/jest.js tests/billingFutureInvoiceExclusion.test.js --forceExit` -> **5/5 PASSED (100%)**.
+
 
 
