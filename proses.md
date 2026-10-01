@@ -2,6 +2,55 @@
 
 ---
 
+## [2026-10-01] Perbaikan Pemisahan Tagihan: Mencegah Penggabungan Tagihan Bulan Masa Depan (Advance Billing) ke Notifikasi Bulan Berjalan & Bulan Sebelumnya
+
+### 1. Permasalahan yang Ditemukan
+Ketika invoice / tagihan untuk bulan berikutnya sudah di-generate oleh sistem/administrator lebih awal (advance billing), sementara kondisi kalender saat ini masih berada di bulan sebelumnya/berjalan (misal: invoice Oktober sudah dibuat pada akhir September):
+- Sistem secara keliru menjumlahkan dan menggabungkan tagihan bulan berikutnya ke dalam total tagihan yang dikirimkan ke pelanggan (`tagihan bulan berjalan + bulan berikutnya`).
+- Pada pesan notifikasi WhatsApp (pengingat sebelum jatuh tempo harian, pengingat sebelum isolir, broadcast tagihan massal, maupun pengiriman manual via admin panel), variabel `{{tagihan}}` memuat total gabungan September + Oktober dan `{{rincian}}` memuat rincian periode yang menggabungkan bulan berikutnya (misal: `9/2026, 10/2026`).
+- Pelanggan yang sebenarnya sudah melunasi tagihan bulan berjalan (September) dan hanya memiliki invoice bulan berikutnya (Oktober) tetap menerima pesan penagihan dengan status menunggak sebelum masanya.
+
+### 2. Penyebab Utama Masalah (Root Cause Analysis)
+1. **Query Naif Seluruh Invoice Unpaid/Partial Tanpa Pembatasan Periode (*Unbounded Period Accumulation*)**:
+   - Fungsi `getCustomerBillingSummary(customerId)` di [`services/billingService.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/billingService.js) sebelumnya memanggil `getUnpaidInvoicesByCustomerId(cid)` yang mengambil seluruh invoice berstatus `unpaid` dan `partial` tanpa memfilter periode bulan/tahun.
+   - Seluruh invoice yang ditemukan di-map ke `invoicesWithDue` dan diakumulasikan ke `totalTagihan` (`reduce`), sehingga tagihan bulan masa depan (misal Oktober) otomatis terserap dan digabungkan ke tagihan bulan berjalan (September) dan tunggakan lampau (Agustus).
+2. **Asumsi Kronologis Terakhir sebagai Tagihan Berjalan Tanpa Filter Masa Depan**:
+   - Logika penentuan `tagihanBerjalan` sebelumnya menganggap invoice paling terakhir (`invoicesWithDue[invoicesWithDue.length - 1]`) selalu sebagai tagihan bulan berjalan. Ketika invoice bulan depan sudah terbit, invoice bulan depan itulah yang keliru dijadikan `tagihanBerjalan`, sementara invoice bulan berjalan malah terdorong menjadi `sisaLalu` (tunggakan).
+3. **Ketiadaan Pengecekan Riil pada Cron Job Pengingat**:
+   - Pada [`services/cronService.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/cronService.js) Task 3 (09:00 WIB) dan Task 3b (09:05 WIB), filter awal hanya menguji `c.unpaid_count > 0`. Pelanggan yang hanya memiliki tagihan bulan depan (padahal bulan ini sudah lunas) memiliki `unpaid_count = 1`, sehingga ikut terjadwal menerima pesan pengingat tagihan.
+
+### 3. Solusi yang Dipilih
+1. **Eksklusi Default Tagihan Masa Depan pada `getCustomerBillingSummary`**:
+   - Memperbarui fungsi `getCustomerBillingSummary(customerId, options = {})` di [`services/billingService.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/billingService.js) dengan parameter `options`:
+     - `asOfDate`: Menentukan tanggal acuan (default: tanggal saat ini via `getCurrentDateInTimezone()`).
+     - `targetInvoice`: Menetapkan invoice spesifik yang menjadi batas cutoff ketika admin mengirim tagihan tertentu.
+     - `maxPeriodMonth` & `maxPeriodYear`: Batas maksimal periode yang diizinkan untuk diakumulasi.
+     - `includeFuture`: Boolean (default `false`).
+   - Setiap invoice dievaluasi terhadap batas cutoff: jika periode invoice berada di masa depan (`period_year > cutoffYear` atau `period_year === cutoffYear && period_month > cutoffMonth`), invoice tersebut dialihkan ke properti `futureInvoices` dan **dikeluarkan dari `unpaidInvoices`**, `totalTagihan`, `tagihanBerjalan`, dan `rincianBulan`.
+   - Logika penentuan `tagihanBerjalan` dan `sisaLalu` disempurnakan: mencocokkan secara presisi invoice dengan periode berjalan (`cutoffYear` & `cutoffMonth`). Tagihan bulan lampau dihitung murni sebagai `sisaLalu`.
+2. **Validasi Tagihan Riil Aktif pada Cron Job Task 3 & Task 3b**:
+   - Pada [`services/cronService.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/cronService.js), ditambahkan verifikasi `initialSummary.totalTagihan <= 0 || initialSummary.unpaidInvoices.length === 0` baik pada tahap pemilihan target maupun sebelum pengiriman pesan WA.
+   - Pelanggan yang sudah lunas untuk bulan berjalan dan bulan lampau (hanya memiliki invoice bulan depan) tidak akan dikirimi notifikasi sebelum waktunya.
+3. **Penyelarasan Rute Kirim WA Manual & Broadcast**:
+   - Pada [`routes/adminPortal.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/routes/adminPortal.js) rute `POST /billing/:id/whatsapp`, pemanggilan dihubungkan dengan `{ targetInvoice: inv }` sehingga saat admin mengirim invoice bulan September, invoice Oktober tidak digabungkan. Jika admin secara eksplisit mengirim invoice Oktober, sistem menghitung Oktober + tunggakan lampau (tetapi tidak menggabungkan November).
+   - Pada rute `POST /whatsapp/broadcast`, pelanggan yang tidak memiliki tagihan aktif bulan berjalan/lampau (`totalTagihan <= 0`) otomatis dilewati untuk target `unpaid`.
+4. **Pembaruan Versi Release (`version.txt: 15.0.3`)**:
+   - Versi sistem dinaikkan ke `15.0.3`.
+
+### 4. Dampak Perubahan Terhadap Sistem
+- Notifikasi pengingat tagihan dan isolir kini 100% akurat: hanya menagih tagihan bulan berjalan + sisa tunggakan bulan-bulan sebelumnya.
+- Tagihan bulan berikutnya yang di-generate lebih awal (advance billing) tidak lagi digabungkan atau ditagihkan sebelum bulannya tiba.
+- Pelanggan tidak lagi menerima pesan tagihan palsu / keliru ketika sudah membayar kewajiban bulan ini.
+
+### 5. Kode yang Diperbaiki
+- `[MODIFY]` [`services/billingService.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/billingService.js): Implementasi cutoff dan eksklusi masa depan pada `getCustomerBillingSummary`.
+- `[MODIFY]` [`services/cronService.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/cronService.js): Validasi tagihan riil bulan berjalan/lampau pada Task 3 dan Task 3b.
+- `[MODIFY]` [`routes/adminPortal.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/routes/adminPortal.js): Integrasi `targetInvoice` pada `/billing/:id/whatsapp` dan filter broadcast.
+- `[NEW]` [`tests/billingFutureInvoiceExclusion.test.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/tests/billingFutureInvoiceExclusion.test.js): Automated Jest test suite untuk memverifikasi seluruh skenario advance billing (5/5 PASS).
+- `[MODIFY]` [`version.txt`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/version.txt): Bump version ke `15.0.3`.
+
+---
+
 ## [2026-09-30] Perbaikan Terminal MikroTik "Terputus" / Gagal Terkoneksi (Session Mismatch, Ticket Auth, & SSH Connectivity)
 
 ### 1. Permasalahan yang Ditemukan

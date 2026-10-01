@@ -2866,8 +2866,8 @@ router.post('/billing/:id/whatsapp', requireAdminSession, async (req, res) => {
       return await decodeQrisPayloadFromUploadedQr();
     };
 
-    // Hitung Tagihan Lengkap Termasuk Sisa Tagihan Partial Lalu
-    const billingSummary = billingSvc.getCustomerBillingSummary(customer.id);
+    // Hitung Tagihan Lengkap Termasuk Sisa Tagihan Partial Lalu (tidak menggabungkan tagihan bulan selanjutnya)
+    const billingSummary = billingSvc.getCustomerBillingSummary(customer.id, { targetInvoice: inv });
     const totalTagihan = billingSummary.totalTagihan;
     const totalCarried = billingSummary.sisaLalu;
     const rincianBulan = billingSummary.rincianBulan;
@@ -2885,11 +2885,11 @@ router.post('/billing/:id/whatsapp', requireAdminSession, async (req, res) => {
     } catch { }
     const loginLink = `${baseUrl}/customer/login`;
 
-    // Hitung Tanggal Jatuh Tempo berdasarkan bulan dan tahun berjalan
-    const now = new Date();
-    const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
-    const currentYear = now.getFullYear();
-    const jatuhTempo = `${String(inv.isolate_day || 10).padStart(2, '0')}/${currentMonth}/${currentYear}`;
+    // Hitung Tanggal Jatuh Tempo berdasarkan tanggal jatuh tempo pelanggan dan periode invoice yang dikirim
+    const dueDay = billingSvc.getCustomerDueDay(customer);
+    const invoicePeriodMonth = String(inv.period_month).padStart(2, '0');
+    const invoicePeriodYear = inv.period_year;
+    const jatuhTempo = `${String(dueDay).padStart(2, '0')}/${invoicePeriodMonth}/${invoicePeriodYear}`;
 
     const comp = company();
     const defaultAutoBilling = `Yth. Bapak/Ibu {{nama}},\n\nIni adalah pengingat sebelum tanggal jatuh tempo/isolir.\n\n📦 *Paket:* {{paket}}\n💰 *Total Tagihan:* Rp {{tagihan}}\n📅 *Periode:* {{rincian}}\n📅 *Jatuh Tempo:* {{jatuh_tempo}}\n\nMohon segera melakukan pembayaran melalui portal pelanggan: {{link}}\n\nTerima kasih atas kerja samanya.\nSalam,\nAdmin ${comp}`;
@@ -6028,8 +6028,12 @@ router.post('/whatsapp/broadcast', requireAdminSession, express.urlencoded({ ext
             const randomDelay = getRandomDelay(baseDelayMs, 2000);
             await new Promise(r => setTimeout(r, randomDelay));
 
-            // Hitung Tagihan Lengkap Termasuk Sisa Tagihan Partial Lalu
+            // Hitung Tagihan Lengkap Termasuk Sisa Tagihan Partial Lalu (hanya bulan berjalan + sebelumnya)
             const billingSummary = billingSvc.getCustomerBillingSummary(cust.id);
+            if (target === 'unpaid' && billingSummary.totalTagihan <= 0) {
+              // Pelanggan sudah lunas untuk bulan berjalan & sebelumnya (hanya ada invoice masa depan)
+              break;
+            }
             const totalTagihan = billingSummary.totalTagihan;
             const totalCarried = billingSummary.sisaLalu;
             const rincianBulan = billingSummary.rincianBulan;
@@ -6039,10 +6043,11 @@ router.post('/whatsapp/broadcast', requireAdminSession, express.urlencoded({ ext
             const host = req.get('host');
             const loginLink = `${protocol}://${host}/customer/login`;
 
-            const now = new Date();
+            const now = getCurrentDateInTimezone();
             const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
             const currentYear = now.getFullYear();
-            const jatuhTempo = `${String(cust.isolate_day || 10).padStart(2, '0')}/${currentMonth}/${currentYear}`;
+            const dueDay = billingSvc.getCustomerDueDay(cust);
+            const jatuhTempo = `${String(dueDay).padStart(2, '0')}/${currentMonth}/${currentYear}`;
 
             const rincianSisaText = totalCarried > 0
               ? `📌 *Termasuk Sisa Tagihan Bulan Lalu:* Rp ${totalCarried.toLocaleString('id-ID')}\n`

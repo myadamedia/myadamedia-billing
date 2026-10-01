@@ -205,6 +205,10 @@ function startCronJobs() {
       const unpaidCount = Number(c.unpaid_count || 0) || 0;
       if (unpaidCount <= 0) continue;
 
+      // Pastikan pelanggan memiliki tagihan riil bulan berjalan atau bulan sebelumnya (bukan hanya bulan masa depan)
+      const initialSummary = billingSvc.getCustomerBillingSummary(c.id, { asOfDate: today });
+      if (initialSummary.totalTagihan <= 0 || initialSummary.unpaidInvoices.length === 0) continue;
+
       const dueDay = billingSvc.getCustomerDueDay(c);
       const daysUntilIsolir = getDaysUntilIsolation(today, dueDay);
       const shouldSend = activeDays.includes(daysUntilIsolir);
@@ -233,15 +237,18 @@ function startCronJobs() {
           const randomDelay = getRandomDelay(baseDelayMs, 2000);
           await new Promise(r => setTimeout(r, randomDelay));
 
-          const billingSummary = billingSvc.getCustomerBillingSummary(c.id);
+          const billingSummary = billingSvc.getCustomerBillingSummary(c.id, { asOfDate: today });
+          if (billingSummary.totalTagihan <= 0) {
+            break; // Pelanggan sudah melunasi atau hanya tersisa invoice masa depan
+          }
           const totalTagihan = billingSummary.totalTagihan;
           const totalCarried = billingSummary.sisaLalu;
           const rincianBulan = billingSummary.rincianBulan;
 
-          const now = new Date();
-          const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
-          const currentYear = now.getFullYear();
-          const jatuhTempo = `${String(c.isolate_day || 10).padStart(2, '0')}/${currentMonth}/${currentYear}`;
+          const currentMonth = String(today.getMonth() + 1).padStart(2, '0');
+          const currentYear = today.getFullYear();
+          const dueDay = billingSvc.getCustomerDueDay(c);
+          const jatuhTempo = `${String(dueDay).padStart(2, '0')}/${currentMonth}/${currentYear}`;
 
           const rincianSisaText = totalCarried > 0 
             ? `📌 *Termasuk Sisa Tagihan Bulan Lalu:* Rp ${totalCarried.toLocaleString('id-ID')}\n`
@@ -406,6 +413,10 @@ function startCronJobs() {
       // HANYA kirim jika pelanggan berstatus ACTIVE (belum di-isolir)
       if (c.status !== 'active') continue;
 
+      // Pastikan pelanggan memiliki tagihan riil bulan berjalan atau bulan sebelumnya (bukan hanya bulan masa depan)
+      const initialSummary = billingSvc.getCustomerBillingSummary(c.id, { asOfDate: today });
+      if (initialSummary.totalTagihan <= 0 || initialSummary.unpaidInvoices.length === 0) continue;
+
       const dueDay = billingSvc.getCustomerDueDay(c);
       const daysUntilIsolir = getDaysUntilIsolation(today, dueDay);
       const shouldSend = activeDays.includes(daysUntilIsolir);
@@ -434,15 +445,18 @@ function startCronJobs() {
           const randomDelay = getRandomDelay(baseDelayMs, 2000);
           await new Promise(r => setTimeout(r, randomDelay));
 
-          const billingSummary = billingSvc.getCustomerBillingSummary(c.id);
+          const billingSummary = billingSvc.getCustomerBillingSummary(c.id, { asOfDate: today });
+          if (billingSummary.totalTagihan <= 0) {
+            break; // Pelanggan sudah melunasi atau hanya tersisa invoice masa depan
+          }
           const totalTagihan = billingSummary.totalTagihan;
           const totalCarried = billingSummary.sisaLalu;
           const rincianBulan = billingSummary.rincianBulan;
 
-          const now = new Date();
-          const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
-          const currentYear = now.getFullYear();
-          const jatuhTempo = `${String(c.isolate_day || 10).padStart(2, '0')}/${currentMonth}/${currentYear}`;
+          const currentMonth = String(today.getMonth() + 1).padStart(2, '0');
+          const currentYear = today.getFullYear();
+          const dueDay = billingSvc.getCustomerDueDay(c);
+          const jatuhTempo = `${String(dueDay).padStart(2, '0')}/${currentMonth}/${currentYear}`;
 
           const rincianSisaText = totalCarried > 0 
             ? `📌 *Termasuk Sisa Tagihan Bulan Lalu:* Rp ${totalCarried.toLocaleString('id-ID')}\n`
