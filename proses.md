@@ -2,6 +2,49 @@
 
 ---
 
+## [2026-10-02] Peningkatan Fitur Sidebar Dashboard Admin: Mode Minimize (Icon-Only), Floating Tooltip, & Multi-Device Adaptive Responsiveness
+
+### 1. Kebutuhan Fitur & Analisis Masalah
+- Pengguna membutuhkan sidebar admin dashboard yang dapat diminimalkan (*minimized / collapsed*) untuk memaksimalkan area kerja visual data (terutama tabel pelanggan, riwayat transaksi, monitoring ONU, grafik, dan router).
+- Saat diminimize, sidebar hanya menampilkan ikon menu navigasi (*icon-only mode*), sementara teks label, badge penanda kunci, dan header kategori disembunyikan secara rapi.
+- Sistem harus adaptif terhadap seluruh ukuran perangkat (*multi-device responsiveness*):
+  - Layar Desktop (lebar $\ge 992$px): Pengguna bebas beralih antara mode normal (240px) dan mode minimize (70px). Status tersimpan persisten di `localStorage` dan cookie tanpa kedipan (*zero-FOUC*).
+  - Layar Mobile / Tablet (lebar $< 992$px): Sidebar beroperasi sebagai *off-canvas drawer* dengan backdrop overlay dan teks menu lengkap agar mudah diakses serta ramah layar sentuh (*touch-friendly* & WCAG compliant).
+  - Terdapat Floating Tooltip cerdas pada mode minimized agar admin tetap mengetahui nama menu secara instan ketika kursor diarahkan ke ikon.
+
+### 2. Solusi yang Diterapkan
+1. **Arsitektur Variabel CSS Dinamis & Smooth Transitions**:
+   - Menambahkan variabel CSS `--sw-expanded: 240px;`, `--sw-collapsed: 70px;`, dan `--sw: var(--sw-expanded);` pada `:root` di [`public/css/admin.css`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/public/css/admin.css).
+   - Menambahkan selector `html.sidebar-collapsed { --sw: var(--sw-collapsed); }` yang secara instan menyusutkan lebar `.sidebar` dan menyesuaikan `margin-left` dari container utama `.mw` dengan transisi akselerasi GPU `cubic-bezier(0.4, 0, 0.2, 1)`.
+   - Mengaktifkan tombol hamburger `.hb-menu` di topbar desktop untuk menjadi pemicu toggle minimize, di samping tombol minimize di dalam sidebar itu sendiri.
+   - Pada breakpoint mobile (`@media (max-width: 992px)`), `--sw` otomatis di-reset ke `0px` dan lebar drawer diset tetap 260px untuk konsistensi off-canvas.
+2. **Struktur Dual Brand & Navigasi Ikon Terpusat**:
+   - Memperbarui [`views/admin/partials/sidebar.ejs`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/views/admin/partials/sidebar.ejs) dengan memisahkan area brand menjadi `.sb-brand-expanded` (logo penuh/nama perusahaan, kontrol tema & bahasa, tombol minimize) dan `.sb-brand-collapsed` (ikon terpusat dan tombol expand).
+   - Menata posisi tombol minimize `.sb-desktop-toggle` tepat di sebelah tombol tema (`#themeBtn`) di dalam grup toolbar `.theme-btn-group`, sehingga tidak bertumpuk di bawah logo atau membuat tampilan janggal.
+   - Menambahkan tombol toggle minimize eksplisit `#sbCollapseBtn` di bagian bawah menu navigasi.
+   - Pada mode minimized, setiap `.sb-nav-link` menengahkan ikon secara presisi (38x38px) dengan efek hover scaling dan active indicator pill indigo menyala.
+3. **Floating Tooltip Popover Global Tanpa Terpotong (*No Clipping*)**:
+   - Menyediakan container `#sbFloatingTooltip` yang diposisikan secara dinamis menggunakan `getBoundingClientRect()`.
+   - Mengatasi batasan `overflow-y: auto` pada sidebar sehingga tooltip melayang bebas di sisi kanan ikon tanpa pernah terpotong oleh scroll container.
+4. **State Persistence & Zero-FOUC**:
+   - Inisialisasi status dilakukan secara sinkron pada blok `<script>` paling awal di `sidebar.ejs` sebelum dokumen dirender browser. Jika user sebelumnya meminimize sidebar, class `sidebar-collapsed` langsung ditambahkan ke `<html>` saat parsing awal, mencegah lonjakan layout (*zero Cumulative Layout Shift*).
+5. **Pembaruan Versi Release (`version.txt: 15.1.0`)**:
+   - Versi sistem dinaikkan ke `15.1.0`.
+
+### 3. Dampak Perubahan Terhadap Sistem
+- Antarmuka Admin Panel kini jauh lebih fleksibel, modern, dan ergonomis.
+- Pengguna desktop dapat bekerja dengan area tabel/dashboard yang jauh lebih lega saat sidebar diminimalkan.
+- Aksesibilitas dan navigasi di perangkat seluler tetap 100% terjaga dan nyaman digunakan.
+- Seluruh 40+ halaman admin yang meng-include `partials/sidebar` langsung mendapatkan kapabilitas ini secara konsisten tanpa perlu modifikasi individual.
+
+### 4. Kode yang Diperbarui & Ditambahkan
+- `[MODIFY]` [`public/css/admin.css`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/public/css/admin.css): Definisi variabel `--sw-collapsed`, transisi width/margin-left, styling `.hb-menu` desktop, dan reset responsive media query.
+- `[MODIFY]` [`views/admin/partials/sidebar.ejs`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/views/admin/partials/sidebar.ejs): Dual brand structure, tombol toggle desktop & footer, floating tooltip, penyesuaian icon-only mode, dan integrasi script `toggleSidebar()`.
+- `[NEW]` [`tests/adminSidebarResponsive.test.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/tests/adminSidebarResponsive.test.js): Automated Jest test suite untuk memvalidasi kontrak CSS, zero-FOUC script, dan rendering template EJS (3/3 PASS).
+- `[MODIFY]` [`version.txt`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/version.txt): Bump version ke `15.1.0`.
+
+---
+
 ## [2026-10-01] Perbaikan Pemisahan Tagihan: Mencegah Penggabungan Tagihan Bulan Masa Depan (Advance Billing) ke Notifikasi Bulan Berjalan & Bulan Sebelumnya
 
 ### 1. Permasalahan yang Ditemukan
