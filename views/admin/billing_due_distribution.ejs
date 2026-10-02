@@ -649,6 +649,21 @@
             <td>${statusBadge}</td>
             <td style="text-align:right">
               <div style="display:flex;gap:4px;justify-content:flex-end">
+                ${!isPaid ? `
+                  <button type="button" class="btn btn-s btn-icon btn-sm due-pay-btn" title="Tandai Lunas"
+                    data-customer-id="${c.customer_id}"
+                    data-invoice-id="${c.invoice_id || ''}"
+                    data-name="${escapeHtml(c.name)}"
+                    data-amount="${c.unpaid_amount || c.amount}"
+                    data-day="${day}"
+                    style="background:#10b981;color:#ffffff;border:none">
+                    <i class="bi bi-check-lg"></i>
+                  </button>
+                ` : `
+                  <button type="button" class="btn btn-g btn-icon btn-sm" title="Sudah Lunas" disabled style="opacity:0.4;cursor:default">
+                    <i class="bi bi-check-all" style="color:#10b981"></i>
+                  </button>
+                `}
                 ${phoneClean ? `<a href="${waUrl}" target="_blank" class="btn btn-g btn-icon btn-sm" title="Kirim Pengingat WA" style="color:#25d366"><i class="bi bi-whatsapp"></i></a>` : ''}
                 ${c.invoice_id ? `<a href="/admin/billing/${c.invoice_id}/print" target="_blank" class="btn btn-g btn-icon btn-sm" title="Cetak Invoice"><i class="bi bi-printer"></i></a>` : ''}
               </div>
@@ -671,6 +686,186 @@
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
+  }
+</script>
+
+<!-- Modal Tandai Lunas Tagihan Distribusi Jatuh Tempo -->
+<div class="mo" id="duePayModal" style="z-index:1060">
+  <div class="mb" style="max-width:460px">
+    <div class="mh">
+      <span class="mt"><i class="bi bi-cash-coin" style="color:#10b981"></i> Tandai Lunas Tagihan</span>
+      <button class="mc" onclick="closeModal('duePayModal')">&times;</button>
+    </div>
+    <form id="duePayForm" onsubmit="submitDuePayment(event)">
+      <div class="mbody" style="padding:20px">
+        <input type="hidden" id="duePayCustomerId" name="customer_id">
+        <input type="hidden" id="duePayInvoiceId" name="invoice_id">
+        <input type="hidden" id="duePayDay" name="day">
+
+        <div style="background:var(--bg3);padding:14px;border-radius:10px;margin-bottom:16px;border:1px solid var(--border)">
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:700">Pelanggan</div>
+          <div style="font-size:15px;font-weight:800;color:var(--text);margin-top:2px" id="duePayCustomerName">-</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)">
+            <span style="font-size:12px;color:var(--muted)">Nominal Tagihan:</span>
+            <span style="font-size:15px;font-weight:800;color:var(--success)" id="duePayAmountText">Rp 0</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
+            <span style="font-size:12px;color:var(--muted)">Periode Tagihan:</span>
+            <span style="font-size:12px;font-weight:700;color:var(--text)" id="duePayPeriodText">-</span>
+          </div>
+        </div>
+
+        <% const payByDefault = (typeof session !== 'undefined' && session.isCashier)
+          ? (`Kasir ${(session.cashierName || '').trim()}` + ((session.cashierUsername || '').trim() ? ` (@${String(session.cashierUsername).trim()})` : '')).trim()
+          : 'Admin'; %>
+
+        <div class="fg" style="margin-bottom:14px">
+          <label class="fl" style="font-weight:600;margin-bottom:6px">Diterima Oleh</label>
+          <input class="fc" id="duePayByName" name="paid_by_name" value="<%= payByDefault || 'Admin' %>" required placeholder="Nama petugas penerima">
+        </div>
+
+        <div class="fg">
+          <label class="fl" style="font-weight:600;margin-bottom:6px">Catatan (opsional)</label>
+          <textarea class="fc" id="duePayNotes" name="notes" rows="2" placeholder="Contoh: Tunai di kantor, transfer BCA, dll..."></textarea>
+        </div>
+      </div>
+
+      <div class="mf" style="display:flex;justify-content:flex-end;gap:8px">
+        <button type="button" class="btn btn-g btn-sm" onclick="closeModal('duePayModal')">Batal</button>
+        <button type="submit" class="btn btn-s btn-sm" id="duePaySubmitBtn" style="background:#10b981;border:none;color:#fff;font-weight:700">
+          <i class="bi bi-check-lg"></i> Konfirmasi Lunas
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  let hasMadePaymentInModal = false;
+
+  // Enhance closeModal to reload page when detail modal closes after payments
+  const originalCloseModal = window.closeModal;
+  window.closeModal = function(id) {
+    const m = document.getElementById(id);
+    if (m) {
+      m.classList.remove('show');
+      m.style.display = 'none';
+      if (id === 'dueDetailModal' && hasMadePaymentInModal) {
+        window.location.reload();
+      }
+    }
+  };
+
+  // Event Delegation for "Tandai Lunas" button in modal table
+  document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.due-pay-btn');
+    if (!btn) return;
+    const customerId = btn.dataset.customerId;
+    const invoiceId = btn.dataset.invoiceId;
+    const name = btn.dataset.name;
+    const amount = btn.dataset.amount;
+    const day = btn.dataset.day;
+    openDuePayModal(customerId, invoiceId, name, amount, day);
+  });
+
+  function openDuePayModal(customerId, invoiceId, name, amount, day) {
+    document.getElementById('duePayCustomerId').value = customerId || '';
+    document.getElementById('duePayInvoiceId').value = invoiceId || '';
+    document.getElementById('duePayDay').value = day || '';
+    document.getElementById('duePayCustomerName').innerText = name || '-';
+    document.getElementById('duePayAmountText').innerText = 'Rp ' + Number(amount || 0).toLocaleString('id-ID');
+    document.getElementById('duePayPeriodText').innerText = (monthNamesIndo[currentMonthFilter - 1] || '') + ' ' + currentYearFilter;
+    document.getElementById('duePayNotes').value = '';
+
+    const submitBtn = document.getElementById('duePaySubmitBtn');
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<i class="bi bi-check-lg"></i> Konfirmasi Lunas';
+    }
+
+    openModal('duePayModal');
+  }
+
+  async function submitDuePayment(e) {
+    e.preventDefault();
+    const customerId = document.getElementById('duePayCustomerId').value;
+    const invoiceId = document.getElementById('duePayInvoiceId').value;
+    const day = document.getElementById('duePayDay').value;
+    const paidByName = document.getElementById('duePayByName').value;
+    const notes = document.getElementById('duePayNotes').value;
+    const submitBtn = document.getElementById('duePaySubmitBtn');
+
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Memproses...';
+    }
+
+    try {
+      const payload = {
+        customer_id: customerId,
+        invoice_id: invoiceId || null,
+        month: currentMonthFilter,
+        year: currentYearFilter,
+        paid_by_name: paidByName,
+        notes: notes
+      };
+
+      const res = await fetch('/admin/billing/due-distribution/pay', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'Gagal menandai lunas tagihan');
+      }
+
+      hasMadePaymentInModal = true;
+      closeModal('duePayModal');
+
+      showToast(data.message || 'Tagihan berhasil ditandai lunas.', 's');
+
+      if (day) {
+        await openDayDetailModal(Number(day));
+      }
+    } catch (err) {
+      showToast(err.message || 'Terjadi kesalahan sistem saat memproses pembayaran.', 'd');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="bi bi-check-lg"></i> Konfirmasi Lunas';
+      }
+    }
+  }
+
+  function showToast(msg, type = 's') {
+    const old = document.querySelector('.due-toast-notif');
+    if (old) old.remove();
+
+    const t = document.createElement('div');
+    t.className = 'due-toast-notif';
+    const isSuccess = (type === 's');
+    t.style.cssText = `position:fixed;bottom:24px;right:24px;z-index:10000;background:var(--bg2);border-left:5px solid ${isSuccess ? '#10b981' : '#ef4444'};border-radius:10px;padding:14px 20px;font-size:13px;display:flex;align-items:center;gap:12px;box-shadow:0 12px 32px rgba(0,0,0,.5);color:var(--text);min-width:280px;border:1px solid var(--border);border-left-width:5px;transition:all 0.3s ease`;
+
+    t.innerHTML = `
+      <i class="bi bi-${isSuccess ? 'check-circle-fill' : 'exclamation-triangle-fill'}" style="font-size:18px;color:${isSuccess ? '#10b981' : '#ef4444'}"></i>
+      <div style="flex:1">
+        <div style="font-weight:700">${isSuccess ? 'Berhasil' : 'Gagal'}</div>
+        <div style="color:var(--muted);font-size:12px;margin-top:2px">${escapeHtml(msg)}</div>
+      </div>
+      <button type="button" onclick="this.parentElement.remove()" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:4px"><i class="bi bi-x-lg"></i></button>
+    `;
+    document.body.appendChild(t);
+    setTimeout(() => {
+      if (t.parentElement) {
+        t.style.opacity = '0';
+        t.style.transform = 'translateY(10px)';
+        setTimeout(() => t.remove(), 300);
+      }
+    }, 4500);
   }
 </script>
 </body>

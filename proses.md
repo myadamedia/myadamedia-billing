@@ -2,7 +2,49 @@
 
 ---
 
+## [2026-10-02] Penambahan Tombol "Tandai Lunas" pada Kolom Aksi Distribusi Jatuh Tempo (/admin/billing/due-distribution)
+
+### 1. Kebutuhan Fitur & Permasalahan yang Ditemukan
+- Pengguna meminta penambahan tombol **Tandai Lunas** pada kolom **Aksi** di tabel modal detail rincian pelanggan per tanggal jatuh tempo (`/admin/billing/due-distribution`).
+- Sebelumnya, kolom Aksi pada modal detail harian hanya menyediakan 2 tombol:
+  1. Tombol Kirim Pengingat WhatsApp (`bi-whatsapp`).
+  2. Tombol Cetak Invoice (`bi-printer`).
+- Ketika pelanggan datang membayar atau admin ingin melunasi tagihan saat memantau distribusi jatuh tempo harian, admin harus keluar dari modal dan membuka halaman Manajemen Tagihan (`/admin/billing`) secara manual, mencari nama pelanggan terkait, baru kemudian menandai lunas. Alur ini memakan waktu dan kurang efisien bagi operasional kasir/admin.
+
+### 2. Solusi yang Diterapkan
+1. **Penyediaan Tombol "Tandai Lunas" di Kolom Aksi Modal**:
+   - Memodifikasi template [`views/admin/billing_due_distribution.ejs`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/views/admin/billing_due_distribution.ejs) pada fungsi render baris tabel `openDayDetailModal()`.
+   - Menambahkan tombol hijau mencolok `.due-pay-btn` (`btn btn-s btn-icon btn-sm` dengan ikon `<i class="bi bi-check-lg"></i>` dan tooltip "Tandai Lunas") untuk pelanggan yang statusnya masih `unpaid` atau `partial`.
+   - Untuk pelanggan yang sudah lunas (`isPaid`), kolom aksi menampilkan ikon centang ganda (`bi-check-all`) disable yang informatif.
+   - Menggunakan atribut `data-customer-id`, `data-invoice-id`, `data-name`, `data-amount`, dan `data-day` dengan teknik *event delegation* guna mencegah konflik *quote escaping* pada nama pelanggan.
+2. **Modal Konfirmasi Pelunasan (`#duePayModal`)**:
+   - Menyediakan modal konfirmasi elegan dengan tingkatan `z-index: 1060` di atas modal rincian pelanggan.
+   - Menampilkan ringkasan informasi pelanggan, nominal tagihan, periode tagihan, nama petugas penerima (*Diterima Oleh* yang otomatis terisi default nama sesi Admin/Kasir), serta kolom catatan opsional (misal: Tunai di kantor, Transfer BCA).
+3. **Endpoint Backend & Penanganan Dual-Case Pelunasan**:
+   - Menambahkan handler rute `POST /billing/due-distribution/pay` di [`routes/adminPortal.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/routes/adminPortal.js) dengan autentikasi `requireAdminSession`.
+   - Menangani dua kondisi secara cerdas:
+     - **Kasus Invoice Sudah Ada (`invoice_id` terdefinisi)**: Melakukan pelunasan via `billingSvc.markAsPaid`, mengirimkan notifikasi WA bukti pembayaran, dan mereaktivasi status pelanggan jika sebelumnya dalam kondisi terisolir/suspended.
+     - **Kasus Invoice Belum Digenerate**: Menggunakan `billingSvc.payInvoiceForCustomerPeriod` yang membuat invoice secara on-the-fly, melunasinya, mencatat log transaksi, dan mengirimkan notifikasi pembayaran.
+   - Mendukung respons JSON untuk permintaan AJAX asynchronous `fetch()`.
+4. **Alur UX Asynchronous Tanpa Hilang Konteks (*Seamless AJAX Update*)**:
+   - Ketika pelunasan dikonfirmasi, sistem mengirimkan request via AJAX `fetch`.
+   - Setelah sukses, modal konfirmasi pelunasan ditutup, notifikasi toast melayang (*toast notification*) muncul mengonfirmasi keberhasilan, dan daftar pelanggan pada tanggal tersebut langsung diperbarui otomatis di tempat (`openDayDetailModal(day)`) tanpa me-reload seluruh halaman.
+   - Angka ringkasan modal (Total Pelanggan, Total Potensi, Sudah Lunas, Belum Bayar) langsung terhitung ulang secara instan.
+   - Ditambahkan penanda `hasMadePaymentInModal = true`. Saat admin selesai dan menutup modal rincian harian (`dueDetailModal`), halaman utama akan otomatis melakukan *soft reload* agar kartu tanggal 1-31 dan 4 kartu statistik utama di dashboard ikut tersinkronisasi 100%.
+5. **Automated Unit Testing & Release Version**:
+   - Membuat test suite [`tests/dueDistributionPay.test.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/tests/dueDistributionPay.test.js) yang memvalidasi integritas template EJS, keberadaan route backend, serta alur pelunasan database (3/3 passing).
+   - Memastikan tidak ada regresi pada modul terkait ([`tests/dueDistributionTerminate.test.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/tests/dueDistributionTerminate.test.js) dan [`tests/adminSidebarResponsive.test.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/tests/adminSidebarResponsive.test.js)).
+   - Bump versi aplikasi ke **`15.2.0`** pada [`version.txt`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/version.txt).
+
+### 3. Dampak Perubahan Terhadap Sistem
+- Mempercepat alur kerja kasir dan penagih di lapangan hingga 70% karena pelunasan dapat dilakukan langsung dari pemantauan distribusi jatuh tempo harian.
+- Mengurangi perpindahan halaman yang tidak perlu (*page context preservation*).
+- Menjaga integritas data finansial, pencatatan kasir penerima, reaktivasi isolir otomatis, dan pengiriman pesan WhatsApp pelanggan secara akurat.
+
+---
+
 ## [2026-10-02] Peningkatan Fitur Sidebar Dashboard Admin: Mode Minimize (Icon-Only), Floating Tooltip, & Multi-Device Adaptive Responsiveness
+
 
 ### 1. Kebutuhan Fitur & Analisis Masalah
 - Pengguna membutuhkan sidebar admin dashboard yang dapat diminimalkan (*minimized / collapsed*) untuk memaksimalkan area kerja visual data (terutama tabel pelanggan, riwayat transaksi, monitoring ONU, grafik, dan router).

@@ -2331,6 +2331,85 @@ router.get('/billing/due-distribution/details', requireAdminSession, (req, res) 
   }
 });
 
+router.post('/billing/due-distribution/pay', requireAdminSession, express.urlencoded({ extended: true }), express.json(), async (req, res) => {
+  try {
+    const { customer_id, invoice_id, month, year, paid_by_name, notes } = req.body;
+    const paidBy = resolvePaidByName(req, paid_by_name);
+
+    let targetInvoiceId = invoice_id ? parseInt(invoice_id, 10) : null;
+    let customer = null;
+    let inv = null;
+
+    if (targetInvoiceId) {
+      inv = billingSvc.getInvoiceById(targetInvoiceId);
+      if (!inv) throw new Error('Tagihan tidak ditemukan');
+      customer = customerSvc.getCustomerById(inv.customer_id);
+
+      const wasPaid = String(inv.status || '').toLowerCase() === 'paid';
+      billingSvc.markAsPaid(targetInvoiceId, paidBy, notes);
+
+      if (!wasPaid && customer && customer.phone) {
+        await sendPaymentSuccessWA(
+          customer.phone,
+          customer.name,
+          `${inv.period_month}/${inv.period_year}`,
+          Number(inv.amount || 0).toLocaleString('id-ID'),
+          paidBy,
+          customer.id
+        );
+      }
+      if (customer && customer.status === 'suspended') {
+        const freshCustomer = customerSvc.getAllCustomers().find(c => c.id === inv.customer_id);
+        if (freshCustomer && freshCustomer.unpaid_count === 0) {
+          await customerSvc.activateCustomer(inv.customer_id);
+        }
+      }
+    } else if (customer_id && month && year) {
+      const cid = parseInt(customer_id, 10);
+      const m = parseInt(month, 10);
+      const y = parseInt(year, 10);
+      customer = customerSvc.getCustomerById(cid);
+      if (!customer) throw new Error('Pelanggan tidak ditemukan');
+
+      const result = billingSvc.payInvoiceForCustomerPeriod(cid, m, y, paidBy, notes);
+      targetInvoiceId = result.invoiceId;
+
+      if (!result.alreadyPaid && customer && customer.phone) {
+        const invs = billingSvc.getInvoicesByAny(String(cid)) || [];
+        const foundInv = (Array.isArray(invs) ? invs : []).find(i => Number(i?.period_month) === Number(m) && Number(i?.period_year) === Number(y));
+        const amount = foundInv ? Number(foundInv.amount || 0) : 0;
+        await sendPaymentSuccessWA(
+          customer.phone,
+          customer.name,
+          `${m}/${y}`,
+          amount.toLocaleString('id-ID'),
+          paidBy,
+          customer.id
+        );
+      }
+      const freshCustomer = customerSvc.getAllCustomers().find(c => c.id === cid);
+      if (freshCustomer && freshCustomer.status === 'suspended' && freshCustomer.unpaid_count === 0) {
+        await customerSvc.activateCustomer(cid);
+      }
+    } else {
+      throw new Error('Data tagihan atau pelanggan tidak lengkap');
+    }
+
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.json({ ok: true, message: 'Tagihan berhasil ditandai lunas.' });
+    }
+    req.session._msg = { type: 'success', text: 'Tagihan berhasil ditandai lunas.' };
+    safeRedirectBack(req, res, '/admin/billing/due-distribution');
+  } catch (e) {
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.status(400).json({ ok: false, error: e.message });
+    }
+    req.session._msg = { type: 'error', text: 'Gagal menandai lunas: ' + e.message };
+    safeRedirectBack(req, res, '/admin/billing/due-distribution');
+  }
+});
+
+
 router.get('/billing/:id/print', requireAdminSession, (req, res) => {
   const inv = billingSvc.getInvoiceById(req.params.id);
   if (!inv) return res.status(404).send('Invoice tidak ditemukan');
