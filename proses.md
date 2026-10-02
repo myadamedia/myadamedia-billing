@@ -2,7 +2,41 @@
 
 ---
 
+## [2026-10-02] Penambahan Fitur Pengiriman File Backup Database ke Telegram Admin & Otomasi Disaster Recovery
+
+### 1. Kebutuhan Fitur & Analisis Permasalahan
+- Pengguna meminta agar berkas salinan cadangan (*backup file*) database dari modul **Backup & Recovery** (`/admin/backup`) dapat dikirimkan langsung ke Telegram Admin.
+- Kebutuhan ini krusial untuk implementasi strategi *Off-site Disaster Recovery*: jika server/PC billing lokal mengalami musibah (kerusakan hard disk, infeksi malware/ransomware, atau gangguan listrik/hardware), administrator tetap memiliki arsip database cadangan yang aman tersimpan di cloud Telegram.
+
+### 2. Solusi yang Diterapkan
+1. **Pengembangan Engine Pengiriman Dokumen Telegram API**:
+   - Memodifikasi [`services/telegramBot.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/telegramBot.js) dengan menambahkan fungsi `sendTelegramDocument(chatId, filePath, caption, options)` dan `sendTelegramAdminDocument(filePath, caption, options)`.
+   - Menggunakan mekanisme stream `fs.createReadStream(filePath)` pada `bot.sendDocument` dengan fallback otomatis HTTP REST API (`multipart/form-data` via Axios + Form-Data) saat instance bot polling offline.
+   - Menyertakan format *caption* Markdown terstruktur (Nama File, Ukuran Berkas MB, Tanggal/Waktu, dan Nama Operator).
+2. **Endpoint Backend Pengiriman Manual & Opsi Pembuatan Baru**:
+   - Menambahkan rute `POST /backup/send-telegram` di [`routes/adminPortal.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/routes/adminPortal.js) dengan proteksi `requireAdminSession`. Mengambil berkas dari direktori `/backups` dan mengirimkannya ke `telegram_admin_id`.
+   - Memodifikasi rute `POST /backup/create` untuk mendukung parameter `send_telegram: 1`, sehingga saat admin membuat backup baru, berkas dapat langsung dikirim ke Telegram dalam satu siklus proses.
+3. **Penyempurnaan Tampilan Halaman Admin Backup (`views/admin/backup.ejs`)**:
+   - **Hero Banner**: Menambahkan tombol beraksen biru khas Telegram (`#0088cc`): *"Backup & Kirim ke Telegram"*.
+   - **Status Card Integrasi**: Menampilkan status real-time kesiapan bot Telegram (*Aktif & Siap* beserta Chat ID tujuan vs *Belum Aktif*).
+   - **Form Pembuatan Backup**: Menambahkan checkbox *"Langsung kirim hasil backup ke Telegram Admin"*.
+   - **Tabel Riwayat Backup**: Menambahkan tombol kirim Telegram (ikon `bi-telegram`) di samping tombol *Download*, *Restore*, dan *Hapus*.
+4. **Integrasi Auto-Backup Harian (Scheduled Disaster Recovery)**:
+   - Memperbarui fungsi `scheduleAutoBackup()` di [`services/backupService.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/backupService.js).
+   - Ketika cron auto-backup harian (default jam 02:00 dini hari) berhasil dieksekusi, sistem secara otomatis mengirimkan salinan database terbaru ke Telegram Admin secara tanpa henti (*zero-touch automation*).
+5. **Automated Unit Testing & Bump Versi**:
+   - Membuat test suite [`tests/backupTelegram.test.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/tests/backupTelegram.test.js) yang memvalidasi fungsi `sendTelegramDocument`, penanganan error saat bot offline, route admin, dan elemen UI (5/5 PASS).
+   - Memverifikasi kestabilan seluruh modul backup dan dashboard (16/16 test PASS).
+   - Menaikkan versi sistem ke **`15.3.0`** pada [`version.txt`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/version.txt).
+
+### 3. Dampak Perubahan Terhadap Sistem
+- Menghadirkan rasa tenang (*peace of mind*) dan ketahanan data tingkat tinggi bagi pengelola ISP / RT-RW Net.
+- Fleksibilitas pencadangan: bisa dilakukan secara instan lewat 1 klik manual maupun otomatis setiap malam melalui jadwal cron.
+
+---
+
 ## [2026-10-02] Penambahan Tombol "Tandai Lunas" pada Kolom Aksi Distribusi Jatuh Tempo (/admin/billing/due-distribution)
+
 
 ### 1. Kebutuhan Fitur & Permasalahan yang Ditemukan
 - Pengguna meminta penambahan tombol **Tandai Lunas** pada kolom **Aksi** di tabel modal detail rincian pelanggan per tanggal jatuh tempo (`/admin/billing/due-distribution`).

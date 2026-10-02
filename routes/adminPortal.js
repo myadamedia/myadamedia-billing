@@ -4211,9 +4211,9 @@ router.get('/backup', requireAdminSession, requireSidebarMenuAccess('backup'), (
   });
 });
 
-router.post('/backup/create', requireAdminSession, express.urlencoded({ extended: true }), (req, res) => {
+router.post('/backup/create', requireAdminSession, express.urlencoded({ extended: true }), async (req, res) => {
   try {
-    const { type } = req.body;
+    const { type, send_telegram } = req.body;
     let result;
 
     if (type === 'all') {
@@ -4227,16 +4227,100 @@ router.post('/backup/create', requireAdminSession, express.urlencoded({ extended
       return res.redirect('/admin/backup');
     }
 
-    if (result.success) {
-      req.session._msg = { type: 'success', text: `Backup berhasil dibuat: ${result.fileName}` };
+    const isSuccess = result.success || (result.database && result.database.success);
+    if (isSuccess) {
+      const createdFile = result.fileName || (result.database ? result.database.fileName : null);
+      let tgNote = '';
+
+      if ((send_telegram === '1' || send_telegram === 'true') && createdFile) {
+        try {
+          const filePath = backupSvc.getBackupFilePath(createdFile);
+          if (filePath && fs.existsSync(filePath)) {
+            const stats = fs.statSync(filePath);
+            const sizeMB = (stats.size / (1024 * 1024)).toFixed(2);
+            const operator = req.session?.username || (req.session?.isCashier ? req.session.cashierName : 'Administrator');
+            const caption =
+              `📦 *CADANGAN DATABASE MYADAMEDIA*\n` +
+              `============================\n` +
+              `🏷️ *File:* \`${createdFile}\`\n` +
+              `📊 *Ukuran:* ${sizeMB} MB\n` +
+              `📅 *Tanggal:* ${getNowLocal()}\n` +
+              `👤 *Operator:* ${operator}\n` +
+              `============================\n` +
+              `_Cadangan database siap digunakan untuk pemulihan (restore)._`;
+
+            const telegramBot = require('../services/telegramBot');
+            const sent = await telegramBot.sendTelegramAdminDocument(filePath, caption);
+            if (sent) {
+              tgNote = ' & berkas berhasil dikirim ke Telegram Admin';
+            } else {
+              tgNote = ' (pengiriman ke Telegram gagal, periksa setting bot)';
+            }
+          }
+        } catch (tgErr) {
+          tgNote = ` (gagal kirim Telegram: ${tgErr.message})`;
+        }
+      }
+
+      req.session._msg = { type: 'success', text: `Backup berhasil dibuat: ${createdFile || 'Database & Settings'}${tgNote}.` };
     } else {
-      req.session._msg = { type: 'error', text: `Gagal backup: ${result.error}` };
+      req.session._msg = { type: 'error', text: `Gagal backup: ${result.error || 'Terjadi kesalahan sistem'}` };
     }
   } catch (e) {
     req.session._msg = { type: 'error', text: `Gagal: ${e.message}` };
   }
   res.redirect('/admin/backup');
 });
+
+router.post('/backup/send-telegram', requireAdminSession, express.urlencoded({ extended: true }), express.json(), async (req, res) => {
+  try {
+    const fileName = req.body.fileName || req.query.fileName;
+    if (!fileName) throw new Error('Nama file backup tidak valid');
+
+    const filePath = backupSvc.getBackupFilePath(fileName);
+    if (!filePath || !fs.existsSync(filePath)) {
+      throw new Error('Berkas backup tidak ditemukan di direktori penyimpanan');
+    }
+
+    const enabled = getSetting('telegram_enabled', false);
+    const token = getSetting('telegram_bot_token', '');
+    const adminIds = getSetting('telegram_admin_id', '');
+    if (!enabled || !token || !adminIds) {
+      throw new Error('Bot Telegram belum aktif atau Admin ID belum diset di Pengaturan Sistem');
+    }
+
+    const stats = fs.statSync(filePath);
+    const sizeMB = (stats.size / (1024 * 1024)).toFixed(2);
+    const operator = req.session?.username || (req.session?.isCashier ? req.session.cashierName : 'Administrator');
+    const caption =
+      `📦 *CADANGAN DATABASE MYADAMEDIA*\n` +
+      `============================\n` +
+      `🏷️ *File:* \`${path.basename(fileName)}\`\n` +
+      `📊 *Ukuran:* ${sizeMB} MB\n` +
+      `📅 *Tanggal:* ${getNowLocal()}\n` +
+      `👤 *Operator:* ${operator}\n` +
+      `============================\n` +
+      `_Berkas database dikirim dari Panel Admin Backup & Recovery._`;
+
+    const telegramBot = require('../services/telegramBot');
+    const sent = await telegramBot.sendTelegramAdminDocument(filePath, caption);
+    if (!sent) {
+      throw new Error('Gagal mengirim berkas ke Telegram Admin. Periksa koneksi internet bot dan Admin ID.');
+    }
+
+    req.session._msg = { type: 'success', text: `Berkas backup "${path.basename(fileName)}" berhasil dikirim ke Telegram Admin!` };
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.json({ ok: true, message: `Berkas backup "${path.basename(fileName)}" berhasil dikirim ke Telegram Admin!` });
+    }
+  } catch (err) {
+    req.session._msg = { type: 'error', text: `Gagal kirim ke Telegram: ${err.message}` };
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.status(400).json({ ok: false, error: err.message });
+    }
+  }
+  res.redirect('/admin/backup');
+});
+
 
 router.post('/backup/restore', requireAdminSession, express.urlencoded({ extended: true }), (req, res) => {
   try {

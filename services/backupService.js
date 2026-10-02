@@ -387,12 +387,39 @@ function scheduleAutoBackup() {
     return;
   }
 
-  nodeCron.schedule(schedule, () => {
+  nodeCron.schedule(schedule, async () => {
     logger.info('[Backup] Starting scheduled backup...');
     const result = backupAll();
     
     if (result.database.success && result.settings.success) {
       logger.info('[Backup] Scheduled backup completed successfully');
+
+      // Pengiriman otomatis ke Telegram Admin (Disaster Recovery Cadangan Luar)
+      try {
+        const autoTg = getSetting('telegram_backup_auto_send', true);
+        const tgEnabled = getSetting('telegram_enabled', false);
+        if (autoTg && tgEnabled && result.database.fileName) {
+          const telegramBot = require('./telegramBot');
+          const filePath = getBackupFilePath(result.database.fileName);
+          if (filePath) {
+            const sizeMB = (result.database.size / (1024 * 1024)).toFixed(2);
+            const caption =
+              `📦 *AUTO-BACKUP DATABASE (SCHEDULED)*\n` +
+              `============================\n` +
+              `🏷️ *File:* \`${result.database.fileName}\`\n` +
+              `📊 *Ukuran:* ${sizeMB} MB\n` +
+              `📅 *Waktu:* ${getNowLocal()}\n` +
+              `🤖 *Tipe:* Cadangan Otomatis Harian\n` +
+              `============================\n` +
+              `_Simpan berkas database ini untuk pemulihan (restore) jika dibutuhkan._`;
+
+            await telegramBot.sendTelegramAdminDocument(filePath, caption);
+            logger.info(`[Backup] Auto-backup database berhasil dikirim ke Telegram Admin: ${result.database.fileName}`);
+          }
+        }
+      } catch (tgErr) {
+        logger.error(`[Backup] Gagal mengirim auto-backup ke Telegram: ${tgErr.message}`);
+      }
     } else {
       logger.error('[Backup] Scheduled backup failed');
     }

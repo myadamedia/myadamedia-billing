@@ -970,6 +970,93 @@ async function sendTelegramAdminNotification(text, options = {}) {
 }
 
 /**
+ * Kirim file dokumen ke Telegram chat tertentu
+ * @param {string|number} chatId - ID Chat Telegram / Group ID
+ * @param {string} filePath - Absolute path ke file
+ * @param {string} [caption] - Keterangan berkas
+ * @param {object} [options] - Options tambahan
+ * @returns {Promise<boolean>}
+ */
+async function sendTelegramDocument(chatId, filePath, caption = '', options = {}) {
+  const enabled = getSetting('telegram_enabled', false);
+  const token = getSetting('telegram_bot_token', '');
+
+  if (!enabled || !token || !chatId) {
+    logger.warn('[Telegram] Gagal kirim dokumen: Telegram tidak aktif atau token/chatId kosong');
+    return false;
+  }
+
+  const fs = require('fs');
+  if (!fs.existsSync(filePath)) {
+    logger.error(`[Telegram] File dokumen tidak ditemukan: ${filePath}`);
+    return false;
+  }
+
+  const payloadOptions = {
+    caption: caption,
+    parse_mode: 'Markdown',
+    ...options
+  };
+
+  try {
+    if (bot && typeof bot.sendDocument === 'function') {
+      const fileStream = fs.createReadStream(filePath);
+      await bot.sendDocument(chatId, fileStream, payloadOptions);
+      return true;
+    }
+
+    // Fallback: Kirim via HTTP REST API multipart/form-data menggunakan axios & form-data
+    const axios = require('axios');
+    const FormData = require('form-data');
+    const form = new FormData();
+    form.append('chat_id', String(chatId));
+    form.append('document', fs.createReadStream(filePath));
+    if (caption) {
+      form.append('caption', caption);
+      form.append('parse_mode', 'Markdown');
+    }
+
+    const url = `https://api.telegram.org/bot${token}/sendDocument`;
+    await axios.post(url, form, {
+      headers: form.getHeaders(),
+      timeout: 60000 // 60 detik timeout untuk upload berkas database
+    });
+    return true;
+  } catch (err) {
+    logger.error(`[Telegram] Gagal mengirim dokumen ke ${chatId}: ${err.message}`);
+    return false;
+  }
+}
+
+/**
+ * Kirim file dokumen ke seluruh Admin / Group Telegram yang terkonfigurasi
+ * @param {string} filePath - Path file dokumen
+ * @param {string} [caption] - Keterangan
+ * @param {object} [options] - Options tambahan
+ * @returns {Promise<boolean>}
+ */
+async function sendTelegramAdminDocument(filePath, caption = '', options = {}) {
+  const adminIdsRaw = getSetting('telegram_admin_id', '');
+  if (!adminIdsRaw) {
+    logger.warn('[Telegram] Admin ID belum dikonfigurasi di Settings.');
+    return false;
+  }
+
+  const adminIds = String(adminIdsRaw)
+    .split(',')
+    .map(id => id.trim())
+    .filter(Boolean);
+
+  let sent = false;
+  for (const adminId of adminIds) {
+    const success = await sendTelegramDocument(adminId, filePath, caption, options);
+    if (success) sent = true;
+  }
+  return sent;
+}
+
+
+/**
  * Kirim notifikasi Telegram untuk status PPPoE (Offline / Disconnected atau Recovery / Online)
  * @param {object} pppoeData - Data rincian user PPPoE
  * @param {string} pppoeData.username - PPPoE Username
@@ -1061,6 +1148,8 @@ module.exports = {
   initTelegram,
   sendTelegramMessage,
   sendTelegramAdminNotification,
+  sendTelegramDocument,
+  sendTelegramAdminDocument,
   sendPppoeStatusNotification
 };
 
