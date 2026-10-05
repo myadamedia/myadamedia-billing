@@ -6032,10 +6032,11 @@ router.get('/whatsapp/broadcast', requireAdminSession, requireSidebarMenuAccess(
 
   const defaultAutoIsolirMsg =
     `Yth. Pelanggan {{nama}},\n\n` +
-    `Ini adalah pengingat penting bahwa layanan internet Anda (Paket {{paket}}) akan terisolir otomatis dalam {{hari_h}} hari jika tidak ada pembayaran.\n\n` +
+    `Ini adalah pengingat penting bahwa layanan internet Anda (Paket {{paket}}) telah memasuki masa jatuh tempo / tanggal isolir ({{status_tempo}}).\n\n` +
     `💰 *Total Tagihan:* Rp {{tagihan}}\n` +
-    `📅 *Jatuh Tempo:* {{jatuh_tempo}}\n\n` +
-    `Mohon lakukan pembayaran segera melalui portal pelanggan: {{link}} untuk menghindari pemutusan layanan.\n\n` +
+    `📅 *Jatuh Tempo:* {{jatuh_tempo}}\n` +
+    `📋 *Rincian:* {{rincian}}\n\n` +
+    `Mohon lakukan pembayaran segera melalui portal pelanggan: {{link}} untuk menghindari pemutusan / mengaktifkan kembali layanan internet Anda.\n\n` +
     `Terima kasih.\n` +
     `Salam,\nAdmin ${comp}`;
   const autoIsolirMsg = db.getAppSetting('whatsapp_auto_isolir_message', defaultAutoIsolirMsg);
@@ -6716,7 +6717,7 @@ router.post('/whatsapp/auto-isolir', requireAdminSession, express.urlencoded({ e
   try {
     const enabled = req.body && req.body.enabled ? true : false;
 
-    let autoIsolirDays = '1';
+    let autoIsolirDays = '0,1,2,3';
     if (req.body && req.body.auto_isolir_days) {
       if (Array.isArray(req.body.auto_isolir_days)) {
         autoIsolirDays = req.body.auto_isolir_days.join(',');
@@ -6736,7 +6737,7 @@ router.post('/whatsapp/auto-isolir', requireAdminSession, express.urlencoded({ e
       db.saveAppSetting('whatsapp_auto_isolir_message', msg);
     }
     saveSettings(next);
-    req.session._msg = { type: 'success', text: `Pengingat sebelum isolir otomatis ${enabled ? 'diaktifkan' : 'dimatikan'}.` };
+    req.session._msg = { type: 'success', text: `Pengingat isolir otomatis ${enabled ? 'diaktifkan' : 'dimatikan'}.` };
   } catch (e) {
     req.session._msg = { type: 'error', text: 'Gagal menyimpan pengaturan: ' + e.message };
   }

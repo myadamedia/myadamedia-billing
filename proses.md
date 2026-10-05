@@ -3983,5 +3983,73 @@ Pada halaman Manajemen Router (`/admin/routers`), saat fitur Web Terminal / CLI 
 - Validasi sintaks EJS: `node -e "const ejs = require('ejs'); ... ejs.compile(content);"` -> **EJS compilation success!**
 - Pengujian regresi Jest: `node ./node_modules/jest/bin/jest.js tests/billingFutureInvoiceExclusion.test.js --forceExit` -> **5/5 PASSED (100%)**.
 
+---
+
+## [2026-10-05] Perubahan Pengingat Isolir Menjadi Hari H (Tanggal Isolir) s/d H+3 Setelah Jatuh Tempo
+
+### 1. Permasalahan & Kebutuhan Fitur
+Sebelumnya pada halaman `/admin/whatsapp/broadcast`:
+- Fitur notifikasi isolir ("Pengingat Sebelum Isolir") hanya menyediakan pilihan checklist hari mundur sebelum isolir (`H-1` hingga `H-7`) dan opsi `Hari H`.
+- Administrator membutuhkan sistem pengingat otomatis yang berjalan pada **Hari H (Tanggal Isolir)** serta **H+1**, **H+2**, dan **H+3 setelah tanggal jatuh tempo/isolir**, untuk mengingatkan pelanggan yang menunggak agar segera menyelesaikan pembayaran.
+
+### 2. Penyebab Utama Masalah Teknis (Root Cause Analysis)
+1. **Logika Kalkulasi Hari Pengiriman Tidak Mendukung Periode Setelah Jatuh Tempo**:
+   - Fungsi `getDaysUntilIsolation(today, dueDay)` pada `services/cronService.js` sebelumnya mengecek `if (isolateDate < startOfToday) { isolateDate.setMonth(isolateDate.getMonth() + 1); }`.
+   - Pada hari setelah jatuh tempo (H+1 s/d H+3), `isolateDate` bernilai masa lalu, sehingga kode secara keliru menambahkan 1 bulan dan menghasilkan selisih ~28-30 hari, bukannya +1, +2, atau +3 hari setelah jatuh tempo.
+2. **Filter Status Pelanggan Terlalu Kaku**:
+   - Di `services/cronService.js`, terdapat kondisi kaku `if (c.status !== 'active') continue;`.
+   - Pada hari jatuh tempo (Hari H) jam 02:00 pagi, pelanggan yang belum membayar diisolir otomatis oleh sistem sehingga statusnya berubah menjadi `'suspended'`.
+   - Filter `c.status !== 'active'` menyebabkan seluruh pelanggan yang sudah terisolir dilewati secara keliru pada H+1, H+2, dan H+3.
+3. **Formulir dan Teks UI Masih Berorientasi Mundur**:
+   - UI pada `views/admin/broadcast.ejs` menampilkan checklist `H-1` s/d `H-7`, dan template pesan standar hanya memuat placeholder sisa hari sebelum isolir tanpa konteks status jatuh tempo H+1 s/d H+3.
+
+### 3. Solusi Terpilih & Implementasi
+1. **Fungsi Presisi `getDaysAfterDueDate(today, dueDay)`**:
+   - Diimplementasikan di tingkat modul `services/cronService.js` untuk menghitung selisih hari setelah tanggal jatuh tempo/isolir secara akurat.
+   - Mengembalikan `0` untuk Hari H, `1` untuk H+1, `2` untuk H+2, dan `3` untuk H+3.
+   - Menangani *month rollover* dengan sempurna (misal jatuh tempo tgl 31 Oktober berlanjut ke 1, 2, 3 November) serta bulan dengan jumlah hari 30/28/29.
+   - Fungsi `getDaysUntilIsolation` tetap dipertahankan dan diekspor untuk menjaga *backward compatibility* pada pengingat tagihan (Task 3).
+2. **Pembaruan Filter Kelayakan Pelanggan**:
+   - Memperbarui filter status menjadi `if (c.status !== 'active' && c.status !== 'suspended') continue;`, sehingga pelanggan aktif maupun yang sudah disuspend karena isolir tetap dapat menerima pengingat H+1 s/d H+3 selama tagihannya belum lunas.
+   - Pelanggan dengan status `terminated` atau `inactive` tetap dieksklusikan.
+   - Tetap mematuhi preferensi *opt-out* pelanggan (`c.send_isolir_reminder === 0`).
+   - Melakukan verifikasi ganda saldo tunggakan (`totalTagihan > 0` dan ada invoice yang overdue).
+3. **Penyempurnaan UI Formulir `/admin/whatsapp/broadcast`**:
+   - Mengubah judul seksi menjadi: **Pengingat Isolir (Hari H s/d H+3 Setelah Jatuh Tempo)**.
+   - Menyediakan 4 opsi checklist:
+     - `Hari H (Tanggal Isolir)` (`value="0"`)
+     - `H+1 (Setelah Jatuh Tempo)` (`value="1"`)
+     - `H+2 (Setelah Jatuh Tempo)` (`value="2"`)
+     - `H+3 (Setelah Jatuh Tempo)` (`value="3"`)
+   - Memperbarui default template dan daftar variabel yang didukung: `{{nama}}`, `{{tagihan}}`, `{{rincian}}`, `{{paket}}`, `{{link}}`, `{{jatuh_tempo}}`, `{{hari_h}}`, `{{status_tempo}}`, `{{hari_ke}}`.
+4. **Pembaruan Handler Route & Pengaturan**:
+   - Menyesuaikan handler `POST /whatsapp/auto-isolir` di `routes/adminPortal.js` dengan nilai default `0,1,2,3`.
+   - Memperbarui pesan notifikasi flash status.
+
+### 4. Dampak Perubahan Sistem
+- **Zero Regression**: Pengingat tagihan otomatis sebelum jatuh tempo (Task 3) tetap berjalan normal tanpa gangguan.
+- **Kolektibilitas Tagihan Meningkat**: Pelanggan yang menunggak secara konsisten dan terukur mendapatkan pengingat di Hari H, H+1, H+2, dan H+3 hingga tagihan dilunasi.
+- **Transparansi UI**: Administrator memiliki kontrol penuh untuk memilih kombinasi hari Hari H, H+1, H+2, atau H+3 yang ingin diaktifkan.
+
+### 5. File yang Diperbarui & Ditambahkan
+- **`views/admin/broadcast.ejs`**: UI judul seksi, deskripsi, form, checklist Hari H, H+1, H+2, H+3, dan variabel template.
+- **`services/cronService.js`**: Implementasi fungsi `getDaysAfterDueDate`, pembaruan Task 3b (Hari H s/d H+3), filter status `active`/`suspended`, placeholder replacements, dan ekspor modul.
+- **`routes/adminPortal.js`**: Default template pesan isolir, handling pengaturan `whatsapp_auto_isolir_days`, dan pesan flash session.
+- **`tests/cronIsolirOverdueReminder.test.js`**: 12 pengujian unit & integrasi untuk fungsi perhitungan hari, rollover bulan, filtering pelanggan, dan formatting pesan.
+- **`version.txt`**: Di-bump dari `15.4.0` ke `15.4.1`.
+
+### 6. Hasil Pengujian & Verifikasi
+- Validasi Sintaks JavaScript:
+  - `node -c services/cronService.js` -> **OK (Sintaks valid)**
+  - `node -c routes/adminPortal.js` -> **OK (Sintaks valid)**
+- Validasi Sintaks Template EJS:
+  - `node -e "const fs = require('fs'); const ejs = require('ejs'); const content = fs.readFileSync('views/admin/broadcast.ejs', 'utf8'); ejs.compile(content); console.log('EJS compilation success!');"` -> **EJS compilation success!**
+- Pengujian Unit & Integrasi Baru:
+  - `node ./node_modules/jest/bin/jest.js tests/cronIsolirOverdueReminder.test.js --forceExit` -> **12/12 PASSED (100%)**
+- Pengujian Regresi Sistem:
+  - `node ./node_modules/jest/bin/jest.js tests/cronIsolationOverdue.test.js --forceExit` -> **13/13 PASSED (100%)**
+  - `node ./node_modules/jest/bin/jest.js tests/billingArrearsBroadcast.test.js --forceExit` -> **6/6 PASSED (100%)**
+
+
 
 

@@ -56,6 +56,65 @@ function addMessageVariation(message, index) {
   return message + suffix;
 }
 
+/**
+ * Helper: Menghitung selisih hari setelah tanggal jatuh tempo / isolir (Hari H s/d H+3 dst).
+ * - Mengembalikan 0 untuk Hari H (Tanggal Isolir).
+ * - Mengembalikan 1 untuk H+1 (1 hari setelah jatuh tempo).
+ * - Mengembalikan 2 untuk H+2 (2 hari setelah jatuh tempo).
+ * - Mengembalikan 3 untuk H+3 (3 hari setelah jatuh tempo).
+ * - Menangani rollover pergantian bulan (misal tgl 31 ke tgl 1, 2, 3 bulan berikutnya).
+ * 
+ * @param {Date} today - Objek Date hari ini
+ * @param {number|string} dueDay - Tanggal jatuh tempo pelanggan (1-31)
+ * @returns {number} Selisih hari setelah jatuh tempo
+ */
+function getDaysAfterDueDate(today, dueDay) {
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
+  const parsedDueDay = parseInt(dueDay, 10) || 10;
+
+  // 1. Cek terhadap jatuh tempo bulan berjalan
+  const currentMonthDays = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+  const effectiveCurrentDue = Math.min(Math.max(parsedDueDay, 1), currentMonthDays);
+  const currentDueDate = new Date(today.getFullYear(), today.getMonth(), effectiveCurrentDue, 0, 0, 0, 0);
+
+  const diffTimeCurrent = startOfToday.getTime() - currentDueDate.getTime();
+  const diffDaysCurrent = Math.round(diffTimeCurrent / (1000 * 60 * 60 * 24));
+
+  // Jika hari ini berada pada Hari H atau setelahnya di bulan berjalan (0 s/d 31 hari)
+  if (diffDaysCurrent >= 0 && diffDaysCurrent <= 31) {
+    return diffDaysCurrent;
+  }
+
+  // 2. Jika hari ini awal bulan (misal tgl 1-3) dan dueDay pelanggan berada di akhir bulan sebelumnya
+  const prevMonthDate = new Date(today.getFullYear(), today.getMonth(), 0);
+  const prevMonthDays = prevMonthDate.getDate();
+  const effectivePrevDue = Math.min(Math.max(parsedDueDay, 1), prevMonthDays);
+  const prevDueDate = new Date(today.getFullYear(), today.getMonth() - 1, effectivePrevDue, 0, 0, 0, 0);
+
+  const diffTimePrev = startOfToday.getTime() - prevDueDate.getTime();
+  const diffDaysPrev = Math.round(diffTimePrev / (1000 * 60 * 60 * 24));
+
+  return diffDaysPrev;
+}
+
+/**
+ * Helper: Menghitung sisa hari menuju tanggal isolir (H-1 s/d H-7 dan Hari H).
+ * 
+ * @param {Date} today 
+ * @param {number|string} dueDay 
+ * @returns {number}
+ */
+function getDaysUntilIsolation(today, dueDay) {
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
+  const parsedDueDay = parseInt(dueDay, 10) || 10;
+  let isolateDate = new Date(today.getFullYear(), today.getMonth(), parsedDueDay, 0, 0, 0, 0);
+  if (isolateDate < startOfToday) {
+    isolateDate = new Date(today.getFullYear(), today.getMonth() + 1, parsedDueDay, 0, 0, 0, 0);
+  }
+  const diffTime = isolateDate.getTime() - startOfToday.getTime();
+  return Math.round(diffTime / (1000 * 60 * 60 * 24));
+}
+
 function startCronJobs() {
   const acsDeviceStates = new Map();
   // 1. Generate Tagihan Otomatis setiap tanggal 1 jam 00:01
@@ -156,16 +215,6 @@ function startCronJobs() {
     const baseDelayMs = (Number(getSetting('whatsapp_broadcast_delay', 5) || 5) * 1000); // Default 5 detik
     const batchSize = 15; // 15 pesan per batch (dari 20)
     const batchPauseMs = 120000; // Pause 2 menit setelah batch (dari 1 menit)
-
-    function getDaysUntilIsolation(today, dueDay) {
-      const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
-      let isolateDate = new Date(today.getFullYear(), today.getMonth(), dueDay, 0, 0, 0, 0);
-      if (isolateDate < startOfToday) {
-        isolateDate = new Date(today.getFullYear(), today.getMonth() + 1, dueDay, 0, 0, 0, 0);
-      }
-      const diffTime = isolateDate.getTime() - startOfToday.getTime();
-      return Math.round(diffTime / (1000 * 60 * 60 * 24));
-    }
 
     const today = getCurrentDateInTimezone();
     const activeDaysSetting = String(getSetting('whatsapp_auto_billing_days', '1') || '1');
@@ -325,7 +374,7 @@ function startCronJobs() {
     logger.info(`[CRON] Pengingat tagihan otomatis selesai: target=${targetCount}, terkirim=${sent}, gagal=${failed}`);
   });
 
-  // 3b. Pengingat Sebelum Isolir Harian - Jam 09:05
+  // 3b. Pengingat Isolir Harian (Hari H s/d H+3 Setelah Jatuh Tempo) - Jam 09:05
   cron.schedule('5 9 * * *', async () => {
     const enabled = getSetting('whatsapp_auto_isolir_enabled', false);
     const waEnabled = getSetting('whatsapp_enabled', false);
@@ -343,7 +392,7 @@ function startCronJobs() {
     }
 
     if (!whatsappStatus || whatsappStatus.connection !== 'open') {
-      logger.warn('[CRON] WhatsApp bot belum terhubung, pengingat sebelum isolir otomatis dilewati.');
+      logger.warn('[CRON] WhatsApp bot belum terhubung, pengingat isolir otomatis dilewati.');
       return;
     }
 
@@ -365,19 +414,12 @@ function startCronJobs() {
     const batchSize = 15;
     const batchPauseMs = 120000;
 
-    function getDaysUntilIsolation(today, dueDay) {
-      const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
-      let isolateDate = new Date(today.getFullYear(), today.getMonth(), dueDay, 0, 0, 0, 0);
-      if (isolateDate < startOfToday) {
-        isolateDate = new Date(today.getFullYear(), today.getMonth() + 1, dueDay, 0, 0, 0, 0);
-      }
-      const diffTime = isolateDate.getTime() - startOfToday.getTime();
-      return Math.round(diffTime / (1000 * 60 * 60 * 24));
-    }
-
     const today = getCurrentDateInTimezone();
-    const activeDaysSetting = String(getSetting('whatsapp_auto_isolir_days', '1') || '1');
-    const activeDays = activeDaysSetting.split(',').map(s => parseInt(s.trim())).filter(Number.isFinite);
+    const activeDaysSetting = String(getSetting('whatsapp_auto_isolir_days', '0,1,2,3') || '0,1,2,3');
+    const activeDays = activeDaysSetting
+      .split(',')
+      .map(s => parseInt(s.trim(), 10))
+      .filter(Number.isFinite);
 
     const customers = customerSvc.getAllCustomers();
     let targetCount = 0;
@@ -387,10 +429,11 @@ function startCronJobs() {
 
     const defaultTemplate =
       `Yth. Pelanggan {{nama}},\n\n` +
-      `Ini adalah pengingat penting bahwa layanan internet Anda (Paket {{paket}}) akan terisolir otomatis dalam {{hari_h}} hari jika tidak ada pembayaran.\n\n` +
+      `Ini adalah pengingat penting bahwa layanan internet Anda (Paket {{paket}}) telah memasuki masa jatuh tempo / tanggal isolir ({{status_tempo}}).\n\n` +
       `💰 *Total Tagihan:* Rp {{tagihan}}\n` +
-      `📅 *Jatuh Tempo:* {{jatuh_tempo}}\n\n` +
-      `Mohon lakukan pembayaran segera melalui portal pelanggan: {{link}} untuk menghindari pemutusan layanan.\n\n` +
+      `📅 *Jatuh Tempo:* {{jatuh_tempo}}\n` +
+      `📋 *Rincian:* {{rincian}}\n\n` +
+      `Mohon lakukan pembayaran segera melalui portal pelanggan: {{link}} untuk menghindari pemutusan / mengaktifkan kembali layanan internet Anda.\n\n` +
       `Terima kasih.\n` +
       `Salam,\nAdmin ${getSetting('company_header', 'ISP')}`;
     const template = String(db.getAppSetting('whatsapp_auto_isolir_message', defaultTemplate) || defaultTemplate);
@@ -398,7 +441,7 @@ function startCronJobs() {
     const targetCustomers = [];
     const seenPhones = new Set();
     for (const c of customers) {
-      // Cek fitur opt-in / toggle pengingat sebelum isolir per pelanggan
+      // Cek fitur opt-in / toggle pengingat isolir per pelanggan
       if (c.send_isolir_reminder === 0) continue;
 
       const phone = c.phone ? String(c.phone).trim() : '';
@@ -410,33 +453,33 @@ function startCronJobs() {
       const unpaidCount = Number(c.unpaid_count || 0) || 0;
       if (unpaidCount <= 0) continue;
 
-      // HANYA kirim jika pelanggan berstatus ACTIVE (belum di-isolir)
-      if (c.status !== 'active') continue;
+      // Izinkan pelanggan berstatus 'active' (belum di-isolir) maupun 'suspended' (sudah terisolir)
+      if (c.status !== 'active' && c.status !== 'suspended') continue;
 
       // Pastikan pelanggan memiliki tagihan riil bulan berjalan atau bulan sebelumnya (bukan hanya bulan masa depan)
       const initialSummary = billingSvc.getCustomerBillingSummary(c.id, { asOfDate: today });
       if (initialSummary.totalTagihan <= 0 || initialSummary.unpaidInvoices.length === 0) continue;
 
       const dueDay = billingSvc.getCustomerDueDay(c);
-      const daysUntilIsolir = getDaysUntilIsolation(today, dueDay);
-      const shouldSend = activeDays.includes(daysUntilIsolir);
+      const daysAfter = getDaysAfterDueDate(today, dueDay);
+      const shouldSend = activeDays.includes(daysAfter);
       if (!shouldSend) continue;
 
       seenPhones.add(digits);
-      targetCustomers.push({ customer: c, daysLeft: daysUntilIsolir });
+      targetCustomers.push({ customer: c, daysAfter: daysAfter });
     }
 
     if (targetCustomers.length === 0) {
-      logger.info('[CRON] Tidak ada pelanggan yang perlu diingatkan sebelum isolir hari ini.');
+      logger.info('[CRON] Tidak ada pelanggan yang perlu diingatkan isolir hari ini.');
       return;
     }
 
-    logger.info(`[CRON] Memulai pengingat sebelum isolir otomatis untuk ${targetCustomers.length} pelanggan dengan smart rate limit.`);
+    logger.info(`[CRON] Memulai pengingat isolir otomatis (Hari H s/d H+3) untuk ${targetCustomers.length} pelanggan dengan smart rate limit.`);
 
     for (let i = 0; i < targetCustomers.length; i++) {
       const item = targetCustomers[i];
       const c = item.customer;
-      const daysLeft = item.daysLeft;
+      const daysAfter = item.daysAfter;
       let attemptCount = 0;
       const maxAttempts = 3;
 
@@ -462,6 +505,11 @@ function startCronJobs() {
             ? `📌 *Termasuk Sisa Tagihan Bulan Lalu:* Rp ${totalCarried.toLocaleString('id-ID')}\n`
             : '';
 
+          const statusTempoText = daysAfter === 0 
+            ? 'Hari H (Tanggal Isolir)' 
+            : `H+${daysAfter} (${daysAfter} hari setelah jatuh tempo)`;
+          const hariHText = daysAfter === 0 ? 'Hari Ini' : `H+${daysAfter}`;
+
           const customerFormattedId = 'MDE-' + String(c.id).padStart(4, '0');
           let formattedMsg = template
             .replace(/{{id_pelanggan}}/gi, customerFormattedId)
@@ -476,7 +524,9 @@ function startCronJobs() {
             .replace(/{{rincian}}/gi, rincianBulan || '-')
             .replace(/{{paket}}/gi, c.package_name || '-')
             .replace(/{{link}}/gi, loginLink)
-            .replace(/{{hari_h}}/gi, String(daysLeft))
+            .replace(/{{hari_h}}/gi, hariHText)
+            .replace(/{{status_tempo}}/gi, statusTempoText)
+            .replace(/{{hari_ke}}/gi, String(daysAfter))
             .replace(/{{jatuh_tempo}}/gi, jatuhTempo);
 
           if (!formattedMsg.includes(jatuhTempo)) {
@@ -525,7 +575,7 @@ function startCronJobs() {
       }
     }
 
-    logger.info(`[CRON] Pengingat sebelum isolir otomatis selesai: target=${targetCount}, terkirim=${sent}, gagal=${failed}`);
+    logger.info(`[CRON] Pengingat isolir otomatis (Hari H s/d H+3) selesai: target=${targetCount}, terkirim=${sent}, gagal=${failed}`);
   });
 
   // 4. Jam Kalong (Night Speed) Start - Jam 00:00
@@ -1031,4 +1081,4 @@ function startCronJobs() {
   logger.info('[CRON] Semua tugas penjadwalan telah aktif.');
 }
 
-module.exports = { startCronJobs };
+module.exports = { startCronJobs, getDaysAfterDueDate, getDaysUntilIsolation };
