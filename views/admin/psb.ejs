@@ -267,8 +267,18 @@
             </select>
           </div>
           <div class="fg">
-            <label class="fl">Tanggal Isolir (1-31)</label>
+            <label class="fl">Tanggal Jatuh Tempo (1-31)</label>
             <input class="fc" type="number" name="isolate_day" id="e_isolate_day" min="1" max="31">
+          </div>
+          <div class="fg">
+            <label class="fl">Jadwal Isolir (Masa Tenggang)</label>
+            <select class="fs" name="isolate_grace_days" id="e_isolate_grace_days">
+              <option value="-1">Ikuti Pengaturan Global</option>
+              <option value="0">Hari H (Langsung Jatuh Tempo)</option>
+              <option value="1">H+1 Setelah Jatuh Tempo</option>
+              <option value="2">H+2 Setelah Jatuh Tempo</option>
+              <option value="3">H+3 Setelah Jatuh Tempo</option>
+            </select>
           </div>
         </div>
         <div class="form-row">
@@ -635,6 +645,10 @@ function editCust(idx) {
   document.getElementById('e_notes').value=c.notes||'';
   document.getElementById('e_auto_isolate').value=(c.auto_isolate !== undefined ? c.auto_isolate : 1);
   document.getElementById('e_isolate_day').value=(c.isolate_day || 10);
+  const graceVal = (c.isolate_grace_days !== undefined && c.isolate_grace_days !== null && c.isolate_grace_days !== '') ? c.isolate_grace_days : -1;
+  if (document.getElementById('e_isolate_grace_days')) {
+    document.getElementById('e_isolate_grace_days').value = graceVal;
+  }
   toggleConnectionFields('edit');
   openModal('editModal');
   loadRouterLists('edit', c.router_id || '', c.id || '');

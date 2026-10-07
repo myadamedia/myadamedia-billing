@@ -137,6 +137,12 @@ const VALIDATION_RULES = {
     max: 365,
     description: 'Hari isolir (1-365)'
   },
+  auto_isolir_grace_days: {
+    type: 'number',
+    min: 0,
+    max: 30,
+    description: 'Masa tenggang isolir otomatis setelah jatuh tempo (hari, misal 0 = Hari H, 3 = H+3)'
+  },
 
   // WhatsApp Configuration
   whatsapp_enabled: {

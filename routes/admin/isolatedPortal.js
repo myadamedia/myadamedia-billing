@@ -84,7 +84,8 @@ router.post('/settings', (req, res) => {
       ...req.body,
       enabled: req.body.enabled === 'true' || req.body.enabled === 'on' || req.body.enabled === true,
       cna_push_enabled: req.body.cna_push_enabled === 'true' || req.body.cna_push_enabled === 'on' || req.body.cna_push_enabled === true,
-      auto_sync_mikrotik: req.body.auto_sync_mikrotik === 'true' || req.body.auto_sync_mikrotik === 'on' || req.body.auto_sync_mikrotik === true
+      auto_sync_mikrotik: req.body.auto_sync_mikrotik === 'true' || req.body.auto_sync_mikrotik === 'on' || req.body.auto_sync_mikrotik === true,
+      auto_isolir_grace_days: req.body.auto_isolir_grace_days !== undefined ? (parseInt(req.body.auto_isolir_grace_days, 10) >= 0 ? parseInt(req.body.auto_isolir_grace_days, 10) : 3) : 3
     };
     const result = isolatedPortalSvc.saveIsolatedPortalConfig(payload);
     if (result.success) {

@@ -649,6 +649,9 @@ try {
   db.exec("ALTER TABLE customers ADD COLUMN isolate_day INTEGER DEFAULT 10");
 } catch (e) { /* ignore if already exists */ }
 try {
+  db.exec("ALTER TABLE customers ADD COLUMN isolate_grace_days INTEGER DEFAULT -1");
+} catch (e) { /* ignore if already exists */ }
+try {
   db.exec("ALTER TABLE customers ADD COLUMN email TEXT DEFAULT ''");
 } catch (e) { /* ignore if already exists */ }
 try {

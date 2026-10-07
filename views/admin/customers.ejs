@@ -174,7 +174,14 @@
                 <div style="font-size:10px;margin-top:4px">
                   <i class="bi bi-clock-history"></i> <%= t('admin.customers.auto_isolate.label', 'Auto Isolir') %>:
                   <span class="<%= c.auto_isolate === 0 ? 'text-danger' : 'text-success' %>">
-                    <%= c.auto_isolate === 0 ? t('admin.customers.auto_isolate.off', 'OFF') : t('admin.customers.auto_isolate.date_prefix', 'Tgl ') + (c.isolate_day || 10) %>
+                    <% if (c.auto_isolate === 0) { %>
+                      <%= t('admin.customers.auto_isolate.off', 'OFF') %>
+                    <% } else { %>
+                      <%= t('admin.customers.auto_isolate.date_prefix', 'Tgl ') + (c.isolate_day || 10) %>
+                      <% if (c.isolate_grace_days !== undefined && c.isolate_grace_days !== null && Number(c.isolate_grace_days) >= 0) { %>
+                        <span class="badge bs" style="font-size:9px;padding:1px 4px;margin-left:2px;" title="Jadwal Isolir Khusus: H+<%= c.isolate_grace_days %>">H+<%= c.isolate_grace_days %></span>
+                      <% } %>
+                    <% } %>
                   </span>
                 </div>
                 <div style="font-size:10px;margin-top:2px;color:var(--muted)">
@@ -373,8 +380,18 @@
             </select>
           </div>
           <div class="fg">
-            <label class="fl">Tanggal Isolir (1-31)</label>
+            <label class="fl">Tanggal Jatuh Tempo (1-31)</label>
             <input class="fc" type="number" name="isolate_day" value="10" min="1" max="31">
+          </div>
+          <div class="fg">
+            <label class="fl">Jadwal Isolir (Masa Tenggang)</label>
+            <select class="fs" name="isolate_grace_days">
+              <option value="-1">Ikuti Pengaturan Global</option>
+              <option value="0">Hari H (Langsung Jatuh Tempo)</option>
+              <option value="1">H+1 Setelah Jatuh Tempo</option>
+              <option value="2">H+2 Setelah Jatuh Tempo</option>
+              <option value="3" selected>H+3 Setelah Jatuh Tempo</option>
+            </select>
           </div>
         </div>
         <div class="form-row">
@@ -604,8 +621,18 @@
             </select>
           </div>
           <div class="fg">
-            <label class="fl">Tanggal Isolir (1-31)</label>
+            <label class="fl">Tanggal Jatuh Tempo (1-31)</label>
             <input class="fc" type="number" name="isolate_day" id="e_isolate_day" min="1" max="31">
+          </div>
+          <div class="fg">
+            <label class="fl">Jadwal Isolir (Masa Tenggang)</label>
+            <select class="fs" name="isolate_grace_days" id="e_isolate_grace_days">
+              <option value="-1">Ikuti Pengaturan Global</option>
+              <option value="0">Hari H (Langsung Jatuh Tempo)</option>
+              <option value="1">H+1 Setelah Jatuh Tempo</option>
+              <option value="2">H+2 Setelah Jatuh Tempo</option>
+              <option value="3">H+3 Setelah Jatuh Tempo</option>
+            </select>
           </div>
         </div>
         <div class="form-row">
@@ -1034,6 +1061,10 @@ function editCust(idx) {
   document.getElementById('e_notes').value=c.notes||'';
   document.getElementById('e_auto_isolate').value=(c.auto_isolate !== undefined ? c.auto_isolate : 1);
   document.getElementById('e_isolate_day').value=(c.isolate_day || 10);
+  const graceVal = (c.isolate_grace_days !== undefined && c.isolate_grace_days !== null && c.isolate_grace_days !== '') ? c.isolate_grace_days : -1;
+  if (document.getElementById('e_isolate_grace_days')) {
+    document.getElementById('e_isolate_grace_days').value = graceVal;
+  }
   document.getElementById('e_send_billing_reminder').value=(c.send_billing_reminder !== undefined && c.send_billing_reminder !== null ? c.send_billing_reminder : 1);
   document.getElementById('e_send_isolir_reminder').value=(c.send_isolir_reminder !== undefined && c.send_isolir_reminder !== null ? c.send_isolir_reminder : 1);
   toggleConnectionFields('edit');

@@ -4161,6 +4161,16 @@ router.post('/settings', requireAdminSession, express.urlencoded({ extended: tru
     if (newSettings.mikrotik_port) newSettings.mikrotik_port = parseInt(newSettings.mikrotik_port);
     if (newSettings.whatsapp_broadcast_delay) newSettings.whatsapp_broadcast_delay = parseInt(newSettings.whatsapp_broadcast_delay);
 
+    if (newSettings.auto_isolir_grace_days !== undefined) {
+      const g = parseInt(newSettings.auto_isolir_grace_days, 10);
+      newSettings.auto_isolir_grace_days = (!isNaN(g) && g >= 0) ? g : 3;
+      const portalCfg = getSetting('isolated_portal_config', {});
+      if (portalCfg) {
+        portalCfg.auto_isolir_grace_days = newSettings.auto_isolir_grace_days;
+        newSettings.isolated_portal_config = portalCfg;
+      }
+    }
+
     if (newSettings.customer_id_prefix !== undefined) {
       newSettings.customer_id_prefix = String(newSettings.customer_id_prefix).trim().toUpperCase();
     }

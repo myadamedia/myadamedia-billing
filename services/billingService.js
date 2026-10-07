@@ -1075,9 +1075,171 @@ function getOverdueInvoicesForCustomer(customerId, now = getCurrentDateInTimezon
 }
 
 /**
+ * Mengambil masa tenggang isolir (grace days) untuk pelanggan.
+ * Memprioritaskan konfigurasi khusus per pelanggan jika diset (>= 0),
+ * atau fallback ke konfigurasi global di Settings / Portal Isolir (default: 3).
+ *
+ * @param {Object} customer - Objek pelanggan
+ * @returns {number} Jumlah hari toleransi setelah jatuh tempo (misal 0 = Hari H, 3 = H+3)
+ */
+function getCustomerGraceDays(customer) {
+  if (customer && customer.isolate_grace_days !== undefined && customer.isolate_grace_days !== null && customer.isolate_grace_days !== '') {
+    const custVal = parseInt(customer.isolate_grace_days, 10);
+    if (!isNaN(custVal) && custVal >= 0) {
+      return custVal;
+    }
+  }
+
+  // Fallback global setting
+  let globalVal = getSetting('auto_isolir_grace_days', null);
+  if (globalVal === null || globalVal === undefined || globalVal === '') {
+    const portalCfg = getSetting('isolated_portal_config', {});
+    if (portalCfg && portalCfg.auto_isolir_grace_days !== undefined && portalCfg.auto_isolir_grace_days !== null) {
+      globalVal = portalCfg.auto_isolir_grace_days;
+    }
+  }
+  const parsed = parseInt(globalVal, 10);
+  return (!isNaN(parsed) && parsed >= 0) ? parsed : 3;
+}
+
+/**
+ * Menghitung tanggal target isolir presisi untuk invoice tertentu dengan memperhitungkan
+ * tanggal jatuh tempo dan toleransi masa tenggang (grace period).
+ * Secara otomatis menangani rollover akhir bulan dan tahun kabisat via Date arithmetic.
+ *
+ * @param {Object} inv - Objek invoice
+ * @param {Object} customer - Objek customer
+ * @returns {Date|null} Objek Date target isolir (jam 00:00:00)
+ */
+function getInvoiceIsolationDate(inv, customer) {
+  if (!inv) return null;
+  const periodYear = Number(inv.period_year);
+  const periodMonth = Number(inv.period_month);
+  if (!periodYear || !periodMonth) return null;
+
+  const dueDay = getCustomerDueDay(customer);
+  const maxDays = daysInMonth(periodYear, periodMonth);
+  const effectiveDueDay = Math.min(dueDay, maxDays);
+  const graceDays = getCustomerGraceDays(customer);
+
+  // Buat tanggal jatuh tempo dan tambahkan graceDays
+  const targetDate = new Date(periodYear, periodMonth - 1, effectiveDueDay, 0, 0, 0, 0);
+  targetDate.setDate(targetDate.getDate() + graceDays);
+  return targetDate;
+}
+
+/**
+ * Memeriksa apakah suatu invoice sudah benar-benar melewati batas tanggal isolir
+ * (Jatuh Tempo + Toleransi Grace Period H+X).
+ *
+ * @param {Object} inv - Objek invoice
+ * @param {Object} customer - Objek customer
+ * @param {Date|string} now - Waktu acuan saat ini
+ * @returns {boolean}
+ */
+function isInvoiceEligibleForIsolation(inv, customer, now = getCurrentDateInTimezone()) {
+  if (!inv) return false;
+  if (inv.status !== 'unpaid' && inv.status !== 'partial') return false;
+
+  const totalAmt = Number(inv.amount || 0);
+  const paidAmt = Number(inv.paid_amount || 0);
+  const balanceDue = inv.balance_due !== undefined ? Number(inv.balance_due) : (totalAmt - paidAmt);
+  if (balanceDue <= 0) return false;
+
+  const periodYear = Number(inv.period_year);
+  const periodMonth = Number(inv.period_month);
+  if (!periodYear || !periodMonth) return false;
+
+  const nowDate = now instanceof Date ? now : new Date(now);
+  const nowYear = nowDate.getFullYear();
+  const nowMonth = nowDate.getMonth() + 1;
+  const nowDay = nowDate.getDate();
+
+  // 1. Tahun Masa Depan: Belum jatuh tempo maupun isolir
+  if (periodYear > nowYear) return false;
+  // 2. Tahun Sama, Bulan Masa Depan: Belum jatuh tempo maupun isolir
+  if (periodYear === nowYear && periodMonth > nowMonth) return false;
+
+  const dueDay = getCustomerDueDay(customer);
+  const maxDays = daysInMonth(periodYear, periodMonth);
+  const effectiveDueDay = Math.min(dueDay, maxDays);
+
+  // 3. Safety check: Jika pelanggan baru dipasang di bulan yang sama setelah tanggal jatuh tempo
+  if (customer && customer.install_date && typeof customer.install_date === 'string') {
+    const inst = parseInstallYMD(customer.install_date);
+    if (inst && inst.y === periodYear && inst.m === periodMonth) {
+      if (inst.d > effectiveDueDay) {
+        return false;
+      }
+    }
+  }
+
+  // 4. Hitung tanggal isolir aktual (Jatuh Tempo + Masa Tenggang)
+  const isolationDate = getInvoiceIsolationDate(inv, customer);
+  if (!isolationDate) return false;
+
+  const startOfToday = new Date(nowYear, nowMonth - 1, nowDay, 0, 0, 0, 0);
+  return startOfToday.getTime() >= isolationDate.getTime();
+}
+
+/**
+ * Mengambil seluruh invoice pelanggan yang sudah memenuhi syarat isolir
+ * (melewati jatuh tempo + masa tenggang).
+ */
+function getInvoicesEligibleForIsolationForCustomer(customerId, now = getCurrentDateInTimezone()) {
+  const cid = Number(customerId);
+  if (!cid || !Number.isFinite(cid)) return [];
+
+  const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(cid);
+  if (!customer) return [];
+
+  const unpaidInvoices = db.prepare(`
+    SELECT * FROM invoices
+    WHERE customer_id = ? AND status IN ('unpaid', 'partial')
+    ORDER BY period_year ASC, period_month ASC, id ASC
+  `).all(cid);
+
+  return unpaidInvoices.filter(inv => isInvoiceEligibleForIsolation(inv, customer, now));
+}
+
+/**
+ * Mengecek apakah pelanggan memiliki minimal 1 invoice yang sudah memenuhi syarat isolir
+ * (melewati tanggal jatuh tempo + masa tenggang).
+ */
+function isCustomerEligibleForIsolation(customerOrId, now = getCurrentDateInTimezone()) {
+  let customer = null;
+  let customerId = null;
+
+  if (typeof customerOrId === 'object' && customerOrId !== null) {
+    customer = customerOrId;
+    customerId = customer.id;
+  } else {
+    customerId = Number(customerOrId);
+    if (!customerId || !Number.isFinite(customerId)) return false;
+    customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(customerId);
+  }
+
+  if (!customer) return false;
+
+  const unpaidInvoices = db.prepare(`
+    SELECT * FROM invoices
+    WHERE customer_id = ? AND status IN ('unpaid', 'partial')
+    ORDER BY period_year ASC, period_month ASC, id ASC
+  `).all(customerId);
+
+  if (!unpaidInvoices || unpaidInvoices.length === 0) return false;
+
+  return unpaidInvoices.some(inv => isInvoiceEligibleForIsolation(inv, customer, now));
+}
+
+/**
  * Mengecek apakah pelanggan memiliki minimal 1 invoice yang berstatus Overdue.
  */
-function isCustomerOverdue(customerOrId, now = getCurrentDateInTimezone()) {
+function isCustomerOverdue(customerOrId, now = getCurrentDateInTimezone(), options = {}) {
+  if (options && options.checkGracePeriod) {
+    return isCustomerEligibleForIsolation(customerOrId, now);
+  }
+
   let customer = null;
   let customerId = null;
 
@@ -1350,7 +1512,12 @@ module.exports = {
   getDueDistributionSummary,
   getDueDistributionDetailsByDay,
   getCustomerDueDay,
+  getCustomerGraceDays,
+  getInvoiceIsolationDate,
   isInvoiceOverdue,
+  isInvoiceEligibleForIsolation,
   getOverdueInvoicesForCustomer,
-  isCustomerOverdue
+  getInvoicesEligibleForIsolationForCustomer,
+  isCustomerOverdue,
+  isCustomerEligibleForIsolation
 };

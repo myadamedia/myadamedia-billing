@@ -365,6 +365,19 @@
           </div>
           <div class="hint" style="margin-top:6px;color:var(--warning)">
             <i class="bi bi-exclamation-triangle"></i> <strong>Auto-Approve:</strong> Jika diaktifkan, pembayaran yang dilaporkan kolektor akan langsung diproses tanpa perlu approval admin/kasir. Nonaktifkan jika ingin verifikasi manual.
+          <div class="fg">
+            <label class="fl">
+              <i class="bi bi-hourglass-split"></i> Masa Tenggang Isolir Otomatis (Setelah Jatuh Tempo)
+            </label>
+            <select class="fs" name="auto_isolir_grace_days">
+              <option value="0" <%= Number(settings.auto_isolir_grace_days) === 0 ? 'selected' : '' %>>Hari H (Langsung saat Jatuh Tempo - 0 Hari)</option>
+              <option value="1" <%= Number(settings.auto_isolir_grace_days) === 1 ? 'selected' : '' %>>H+1 (1 Hari Setelah Jatuh Tempo)</option>
+              <option value="2" <%= Number(settings.auto_isolir_grace_days) === 2 ? 'selected' : '' %>>H+2 (2 Hari Setelah Jatuh Tempo)</option>
+              <option value="3" <%= (Number(settings.auto_isolir_grace_days) === 3 || settings.auto_isolir_grace_days === undefined || settings.auto_isolir_grace_days === null) ? 'selected' : '' %>>H+3 (3 Hari Setelah Jatuh Tempo - Rekomendasi)</option>
+            </select>
+            <div style="font-size:10px; color:var(--muted); margin-top:4px;">
+              Jadwal pelaksanaan pemutusan/isolir otomatis oleh sistem CRON setelah tanggal jatuh tempo pelanggan. Dapat di-override per pelanggan.
+            </div>
           </div>
         </div>
 

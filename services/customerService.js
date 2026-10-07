@@ -91,9 +91,13 @@ function getCustomerById(id) {
 }
 
 function createCustomer(data) {
+  const graceDays = (data.isolate_grace_days !== undefined && data.isolate_grace_days !== '' && data.isolate_grace_days !== null)
+    ? parseInt(data.isolate_grace_days, 10)
+    : -1;
+
   return db.prepare(`
-    INSERT INTO customers (name, nik_sim, phone, email, address, package_id, router_id, olt_id, odp_id, pon_port, lat, lng, genieacs_tag, pppoe_username, pppoe_password, pppoe_remote_address, isolir_profile, status, install_date, notes, auto_isolate, isolate_day, connection_type, static_ip, mac_address, hotspot_username, hotspot_password, hotspot_profile, collector_id, installation_fee, send_billing_reminder, send_isolir_reminder)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO customers (name, nik_sim, phone, email, address, package_id, router_id, olt_id, odp_id, pon_port, lat, lng, genieacs_tag, pppoe_username, pppoe_password, pppoe_remote_address, isolir_profile, status, install_date, notes, auto_isolate, isolate_day, isolate_grace_days, connection_type, static_ip, mac_address, hotspot_username, hotspot_password, hotspot_profile, collector_id, installation_fee, send_billing_reminder, send_isolir_reminder)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     data.name, data.nik_sim || '', data.phone || '', data.email || '', data.address || '',
     data.package_id ? parseInt(data.package_id) : null,
@@ -111,6 +115,7 @@ function createCustomer(data) {
     data.install_date || null, data.notes || '',
     data.auto_isolate !== undefined ? parseInt(data.auto_isolate) : 1,
     data.isolate_day !== undefined ? parseInt(data.isolate_day) : 10,
+    graceDays,
     data.connection_type || 'pppoe',
     data.static_ip || '',
     data.mac_address || '',
@@ -125,14 +130,18 @@ function createCustomer(data) {
 }
 
 function updateCustomer(id, data) {
-  const prev = db.prepare('SELECT status, package_id, pppoe_username, pppoe_password, pppoe_remote_address, router_id, static_ip, isolir_profile, connection_type, hotspot_username FROM customers WHERE id=?').get(id);
+  const prev = db.prepare('SELECT status, package_id, pppoe_username, pppoe_password, pppoe_remote_address, router_id, static_ip, isolir_profile, connection_type, hotspot_username, isolate_grace_days FROM customers WHERE id=?').get(id);
   const oldStatus = prev ? prev.status : null;
   const newStatus = data.status !== undefined ? data.status : (prev ? prev.status : 'active');
   const newPkgId = data.package_id ? parseInt(data.package_id, 10) : null;
   const pkgChanged = prev && Number(prev.package_id || 0) !== Number(newPkgId || 0);
 
+  const graceDays = (data.isolate_grace_days !== undefined && data.isolate_grace_days !== '' && data.isolate_grace_days !== null)
+    ? parseInt(data.isolate_grace_days, 10)
+    : (prev && prev.isolate_grace_days !== undefined ? prev.isolate_grace_days : -1);
+
   const result = db.prepare(`
-    UPDATE customers SET name=?, nik_sim=?, phone=?, email=?, address=?, package_id=?, router_id=?, olt_id=?, odp_id=?, pon_port=?, lat=?, lng=?, genieacs_tag=?, pppoe_username=?, pppoe_password=?, pppoe_remote_address=?, isolir_profile=?, status=?, install_date=?, notes=?, auto_isolate=?, isolate_day=?, cable_path=?, connection_type=?, static_ip=?, mac_address=?, hotspot_username=?, hotspot_password=?, hotspot_profile=?, collector_id=?, installation_fee=?, send_billing_reminder=?, send_isolir_reminder=?
+    UPDATE customers SET name=?, nik_sim=?, phone=?, email=?, address=?, package_id=?, router_id=?, olt_id=?, odp_id=?, pon_port=?, lat=?, lng=?, genieacs_tag=?, pppoe_username=?, pppoe_password=?, pppoe_remote_address=?, isolir_profile=?, status=?, install_date=?, notes=?, auto_isolate=?, isolate_day=?, isolate_grace_days=?, cable_path=?, connection_type=?, static_ip=?, mac_address=?, hotspot_username=?, hotspot_password=?, hotspot_profile=?, collector_id=?, installation_fee=?, send_billing_reminder=?, send_isolir_reminder=?
     WHERE id=?
   `).run(
     data.name, data.nik_sim || '', data.phone || '', data.email || '', data.address || '',
@@ -151,6 +160,7 @@ function updateCustomer(id, data) {
     data.install_date || null, data.notes || '',
     data.auto_isolate !== undefined ? parseInt(data.auto_isolate) : 1,
     data.isolate_day !== undefined ? parseInt(data.isolate_day) : 10,
+    graceDays,
     data.cable_path || null,
     data.connection_type || 'pppoe',
     data.static_ip || '',

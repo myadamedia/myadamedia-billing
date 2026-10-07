@@ -2,6 +2,49 @@
 
 ---
 
+## [2026-10-07] Implementasi Fitur Masa Tenggang Isolir Pelanggan H+3 Setelah Tanggal Jatuh Tempo (Hybrid Global & Per-Pelanggan Override)
+
+### 1. Kebutuhan Fitur & Analisis Permasalahan
+- Pengguna meminta penambahan fitur pilihan isolir pelanggan di H+3 setelah tanggal jatuh tempo.
+- Pada arsitektur sebelumnya:
+  - Pelanggan yang belum membayar tagihan langsung diisolir pada Hari H (tepat pada tanggal jatuh tempo, pukul 02:00 WIB) oleh CRON Task 2 (`cronService.js`) dan fungsi `syncAllOverdueCustomers()` (`isolatedPortalService.js`).
+  - Kondisi ini menimbulkan inkonsistensi terhadap pesan pengingat isolir WhatsApp (Task 3b), di mana template pengingat mengirimkan peringatan dari Hari H hingga H+3 dengan himbauan "...untuk menghindari pemutusan layanan...". Faktanya, layanan pelanggan sudah diputus sejak dini hari tanggal jatuh tempo (Hari H), sehingga pesan pengingat di H+1, H+2, dan H+3 menjadi terlambat/tidak relevan.
+  - Pengelola ISP membutuhkan masa tenggang (*grace period*)—terutama H+3 setelah tanggal jatuh tempo—agar pelanggan memiliki waktu beberapa hari untuk menyelesaikan pembayaran setelah tanggal jatuh tempo sebelum layanan internet diputus, dengan fleksibilitas pengaturan global maupun opsi override per pelanggan.
+
+### 2. Solusi yang Diterapkan (Clean Architecture & SOLID Implementation)
+1. **Pemisahan Domain Tanggal Jatuh Tempo vs Kelayakan Isolir Teknis**:
+   - Di [`services/billingService.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/billingService.js), ditambahkan fungsi domain:
+     - `getCustomerGraceDays(customer)`: Menentukan masa tenggang pelanggan dengan prioritas konfigurasi per pelanggan (`c.isolate_grace_days >= 0`), fallback ke konfigurasi global sistem `auto_isolir_grace_days` (default 3 / H+3).
+     - `getInvoiceIsolationDate(inv, customer)`: Menghitung tanggal target eksekusi isolir kalender secara presisi menggunakan Date arithmetic, secara otomatis mengatasi *month-end rollover* (misal tgl 30 September + 3 hari = 3 Oktober) dan tahun kabisat Februari.
+     - `isInvoiceEligibleForIsolation(inv, customer, now)`: Memeriksa apakah invoice sudah melewati tanggal jatuh tempo ditambah masa tenggang isolir.
+     - `isCustomerEligibleForIsolation(customerOrId, now)`: Memverifikasi apakah pelanggan memiliki minimal 1 invoice yang sudah layak dieksekusi isolir.
+     - `isCustomerOverdue(customerOrId, now, { checkGracePeriod })`: Mempertahankan fungsi status finansial jatuh tempo, dengan opsi pendelegasian ke pemeriksaan masa tenggang.
+2. **Penyempurnaan Engine CRON & Sinkronisasi Portal Isolir**:
+   - Di [`services/cronService.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/cronService.js) Task 2 (02:00 WIB), verifikasi diperbarui menggunakan `billingSvc.isCustomerEligibleForIsolation(c, now)`. Pelanggan pada Hari H, H+1, dan H+2 tetap aktif layanannya dan menerima pesan peringatan, kemudian baru diputus pada H+3 (atau sesuai opsi).
+   - Di [`services/isolatedPortalService.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/isolatedPortalService.js) fungsi `syncAllOverdueCustomers()`, logika disinkronkan 100% menggunakan `isCustomerEligibleForIsolation` agar penekanan tombol manual di panel admin konsisten dengan jadwal cron.
+3. **Migrasi Database & Persistensi Hybrid (Per-Pelanggan & Global)**:
+   - Menambahkan kolom `isolate_grace_days INTEGER DEFAULT -1` pada tabel `customers` di [`config/database.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/config/database.js).
+   - Memperbarui fungsi `createCustomer` dan `updateCustomer` di [`services/customerService.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/customerService.js) untuk menyimpan `isolate_grace_days`.
+   - Menambahkan validasi `auto_isolir_grace_days` pada [`config/settingsValidator.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/config/settingsValidator.js) dan menyimpannya di [`settings.json`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/settings.json).
+4. **Antarmuka Pengguna (UI Presentation Layer)**:
+   - **Portal Isolir (`views/admin/isolated_portal.ejs`)**: Menambahkan card pilihan jadwal isolir otomatis (Hari H, H+1, H+2, H+3) di Tab Pengaturan Engine.
+   - **Pengaturan Sistem (`views/admin/settings.ejs`)**: Menambahkan input dropdown masa tenggang isolir otomatis sistem.
+   - **Manajemen Pelanggan (`views/admin/customers.ejs`)**:
+     - Modal Tambah & Modal Edit Pelanggan: Menambahkan dropdown "Jadwal Isolir (Masa Tenggang)" dengan opsi Ikuti Pengaturan Global, Hari H, H+1, H+2, H+3.
+     - Tabel Pelanggan: Menampilkan badge `H+X` di kolom status Auto Isolir jika pelanggan memiliki jadwal khusus.
+   - **Pasang Baru (`views/admin/psb.ejs`)**: Menambahkan dukungan dropdown jadwal isolir pada modal aktivasi & edit pelanggan.
+5. **Automated Unit Testing & Rilis Versi**:
+   - Membuat test suite [`tests/cronIsolirGracePeriod.test.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/tests/cronIsolirGracePeriod.test.js) yang memvalidasi `getCustomerGraceDays`, rollover tanggal kalender, kelayakan isolir pada H s/d H+3, eksklusi advance billing, dan integrasi database (15/15 PASS).
+   - Menjalankan pengujian regresi penuh pada modul isolir dan tagihan (52/52 PASS).
+   - Menaikkan versi sistem ke **`15.5.0`** pada [`version.txt`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/version.txt).
+
+### 3. Dampak Perubahan Terhadap Sistem
+- Menghadirkan perlindungan layanan yang manusiawi bagi pelanggan: pelanggan tidak langsung diputus mendadak di Hari H jatuh tempo, melainkan memiliki masa tenggang 3 hari (H+3).
+- Pesan WhatsApp peringatan isolir (Hari H, H+1, H+2) kini berfungsi sebagaimana mestinya sebagai pengingat preventif sebelum pemutusan.
+- Fleksibilitas maksimal bagi admin ISP: dapat mengubah kebijakan secara global untuk semua pelanggan sekaligus, maupun memberikan tenggang waktu khusus per pelanggan (misal: pelanggan VIP atau instansi).
+
+---
+
 ## [2026-10-02] Penambahan Fitur Pengiriman File Backup Database ke Telegram Admin & Otomasi Disaster Recovery
 
 ### 1. Kebutuhan Fitur & Analisis Permasalahan

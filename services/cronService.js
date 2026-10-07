@@ -149,13 +149,15 @@ function startCronJobs() {
       if (!isAutoIsolateEnabled) continue;
       if (c.status !== 'active') continue;
 
-      // Validasi ketat: Cek apakah pelanggan benar-benar memiliki tagihan yang SUDAH JATUH TEMPO
-      const isOverdue = billingSvc.isCustomerOverdue(c, now);
+      // Validasi ketat: Cek apakah pelanggan benar-benar sudah memenuhi syarat isolir
+      // (melewati tanggal jatuh tempo + masa tenggang H+3 atau sesuai konfigurasi)
+      const isEligible = billingSvc.isCustomerEligibleForIsolation(c, now);
 
-      if (isOverdue) {
+      if (isEligible) {
         try {
           const customerIsolirDay = billingSvc.getCustomerDueDay(c);
-          logger.info(`[CRON] Isolir otomatis pelanggan: ${c.name} (${c.pppoe_username}) - Jatuh Tempo: Tgl ${customerIsolirDay}`);
+          const graceDays = billingSvc.getCustomerGraceDays(c);
+          logger.info(`[CRON] Isolir otomatis pelanggan: ${c.name} (${c.pppoe_username}) - Jatuh Tempo: Tgl ${customerIsolirDay} (Tenggang: H+${graceDays})`);
           
           // Gunakan fungsi terpusat untuk isolir
           await customerSvc.suspendCustomer(c.id);

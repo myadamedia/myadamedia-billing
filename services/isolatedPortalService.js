@@ -7,6 +7,7 @@ const SETTINGS_KEY_PORTAL_ISOLATED = 'isolated_portal_config';
 const DEFAULT_CONFIG = {
   enabled: true,
   cna_push_enabled: true,
+  auto_isolir_grace_days: 3,
   template: 'default',
   custom_title: 'Layanan Terisolir',
   custom_message: 'Layanan internet Anda sementara terisolir karena terdapat administrasi tagihan yang belum diselesaikan.',
@@ -32,9 +33,15 @@ const DEFAULT_CONFIG = {
 function getIsolatedPortalConfig() {
   try {
     const rawConfig = getSetting(SETTINGS_KEY_PORTAL_ISOLATED, {});
+    const topLevelGrace = getSetting('auto_isolir_grace_days', null);
+    const resolvedGrace = (rawConfig && rawConfig.auto_isolir_grace_days !== undefined && rawConfig.auto_isolir_grace_days !== null)
+      ? parseInt(rawConfig.auto_isolir_grace_days, 10)
+      : (topLevelGrace !== null && topLevelGrace !== undefined ? parseInt(topLevelGrace, 10) : DEFAULT_CONFIG.auto_isolir_grace_days);
+
     return {
       ...DEFAULT_CONFIG,
-      ...(rawConfig || {})
+      ...(rawConfig || {}),
+      auto_isolir_grace_days: !isNaN(resolvedGrace) ? resolvedGrace : 3
     };
   } catch (error) {
     logger.error(`[IsolatedPortalService] Gagal membaca konfigurasi: ${error.message}`);
@@ -62,10 +69,15 @@ function saveIsolatedPortalConfig(newConfig = {}) {
     const validTemplates = ['default', 'red_alert', 'clean_light', 'corporate_navy'];
     const chosenTemplate = newConfig.template && validTemplates.includes(newConfig.template) ? newConfig.template : (current.template || 'default');
 
+    const graceDays = newConfig.auto_isolir_grace_days !== undefined
+      ? (parseInt(newConfig.auto_isolir_grace_days, 10) >= 0 ? parseInt(newConfig.auto_isolir_grace_days, 10) : 0)
+      : (current.auto_isolir_grace_days !== undefined ? current.auto_isolir_grace_days : 3);
+
     const updated = {
       ...current,
       enabled: newConfig.enabled !== undefined ? (newConfig.enabled === 'true' || newConfig.enabled === 'on' || newConfig.enabled === true) : current.enabled,
       cna_push_enabled: newConfig.cna_push_enabled !== undefined ? (newConfig.cna_push_enabled === 'true' || newConfig.cna_push_enabled === 'on' || newConfig.cna_push_enabled === true) : current.cna_push_enabled,
+      auto_isolir_grace_days: graceDays,
       template: chosenTemplate,
       custom_title: newConfig.custom_title !== undefined ? String(newConfig.custom_title || current.custom_title).trim() : current.custom_title,
       custom_message: newConfig.custom_message !== undefined ? String(newConfig.custom_message || current.custom_message).trim() : current.custom_message,
@@ -74,7 +86,10 @@ function saveIsolatedPortalConfig(newConfig = {}) {
       auto_sync_mikrotik: newConfig.auto_sync_mikrotik !== undefined ? (newConfig.auto_sync_mikrotik === 'true' || newConfig.auto_sync_mikrotik === 'on' || newConfig.auto_sync_mikrotik === true) : current.auto_sync_mikrotik
     };
 
-    saveSettings({ [SETTINGS_KEY_PORTAL_ISOLATED]: updated });
+    saveSettings({
+      [SETTINGS_KEY_PORTAL_ISOLATED]: updated,
+      auto_isolir_grace_days: graceDays
+    });
     logger.info('[IsolatedPortalService] Berhasil mengupdate konfigurasi portal isolir.');
     return { success: true, config: updated };
   } catch (error) {
@@ -113,7 +128,8 @@ async function syncAllOverdueCustomers() {
   for (const c of allCustomers) {
     const isAutoIsolate = (c.auto_isolir !== undefined ? c.auto_isolir : c.auto_isolate) !== 0;
     
-    if (isAutoIsolate && c.status === 'active' && billingSvc.isCustomerOverdue(c, now)) {
+    // Periksa kelayakan isolir dengan memperhitungkan tanggal jatuh tempo + masa tenggang
+    if (isAutoIsolate && c.status === 'active' && billingSvc.isCustomerEligibleForIsolation(c, now)) {
       try {
         await customerSvc.suspendCustomer(c.id);
         isolatedCount++;

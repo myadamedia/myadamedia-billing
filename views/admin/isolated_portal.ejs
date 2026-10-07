@@ -519,6 +519,26 @@
                 </div>
               </div>
 
+              <!-- Card 3: Grace Period H+X -->
+              <div class="switch-card" style="flex-direction: column; align-items: stretch;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                  <i class="bi bi-hourglass-split text-primary" style="font-size: 18px;"></i>
+                  <label class="switch-label-title" style="margin: 0;">Jadwal Isolir Otomatis (Masa Tenggang)</label>
+                </div>
+                <div class="switch-label-desc" style="margin-bottom: 10px;">
+                  Pilih waktu eksekusi isolir pelanggan yang belum membayar setelah tanggal jatuh tempo:
+                </div>
+                <select name="auto_isolir_grace_days" class="fs" style="width: 100%; border-radius: 8px; font-weight: 600;">
+                  <option value="0" <%= (config.auto_isolir_grace_days === 0 || config.auto_isolir_grace_days === '0') ? 'selected' : '' %>>Hari H (Langsung saat Tanggal Jatuh Tempo)</option>
+                  <option value="1" <%= (config.auto_isolir_grace_days === 1 || config.auto_isolir_grace_days === '1') ? 'selected' : '' %>>H+1 (1 Hari Setelah Jatuh Tempo)</option>
+                  <option value="2" <%= (config.auto_isolir_grace_days === 2 || config.auto_isolir_grace_days === '2') ? 'selected' : '' %>>H+2 (2 Hari Setelah Jatuh Tempo)</option>
+                  <option value="3" <%= (config.auto_isolir_grace_days === 3 || config.auto_isolir_grace_days === '3' || config.auto_isolir_grace_days === undefined) ? 'selected' : '' %>>H+3 (3 Hari Setelah Jatuh Tempo - Rekomendasi)</option>
+                </select>
+                <div style="font-size: 11px; color: var(--muted); margin-top: 6px;">
+                  <i class="bi bi-info-circle"></i> Dapat disesuaikan khusus per pelanggan pada Form Edit Pelanggan.
+                </div>
+              </div>
+
             </div>
 
             <!-- Section Pilihan Template Portal Isolir -->
