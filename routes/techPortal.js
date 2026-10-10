@@ -4,6 +4,7 @@ const techSvc = require('../services/techService');
 const customerSvc = require('../services/customerService');
 const odpSvc = require('../services/odpService');
 const opticalPowerSvc = require('../services/opticalPowerService');
+const fiberCutDetectionSvc = require('../services/fiberCutDetectionService');
 const { getSetting, getNowLocal, getCurrentDateInTimezone, getNowLocalISO, formatDateLocal, getSettings } = require('../config/settingsManager');
 const mikrotikService = require('../services/mikrotikService');
 const db = require('../config/database');
@@ -188,6 +189,47 @@ router.get('/api/optical-budget/live', requireTechSession, (req, res) => {
   try {
     const data = opticalPowerSvc.getOpticalNetworkTopologyData();
     res.json({ ok: true, data });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+router.get('/api/fiber-cuts/detect', requireTechSession, (req, res) => {
+  try {
+    const result = fiberCutDetectionSvc.detectFiberCuts();
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+router.post('/api/fiber-cuts/create-ticket', requireTechSession, (req, res) => {
+  try {
+    const { incidentId } = req.body;
+    if (!incidentId) {
+      return res.status(400).json({ ok: false, error: 'incidentId is required' });
+    }
+    const result = fiberCutDetectionSvc.createMassOutageTicket(incidentId, {
+      id: req.session.techId,
+      name: req.session.techName || 'Teknisi Lapangan'
+    });
+    res.json({ ok: true, result });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+router.post('/api/fiber-cuts/notify', requireTechSession, async (req, res) => {
+  try {
+    const { incidentId } = req.body;
+    if (!incidentId) {
+      return res.status(400).json({ ok: false, error: 'incidentId is required' });
+    }
+    const result = await fiberCutDetectionSvc.broadcastMassOutageAlert(incidentId, {
+      id: req.session.techId,
+      name: req.session.techName || 'Teknisi Lapangan'
+    });
+    res.json(result);
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   }

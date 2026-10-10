@@ -649,6 +649,91 @@
       padding: 14px;
       height: 100%;
     }
+
+    /* ─── MASS OUTAGE & FIBER CUT STYLING ─── */
+    @keyframes fiberCutPulse {
+      0% {
+        stroke-opacity: 1;
+        stroke-width: 8;
+        filter: drop-shadow(0 0 6px #ef4444);
+      }
+      50% {
+        stroke-opacity: 0.35;
+        stroke-width: 5;
+        filter: drop-shadow(0 0 2px #ef4444);
+      }
+      100% {
+        stroke-opacity: 1;
+        stroke-width: 8;
+        filter: drop-shadow(0 0 6px #ef4444);
+      }
+    }
+
+    .cable-fiber-cut {
+      stroke: #ef4444 !important;
+      stroke-dasharray: 8, 4;
+      animation: fiberCutPulse 1.2s ease-in-out infinite;
+    }
+
+    @keyframes markerCutPulseRing {
+      0% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.9), 0 0 15px rgba(239, 68, 68, 0.8);
+        transform: scale(1);
+      }
+      70% {
+        box-shadow: 0 0 0 15px rgba(239, 68, 68, 0), 0 0 25px rgba(239, 68, 68, 0.5);
+        transform: scale(1.1);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0), 0 0 15px rgba(239, 68, 68, 0.8);
+        transform: scale(1);
+      }
+    }
+
+    .marker-cut-pulse {
+      border: 2px solid #ffffff !important;
+      background: #dc2626 !important;
+      animation: markerCutPulseRing 1.5s infinite !important;
+      z-index: 9999 !important;
+    }
+
+    .mass-outage-banner {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      width: 94%;
+      max-width: 760px;
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 2px solid #ef4444;
+      border-radius: 12px;
+      box-shadow: 0 15px 35px rgba(239, 68, 68, 0.35), 0 0 20px rgba(239, 68, 68, 0.2);
+      padding: 10px 14px;
+      display: none;
+      animation: slideDownBanner 0.35s ease-out;
+    }
+
+    .mass-outage-banner.show {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    @keyframes slideDownBanner {
+      from {
+        top: -60px;
+        opacity: 0;
+      }
+      to {
+        top: 10px;
+        opacity: 1;
+      }
+    }
   </style>
 
   <% const odcList=odps.filter(o=> o.type === 'ODC');
@@ -739,6 +824,15 @@
         <i style="background: #10b981; box-shadow: 0 0 6px #10b981;"></i>
         <span style="color:#10b981;">Redaman</span>
       </label>
+      <label class="lc" style="cursor:pointer; user-select:none; margin-bottom:0; padding: 6px; background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.5);"
+        title="Deteksi Putus Kabel Otomatis">
+        <input type="checkbox" id="toggle-fiber-cut" checked onchange="toggleFiberCutLayer()"
+          style="width:14px;height:14px;cursor:pointer">
+        <i style="background: #ef4444; box-shadow: 0 0 6px #ef4444;"></i>
+        <span style="color:#ef4444; font-weight:800;">
+          Putus Kabel <span id="fiberCutBadgeCount" class="badge bg-danger ms-1" style="display:none; font-size:9px; padding:2px 5px;">0</span>
+        </span>
+      </label>
     </div>
 
     <div class="map-info">
@@ -755,6 +849,38 @@
     </div>
 
     <div style="position: relative;">
+      <!-- Floating Emergency Mass Outage Banner -->
+      <div id="massOutageBanner" class="mass-outage-banner">
+        <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:240px;">
+          <div style="width:36px; height:36px; border-radius:8px; background:rgba(239,68,68,0.2); border:1px solid #ef4444; display:flex; align-items:center; justify-content:center; color:#ef4444; font-size:18px; flex-shrink:0;">
+            <i class="bi bi-exclamation-octagon-fill"></i>
+          </div>
+          <div>
+            <div style="font-weight:800; font-size:12.5px; color:#fee2e2; display:flex; align-items:center; gap:6px;">
+              <span id="mobTitle">Indikasi Putus Kabel Terdeteksi!</span>
+              <span id="mobBadge" class="badge bg-danger" style="font-size:9.5px; padding:2px 6px;">CRITICAL</span>
+            </div>
+            <div id="mobDesc" style="font-size:11px; color:#fca5a5; margin-top:2px;">
+              Mendeteksi anomali transmisi optik...
+            </div>
+          </div>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; flex-shrink:0;">
+          <button type="button" class="btn btn-sm btn-outline-light" onclick="focusCurrentIncident()" style="border-radius:6px; font-weight:700; font-size:11px; padding:3px 9px;">
+            <i class="bi bi-geo-alt-fill me-1"></i>Fokus
+          </button>
+          <button type="button" class="btn btn-sm btn-info" onclick="openCurrentIncidentModal()" style="border-radius:6px; font-weight:700; font-size:11px; padding:3px 9px; color:#0f172a;">
+            <i class="bi bi-info-circle-fill me-1"></i>Rincian
+          </button>
+          <button type="button" class="btn btn-sm btn-danger" onclick="createCurrentIncidentTicket()" style="border-radius:6px; font-weight:700; font-size:11px; padding:3px 9px;">
+            <i class="bi bi-ticket-detailed-fill me-1"></i>Tiket
+          </button>
+          <button type="button" class="btn btn-sm btn-success" onclick="broadcastCurrentIncidentWa()" style="border-radius:6px; font-weight:700; font-size:11px; padding:3px 9px;">
+            <i class="bi bi-whatsapp me-1"></i>WA
+          </button>
+        </div>
+      </div>
+
       <div id="map"></div>
 
       <!-- Floating Optical Mode Legend Card -->
@@ -1051,6 +1177,96 @@
               <i class="bi bi-arrow-counterclockwise me-1"></i> Reset Parameter
             </button>
             <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Tutup</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL RINCIAN GANGGUAN MASSAL (MASS OUTAGE / FIBER CUT) TEKNISI -->
+    <div class="modal fade" id="massOutageModal" tabindex="-1" aria-hidden="true" style="z-index: 10050;">
+      <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content" style="background: #0f172a; border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 16px; box-shadow: 0 25px 50px rgba(0,0,0,0.8), 0 0 25px rgba(239, 68, 68, 0.25); color: #f8fafc;">
+          <div class="modal-header" style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(185, 28, 28, 0.15) 100%); border-bottom: 1px solid rgba(239, 68, 68, 0.3); padding: 14px 18px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <div style="width: 36px; height: 36px; border-radius: 8px; background: #ef4444; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; box-shadow: 0 0 12px rgba(239,68,68,0.6);">
+                  <i class="bi bi-radioactive"></i>
+                </div>
+                <div>
+                  <h5 id="mom-title" style="margin: 0; font-size: 15px; font-weight: 800; color: #fee2e2;">Rincian Deteksi Putus Kabel</h5>
+                  <div id="mom-subtitle" style="font-size: 11px; color: #fca5a5; margin-top: 1px;">Analisis Root-Cause Topologi GPON</div>
+                </div>
+              </div>
+              <span id="mom-severity-badge" class="badge bg-danger" style="font-size: 10.5px; padding: 4px 10px;">CRITICAL</span>
+            </div>
+          </div>
+          <div class="modal-body" style="padding: 16px; max-height: calc(85vh - 150px); overflow-y: auto;">
+            <!-- Top Grid Stats Insiden -->
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px;">
+              <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 10px; padding: 10px; text-align: center;">
+                <div style="font-size: 10px; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Segmen</div>
+                <div id="mom-level" style="font-size: 12.5px; font-weight: 800; color: #f8fafc; margin-top: 3px;">Distribusi</div>
+              </div>
+              <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 10px; padding: 10px; text-align: center;">
+                <div style="font-size: 10px; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Target</div>
+                <div id="mom-target" style="font-size: 12.5px; font-weight: 800; color: #38bdf8; margin-top: 3px;">ODP-01</div>
+              </div>
+              <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 10px; padding: 10px; text-align: center;">
+                <div style="font-size: 10px; color: #94a3b8; font-weight: 700; text-transform: uppercase;">OLT / Port</div>
+                <div id="mom-olt-pon" style="font-size: 12.5px; font-weight: 800; color: #a78bfa; margin-top: 3px;">OLT-01 (PON 1)</div>
+              </div>
+              <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 10px; padding: 10px; text-align: center;">
+                <div style="font-size: 10px; color: #fca5a5; font-weight: 700; text-transform: uppercase;">Padam</div>
+                <div id="mom-impact" style="font-size: 12.5px; font-weight: 900; color: #ef4444; margin-top: 3px;">5 / 5 (100%)</div>
+              </div>
+            </div>
+
+            <!-- Panduan Lapangan -->
+            <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 10px; padding: 12px; margin-bottom: 14px;">
+              <div style="font-weight: 800; font-size: 12px; color: #f87171; display:flex; align-items:center; gap:5px; margin-bottom: 4px;">
+                <i class="bi bi-tools"></i> <span>Panduan Pemeriksaan Fisik</span>
+              </div>
+              <div id="mom-instruction" style="font-size: 11.5px; color: #cbd5e1; line-height: 1.45;">
+                Segera telusuri jalur kabel antara Node Induk dan Node Target. Siapkan fusion splicer dan lakukan pengukuran OTDR dari titik ODC untuk mengetahui lokasi putus core secara presisi.
+              </div>
+            </div>
+
+            <!-- Daftar Pelanggan Terputus -->
+            <div style="background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 10px; padding: 12px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+                <span style="font-weight: 800; font-size: 12px; color: #f8fafc;">
+                  <i class="bi bi-people-fill me-1 text-danger"></i> Pelanggan Terputus (<span id="mom-cust-count">0</span>)
+                </span>
+                <span class="badge bg-secondary" style="font-size: 9.5px;">Indikasi LOS</span>
+              </div>
+              <div style="max-height: 200px; overflow-y: auto;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 11.5px;">
+                  <thead>
+                    <tr style="border-bottom: 1px solid rgba(148, 163, 184, 0.2); text-align: left; color: #94a3b8;">
+                      <th style="padding: 5px 6px;">No</th>
+                      <th style="padding: 5px 6px;">Nama</th>
+                      <th style="padding: 5px 6px;">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="mom-cust-table-body">
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer" style="border-top: 1px solid rgba(148, 163, 184, 0.2); padding: 10px 18px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
+            <button type="button" class="btn btn-outline-light btn-sm" onclick="focusCurrentIncident(); bootstrap.Modal.getInstance(document.getElementById('massOutageModal')).hide();">
+              <i class="bi bi-geo-alt-fill me-1"></i> Fokus
+            </button>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <button type="button" class="btn btn-danger btn-sm" onclick="createCurrentIncidentTicket()">
+                <i class="bi bi-ticket-detailed-fill me-1"></i> Buat Tiket
+              </button>
+              <button type="button" class="btn btn-success btn-sm" onclick="broadcastCurrentIncidentWa()">
+                <i class="bi bi-whatsapp me-1"></i> Siarkan WA
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Tutup</button>
+            </div>
           </div>
         </div>
       </div>
@@ -1986,6 +2202,256 @@
           console.error("Gagal refresh live optical data:", err);
         }
       };
+
+      // ═════════════════════════════════════════════════════════════════════════
+      // MASS OUTAGE & FIBER CUT AUTO-DETECTION ENGINE (TEKNISI LAPANGAN)
+      // ═════════════════════════════════════════════════════════════════════════
+      let fiberCutIncidents = [];
+      let fiberCutLayerGroup = L.layerGroup().addTo(map);
+      let currentIncident = null;
+      let isFiberCutLayerVisible = true;
+
+      window.toggleFiberCutLayer = function () {
+        const chk = document.getElementById('toggle-fiber-cut');
+        isFiberCutLayerVisible = chk ? chk.checked : true;
+        if (!map) return;
+        if (isFiberCutLayerVisible) {
+          if (!map.hasLayer(fiberCutLayerGroup)) map.addLayer(fiberCutLayerGroup);
+        } else {
+          if (map.hasLayer(fiberCutLayerGroup)) map.removeLayer(fiberCutLayerGroup);
+        }
+      };
+
+      async function pollFiberCutDetection() {
+        try {
+          const res = await fetch('/tech/api/fiber-cuts/detect');
+          const data = await res.json();
+          if (data && data.ok) {
+            renderFiberCutData(data);
+          }
+        } catch (err) {
+          console.error('[TechMap FiberCut] Error fetching detection:', err);
+        }
+      }
+
+      function renderFiberCutData(result) {
+        fiberCutIncidents = result.incidents || [];
+        fiberCutLayerGroup.clearLayers();
+
+        const badgeCount = document.getElementById('fiberCutBadgeCount');
+        const banner = document.getElementById('massOutageBanner');
+
+        if (badgeCount) {
+          if (fiberCutIncidents.length > 0) {
+            badgeCount.textContent = fiberCutIncidents.length;
+            badgeCount.style.display = 'inline-block';
+          } else {
+            badgeCount.style.display = 'none';
+          }
+        }
+
+        if (fiberCutIncidents.length > 0) {
+          currentIncident = fiberCutIncidents[0];
+          if (banner) {
+            banner.classList.add('show');
+            const mobTitle = document.getElementById('mobTitle');
+            const mobBadge = document.getElementById('mobBadge');
+            const mobDesc = document.getElementById('mobDesc');
+
+            if (mobTitle) mobTitle.textContent = currentIncident.title;
+            if (mobBadge) mobBadge.textContent = currentIncident.severity || 'CRITICAL';
+            if (mobDesc) {
+              const segText = currentIncident.level || 'Jalur Distribusi';
+              const offCount = currentIncident.offlineCount || 0;
+              const offRatio = currentIncident.offlineRatio || currentIncident.offlineChildOdpRatio || 0;
+              mobDesc.textContent = `${segText}: ${offCount} Pelanggan Terputus (${offRatio}%). Segera inspeksi jalur ${currentIncident.parentNodeName} ↔ ${currentIncident.targetNodeName}.`;
+            }
+          }
+        } else {
+          currentIncident = null;
+          if (banner) banner.classList.remove('show');
+        }
+
+        // Gambar visualisasi polyline & marker berdenyut
+        fiberCutIncidents.forEach((inc) => {
+          if (Array.isArray(inc.cableCoords) && inc.cableCoords.length >= 2) {
+            const cutLine = L.polyline(inc.cableCoords, {
+              color: '#ef4444',
+              weight: 7,
+              opacity: 0.95,
+              className: 'cable-fiber-cut',
+              lineCap: 'round',
+              lineJoin: 'round'
+            });
+
+            cutLine.bindTooltip(`
+              <div style="font-family:sans-serif; padding:4px 6px;">
+                <div style="font-weight:900; color:#ef4444; font-size:11.5px; display:flex; align-items:center; gap:4px;">
+                  <i class="bi bi-exclamation-octagon-fill"></i> PUTUS KABEL (${inc.severity})
+                </div>
+                <div style="font-size:11px; color:#f8fafc; font-weight:700; margin-top:2px;">
+                  ${inc.title}
+                </div>
+                <div style="font-size:10.5px; color:#cbd5e1; margin-top:2px;">
+                  Padam: <b style="color:#f87171;">${inc.offlineCount}/${inc.totalCustomers} (${inc.offlineRatio || inc.offlineChildOdpRatio}%)</b><br>
+                  Tap untuk rincian
+                </div>
+              </div>
+            `, { sticky: true, className: 'custom-cable-tooltip' });
+
+            cutLine.on('click', () => {
+              openMassOutageModal(inc.incidentId);
+            });
+
+            fiberCutLayerGroup.addLayer(cutLine);
+          }
+
+          if (inc.centroid) {
+            const pulseIcon = L.divIcon({
+              className: 'custom-div-icon',
+              html: `<div class="marker-cut-pulse" style="width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; font-size:11px;"><i class="bi bi-x-octagon-fill"></i></div>`,
+              iconSize: [24, 24],
+              iconAnchor: [12, 12]
+            });
+            const pulseMarker = L.marker(inc.centroid, { icon: pulseIcon });
+            pulseMarker.on('click', () => {
+              openMassOutageModal(inc.incidentId);
+            });
+            fiberCutLayerGroup.addLayer(pulseMarker);
+          }
+        });
+
+        if (!isFiberCutLayerVisible && map.hasLayer(fiberCutLayerGroup)) {
+          map.removeLayer(fiberCutLayerGroup);
+        }
+      }
+
+      window.focusCurrentIncident = function () {
+        if (!currentIncident) return;
+        window.focusIncidentCable(currentIncident.incidentId);
+      };
+
+      window.focusIncidentCable = function (incidentId) {
+        const inc = fiberCutIncidents.find(i => i.incidentId === incidentId);
+        if (!inc || !map) return;
+
+        if (Array.isArray(inc.cableCoords) && inc.cableCoords.length >= 2) {
+          const bounds = L.latLngBounds(inc.cableCoords);
+          map.fitBounds(bounds, { padding: [60, 60], maxZoom: 18, animate: true, duration: 1.2 });
+        } else if (inc.centroid) {
+          map.flyTo(inc.centroid, 17, { duration: 1.2 });
+        }
+      };
+
+      window.openCurrentIncidentModal = function () {
+        if (!currentIncident) return;
+        window.openMassOutageModal(currentIncident.incidentId);
+      };
+
+      window.openMassOutageModal = function (incidentId) {
+        const inc = fiberCutIncidents.find(i => i.incidentId === incidentId);
+        if (!inc) return;
+        currentIncident = inc;
+
+        document.getElementById('mom-title').textContent = inc.title;
+        document.getElementById('mom-subtitle').textContent = `Insiden: ${inc.incidentId} • Terdeteksi: ${new Date(inc.detectedAt).toLocaleTimeString('id-ID')}`;
+        document.getElementById('mom-severity-badge').textContent = inc.severity;
+        document.getElementById('mom-level').textContent = inc.level;
+        document.getElementById('mom-target').textContent = `${inc.targetNodeName} (${inc.targetNodeType})`;
+        document.getElementById('mom-olt-pon').textContent = `${inc.oltName} (Port: ${inc.ponPort})`;
+        document.getElementById('mom-impact').textContent = `${inc.offlineCount} / ${inc.totalCustomers} (${inc.offlineRatio || inc.offlineChildOdpRatio}%)`;
+
+        const instEl = document.getElementById('mom-instruction');
+        if (instEl) {
+          instEl.innerHTML = `Telusuri jalur fisik antara <b>${inc.parentNodeName}</b> dan <b>${inc.targetNodeName}</b>. Siapkan fusion splicer dan lakukan pengukuran OTDR dari titik ${inc.parentNodeName} untuk melacak lokasi core putus.`;
+        }
+
+        const tbody = document.getElementById('mom-cust-table-body');
+        const countSpan = document.getElementById('mom-cust-count');
+        if (tbody) {
+          tbody.innerHTML = '';
+          const custs = inc.affectedCustomers || [];
+          if (countSpan) countSpan.textContent = custs.length;
+
+          if (custs.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:10px; color:#94a3b8;">Tidak ada pelanggan langsung terdaftar.</td></tr>`;
+          } else {
+            custs.forEach((c, idx) => {
+              const tr = document.createElement('tr');
+              tr.style.borderBottom = '1px solid rgba(148, 163, 184, 0.1)';
+              tr.innerHTML = `
+                <td style="padding: 5px 6px; color:#94a3b8;">${idx + 1}</td>
+                <td style="padding: 5px 6px; font-weight:700; color:#f8fafc;">${c.name}</td>
+                <td style="padding: 5px 6px;"><span class="badge bg-danger" style="font-size:9.5px;">${c.reason || 'Offline'}</span></td>
+              `;
+              tbody.appendChild(tr);
+            });
+          }
+        }
+
+        const modalEl = document.getElementById('massOutageModal');
+        if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+          bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        } else {
+          modalEl.style.display = 'block';
+        }
+      };
+
+      window.createCurrentIncidentTicket = async function () {
+        if (!currentIncident) return;
+        await triggerAutoTicket(currentIncident.incidentId);
+      };
+
+      async function triggerAutoTicket(incidentId) {
+        try {
+          const res = await fetch('/tech/api/fiber-cuts/create-ticket', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ incidentId })
+          });
+          const json = await res.json();
+          if (json.ok && json.result) {
+            alert(json.result.message || 'Tiket berhasil dibuat!');
+            if (json.result.ticketId) {
+              window.location.reload();
+            }
+          } else {
+            alert('Gagal membuat tiket: ' + (json.error || 'Unknown error'));
+          }
+        } catch (err) {
+          alert('Error memproses tiket: ' + err.message);
+        }
+      }
+
+      window.broadcastCurrentIncidentWa = async function () {
+        if (!currentIncident) return;
+        await triggerBroadcastWa(currentIncident.incidentId);
+      };
+
+      async function triggerBroadcastWa(incidentId) {
+        if (!confirm('Kirim siaran WhatsApp darurat ke tim teknisi & admin?')) return;
+        try {
+          const res = await fetch('/tech/api/fiber-cuts/notify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ incidentId })
+          });
+          const json = await res.json();
+          if (json.ok) {
+            alert(json.message || 'Notifikasi darurat berhasil dikirim!');
+          } else {
+            alert('Gagal mengirim WhatsApp: ' + (json.error || 'Unknown error'));
+          }
+        } catch (err) {
+          alert('Error broadcast: ' + err.message);
+        }
+      }
+
+      // Mulai polling deteksi otomatis
+      document.addEventListener('DOMContentLoaded', () => {
+        pollFiberCutDetection();
+        setInterval(pollFiberCutDetection, 30000);
+      });
 
       // Load preferences
       const prefOdc = localStorage.getItem('map_show_odc') !== 'false';

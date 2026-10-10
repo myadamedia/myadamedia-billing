@@ -2,6 +2,70 @@
 
 ---
 
+## [2026-10-11] Implementasi Mass Outage & Fiber Cut Auto-Detection (Deteksi Putus Kabel Massal Otomatis pada Peta GPON FTTH)
+
+### 1. Kebutuhan Fitur & Analisis Permasalahan
+- **Latar Belakang**:
+  1. Pada jaringan ISP FTTH GPON, insiden putusnya kabel fiber optik (misalnya karena tersangkut truk kontainer, pohon tumbang, atau pengerjaan drainase) berdampak masif pada banyak pelanggan serentak.
+  2. Tanpa sistem korelasi topologi cerdas, laporan gangguan masuk secara terfragmentasi dari ratusan komplain tiket pelanggan individu, membingungkan teknisi untuk mengidentifikasi segmen kabel mana yang sebenarnya putus.
+  3. Pengguna meminta implementasi fitur **"Mass Outage / Fiber Cut Auto-Detection"** yang mengkorelasikan status konektivitas perangkat pelanggan (Dual-ACS status, Loss of Signal/LOS) dengan hierarki topologi kabel (OLT/NOC $\leftrightarrow$ ODC $\leftrightarrow$ ODP $\leftrightarrow$ Customer).
+
+### 2. Solusi Arsitektur yang Diterapkan (Clean Architecture & SOLID)
+1. **Service Domain Engine (`services/fiberCutDetectionService.js`)**:
+   - **Korelasi Topologis Berjenjang (Hierarchical Fault Localization)**:
+     - *Level Distribusi (ODC $\leftrightarrow$ ODP)*: Dinyatakan **Distribution Cable Cut** jika $\ge 50\%$ (atau minimal 2 pelanggan) pada satu ODP terputus/LOS serentak ($<-30\text{ dBm}$ atau no inform).
+     - *Level Feeder Utama (NOC $\leftrightarrow$ ODC)*: Dinyatakan **Feeder Cable Cut** jika $\ge 50\%$ ODP anak di bawah ODC mengalami pemadaman massal serentak.
+   - **Root-Cause Isolation (Deduplikasi Cerdas)**:
+     - Jika segmen Feeder Cut terdeteksi, seluruh ODP anak di bawah ODC tersebut dikonsolidasikan ke dalam insiden Feeder utama. Hal ini mencegah *alert fatigue* dan mengarahkan teknisi langsung ke jalur utama.
+   - **Kalkulasi Spasial Centroid (`calculateCentroid`)**:
+     - Menghitung koordinat tengah segmen polyline kabel putus untuk *auto-focus viewport* Leaflet saat insiden dipicu.
+   - **Tiketing Otomatis (`createMassOutageTicket`)**:
+     - Otomatis membuat tiket gangguan massal di tabel `tickets` dengan kategori `'Fiber Cut / Mass Outage'`.
+     - Melindungi dari duplikasi tiket aktif (jika sudah ada tiket berstatus `open` atau `in_progress` untuk node target tersebut).
+     - Terintegrasi otomatis dengan `NotificationService.notifyNewTicket` untuk antrean notifikasi.
+   - **Broadcast Darurat Multi-Channel (`broadcastMassOutageAlert`)**:
+     - Mengirim siaran pesan darurat ke nomor WhatsApp admin dan seluruh teknisi aktif dengan tautan navigasi Google Maps ke titik koordinat kabel putus.
+
+2. **Rute REST API Backend**:
+   - [`routes/adminPortal.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/routes/adminPortal.js) & [`routes/admin/maps.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/routes/admin/maps.js):
+     - `GET /admin/api/fiber-cuts/detect`: Mengembalikan data evaluasi insiden putus kabel secara real-time.
+     - `POST /admin/api/fiber-cuts/create-ticket`: Pemicu pembuatan tiket massal oleh admin.
+     - `POST /admin/api/fiber-cuts/notify`: Pemicu siaran pesan WhatsApp darurat ke teknisi.
+   - [`routes/techPortal.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/routes/techPortal.js):
+     - `GET /tech/api/fiber-cuts/detect`: Endpoint deteksi untuk peta portal teknisi.
+     - `POST /tech/api/fiber-cuts/create-ticket`: Pembuatan tiket massal langsung dari lapangan.
+     - `POST /tech/api/fiber-cuts/notify`: Siaran koordinasi darurat teknisi.
+
+3. **Frontend Visualisasi GIS (`views/admin/map.ejs` & `views/tech/map.ejs`)**:
+   - **Animasi Denyut Kabel Putus (`.cable-fiber-cut`)**:
+     - Segmen polyline kabel yang putus diberi efek garis putus-putus merah menyala tajam (`#ef4444`, weight 7-8) dengan animasi pulsasi `fiberCutPulse` 1.2s.
+   - **Cincin Bahaya Node (`.marker-cut-pulse`)**:
+     - Node ODC/ODP target diberi cincin berdenyut merah menyala (`markerCutPulseRing`) yang menarik perhatian teknisi seketika di peta.
+   - **Floating Emergency Banner (`#massOutageBanner`)**:
+     - Banner mengambang di atas peta dengan efek *glassmorphism backdrop blur* dan border merah darurat, menampilkan rincian insiden, jumlah pelanggan terputus, dan tombol aksi:
+       1. *"Fokus Jalur"*: Menyorot dan *flyTo/fitBounds* ke segmen kabel yang putus.
+       2. *"Rincian"*: Membuka modal inspeksi mendalam.
+       3. *"Buat Tiket"*: Otomatis generate tiket gangguan massal.
+       4. *"Kirim WA"*: Broadcast notifikasi WhatsApp ke teknisi.
+   - **Modal Rincian Insiden (`#massOutageModal`)**:
+     - Menampilkan indikator keparahan (CRITICAL / HIGH), OLT/PON port, rasio padam, panduan inspeksi OTDR/splicer, dan daftar lengkap nama pelanggan terputus beserta alasan offline.
+   - **Legend Layer Switcher**:
+     - Checkbox toggle `[x] Deteksi Putus Kabel` di legend peta lengkap dengan badge counter jumlah insiden aktif (`#fiberCutBadgeCount`).
+   - **Polling Otomatis Non-Blocking**:
+     - Sistem melakukan background polling setiap 30 detik tanpa me-reload peta.
+
+### 3. File yang Dimodifikasi & Ditambahkan
+- `[CREATE]` [`services/fiberCutDetectionService.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/fiberCutDetectionService.js)
+- `[MODIFY]` [`routes/adminPortal.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/routes/adminPortal.js)
+- `[MODIFY]` [`routes/admin/maps.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/routes/admin/maps.js)
+- `[MODIFY]` [`routes/techPortal.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/routes/techPortal.js)
+- `[MODIFY]` [`views/admin/map.ejs`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/views/admin/map.ejs)
+- `[MODIFY]` [`views/tech/map.ejs`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/views/tech/map.ejs)
+- `[CREATE]` [`tests/fiberCutDetection.test.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/tests/fiberCutDetection.test.js)
+- `[MODIFY]` [`version.txt`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/version.txt) (Bump ke `15.7.0`)
+
+---
+
 ## [2026-10-11] Implementasi Kalkulator Redaman Optik di Peta Jaringan (Link Budget GPON + Integrasi RX Power Dual-ACS)
 
 ### 1. Kebutuhan Fitur & Analisis Permasalahan

@@ -3,6 +3,7 @@ const router = express.Router();
 const customerSvc = require('../../services/customerService');
 const odpSvc = require('../../services/odpService');
 const opticalPowerSvc = require('../../services/opticalPowerService');
+const fiberCutDetectionSvc = require('../../services/fiberCutDetectionService');
 const mikrotikService = require('../../services/mikrotikService');
 const sidebarMenuSvc = require('../../services/sidebarMenuService');
 const { getSetting, getSettings } = require('../../config/settingsManager');
@@ -102,6 +103,41 @@ router.get('/api/optical-budget/live', requireAdminSession, (req, res) => {
   try {
     const data = opticalPowerSvc.getOpticalNetworkTopologyData();
     res.json({ ok: true, data });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+router.get('/api/fiber-cuts/detect', requireAdminSession, (req, res) => {
+  try {
+    const result = fiberCutDetectionSvc.detectFiberCuts();
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+router.post('/api/fiber-cuts/create-ticket', requireAdminSession, (req, res) => {
+  try {
+    const { incidentId } = req.body;
+    if (!incidentId) {
+      return res.status(400).json({ ok: false, error: 'incidentId is required' });
+    }
+    const result = fiberCutDetectionSvc.createMassOutageTicket(incidentId, req.session);
+    res.json({ ok: true, result });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+router.post('/api/fiber-cuts/notify', requireAdminSession, async (req, res) => {
+  try {
+    const { incidentId } = req.body;
+    if (!incidentId) {
+      return res.status(400).json({ ok: false, error: 'incidentId is required' });
+    }
+    const result = await fiberCutDetectionSvc.broadcastMassOutageAlert(incidentId, req.session);
+    res.json(result);
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   }
