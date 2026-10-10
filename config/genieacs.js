@@ -2,7 +2,8 @@ const axios = require('axios');
 require('dotenv').config();
 const { logger } = require('./logger');
 const db = require('./database');
-const { getSetting } = require('./settingsManager');
+const settingsManager = require('./settingsManager');
+const getSetting = (k, def) => settingsManager.getSetting(k, def);
 
 // ─── Built-in ACS Helpers ────────────────────────────────────────────────────
 
@@ -296,29 +297,30 @@ let sendMonitoringAlert = null;
 })();
 
 // Konfigurasi GenieACS API (Legacy - untuk backward compatibility)
-const GENIEACS_URL = process.env.GENIEACS_URL || 'http://localhost:7557';
-const GENIEACS_USERNAME = process.env.GENIEACS_USERNAME;
-const GENIEACS_PASSWORD = process.env.GENIEACS_PASSWORD;
+const GENIEACS_URL = process.env.GENIEACS_URL || '';
+const GENIEACS_USERNAME = process.env.GENIEACS_USERNAME || '';
+const GENIEACS_PASSWORD = process.env.GENIEACS_PASSWORD || '';
 
-// Helper: Get all ACS servers from database
+// Helper: Get all ACS servers from database (Hybrid Concurrent Support)
 function getAllACSServers() {
     try {
+        const servers = [];
+
+        // 1. Tambahkan Built-in ACS jika diaktifkan
         if (isBuiltinAcsEnabled()) {
-            return [{
+            servers.push({
                 id: 'builtin',
                 name: 'Built-in ACS',
                 url: 'local',
                 status: 'active'
-            }];
+            });
         }
 
+        // 2. Tambahkan server GenieACS eksternal (Legacy / Default ACS) jika terkonfigurasi
         const legacyUrl = getSetting('genieacs_url', GENIEACS_URL);
         const legacyUser = getSetting('genieacs_username', GENIEACS_USERNAME);
         const legacyPass = getSetting('genieacs_password', GENIEACS_PASSWORD);
         
-        const servers = [];
-        
-        // Add legacy server if configured
         if (legacyUrl) {
             servers.push({
                 id: 'legacy',
@@ -330,9 +332,13 @@ function getAllACSServers() {
             });
         }
         
-        // Add servers from database
-        const dbServers = db.prepare('SELECT * FROM genieacs_servers WHERE status = ?').all('active');
-        servers.push(...dbServers);
+        // 3. Tambahkan server multi-ACS tambahan dari database
+        try {
+            const dbServers = db.prepare('SELECT * FROM genieacs_servers WHERE status = ?').all('active');
+            servers.push(...dbServers);
+        } catch (dbErr) {
+            logger.debug(`[GenieACS] DB servers query note: ${dbErr.message}`);
+        }
         
         return servers;
     } catch (error) {
@@ -365,6 +371,10 @@ function getACSServer(serverId) {
                 status: 'active'
             };
         }
+        try {
+            const firstDb = db.prepare('SELECT * FROM genieacs_servers WHERE status = ? LIMIT 1').get('active');
+            if (firstDb) return firstDb;
+        } catch (e) {}
         return null;
     }
 
@@ -402,6 +412,31 @@ function getACSServer(serverId) {
         logger.error(`[GenieACS] Error getting ACS server ${serverId}: ${error.message}`);
         return null;
     }
+}
+
+// Helper: Menentukan server ACS mana yang mengelola device tertentu
+async function resolveServerForDevice(deviceId, serverId = null) {
+    if (serverId) {
+        const target = getACSServer(serverId);
+        if (target) return target;
+    }
+    const servers = getAllACSServers();
+    if (servers.length === 0) return null;
+    if (servers.length === 1) return servers[0];
+
+    // Deteksi server mana yang memuat deviceId ini
+    for (const server of servers) {
+        try {
+            const instance = createAxiosInstance(server);
+            const resp = await instance.get(`/devices/${encodeURIComponent(deviceId)}`);
+            if (resp && resp.data && (resp.data._id || resp.status === 200)) {
+                return server;
+            }
+        } catch (e) {
+            // Lanjutkan pencarian ke server berikutnya
+        }
+    }
+    return getACSServer(null) || servers[0];
 }
 
 // Helper: Create axios instance for specific server
@@ -619,9 +654,9 @@ const genieacsApi = {
 
             logger.debug(`[GenieACS] Formatted parameter values count: ${parameterValues.length}`);
 
-            // Get server instance
-            const server = serverId ? getACSServer(serverId) : (isBuiltinAcsEnabled() ? getACSServer('builtin') : null);
-            const instance = server ? createAxiosInstance(server) : axiosInstance;
+            // Get server instance (support hybrid & multi-server)
+            const server = await resolveServerForDevice(deviceId, serverId);
+            const instance = server ? createAxiosInstance(server) : (isBuiltinAcsEnabled() ? createBuiltinAxiosProxy() : axiosInstance);
 
             // Kirim task ke GenieACS
             const task = {
@@ -637,17 +672,19 @@ const genieacsApi = {
             logger.debug('[GenieACS] Parameter update task queued');
 
             // Kirim refresh task
-            const refreshTask = {
-                name: "refreshObject",
-                objectName: "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1"
-            };
-
-            const refreshResponse = await instance.post(
-                `/devices/${encodeURIComponent(deviceId)}/tasks`,
-                refreshTask
-            );
-
-            logger.debug('[GenieACS] Refresh task queued');
+            try {
+                const refreshTask = {
+                    name: "refreshObject",
+                    objectName: "InternetGatewayDevice.LANDevice.1.WLANConfiguration.1"
+                };
+                await instance.post(
+                    `/devices/${encodeURIComponent(deviceId)}/tasks`,
+                    refreshTask
+                );
+                logger.debug('[GenieACS] Refresh task queued');
+            } catch (refErr) {
+                logger.debug(`[GenieACS] Refresh task note: ${refErr.message}`);
+            }
 
             return response.data;
         } catch (error) {
@@ -658,8 +695,8 @@ const genieacsApi = {
 
     async reboot(deviceId, serverId = null) {
         try {
-            const server = serverId ? getACSServer(serverId) : (isBuiltinAcsEnabled() ? getACSServer('builtin') : null);
-            const instance = server ? createAxiosInstance(server) : axiosInstance;
+            const server = await resolveServerForDevice(deviceId, serverId);
+            const instance = server ? createAxiosInstance(server) : (isBuiltinAcsEnabled() ? createBuiltinAxiosProxy() : axiosInstance);
             
             const task = {
                 name: "reboot",
@@ -678,8 +715,8 @@ const genieacsApi = {
 
     async factoryReset(deviceId, serverId = null) {
         try {
-            const server = serverId ? getACSServer(serverId) : (isBuiltinAcsEnabled() ? getACSServer('builtin') : null);
-            const instance = server ? createAxiosInstance(server) : axiosInstance;
+            const server = await resolveServerForDevice(deviceId, serverId);
+            const instance = server ? createAxiosInstance(server) : (isBuiltinAcsEnabled() ? createBuiltinAxiosProxy() : axiosInstance);
             
             const task = {
                 name: "factoryReset",
@@ -696,15 +733,13 @@ const genieacsApi = {
         }
     },
 
-    async getDeviceParameters(deviceId, parameterNames) {
+    async getDeviceParameters(deviceId, parameterNames, serverId = null) {
         try {
-            if (isBuiltinAcsEnabled()) {
-                const instance = createBuiltinAxiosProxy();
-                const response = await instance.get(`/devices/${encodeURIComponent(deviceId)}`);
-                return response.data;
-            }
-            const queryString = parameterNames.map(name => `query=${encodeURIComponent(name)}`).join('&');
-            const response = await axiosInstance.get(`/devices/${encodeURIComponent(deviceId)}?${queryString}`);
+            const server = await resolveServerForDevice(deviceId, serverId);
+            const instance = server ? createAxiosInstance(server) : (isBuiltinAcsEnabled() ? createBuiltinAxiosProxy() : axiosInstance);
+            const queryString = Array.isArray(parameterNames) ? parameterNames.map(name => `query=${encodeURIComponent(name)}`).join('&') : '';
+            const path = queryString ? `/devices/${encodeURIComponent(deviceId)}?${queryString}` : `/devices/${encodeURIComponent(deviceId)}`;
+            const response = await instance.get(path);
             return response.data;
         } catch (error) {
             logger.error(`[GenieACS] Error getting parameters for device ${deviceId}: ${error.response?.data ? JSON.stringify(error.response.data) : error.message}`);
@@ -712,51 +747,51 @@ const genieacsApi = {
         }
     },
 
-    async getDeviceInfo(deviceId) {
+    async getDeviceInfo(deviceId, serverId = null) {
         try {
             logger.debug(`[GenieACS] Getting device info for device ID: ${deviceId}`);
             
-            // Built-in ACS mode
-            if (isBuiltinAcsEnabled()) {
-                const instance = createBuiltinAxiosProxy();
-                const response = await instance.get(`/devices/${encodeURIComponent(deviceId)}`);
-                return response.data;
-            }
-            
-            // Mendapatkan device detail
-            const deviceResponse = await axios.get(`${GENIEACS_URL}/devices/${encodeURIComponent(deviceId)}`, {
-                auth: {
-                    username: GENIEACS_USERNAME,
-                    password: GENIEACS_PASSWORD
+            if (serverId) {
+                const server = getACSServer(serverId);
+                if (server) {
+                    const instance = createAxiosInstance(server);
+                    const response = await instance.get(`/devices/${encodeURIComponent(deviceId)}`);
+                    return response.data;
                 }
-            });
-
-            if (!deviceResponse.data) {
-                logger.warn('[GenieACS] No device data found');
-                return null;
             }
 
-            logger.debug('[GenieACS] Device data retrieved successfully');
-            return deviceResponse.data;
+            // Mode Hybrid: Cari perangkat di seluruh server aktif
+            const servers = getAllACSServers();
+            for (const server of servers) {
+                try {
+                    const instance = createAxiosInstance(server);
+                    const response = await instance.get(`/devices/${encodeURIComponent(deviceId)}`);
+                    if (response && response.data) {
+                        return response.data;
+                    }
+                } catch (e) {
+                    // Coba server berikutnya
+                }
+            }
+            return null;
         } catch (error) {
             logger.error(`[GenieACS] Error getting device info: ${error.response?.data ? JSON.stringify(error.response.data) : error.message}`);
             return null;
         }
     },
 
-    async getVirtualParameters(deviceId) {
+    async getVirtualParameters(deviceId, serverId = null) {
         try {
             logger.debug(`[GenieACS] Getting virtual parameters for device ID: ${deviceId}`);
             
-            // Built-in ACS mode: return device data directly (params already stored)
-            if (isBuiltinAcsEnabled()) {
+            // Mode Hybrid: Cek server mana yang menaungi perangkat
+            const server = await resolveServerForDevice(deviceId, serverId);
+            if (server && (server.id === 'builtin' || server.url === 'local')) {
                 const instance = createBuiltinAxiosProxy();
                 try {
                     const response = await instance.get(`/devices/${encodeURIComponent(deviceId)}`);
-                    return response.data;
-                } catch (e) {
-                    return null;
-                }
+                    if (response && response.data) return response.data;
+                } catch (e) {}
             }
             
             const virtualParams = [
@@ -1216,6 +1251,7 @@ module.exports = {
     // Multi-server helpers
     getAllACSServers,
     getACSServer,
+    resolveServerForDevice,
     createAxiosInstance,
     isBuiltinAcsEnabled,
     

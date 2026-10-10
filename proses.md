@@ -4147,3 +4147,80 @@ Pengguna meminta agar pada halaman Peta Jaringan (`http://localhost:3001/admin/m
   - `views/admin/map.ejs`: 100% OK (Panjang output HTML 127.977 karakter, bebas error sintaks).
   - `views/tech/map.ejs`: 100% OK (Panjang output HTML 46.474 karakter, bebas error sintaks).
 - **Regression Test Suite**: Seluruh pengujian regresi terkait Custom ID Pelanggan dan modul inti tetap PASSED (16/16 tests passing).
+
+---
+
+## [2026-10-10] Implementasi Mode Hybrid Dual-ACS (Built-in ACS & GenieACS Eksternal Berjalan Bersamaan)
+
+### 1. Kebutuhan Pengguna
+Di halaman Pengaturan Sistem (`http://localhost:3001/admin/settings`), pengguna menanyakan dan meminta agar server **Built-in ACS (TR-069 port 3001 `/acs`)** dan **External GenieACS Server (REST API port 7557)** dapat aktif dan berjalan bersamaan (*concurrent / hybrid mode*) tanpa saling menonaktifkan atau menyembunyikan konfigurasi satu sama lain.
+
+### 2. Akar Masalah & Analisis Kode Eksisting
+1. **Perilaku Saling Eksklusif (Mutual Exclusion) pada Tampilan Pengaturan**:
+   - Di `views/admin/settings.ejs`, fungsi JavaScript `toggleAcsFields()` sebelumnya menyembunyikan input form GenieACS eksternal (`style.display = 'none'`) seketika saat checkbox `use_builtin_acs` dicentang.
+2. **Early Return Bypassing pada Server Aggregator (`config/genieacs.js`)**:
+   - Di `config/genieacs.js`, fungsi `getAllACSServers()` memiliki pemutusan awal (*early return*):
+     ```javascript
+     if (isBuiltinAcsEnabled()) {
+         return [{ id: 'builtin', name: 'Built-in ACS', url: 'local', status: 'active' }];
+     }
+     ```
+     Hal ini menyebabkan server GenieACS eksternal (legacy URL dan server multi-ACS database) tidak pernah dimasukkan ke dalam daftar server saat Built-in aktif, meskipun URL dan kredensial eksternal sudah diset.
+3. **Penyaringan Kaku pada Rute Portal ACS Admin & Teknisi**:
+   - Di `routes/acsPortal.js` dan `routes/techPortal.js`, `getACSServers(id)` juga mengabaikan `legacyServer` dan database `genieacs_servers` saat `isBuiltinAcsEnabled()` bernilai `true`.
+4. **Target Routing Perintah Operasi Perangkat**:
+   - Operasi `reboot`, `factoryReset`, dan `setParameterValues` sebelumnya hanya berasumsi pada server tunggal (jika built-in aktif, hanya menembak proxy lokal `builtin`, mengabaikan jika perangkat sebenarnya terdaftar di server GenieACS eksternal).
+
+### 3. Solusi & Perubahan yang Diterapkan
+1. **Penyatuan Multi-Server secara Simultan (`getAllACSServers` di `config/genieacs.js`)**:
+   - Menghapus *early return*. Kini `getAllACSServers()` mengumpulkan:
+     1. Server `builtin` jika `isBuiltinAcsEnabled()` aktif.
+     2. Server `legacy` jika `genieacs_url` terkonfigurasi.
+     3. Seluruh server multi-ACS aktif dari tabel SQLite `genieacs_servers`.
+   - Menggunakan dynamic delegation pada `settingsManager.getSetting` agar evaluasi setting selalu real-time dan reaktif.
+2. **Device-Aware Server Resolution (`resolveServerForDevice`)**:
+   - Menambahkan fungsi helper cerdas `resolveServerForDevice(deviceId, serverId)`:
+     - Jika pemanggil menentukan `serverId`, gunakan server tersebut.
+     - Jika `serverId` kosong dan terdapat lebih dari 1 server (Mode Hybrid), sistem secara otomatis memeriksa kepemilikan perangkat di seluruh server yang terdaftar sebelum menjalankan task TR-069.
+     - Mengarahkan `setParameterValues`, `reboot`, `factoryReset`, `getDeviceParameters`, `getDeviceInfo`, dan `getVirtualParameters` agar menggunakan server target yang tepat.
+3. **Pembaruan Portal ACS Admin & Teknisi (`routes/acsPortal.js` & `routes/techPortal.js`)**:
+   - Memperbarui `getACSServers()` pada kedua rute agar mengembalikan seluruh server gabungan saat `id === null` atau `id === 'all'`, serta dapat memfilter secara presisi untuk `id === 'builtin'`, `id === 'legacy'`, maupun ID database numerik.
+   - Mengarahkan axios proxy lokal secara transparan: request ke URL `local` diarahkan ke SQLite proxy, sementara request eksternal diarahkan via HTTP axios terautentikasi.
+   - Menambahkan proteksi keamanan agar endpoint `DELETE /admin/acs/api/servers/:id` menolak penghapusan server bawaan (`builtin` dan `legacy`).
+4. **Pembaruan Antarmuka Pengaturan Sistem (`views/admin/settings.ejs`)**:
+   - Menghilangkan pembatasan `toggleAcsFields()` dan style sembunyi `display:none`.
+   - Menata form API Eksternal dengan badge informatif:
+     - Checkbox Built-in ACS: Menjelaskan endpoint internal `http://<IP-Server>:3001/acs` TR-069.
+     - Form GenieACS Eksternal: Menampilkan badge hijau *"Dukungan Hybrid Simultan"* dengan input API URL, Username, dan Password yang selalu dapat diisi dan disimpan secara independen.
+5. **Pembaruan Antarmuka ACS Pro Admin (`views/admin/acs.ejs`)**:
+   - Pada tab daftar server, menampilkan badge identitas *"Internal TR-069"* untuk Built-in dan *"Eksternal API"* untuk Default ACS.
+   - Tombol aksi server Built-in diarahkan ke menu Pengaturan (`/admin/settings`) dan tombol hapus dinonaktifkan demi integritas sistem.
+
+### 4. Dampak Perubahan Sistem
+- **Full Concurrency & High Flexibility**: Operator ISP dapat menggunakan Built-in ACS untuk sebagian modem pelanggan baru (port 3001 `/acs`) sekaligus tetap mempertahankan server GenieACS eksternal (port 7557/7547) untuk modem pelanggan lama tanpa migrasi paksa.
+- **Unified Aggregation**: Di Portal ACS Admin, Portal Teknisi, pencarian pelanggan, dan bot WhatsApp, seluruh perangkat dari kedua server muncul dan dapat dikontrol secara terpadu.
+- **Zero Downtime & Zero Regression**: Kredensial dan pengaturan tetap kompatibel dengan arsitektur sebelumnya.
+
+### 5. File yang Diperbarui & Ditambahkan
+- **`config/genieacs.js`**: Implementasi agregasi `getAllACSServers()`, `getACSServer()`, `resolveServerForDevice()`, dan penyesuaian fungsi operasi perangkat untuk mode hybrid.
+- **`routes/acsPortal.js`**: Sinkronisasi `getACSServers()`, penyempurnaan proxy axios lokal, dan proteksi server internal.
+- **`routes/techPortal.js`**: Sinkronisasi `getACSServers()` pada portal teknisi.
+- **`views/admin/settings.ejs`**: Pembaruan form agar Built-in ACS dan GenieACS Eksternal dapat diisi bersamaan dengan badge status hybrid.
+- **`views/admin/acs.ejs`**: Penyesuaian tabel server dengan badge identitas dan tombol aksi yang aman.
+- **`tests/dualAcsHybrid.test.js`**: Automated test suite (8 pengujian) memvalidasi skenario hybrid, skenario standalone builtin, skenario standalone external, adapter proxy axios, dan rendering template EJS.
+- **`file md/implementation_plan.md`**: Dokumen perencanaan arsitektur mode hybrid.
+- **`version.txt`**: Di-bump dari `15.5.1` ke `15.5.2`.
+
+### 6. Hasil Pengujian & Verifikasi
+- **Unit & Integration Test Suite (`tests/dualAcsHybrid.test.js`)**: **8/8 PASSED (100%)**
+  - Skenario Hybrid (kedua server aktif): **PASSED** (mengembalikan `builtin` dan `legacy` simultan).
+  - Skenario Standalone Built-in: **PASSED** (hanya `builtin`).
+  - Skenario Standalone External: **PASSED** (hanya `legacy`).
+  - Konfigurasi `getACSServer('builtin')` & `getACSServer('legacy')`: **PASSED**.
+  - Adapter Proxy vs Axios HTTP Instance: **PASSED**.
+  - Device-aware Server Resolution: **PASSED**.
+  - Kompilasi Template `views/admin/settings.ejs`: **PASSED** (Bebas error sintaks).
+  - Kompilasi Template `views/admin/acs.ejs`: **PASSED** (Bebas error sintaks).
+- **Regression Test Suite**:
+  - `tests/mapCableDistance.test.js`: **7/7 PASSED (100%)**.
+  - `tests/settingsManager.test.js`: **23/23 PASSED (100%)**.

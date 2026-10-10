@@ -766,28 +766,48 @@ router.get('/api/attendance/history', requireTechSession, (req, res) => {
 
 // Helpers for GenieACS Server DB access inside Technician Portal
 function getACSServers(id = null) {
-    const legacyACS = getLegacyACS();
-    const legacyServer = legacyACS.acs_url ? { 
-        id: 'legacy', 
-        name: 'Default ACS', 
-        url: legacyACS.acs_url, 
-        username: legacyACS.acs_user, 
-        password: legacyACS.acs_pass 
-    } : null;
+    const servers = [];
 
-    if (id === 'legacy') return legacyServer ? [legacyServer] : [];
-
-    let query = 'SELECT * FROM genieacs_servers';
-    let params = [];
-    if (id && id !== 'all') {
-        query += ' WHERE id = ?';
-        params.push(id);
-        const row = db.prepare(query).get(params);
-        return row ? [row] : [];
+    // 1. Built-in ACS jika diaktifkan
+    if (genieacsApi.isBuiltinAcsEnabled && genieacsApi.isBuiltinAcsEnabled()) {
+        servers.push({
+            id: 'builtin',
+            name: 'Built-in ACS',
+            url: 'local',
+            status: 'active'
+        });
     }
-    
-    const rows = db.prepare(query).all(params);
-    return legacyServer ? [legacyServer, ...rows] : rows;
+
+    // 2. Legacy / Default ACS
+    const legacyACS = getLegacyACS();
+    if (legacyACS.acs_url) {
+        servers.push({
+            id: 'legacy',
+            name: 'Default ACS',
+            url: legacyACS.acs_url,
+            username: legacyACS.acs_user,
+            password: legacyACS.acs_pass,
+            status: 'active'
+        });
+    }
+
+    // 3. Database servers
+    try {
+        const rows = db.prepare('SELECT * FROM genieacs_servers WHERE status = ?').all('active');
+        servers.push(...rows);
+    } catch (e) {
+        try {
+            const rowsFallback = db.prepare('SELECT * FROM genieacs_servers').all();
+            servers.push(...rowsFallback);
+        } catch (err) {}
+    }
+
+    if (id && id !== 'all') {
+        const matched = servers.find(s => String(s.id) === String(id));
+        return matched ? [matched] : [];
+    }
+
+    return servers;
 }
 
 function getLegacyACS() {

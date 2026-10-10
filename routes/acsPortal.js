@@ -13,7 +13,7 @@ const { createAxiosInstance, isBuiltinAcsEnabled } = require('../config/genieacs
 // Proxy axios to support local built-in ACS proxy
 const axios = {
     get: async (url, config = {}) => {
-        if (isBuiltinAcsEnabled() && (url.startsWith('local/') || url === 'local')) {
+        if (url.startsWith('local/') || url === 'local' || url.startsWith('local?')) {
             const path = url.replace(/^local/, '');
             const instance = createAxiosInstance({ id: 'builtin', url: 'local' });
             return instance.get(path, config);
@@ -21,7 +21,7 @@ const axios = {
         return rawAxios.get(url, config);
     },
     post: async (url, data, config = {}) => {
-        if (isBuiltinAcsEnabled() && url.startsWith('local/')) {
+        if (url.startsWith('local/') || url === 'local') {
             const path = url.replace(/^local/, '');
             const instance = createAxiosInstance({ id: 'builtin', url: 'local' });
             return instance.post(path, data, config);
@@ -29,7 +29,7 @@ const axios = {
         return rawAxios.post(url, data, config);
     },
     delete: async (url, config = {}) => {
-        if (isBuiltinAcsEnabled() && url.startsWith('local/')) {
+        if (url.startsWith('local/') || url === 'local') {
             const path = url.replace(/^local/, '');
             const instance = createAxiosInstance({ id: 'builtin', url: 'local' });
             return instance.delete(path, config);
@@ -37,7 +37,7 @@ const axios = {
         return rawAxios.delete(url, config);
     },
     put: async (url, data, config = {}) => {
-        if (isBuiltinAcsEnabled() && url.startsWith('local/')) {
+        if (url.startsWith('local/') || url === 'local') {
             const path = url.replace(/^local/, '');
             const instance = createAxiosInstance({ id: 'builtin', url: 'local' });
             return instance.put(path, data, config);
@@ -46,43 +46,50 @@ const axios = {
     }
 };
 
-// Helper for DB queries (using better-sqlite3)
+// Helper for DB queries (Hybrid Concurrent Multi-Server Support)
 function getACSServers(id = null) {
+    const servers = [];
+
+    // 1. Tambahkan Built-in ACS jika diaktifkan
     if (isBuiltinAcsEnabled()) {
-        const builtinServer = {
+        servers.push({
             id: 'builtin',
             name: 'Built-in ACS',
             url: 'local',
             status: 'active'
-        };
-        if (id && id !== 'all') {
-            return id === 'builtin' ? [builtinServer] : [];
-        }
-        return [builtinServer];
+        });
     }
 
+    // 2. Tambahkan server GenieACS eksternal default (Legacy) jika terkonfigurasi
     const legacyACS = getLegacyACS();
-    const legacyServer = legacyACS.acs_url ? { 
-        id: 'legacy', 
-        name: 'Default ACS', 
-        url: legacyACS.acs_url, 
-        username: legacyACS.acs_user, 
-        password: legacyACS.acs_pass 
-    } : null;
-
-    if (id === 'legacy') return legacyServer ? [legacyServer] : [];
-
-    let query = 'SELECT * FROM genieacs_servers';
-    let params = [];
-    if (id && id !== 'all') {
-        query += ' WHERE id = ?';
-        params.push(id);
-        const row = db.prepare(query).get(params);
-        return row ? [row] : [];
+    if (legacyACS.acs_url) {
+        servers.push({
+            id: 'legacy',
+            name: 'Default ACS',
+            url: legacyACS.acs_url,
+            username: legacyACS.acs_user,
+            password: legacyACS.acs_pass,
+            status: 'active'
+        });
     }
-    
-    const rows = db.prepare(query).all(params);
-    return legacyServer ? [legacyServer, ...rows] : rows;
+
+    // 3. Tambahkan server multi-ACS tambahan dari tabel database
+    try {
+        const rows = db.prepare('SELECT * FROM genieacs_servers WHERE status = ?').all('active');
+        servers.push(...rows);
+    } catch (e) {
+        try {
+            const rowsFallback = db.prepare('SELECT * FROM genieacs_servers').all();
+            servers.push(...rowsFallback);
+        } catch (err) {}
+    }
+
+    if (id && id !== 'all') {
+        const matched = servers.find(s => String(s.id) === String(id));
+        return matched ? [matched] : [];
+    }
+
+    return servers;
 }
 
 function getLegacyACS() {
@@ -1017,7 +1024,11 @@ router.put('/api/servers/:id', requireAdmin, async (req, res) => {
 // DELETE /admin/acs/api/servers/:id
 router.delete('/api/servers/:id', requireAdmin, async (req, res) => {
     try {
-        db.prepare('DELETE FROM genieacs_servers WHERE id = ?').run(req.params.id);
+        const id = String(req.params.id || '').trim();
+        if (id === 'builtin' || id === 'legacy') {
+            return res.status(400).json({ success: false, message: 'Server bawaan/internal tidak dapat dihapus.' });
+        }
+        db.prepare('DELETE FROM genieacs_servers WHERE id = ?').run(id);
         res.json({ success: true, message: 'ACS server deleted' });
     } catch (e) {
         res.status(500).json({ success: false, message: e.message });

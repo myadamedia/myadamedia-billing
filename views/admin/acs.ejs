@@ -227,12 +227,28 @@
                         <tbody>
                             <% acsServers.forEach(s => { %>
                             <tr>
-                                <td><%= s.name %></td>
-                                <td><code><%= s.url %></code></td>
-                                <td><%= s.location %></td>
-                                <td><%= s.device_count %></td>
                                 <td>
-                                    <% if (String(s.id) !== 'legacy') { %>
+                                    <%= s.name %>
+                                    <% if (String(s.id) === 'builtin') { %>
+                                        <span class="badge" style="font-size:10px; padding:2px 6px; border-radius:4px; background:rgba(59,130,246,0.15); color:var(--primary); margin-left:6px; font-weight:700;">Internal TR-069</span>
+                                    <% } else if (String(s.id) === 'legacy') { %>
+                                        <span class="badge" style="font-size:10px; padding:2px 6px; border-radius:4px; background:rgba(16,185,129,0.15); color:#10b981; margin-left:6px; font-weight:700;">Eksternal API</span>
+                                    <% } %>
+                                </td>
+                                <td><code><%= s.url %></code></td>
+                                <td><%= s.location || (String(s.id) === 'builtin' ? 'Local Server (TR-069)' : '-') %></td>
+                                <td><%= s.device_count || 0 %></td>
+                                <td>
+                                    <% if (String(s.id) === 'builtin') { %>
+                                        <div style="display:flex;align-items:center;gap:8px">
+                                            <a href="/admin/settings" class="btn-action" title="Pengaturan Built-in ACS">
+                                                <i class="bi bi-gear"></i>
+                                            </a>
+                                            <button class="btn-action danger" type="button" disabled title="Built-in ACS dikelola di menu Pengaturan">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    <% } else if (String(s.id) !== 'legacy') { %>
                                         <div style="display:flex;align-items:center;gap:8px">
                                             <button
                                                 class="btn-action"
