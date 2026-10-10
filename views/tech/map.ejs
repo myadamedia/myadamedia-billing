@@ -288,6 +288,175 @@
     .flowing-line {
       animation: flow 1s linear infinite;
     }
+
+    /* Custom Cable Hover Tooltip */
+    .leaflet-tooltip.custom-cable-tooltip {
+      background: rgba(15, 23, 42, 0.94) !important;
+      backdrop-filter: blur(12px) !important;
+      -webkit-backdrop-filter: blur(12px) !important;
+      border: 1px solid rgba(56, 189, 248, 0.35) !important;
+      border-radius: 12px !important;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5), 0 0 15px rgba(56, 189, 248, 0.2) !important;
+      padding: 0 !important;
+      color: #f8fafc !important;
+      pointer-events: none !important;
+      z-index: 1000 !important;
+    }
+
+    .leaflet-tooltip-top.custom-cable-tooltip:before {
+      border-top-color: rgba(15, 23, 42, 0.94) !important;
+    }
+    .leaflet-tooltip-bottom.custom-cable-tooltip:before {
+      border-bottom-color: rgba(15, 23, 42, 0.94) !important;
+    }
+    .leaflet-tooltip-left.custom-cable-tooltip:before {
+      border-left-color: rgba(15, 23, 42, 0.94) !important;
+    }
+    .leaflet-tooltip-right.custom-cable-tooltip:before {
+      border-right-color: rgba(15, 23, 42, 0.94) !important;
+    }
+
+    .cable-tooltip-card {
+      padding: 10px 14px;
+      min-width: 230px;
+      max-width: 330px;
+      font-family: inherit;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .cable-tooltip-card .ct-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .cable-tooltip-card .ct-title {
+      font-weight: 800;
+      font-size: 12px;
+      color: #f8fafc;
+      flex: 1;
+    }
+
+    .cable-tooltip-card .ct-icon-cust {
+      color: #38bdf8;
+      font-size: 14px;
+    }
+
+    .cable-tooltip-card .ct-icon-feeder {
+      color: #a78bfa;
+      font-size: 14px;
+    }
+
+    .cable-tooltip-card .ct-badge-status {
+      font-size: 10px;
+      font-weight: 800;
+      padding: 2px 7px;
+      border-radius: 999px;
+      text-transform: uppercase;
+    }
+
+    .ct-status-active {
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+    }
+
+    .ct-status-free {
+      background: rgba(56, 189, 248, 0.2);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.4);
+    }
+
+    .ct-status-suspended {
+      background: rgba(239, 68, 68, 0.2);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.4);
+    }
+
+    .cable-tooltip-card .ct-badge-pon {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 6px;
+      background: rgba(167, 139, 250, 0.2);
+      color: #c4b5fd;
+      border: 1px solid rgba(167, 139, 250, 0.35);
+    }
+
+    .cable-tooltip-card .ct-nodes {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 8px;
+    }
+
+    .cable-tooltip-card .ct-node-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .cable-tooltip-card .ct-label {
+      color: #94a3b8;
+      font-size: 11px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .cable-tooltip-card .ct-val {
+      color: #f1f5f9;
+      font-weight: 700;
+      font-size: 11.5px;
+      text-align: right;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 170px;
+    }
+
+    .cable-tooltip-card .ct-distance-box {
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.15), rgba(99, 102, 241, 0.15));
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 8px;
+      padding: 6px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .cable-tooltip-card .ct-dist-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: #93c5fd;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .cable-tooltip-card .ct-dist-val {
+      font-size: 13px;
+      font-weight: 800;
+      color: #38bdf8;
+      letter-spacing: 0.3px;
+    }
+
+    .cable-tooltip-card .ct-extra {
+      font-size: 10.5px;
+      color: #94a3b8;
+      margin-top: 6px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
   </style>
 
   <% const odcList=odps.filter(o=> o.type === 'ODC');
@@ -482,9 +651,65 @@
         }
       });
 
-      // Add ODP & ODC Markers
+      // Mapping Object ODP/ODC untuk pencarian cepat & penentuan relasi
+      const odpMap = {};
       const odpMarkers = {};
+
+      // Helper sanitasi string untuk mencegah XSS pada Tooltip
+      function escapeHtml(str) {
+        if (!str && str !== 0) return '';
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
+
+      // Helper konversi titik koordinat ke Leaflet LatLng
+      function getLatLngObject(point) {
+        if (!point) return null;
+        if (typeof point.lat !== 'undefined' && typeof point.lng !== 'undefined') {
+          const lat = parseFloat(point.lat);
+          const lng = parseFloat(point.lng);
+          return (Number.isFinite(lat) && Number.isFinite(lng)) ? L.latLng(lat, lng) : null;
+        }
+        if (Array.isArray(point) && point.length >= 2) {
+          const lat = parseFloat(point[0]);
+          const lng = parseFloat(point[1]);
+          return (Number.isFinite(lat) && Number.isFinite(lng)) ? L.latLng(lat, lng) : null;
+        }
+        return null;
+      }
+
+      // Menghitung jarak rute kabel secara geodetik presisi (akumulasi segmen polyline)
+      function calculateCableDistance(path) {
+        if (!Array.isArray(path) || path.length < 2) return 0;
+        let totalMeters = 0;
+        for (let i = 0; i < path.length - 1; i++) {
+          const p1 = getLatLngObject(path[i]);
+          const p2 = getLatLngObject(path[i + 1]);
+          if (p1 && p2) {
+            totalMeters += p1.distanceTo(p2);
+          }
+        }
+        return totalMeters;
+      }
+
+      // Format human-readable jarak (meter atau kilometer)
+      function formatCableDistance(meters) {
+        if (!Number.isFinite(meters) || meters <= 0) return '0 meter';
+        if (meters >= 1000) {
+          const km = (meters / 1000).toFixed(2).replace('.', ',');
+          const m = Math.round(meters).toLocaleString('id-ID');
+          return `${km} km (${m} m)`;
+        }
+        return `${Math.round(meters).toLocaleString('id-ID')} meter`;
+      }
+
+      // Add ODP & ODC Markers
       odps.forEach(odp => {
+        odpMap[odp.id] = odp;
         if (odp.lat && odp.lng) {
           const odpLat = parseFloat(odp.lat);
           const odpLng = parseFloat(odp.lng);
@@ -574,23 +799,21 @@
       odps.forEach(odp => {
         if (odp.lat && odp.lng) {
           let pathCoords;
-          let lineLabel;
           const isOdc = odp.type === 'ODC';
           const nodeGroup = isOdc ? odcGroup : odpGroup;
+          const isUplink = !!(odp.parent_odp_id && odpMarkers[odp.parent_odp_id]);
 
-          if (odp.parent_odp_id && odpMarkers[odp.parent_odp_id]) {
+          if (isUplink) {
             const parentCoords = odpMarkers[odp.parent_odp_id];
             pathCoords = [
               [parseFloat(odp.lat), parseFloat(odp.lng)],
               parentCoords
             ];
-            lineLabel = `Kabel Uplink ${odp.type || 'ODP'}: ${odp.name} ↔ ${odp.parent_name || 'Uplink'} (PON: ${odp.pon_port || '-'})`;
           } else {
             pathCoords = [
               [parseFloat(odp.lat), parseFloat(odp.lng)],
               [officeCoords.lat, officeCoords.lng]
             ];
-            lineLabel = `Kabel Feeder: Kantor Pusat ↔ ${odp.name} (PON: ${odp.pon_port || '-'})`;
           }
 
           // Determine line color from the ODP's PON port
@@ -613,12 +836,67 @@
             } catch (e) { }
           }
 
-          L.polyline(pathCoords, {
+          const cableDistanceMeters = calculateCableDistance(pathCoords);
+          const formattedDist = formatCableDistance(cableDistanceMeters);
+          const parentOdpObj = odp.parent_odp_id ? odpMap[odp.parent_odp_id] : null;
+          const parentType = parentOdpObj ? (parentOdpObj.type || 'ODP') : (isUplink ? 'ODC/ODP' : 'NOC');
+          const parentName = parentOdpObj ? parentOdpObj.name : (odp.parent_name || 'Kantor Pusat / NOC');
+          const childType = odp.type || 'ODP';
+
+          const tooltipHtml = `
+            <div class="cable-tooltip-card">
+              <div class="ct-header">
+                <i class="bi bi-diagram-3-fill ct-icon-feeder"></i>
+                <span class="ct-title">${isUplink ? `Jalur Distribusi (${parentType} ↔ ${childType})` : `Jalur Feeder (NOC ↔ ${childType})`}</span>
+                <span class="ct-badge-pon"><i class="bi bi-hdd-network"></i> ${escapeHtml(odp.pon_port ? 'PON ' + odp.pon_port : 'Direct')}</span>
+              </div>
+              <div class="ct-nodes">
+                <div class="ct-node-row">
+                  <span class="ct-label"><i class="bi bi-${isUplink ? (parentType === 'ODC' ? 'hdd-rack-fill' : 'box-seam-fill') : 'building-fill'}"></i> Asal:</span>
+                  <strong class="ct-val">${escapeHtml(parentName)}</strong>
+                </div>
+                <div class="ct-node-row">
+                  <span class="ct-label"><i class="bi bi-${childType === 'ODC' ? 'hdd-rack-fill' : 'box-seam-fill'}"></i> Tujuan:</span>
+                  <strong class="ct-val">${escapeHtml(odp.name)} (${childType})</strong>
+                </div>
+              </div>
+              <div class="ct-distance-box">
+                <div class="ct-dist-label"><i class="bi bi-rulers"></i> Panjang Jalur Kabel:</div>
+                <div class="ct-dist-val">${formattedDist}</div>
+              </div>
+              ${odp.olt_name ? `<div class="ct-extra"><i class="bi bi-router"></i> OLT: ${escapeHtml(odp.olt_name)}</div>` : ''}
+            </div>
+          `;
+
+          const polyline = L.polyline(pathCoords, {
             color: ponColor,
             weight: isOdc ? 5 : 4,
             opacity: 0.9,
             className: 'odp-cable-line'
-          }).addTo(nodeGroup).bindTooltip(lineLabel, { sticky: true });
+          }).addTo(nodeGroup);
+
+          polyline.bindTooltip(tooltipHtml, {
+            sticky: true,
+            direction: 'top',
+            offset: [0, -10],
+            className: 'custom-cable-tooltip'
+          });
+
+          const defaultWeight = isOdc ? 5 : 4;
+          polyline.on('mouseover', function () {
+            this.setStyle({
+              weight: isOdc ? 8 : 7,
+              opacity: 1
+            });
+            if (this.bringToFront) this.bringToFront();
+          });
+
+          polyline.on('mouseout', function () {
+            this.setStyle({
+              weight: defaultWeight,
+              opacity: 0.9
+            });
+          });
         }
       });
 
@@ -673,14 +951,68 @@
               } catch (e) { }
             }
 
-            L.polyline(pathCoords, {
+            const targetOdp = odpMap[cust.odp_id];
+            const odpName = targetOdp ? targetOdp.name : (cust.odp_name || 'ODP');
+            const odpType = (targetOdp && targetOdp.type === 'ODC') ? 'ODC' : 'ODP';
+            const cableDistanceMeters = calculateCableDistance(pathCoords);
+            const formattedDist = formatCableDistance(cableDistanceMeters);
+
+            const tooltipHtml = `
+              <div class="cable-tooltip-card">
+                <div class="ct-header">
+                  <i class="bi bi-bezier2 ct-icon-cust"></i>
+                  <span class="ct-title">Drop Cable Pelanggan</span>
+                  <span class="ct-badge-status ${is_free ? 'ct-status-free' : (is_active ? 'ct-status-active' : 'ct-status-suspended')}">
+                    ${is_free ? 'Free' : (is_active ? 'Aktif' : 'Isolir')}
+                  </span>
+                </div>
+                <div class="ct-nodes">
+                  <div class="ct-node-row">
+                    <span class="ct-label"><i class="bi bi-${odpType === 'ODC' ? 'hdd-rack-fill' : 'box-seam-fill'}"></i> ${odpType}:</span>
+                    <strong class="ct-val">${escapeHtml(odpName)}</strong>
+                  </div>
+                  <div class="ct-node-row">
+                    <span class="ct-label"><i class="bi bi-person-fill"></i> Pelanggan:</span>
+                    <strong class="ct-val">${escapeHtml(cust.name)}</strong>
+                  </div>
+                </div>
+                <div class="ct-distance-box">
+                  <div class="ct-dist-label"><i class="bi bi-rulers"></i> Panjang Jalur Kabel:</div>
+                  <div class="ct-dist-val">${formattedDist}</div>
+                </div>
+                ${cust.package_name ? `<div class="ct-extra"><i class="bi bi-speedometer2"></i> Paket: ${escapeHtml(cust.package_name)}</div>` : ''}
+              </div>
+            `;
+
+            const polyline = L.polyline(pathCoords, {
               color: cableColor,
               weight: 3,
-              opacity: 0.8,
+              opacity: 0.85,
               dashArray: '10, 10',
-              className: 'flowing-line',
-              interactive: false
+              className: 'flowing-line'
             }).addTo(targetGroup);
+
+            polyline.bindTooltip(tooltipHtml, {
+              sticky: true,
+              direction: 'top',
+              offset: [0, -10],
+              className: 'custom-cable-tooltip'
+            });
+
+            polyline.on('mouseover', function () {
+              this.setStyle({
+                weight: 6,
+                opacity: 1
+              });
+              if (this.bringToFront) this.bringToFront();
+            });
+
+            polyline.on('mouseout', function () {
+              this.setStyle({
+                weight: 3,
+                opacity: 0.85
+              });
+            });
           }
 
           const markerHtml = `

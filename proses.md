@@ -4093,6 +4093,57 @@ Sebelumnya pada halaman `/admin/whatsapp/broadcast`:
   - `node ./node_modules/jest/bin/jest.js tests/cronIsolationOverdue.test.js --forceExit` -> **13/13 PASSED (100%)**
   - `node ./node_modules/jest/bin/jest.js tests/billingArrearsBroadcast.test.js --forceExit` -> **6/6 PASSED (100%)**
 
+---
 
+## [2026-10-10] Penambahan Fitur Visualisasi Jarak Kabel Interaktif (ODP/ODC ke Pelanggan & ODC ke ODP) pada Peta Jaringan (`/admin/map` & `/tech/map`)
 
+### 1. Kebutuhan Pengguna
+Pengguna meminta agar pada halaman Peta Jaringan (`http://localhost:3001/admin/map`), saat mouse pointer diarahkan (*hover*) ke kabel/jalur fiber optik, sistem menampilkan jarak dari ODP/ODC ke koordinat pelanggan atau jarak dari ODC ke ODP secara otomatis dan real-time.
 
+### 2. Akar Masalah & Analisis Kode Eksisting
+1. **Ketiadaan Tooltip & Interaktivitas pada Drop Cable Pelanggan**:
+   - Pada kode sebelumnya di `views/admin/map.ejs` (dan `views/tech/map.ejs`), polyline kabel pelanggan digambar dengan opsi `interactive: false` (pada peta teknisi) atau hanya mendengarkan event klik tanpa binding tooltip sama sekali.
+   - Tidak ada perhitungan jarak segmen koordinat maupun visualisasi metrik panjang kabel yang menghubungkan ODP/ODC dengan rumah pelanggan.
+2. **Keterbatasan Tooltip Jalur ODP/ODC Feeder & Uplink**:
+   - Jalur kabel antar perangkat ODC dan ODP sebelumnya hanya menggunakan tooltip teks statis string sederhana (misal `Kabel Uplink ODP: ODP-01 ↔ ODC-01 (PON: 1)`), tanpa menyertakan kalkulasi jarak aktual dari jalur kabel fisik (`cable_path`).
+3. **Ketiadaan Indikator Jarak pada Modal Editor Gambar Jalur**:
+   - Saat admin atau teknisi menggambar dan menggeser titik lekukan kabel pada modal editor (`#cablePathModal`), tidak ada indikator panjang rute yang diperbarui secara dinamis.
+
+### 3. Solusi & Perubahan yang Diterapkan
+1. **Algoritma Kalkulasi Jarak Geodesik WGS84 (`calculateCableDistance`)**:
+   - Menggunakan formula jarak geodesik bumi Leaflet `L.latLng(p1).distanceTo(L.latLng(p2))` yang mengembalikan jarak presisi dalam satuan meter.
+   - Mengakumulasi seluruh segmen titik koordinat rute (`pathCoords`), baik yang berupa garis langsung 2 titik maupun multi-waypoint polyline dari database (`cable_path`).
+   - Menyediakan parser tangguh `getLatLngObject()` yang memvalidasi array/object koordinat dan mengantisipasi nilai `NaN` atau data cacat.
+2. **Formatting Human-Readable (`formatCableDistance`)**:
+   - Jarak $< 1.000$ meter ditampilkan dalam format meter: contoh `145 meter`.
+   - Jarak $\ge 1.000$ meter diformat dengan kombinasi kilometer dan meter: contoh `1,25 km (1.250 m)`.
+3. **Desain Tooltip Card Ultra-Modern Glassmorphic (`custom-cable-tooltip`)**:
+   - Menggunakan tooltip Leaflet dengan opsi `{ sticky: true, direction: 'top', offset: [0, -10], className: 'custom-cable-tooltip' }` sehingga tooltip melayang mulus mengikuti pergerakan kursor di sepanjang kabel.
+   - Styling CSS responsif tema gelap (*dark glassmorphic*) dengan `backdrop-filter: blur(12px)`, border bercahaya halus (*cyan glow*), dan card layout terstruktur:
+     - **Drop Cable Pelanggan**: Menampilkan badge status pelanggan (Aktif / Free / Isolir), node ODP/ODC asal, nama pelanggan, kotak highlight jarak kabel, dan paket internet.
+     - **Jalur Distribusi / Feeder (ODC ↔ ODP / NOC ↔ ODP)**: Menampilkan badge PON port, node perangkat asal (ODC/NOC), node tujuan (ODP), kotak highlight jarak kabel, dan nama OLT.
+4. **Efek Interaktif Hover (*Mouseover & Mouseout*)**:
+   - Saat mouse melintas di atas kabel, garis otomatis menebal (kabel pelanggan dari bobot 3 ke 6, kabel ODC/ODP dari bobot 4/5 ke 7/8) dengan opasitas penuh dan diangkat ke lapisan terdepan (`bringToFront`).
+   - Saat mouse keluar, ketebalan dan opasitas kabel kembali ke keadaan normal.
+5. **Indikator Live Distance pada Modal Editor Jalur Kabel (`cablePathModal`)**:
+   - Ditambahkan badge estimasi panjang kabel real-time (`#drawing-distance-badge`) yang otomatis diperbarui setiap kali titik lekukan kabel digeser (*drag*) atau titik baru ditambahkan (*addMorePoints*).
+6. **Sinkronisasi Antara Peta Admin (`/admin/map`) & Peta Teknisi (`/tech/map`)**:
+   - Seluruh logika kalkulasi jarak, styling tooltip, dan efek interaktif diimplementasikan secara identik pada kedua antarmuka.
+
+### 4. Dampak Perubahan Sistem
+- **Zero Breaking Changes**: Seluruh fitur peta eksisting (filter layer, pencarian ODP, edit kabel, popup grafik MRTG PPPoE) tetap berjalan 100% normal.
+- **Efisiensi Kerja Lapangan & NOC**: Administrator dan teknisi dapat langsung mengetahui estimasi panjang kabel drop core dan kabel feeder/distribusi tanpa perlu melakukan pengukuran manual eksternal.
+
+### 5. File yang Diperbarui & Ditambahkan
+- **`views/admin/map.ejs`**: Implementasi styling CSS tooltip kabel, helper kalkulasi jarak geodesik, bindTooltip sticky kabel ODP/ODC dan kabel pelanggan, efek hover polyline, dan badge jarak dinamis modal drawing.
+- **`views/tech/map.ejs`**: Sinkronisasi fitur jarak kabel pada peta teknisi lapangan.
+- **`tests/mapCableDistance.test.js`**: Unit & integration tests mencakup kalkulasi jarak geodesik garis lurus & multi-waypoint, format meter/km, handling edge cases, dan kompilasi template EJS views/admin/map.ejs & views/tech/map.ejs.
+- **`file md/implementation_plan.md`**: Dokumen perencanaan arsitektur implementasi.
+- **`version.txt`**: Di-bump dari `15.5.0` ke `15.5.1`.
+
+### 6. Hasil Pengujian & Verifikasi
+- **Unit & Integration Test Suite (`tests/mapCableDistance.test.js`)**: 7/7 PASSED (100%).
+- **EJS Rendering Simulation**:
+  - `views/admin/map.ejs`: 100% OK (Panjang output HTML 127.977 karakter, bebas error sintaks).
+  - `views/tech/map.ejs`: 100% OK (Panjang output HTML 46.474 karakter, bebas error sintaks).
+- **Regression Test Suite**: Seluruh pengujian regresi terkait Custom ID Pelanggan dan modul inti tetap PASSED (16/16 tests passing).
