@@ -1,102 +1,139 @@
-# Implementation Plan: Dual-ACS Hybrid Mode (Built-in ACS & External GenieACS Concurrent Execution)
+# Implementation Plan: Kalkulator Redaman Optik di Peta (Link Budget & Dual-ACS Integration)
 
-## 1. Analisis Kebutuhan
-Pada halaman Pengaturan Sistem (`http://localhost:3001/admin/settings`) dan Portal Manajemen ACS (`http://localhost:3001/admin/acs` serta `/tech/monitoring`):
-Pengguna menginginkan agar **Built-in ACS (TR-069 port 3001 `/acs`)** dan **External GenieACS Server (REST API port 7557 / CWMP port 7547)** dapat berjalan bersamaan secara *concurrent* (Mode Hybrid), tanpa saling menonaktifkan atau menyembunyikan konfigurasi satu sama lain.
-
-### Kondisi Sebelumnya:
-1. `views/admin/settings.ejs`: Checkbox `use_builtin_acs` memicu `toggleAcsFields()` yang menyembunyikan form input GenieACS eksternal (`style.display = 'none'`), menciptakan kesan eksklusivitas mutual.
-2. `config/genieacs.js`: `getAllACSServers()` memiliki percabangan *early-return*:
-   ```javascript
-   if (isBuiltinAcsEnabled()) {
-       return [{ id: 'builtin', name: 'Built-in ACS', url: 'local', status: 'active' }];
-   }
-   ```
-   Hal ini menyebabkan server GenieACS eksternal tidak pernah dimasukkan ke dalam daftar server saat Built-in aktif, meskipun URL dan kredensial eksternal sudah diset.
-3. `routes/acsPortal.js`: `getACSServers(id)` juga mengabaikan `legacyServer` dan database `genieacs_servers` saat `isBuiltinAcsEnabled()` bernilai `true`.
-
-### Target Solusi:
-1. **Aggregasi Multi-Server**: Menggabungkan `builtin` server, `legacy` external server, dan entri multi-ACS database ke dalam satu array aktif yang dapat diakses secara agregat atau difilter per-server.
-2. **Form Pengaturan Terbuka & Bersahabat**: Menampilkan opsi Built-in ACS dan External GenieACS secara berdampingan dengan badge informasi mode Hybrid.
-3. **Penyelarasan Handler Operasi & Monitoring**: Operasi diagnostik, reboot, factory reset, dan monitoring berkala (RX power & offline alerts) dapat menjangkau perangkat di kedua ACS secara transparan.
+## 1. Analisis Kebutuhan & Problem Statement
+Pada Peta Jaringan (`http://localhost:3001/admin/map` dan `http://localhost:3001/tech/map`):
+Pengguna telah memiliki visualisasi kabel jaringan (feeder dari NOC ke ODC/ODP, kabel distribusi antar ODC-ODP, dan drop cable ke pelanggan) beserta kalkulasi jarak geodetik yang baru dibuat.
+Pengguna membutuhkan **Kalkulator Redaman Optik Interaktif di Peta** yang:
+1. **Menghitung Link Budget Optik Teoretis** berdasarkan akumulasi jarak kabel aktual (Feeder + Distribusi + Drop Cable) dikalikan koefisien redaman fiber optik ($\alpha \approx 0.35\text{ dB/km}$ pada panjang gelombang downstream 1490nm), redaman percabangan splitter (ODC Level-1 dan ODP Level-2), serta loss sambungan konektor/splicing ($\approx 1.5\text{ dB}$).
+2. **Mengintegrasikan RX Optical Power Aktual dari Dual-ACS** (Built-in ACS `acs_devices` dan External GenieACS) yang dilaporkan secara langsung oleh modem ONT pelanggan.
+3. **Mendiagnosa Deviasi & Kualitas Fisik Kabel Serat Optik**:
+   - Menghitung $\Delta = |\text{RX Aktual} - \text{RX Estimasi}|$.
+   - Mengkategorikan status: *Optimal* ($-15$ s/d $-22.99\text{ dBm}$), *Wajar* ($-23$ s/d $-26.99\text{ dBm}$), *Warning* ($-27$ s/d $-28.99\text{ dBm}$), dan *Kritis* ($< -29\text{ dBm}$ atau Overload $> -8\text{ dBm}$).
+   - Menganalisis potensi gangguan: *Macro-bending* (kabel tertekuk), sambungan redam, konektor kotor/rusak, atau kabel terjepit.
+4. **Penyajian Visual Kaya & Interaktif**:
+   - **Bagian Redaman Optik pada Tooltip Kabel Hover**: Ringkasan RX Teoretis, RX Aktual, Deviasi $\Delta$, dan status mutu sinyal.
+   - **Modal Interaktif "Kalkulator & Diagnosa Redaman Optik"**: Diagram topologi end-to-end dengan live simulation slider (TX Power OLT, koefisien kabel, rasio splitter, connector margin) dan rekomendasi teknisi.
+   - **Toggle Layer "Mode Redaman Optik"**: Mengubah warna polyline kabel drop dan pin pelanggan menjadi heatmap indikator kualitas sinyal optik (Neon Green, Gold Yellow, Orange, Red, Slate Gray) beserta Optical Legend Card.
+   - **REST API Live Refresh**: Endpoint `GET /admin/api/optical-budget/live` dan `GET /tech/api/optical-budget/live`.
 
 ---
 
 ## 2. Struktur Folder & File Terkait
 ```text
 myadamedia-billing/
-├── config/
-│   └── genieacs.js                # [MODIFY] getAllACSServers(), getACSServer(), getDeviceInfo() pendukung mode hybrid
+├── services/
+│   └── opticalPowerService.js     # [NEW] Service kalkulasi link budget, ekstraksi RX Dual-ACS, evaluasi diagnosa
 ├── routes/
-│   ├── acsPortal.js               # [MODIFY] getACSServers() agregasi builtin + external + DB, axios proxy
-│   └── techPortal.js              # [MODIFY] getACSServers() sinkronisasi builtin + legacy di teknisi
+│   ├── admin/
+│   │   └── maps.js                # [MODIFY] Integrasi optical budget data & API live endpoint di admin map
+│   ├── adminPortal.js             # [MODIFY] Suntikkan optical map data & rute live di portal admin
+│   └── techPortal.js              # [MODIFY] Suntikkan optical map data & rute live di portal teknisi
 ├── views/
 │   ├── admin/
-│   │   ├── settings.ejs           # [MODIFY] Form API eksternal: Built-in & GenieACS eksternal aktif simultan
-│   │   └── acs.ejs                # [MODIFY] Tabel server proteksi builtin dan navigasi pengaturan
+│   │   └── map.ejs                # [MODIFY] Tooltip kabel optik, modal kalkulator simulator, toggle layer heatmap
+│   └── tech/
+│   │   └── map.ejs                # [MODIFY] Tooltip kabel optik teknisi, visualisasi status redaman, modal ringkas
 ├── tests/
-│   └── dualAcsHybrid.test.js      # [NEW] Test suite validasi concurrent ACS & template rendering
+│   └── opticalPowerBudget.test.js # [NEW] Test suite kalkulasi matematika, ekstraksi RX Dual-ACS, evaluasi deviasi & EJS
 ├── file md/
-│   └── implementation_plan.md     # [MODIFY] Dokumentasi rencana implementasi dual-ACS
-├── version.txt                    # [MODIFY] Bump versi ke 15.5.2
-└── proses.md                      # [MODIFY] Logbook dokumentasi perubahan sistem
+│   └── implementation_plan.md     # [MODIFY] Dokumen arsitektur rencana kerja
+├── version.txt                    # [MODIFY] Bump versi ke 15.6.0
+└── proses.md                      # [MODIFY] Dokumentasi lengkap perubahan sistem & pengujian
 ```
 
 ---
 
-## 3. Desain Arsitektur & Logika Eksekusi Concurrent
-```
-                           +---------------------------+
-                           |   MyAdamedia Billing      |
-                           +-------------+-------------+
-                                         |
-               +-------------------------+-------------------------+
-               |                                                   |
-      [Mode Built-in ACS]                                 [External GenieACS]
-    Port 3001: POST /acs                                Port 7557: REST API
-               |                                                   |
-     CPE Modem Mengarah ke                              CPE Modem Mengarah ke
-   http://billing-ip:3001/acs                         http://genieacs-ip:7547
-               |                                                   |
-      SQLite: acs_devices                               MongoDB / GenieACS Server
-               |                                                   |
-      createBuiltinAxiosProxy()                           axios (HTTP/REST)
-               \                                                   /
-                +------------------------+------------------------+
-                                         |
-                              getAllACSServers()
-                                         |
-                   +---------------------+---------------------+
-                   |                                           |
-             [Admin Portal]                             [Teknisi Portal]
-             /admin/acs                                 /tech/monitoring
-         - Tab Semua Server                          - Monitoring ONU Bersama
-         - Filter per-ACS Server                     - WhatsApp Bot Interaktif
+## 3. Desain Arsitektur & Formula Link Budget Optik
+
+```text
+               +-------------------------------------------------------------+
+               |                  KANTOR PUSAT / NOC / OLT                   |
+               |                Tx Power SFP OLT: +3.50 dBm                  |
+               +------------------------------+------------------------------+
+                                              |
+                          Kabel Feeder (Jarak: D_feeder km * 0.35 dB/km)
+                                              |
+                                              v
+                              +-------------------------------+
+                              |          ODC (Cabinet)        |
+                              |   Splitter Level 1: 1:4 (7.2 dB)
+                              +---------------+---------------+
+                                              |
+                       Kabel Distribusi (Jarak: D_dist km * 0.35 dB/km)
+                                              |
+                                              v
+                              +-------------------------------+
+                              |          ODP (Box)            |
+                              |   Splitter Level 2: 1:8 (10.5 dB)
+                              +---------------+---------------+
+                                              |
+                         Drop Cable (Jarak: D_drop km * 0.35 dB/km)
+                                              |
+                                              v
+               +-------------------------------------------------------------+
+               |                  PELANGGAN / ONT (MODEM)                    |
+               |  Estimasi Rx: Tx - (L_kabel + L_splitter + L_konektor)      |
+               |  Aktual Rx: Diambil Realtime via Dual-ACS (Built-in / Genie)|
+               |  Delta Deviasi = |Rx_Aktual - Rx_Estimasi|                  |
+               +-------------------------------------------------------------+
 ```
 
-1. **`getAllACSServers()` Flow**:
-   - Langkah 1: Cek apakah `isBuiltinAcsEnabled()` aktif. Jika ya, tambahkan `{ id: 'builtin', name: 'Built-in ACS', url: 'local', status: 'active' }`.
-   - Langkah 2: Ambil `legacyUrl`. Jika terkonfigurasi, tambahkan `{ id: 'legacy', name: 'Default ACS', url: legacyUrl, username, password, status: 'active' }`.
-   - Langkah 3: Ambil daftar server aktif dari tabel `genieacs_servers` di database SQLite.
-   - Langkah 4: Return seluruh array servers gabungan.
-2. **`createAxiosInstance(server)` Router**:
-   - Jika `server.id === 'builtin'` atau `server.url === 'local'`: gunakan `createBuiltinAxiosProxy()` (mengakses langsung tabel `acs_devices` dan `acs_tasks` di SQLite).
-   - Jika server eksternal: gunakan instance HTTP Axios terautentikasi ke REST API GenieACS port 7557.
-3. **Device Operations Routing (`reboot`, `factoryReset`, `setParameterValues`)**:
-   - Menggunakan `_acs_server_id` yang tersimpan pada objek perangkat. Jika tidak diberikan, mendeteksi ketersediaan ID perangkat di seluruh server yang terdaftar.
+### Formula Matematis:
+1. **Total Redaman Kabel Fiber Optik ($L_{cable}$)**:
+   $$L_{cable} = (D_{feeder} + D_{distribusi} + D_{drop}) \times \frac{\alpha_{fiber}}{1000}$$
+   dengan $\alpha_{fiber} = 0.35\text{ dB/km}$ (@ 1490nm single-mode).
+2. **Total Redaman Splitter ($L_{splitters}$)**:
+   $$L_{splitters} = L_{split\_odc} + L_{split\_odp}$$
+   - Rasio 1:2: $3.7\text{ dB}$
+   - Rasio 1:4: $7.2\text{ dB}$
+   - Rasio 1:8: $10.5\text{ dB}$
+   - Rasio 1:16: $13.8\text{ dB}$
+   - Rasio 1:32: $17.1\text{ dB}$
+   - Direct/None: $0.0\text{ dB}$
+3. **Total Insertion Loss Konektor & Sambungan Splicing ($L_{conn}$)**:
+   $$L_{conn} = 1.50\text{ dB}\quad (\text{Adaptor ODF, ODC, ODP, Roset + Fusion Splices})$$
+4. **Estimasi RX Power Teoretis ($P_{rx\_est}$)**:
+   $$P_{rx\_est} = P_{tx\_olt} - (L_{cable} + L_{splitters} + L_{conn} + M_{safety})$$
+5. **Delta Deviasi ($\Delta$)**:
+   $$\Delta = |P_{rx\_act} - P_{rx\_est}|$$
+   - $\Delta \le 2.0\text{ dB}$: Normal / Optimal (Pemasangan presisi).
+   - $2.0 < \Delta \le 4.5\text{ dB}$: Toleransi Sedang (Potensi lekukan ringan / debu pada konektor).
+   - $\Delta > 4.5\text{ dB}$: Deviasi Tinggi (Macro-bending parah, kabel terjepit, atau konektor rusak).
 
 ---
 
-## 4. Rencana Pengujian
-1. Menulis automated test `tests/dualAcsHybrid.test.js`:
-   - Validasi `getAllACSServers()` saat mode hybrid (kedua server aktif).
-   - Validasi saat hanya built-in aktif.
-   - Validasi saat hanya external aktif.
-   - Validasi saat kedua-duanya nonaktif.
-   - Validasi `getACSServer` untuk ID spesifik (`builtin`, `legacy`).
-   - Validasi adapter proxy axios vs axios HTTP instance.
-   - Validasi kompilasi template EJS `views/admin/settings.ejs` dan `views/admin/acs.ejs`.
-2. Eksekusi pengujian via Jest CLI:
-   `node ./node_modules/jest/bin/jest.js tests/dualAcsHybrid.test.js --coverage=false --forceExit`
-3. Memastikan seluruh 7/7 atau lebih pengujian berstatus PASSED.
-4. Memperbarui `version.txt` (15.5.2) dan mendokumentasikan hasil pengujian di `proses.md`.
+## 4. Rencana Implementasi Bertahap
+
+### Tahap 1: Pembuatan `services/opticalPowerService.js`
+- `calculateTheoreticalLoss(params)`: Fungsi murni kalkulasi link budget.
+- `evaluateOpticalQuality(rxActual, rxEstimated)`: Evaluasi status mutu dan analisa diagnosa.
+- `extractRxFromParams(paramsJson)`: Helper ekstraksi dan konversi unit raw nanowatts ke dBm.
+- `getDualAcsRxPowerMap()`: Mengagregasi data RX power terkini dari tabel `acs_devices` dan mencocokkan ke database pelanggan.
+- `getOpticalNetworkTopologyData()`: Mengombinasikan data geografis ODP, ODC, pelanggan, jarak rute kabel, dan RX power untuk disuntikkan ke tampilan peta.
+
+### Tahap 2: Integrasi Rute Backend (`routes/admin/maps.js`, `routes/adminPortal.js`, `routes/techPortal.js`)
+- Menyuntikkan `opticalData` pada `res.render('admin/map')` dan `res.render('tech/map')` via `<script id="optical-data">`.
+- Menyediakan endpoint REST API:
+  - `GET /admin/api/optical-budget/live`
+  - `GET /tech/api/optical-budget/live`
+
+### Tahap 3: Pembaruan Tampilan Frontend Peta (`views/admin/map.ejs` & `views/tech/map.ejs`)
+- Desain CSS Card Redaman Optik pada Tooltip Kabel Hover (panjang kabel, loss kabel, RX estimasi, RX aktual, deviasi, status badge).
+- Modal Interaktif "Kalkulator & Diagnosa Redaman Optik":
+  - Simulator interaktif dengan slider TX Power, koefisien redaman, dropdown rasio splitter.
+  - Diagram visual segmen jalur optik.
+  - Rekomendasi aksi teknisi lapangan.
+- Kontrol Layer "Mode Redaman Optik":
+  - Checkbox toggle filter layer.
+  - Pewarnaan dinamis kabel drop & pin pelanggan berdasarkan kualitas redaman.
+  - Floating Optical Legend Card.
+
+### Tahap 4: Pengujian Komprehensif (`tests/opticalPowerBudget.test.js`)
+- Uji perhitungan matematika link budget optik dengan berbagai parameter.
+- Uji ekstraksi RX power dari format TR-069 dan konversi raw optical units.
+- Uji evaluasi kualitas sinyal optik dan diagnosa deviasi.
+- Uji endpoint API dan integritas template EJS.
+
+### Tahap 5: Dokumentasi & Version Bump
+- Update `version.txt` ke `15.6.0`.
+- Tulis laporan implementasi di `proses.md`.

@@ -14,6 +14,7 @@ const adminSvc = require('../services/adminService');
 const agentSvc = require('../services/agentService');
 const oltSvc = require('../services/oltService');
 const odpSvc = require('../services/odpService');
+const opticalPowerSvc = require('../services/opticalPowerService');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -780,6 +781,12 @@ router.get('/map', requireAdminSession, requireSidebarMenuAccess('map'), (req, r
   const customers = customerSvc.getAllCustomers();
   const odps = odpSvc.getAllOdps();
   const olts = db.prepare('SELECT id, name FROM olts WHERE is_active = 1').all();
+  let opticalData = null;
+  try {
+    opticalData = opticalPowerSvc.getOpticalNetworkTopologyData();
+  } catch (e) {
+    logger.error(`[AdminMap] Error generating optical data: ${e.message}`);
+  }
 
   res.render('admin/map', {
     title: 'Peta Jaringan',
@@ -788,9 +795,19 @@ router.get('/map', requireAdminSession, requireSidebarMenuAccess('map'), (req, r
     customers,
     odps,
     olts,
+    opticalData,
     msg: flashMsg(req),
     settings: getSettings()
   });
+});
+
+router.get('/api/optical-budget/live', requireAdminSession, (req, res) => {
+  try {
+    const data = opticalPowerSvc.getOpticalNetworkTopologyData();
+    res.json({ ok: true, data });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
 });
 
 router.get('/api/customers/:id/pppoe-traffic', requireAdminSession, async (req, res) => {

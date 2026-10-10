@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const customerSvc = require('../../services/customerService');
 const odpSvc = require('../../services/odpService');
+const opticalPowerSvc = require('../../services/opticalPowerService');
 const mikrotikService = require('../../services/mikrotikService');
 const sidebarMenuSvc = require('../../services/sidebarMenuService');
 const { getSetting, getSettings } = require('../../config/settingsManager');
@@ -78,6 +79,12 @@ function requireSidebarMenuAccess(menuKey) {
 router.get('/', requireAdminSession, requireSidebarMenuAccess('map'), (req, res) => {
   const customers = customerSvc.getAllCustomers();
   const odps = odpSvc.getAllOdps();
+  let opticalData = null;
+  try {
+    opticalData = opticalPowerSvc.getOpticalNetworkTopologyData();
+  } catch (e) {
+    console.error('[AdminMap] Error generating optical data:', e.message);
+  }
   
   res.render('admin/map', { 
     title: 'Peta Jaringan', 
@@ -85,9 +92,19 @@ router.get('/', requireAdminSession, requireSidebarMenuAccess('map'), (req, res)
     activePage: 'map', 
     customers, 
     odps,
+    opticalData,
     msg: flashMsg(req),
     settings: getSettings()
   });
+});
+
+router.get('/api/optical-budget/live', requireAdminSession, (req, res) => {
+  try {
+    const data = opticalPowerSvc.getOpticalNetworkTopologyData();
+    res.json({ ok: true, data });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
 });
 
 router.get('/api/customers/:id/pppoe-traffic', requireAdminSession, async (req, res) => {

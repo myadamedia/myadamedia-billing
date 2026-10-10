@@ -1024,6 +1024,224 @@
       align-items: center;
       gap: 5px;
     }
+
+    /* Optical Power Link Budget & Dual-ACS Styles */
+    .cable-tooltip-card .ct-optical-box {
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 8px;
+      padding: 8px 10px;
+      margin-top: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .cable-tooltip-card .ct-opt-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+    }
+
+    .cable-tooltip-card .ct-opt-lbl {
+      color: #94a3b8;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .cable-tooltip-card .ct-opt-val {
+      font-weight: 800;
+      font-size: 11.5px;
+      color: #f1f5f9;
+    }
+
+    .ct-status-optimal {
+      background: rgba(16, 185, 129, 0.2) !important;
+      color: #34d399 !important;
+      border: 1px solid rgba(16, 185, 129, 0.4) !important;
+    }
+
+    .ct-status-normal {
+      background: rgba(245, 158, 11, 0.2) !important;
+      color: #fbbf24 !important;
+      border: 1px solid rgba(245, 158, 11, 0.4) !important;
+    }
+
+    .ct-status-warning {
+      background: rgba(249, 115, 22, 0.2) !important;
+      color: #fb923c !important;
+      border: 1px solid rgba(249, 115, 22, 0.4) !important;
+    }
+
+    .ct-status-critical {
+      background: rgba(239, 68, 68, 0.2) !important;
+      color: #f87171 !important;
+      border: 1px solid rgba(239, 68, 68, 0.4) !important;
+    }
+
+    .ct-status-unknown {
+      background: rgba(148, 163, 184, 0.15) !important;
+      color: #94a3b8 !important;
+      border: 1px solid rgba(148, 163, 184, 0.3) !important;
+    }
+
+    /* Floating Optical Mode Legend */
+    .optical-legend-card {
+      position: absolute;
+      bottom: 25px;
+      right: 25px;
+      z-index: 1000;
+      background: rgba(15, 23, 42, 0.94);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      border-radius: 14px;
+      padding: 12px 16px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      font-size: 12px;
+      color: #f1f5f9;
+      min-width: 250px;
+      display: none;
+      animation: fadeIn 0.25s ease-in-out;
+    }
+
+    .optical-legend-card.show {
+      display: block;
+    }
+
+    .olc-title {
+      font-weight: 800;
+      font-size: 12.5px;
+      color: #38bdf8;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+    }
+
+    .olc-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 5px;
+      font-size: 11.5px;
+    }
+
+    .olc-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #cbd5e1;
+    }
+
+    .olc-line {
+      width: 16px;
+      height: 4px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    .olc-range {
+      font-size: 10.5px;
+      color: #94a3b8;
+      font-weight: 700;
+    }
+
+    /* Modal Optical Calculator Styling */
+    .calc-topo-chain {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(56, 189, 248, 0.2);
+      border-radius: 12px;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      overflow-x: auto;
+      gap: 8px;
+    }
+
+    .topo-node {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      min-width: 70px;
+    }
+
+    .topo-node-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      margin-bottom: 4px;
+    }
+
+    .topo-node-name {
+      font-size: 10.5px;
+      font-weight: 800;
+      color: #f1f5f9;
+      white-space: nowrap;
+    }
+
+    .topo-node-sub {
+      font-size: 9px;
+      color: #94a3b8;
+    }
+
+    .topo-arrow {
+      color: #64748b;
+      font-size: 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 45px;
+    }
+
+    .topo-arrow-loss {
+      font-size: 8.5px;
+      color: #38bdf8;
+      font-weight: 700;
+    }
+
+    .calc-slider-box {
+      margin-bottom: 12px;
+    }
+
+    .calc-slider-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11.5px;
+      margin-bottom: 4px;
+      color: #cbd5e1;
+    }
+
+    .calc-slider-val {
+      font-weight: 800;
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      border-radius: 6px;
+      padding: 2px 7px;
+      font-size: 11px;
+    }
+
+    .calc-result-card {
+      background: linear-gradient(135deg, rgba(15, 23, 42, 0.8), rgba(30, 41, 59, 0.8));
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      border-radius: 14px;
+      padding: 16px;
+      height: 100%;
+    }
   </style>
 </head>
 
@@ -1039,7 +1257,11 @@
             <%= title %>
           </span>
         </div>
-        <div class="tb-right">
+        <div class="tb-right" style="display:flex; gap:10px; align-items:center;">
+          <button class="btn btn-sm" onclick="openOpticalCalculatorModal()"
+            style="border-radius:12px; font-weight:700; background:linear-gradient(135deg, #10b981 0%, #059669 100%); color:#fff; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);">
+            <i class="bi bi-calculator-fill me-1"></i> Kalkulator Redaman
+          </button>
           <button class="btn btn-p btn-sm" onclick="openModal('addOdpModal')"
             style="border-radius:12px; font-weight:700;">
             <i class="bi bi-plus-circle me-1"></i>
@@ -1073,6 +1295,11 @@
                   </p>
                 </div>
                 <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                  <button class="btn btn-sm" onclick="openOpticalCalculatorModal()"
+                    style="border-radius: 12px; font-weight: 700; padding: 10px 18px; background:linear-gradient(135deg, #10b981 0%, #059669 100%); color:#fff; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);">
+                    <i class="bi bi-calculator-fill me-1"></i>
+                    Kalkulator Redaman Optik
+                  </button>
                   <button class="btn btn-p btn-sm" onclick="openModal('addOdpModal')"
                     style="border-radius: 12px; font-weight: 700; padding: 10px 18px;">
                     <i class="bi bi-plus-lg me-1"></i>
@@ -1143,7 +1370,7 @@
                 </div>
               </div>
 
-              <div class="legend-grid">
+              <div class="legend-grid" style="grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));">
                 <label class="lc" style="cursor:pointer; user-select:none; margin-bottom:0">
                   <input type="checkbox" id="toggle-odc" checked onchange="toggleLayers()"
                     style="width:16px;height:16px;cursor:pointer">
@@ -1174,9 +1401,60 @@
                   <i style="background: #f87171;"></i>
                   <span>Pelanggan <%= t('admin.map.legend.suspended', 'Isolir' ) %></span>
                 </label>
+                <label class="lc" style="cursor:pointer; user-select:none; margin-bottom:0; background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(6, 182, 212, 0.12)); border: 1px solid rgba(16, 185, 129, 0.4);">
+                  <input type="checkbox" id="toggle-optical-mode" onchange="toggleOpticalMode()"
+                    style="width:16px;height:16px;cursor:pointer">
+                  <i style="background: #10b981; box-shadow: 0 0 10px #10b981;"></i>
+                  <span style="color:#10b981; font-weight:800;"><i class="bi bi-activity me-1"></i>Mode Redaman Optik</span>
+                </label>
               </div>
 
-              <div id="map"></div>
+              <div style="position: relative;">
+                <div id="map"></div>
+
+                <!-- Floating Optical Mode Legend Card -->
+                <div id="opticalLegendCard" class="optical-legend-card">
+                  <div class="olc-title">
+                    <span><i class="bi bi-activity me-1"></i> Legenda Kualitas Optik</span>
+                    <span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-size: 10px;">Dual-ACS</span>
+                  </div>
+                  <div class="olc-item">
+                    <div class="olc-label">
+                      <div class="olc-line" style="background: #10b981; box-shadow: 0 0 6px #10b981;"></div>
+                      <span>Optimal / Prima</span>
+                    </div>
+                    <span class="olc-range">-15 s/d -22.9 dBm</span>
+                  </div>
+                  <div class="olc-item">
+                    <div class="olc-label">
+                      <div class="olc-line" style="background: #f59e0b; box-shadow: 0 0 6px #f59e0b;"></div>
+                      <span>Standar / Wajar</span>
+                    </div>
+                    <span class="olc-range">-23 s/d -26.9 dBm</span>
+                  </div>
+                  <div class="olc-item">
+                    <div class="olc-label">
+                      <div class="olc-line" style="background: #f97316; box-shadow: 0 0 6px #f97316;"></div>
+                      <span>Peringatan Rendah</span>
+                    </div>
+                    <span class="olc-range">-27 s/d -28.9 dBm</span>
+                  </div>
+                  <div class="olc-item">
+                    <div class="olc-label">
+                      <div class="olc-line" style="background: #ef4444; box-shadow: 0 0 6px #ef4444;"></div>
+                      <span>Kritis / Loss</span>
+                    </div>
+                    <span class="olc-range">&lt; -29 dBm / Overload</span>
+                  </div>
+                  <div class="olc-item">
+                    <div class="olc-label">
+                      <div class="olc-line" style="background: #64748b;"></div>
+                      <span>Offline / Unmonitored</span>
+                    </div>
+                    <span class="olc-range">Tidak Terdeteksi</span>
+                  </div>
+                </div>
+              </div>
 
               <div class="odps-panel">
                 <div class="odps-head">
@@ -1454,11 +1732,263 @@
       </div>
     </div>
 
+    <!-- Modal Kalkulator & Diagnosa Redaman Optik -->
+    <div class="mo" id="opticalCalculatorModal">
+      <div class="mb" style="max-width: 950px; width: 95%;">
+        <div class="mh">
+          <span class="mt" style="display:flex; align-items:center; gap:8px;">
+            <i class="bi bi-calculator-fill text-success" style="font-size:20px;"></i>
+            <span>Kalkulator & Diagnosa Redaman Optik (FTTH GPON)</span>
+            <span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-size: 11px;">Dual-ACS Live</span>
+          </span>
+          <button type="button" class="mc" onclick="closeModal('opticalCalculatorModal')">&times;</button>
+        </div>
+        <div class="mbody" style="max-height: calc(85vh - 120px); overflow-y: auto;">
+          <!-- Target Customer Selection -->
+          <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 12px; padding: 14px; margin-bottom: 16px;">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+              <label style="font-size: 12px; font-weight: 800; color: #38bdf8; margin: 0;">
+                <i class="bi bi-person-fill-gear me-1"></i> Pilih Target Pelanggan / Rute Jalur:
+              </label>
+              <div style="display: flex; gap: 8px;">
+                <button type="button" class="btn btn-sm btn-outline-info" onclick="refreshOpticalLive()" style="font-size: 11px; padding: 4px 10px; border-radius: 8px;">
+                  <i class="bi bi-arrow-repeat me-1"></i> Refresh Dual-ACS
+                </button>
+              </div>
+            </div>
+            <select id="calc-customer-select" class="fc" onchange="onSelectCalcCustomer(this.value)" style="border-radius: 10px; font-size: 13px; font-weight: 600;">
+              <option value="">-- Simulasi Mandiri (Custom Link Budget) --</option>
+              <% customers.forEach(c => { %>
+                <option value="<%= c.id %>"><%= c.name %> - <%= c.odp_name || 'Tanpa ODP' %> (<%= c.pppoe_username || c.phone || 'No Tag' %>)</option>
+              <% }) %>
+            </select>
+            <div id="calc-customer-meta" style="display: none; margin-top: 10px; padding-top: 10px; border-top: 1px dashed rgba(148, 163, 184, 0.25); font-size: 11.5px; color: #cbd5e1;">
+              <div class="row g-2">
+                <div class="col-md-4"><strong>Pelanggan:</strong> <span id="ccm-name">-</span></div>
+                <div class="col-md-4"><strong>ODP / ODC:</strong> <span id="ccm-odp">-</span></div>
+                <div class="col-md-4"><strong>Total Jarak Kabel:</strong> <span id="ccm-dist" class="text-info fw-bold">0 meter</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Topologi Rantai Jaringan -->
+          <div class="calc-topo-chain">
+            <div class="topo-node">
+              <div class="topo-node-icon" style="background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4);"><i class="bi bi-building-fill"></i></div>
+              <div class="topo-node-name">NOC / OLT</div>
+              <div class="topo-node-sub" id="topo-tx-display">+3.50 dBm</div>
+            </div>
+            <div class="topo-arrow">
+              <span class="topo-arrow-loss" id="topo-feeder-loss">-0.35 dB</span>
+              <i class="bi bi-arrow-right"></i>
+              <span style="font-size: 8.5px; color: #94a3b8;">Feeder</span>
+            </div>
+            <div class="topo-node">
+              <div class="topo-node-icon" style="background: rgba(167, 139, 250, 0.2); color: #c4b5fd; border: 1px solid rgba(167, 139, 250, 0.4);"><i class="bi bi-hdd-rack-fill"></i></div>
+              <div class="topo-node-name">ODC</div>
+              <div class="topo-node-sub" id="topo-odc-ratio">1:4 (7.2 dB)</div>
+            </div>
+            <div class="topo-arrow">
+              <span class="topo-arrow-loss" id="topo-dist-loss">-0.18 dB</span>
+              <i class="bi bi-arrow-right"></i>
+              <span style="font-size: 8.5px; color: #94a3b8;">Distribusi</span>
+            </div>
+            <div class="topo-node">
+              <div class="topo-node-icon" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);"><i class="bi bi-box-seam-fill"></i></div>
+              <div class="topo-node-name">ODP</div>
+              <div class="topo-node-sub" id="topo-odp-ratio">1:8 (10.5 dB)</div>
+            </div>
+            <div class="topo-arrow">
+              <span class="topo-arrow-loss" id="topo-drop-loss">-0.05 dB</span>
+              <i class="bi bi-arrow-right"></i>
+              <span style="font-size: 8.5px; color: #94a3b8;">Drop Cable</span>
+            </div>
+            <div class="topo-node">
+              <div class="topo-node-icon" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4);"><i class="bi bi-router-fill"></i></div>
+              <div class="topo-node-name">ONT Pelanggan</div>
+              <div class="topo-node-sub" id="topo-rx-display">-16.50 dBm</div>
+            </div>
+          </div>
+
+          <!-- Parameter Sliders & Live Comparison Grid -->
+          <div class="row g-3">
+            <!-- Left: Interactive Sliders -->
+            <div class="col-lg-6">
+              <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 14px; padding: 16px;">
+                <h6 style="color: #38bdf8; font-weight: 800; font-size: 13px; margin-bottom: 14px; display:flex; align-items:center; gap:6px;">
+                  <i class="bi bi-sliders2"></i> Parameter Link Budget Optik
+                </h6>
+
+                <!-- Jarak Drop Cable -->
+                <div class="calc-slider-box">
+                  <div class="calc-slider-head">
+                    <span><i class="bi bi-bezier2 me-1"></i> Panjang Drop Cable (Pelanggan ↔ ODP):</span>
+                    <span class="calc-slider-val" id="val-drop-dist">150 meter</span>
+                  </div>
+                  <input type="range" class="form-range" id="input-drop-dist" min="10" max="2500" step="10" value="150" oninput="onOpticalParamChange()">
+                </div>
+
+                <!-- Jarak Distribusi -->
+                <div class="calc-slider-box">
+                  <div class="calc-slider-head">
+                    <span><i class="bi bi-signpost-split me-1"></i> Jarak Distribusi (ODP ↔ ODC):</span>
+                    <span class="calc-slider-val" id="val-dist-dist">500 meter</span>
+                  </div>
+                  <input type="range" class="form-range" id="input-dist-dist" min="0" max="8000" step="50" value="500" oninput="onOpticalParamChange()">
+                </div>
+
+                <!-- Jarak Feeder -->
+                <div class="calc-slider-box">
+                  <div class="calc-slider-head">
+                    <span><i class="bi bi-hdd-network me-1"></i> Jarak Feeder (ODC ↔ NOC):</span>
+                    <span class="calc-slider-val" id="val-feeder-dist">1000 meter</span>
+                  </div>
+                  <input type="range" class="form-range" id="input-feeder-dist" min="0" max="15000" step="100" value="1000" oninput="onOpticalParamChange()">
+                </div>
+
+                <!-- TX Power SFP OLT -->
+                <div class="calc-slider-box">
+                  <div class="calc-slider-head">
+                    <span><i class="bi bi-broadcast me-1"></i> Tx Power SFP OLT:</span>
+                    <span class="calc-slider-val" id="val-tx-power">+3.50 dBm</span>
+                  </div>
+                  <input type="range" class="form-range" id="input-tx-power" min="1.0" max="7.0" step="0.25" value="3.5" oninput="onOpticalParamChange()">
+                </div>
+
+                <!-- Rasio Splitter ODC & ODP -->
+                <div class="row g-2 mb-2">
+                  <div class="col-6">
+                    <label style="font-size: 11px; font-weight: 700; color: #cbd5e1; margin-bottom: 4px; display:block;">Splitter ODC (Level 1):</label>
+                    <select id="input-odc-ratio" class="fc form-select-sm" onchange="onOpticalParamChange()" style="font-size: 12px; border-radius: 8px;">
+                      <option value="none">Direct / Tanpa Splitter (0 dB)</option>
+                      <option value="1:2">Splitter 1:2 (3.7 dB)</option>
+                      <option value="1:4" selected>Splitter 1:4 (7.2 dB)</option>
+                      <option value="1:8">Splitter 1:8 (10.5 dB)</option>
+                      <option value="1:16">Splitter 1:16 (13.8 dB)</option>
+                    </select>
+                  </div>
+                  <div class="col-6">
+                    <label style="font-size: 11px; font-weight: 700; color: #cbd5e1; margin-bottom: 4px; display:block;">Splitter ODP (Level 2):</label>
+                    <select id="input-odp-ratio" class="fc form-select-sm" onchange="onOpticalParamChange()" style="font-size: 12px; border-radius: 8px;">
+                      <option value="none">Direct / Tanpa Splitter (0 dB)</option>
+                      <option value="1:4">Splitter 1:4 (7.2 dB)</option>
+                      <option value="1:8" selected>Splitter 1:8 (10.5 dB)</option>
+                      <option value="1:16">Splitter 1:16 (13.8 dB)</option>
+                      <option value="1:32">Splitter 1:32 (17.1 dB)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Koefisien Fiber & Konektor -->
+                <div class="row g-2">
+                  <div class="col-6">
+                    <div class="calc-slider-box mb-0">
+                      <div class="calc-slider-head">
+                        <span>Koefisien Fiber:</span>
+                        <span class="calc-slider-val" id="val-attenuation">0.35 dB/km</span>
+                      </div>
+                      <input type="range" class="form-range" id="input-attenuation" min="0.25" max="0.45" step="0.01" value="0.35" oninput="onOpticalParamChange()">
+                    </div>
+                  </div>
+                  <div class="col-6">
+                    <div class="calc-slider-box mb-0">
+                      <div class="calc-slider-head">
+                        <span>Loss Konektor:</span>
+                        <span class="calc-slider-val" id="val-connector">1.50 dB</span>
+                      </div>
+                      <input type="range" class="form-range" id="input-connector" min="0.5" max="3.0" step="0.25" value="1.5" oninput="onOpticalParamChange()">
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: Results & Dual-ACS Comparison -->
+            <div class="col-lg-6">
+              <div class="calc-result-card">
+                <h6 style="color: #34d399; font-weight: 800; font-size: 13px; margin-bottom: 12px; display:flex; align-items:center; justify-content:space-between;">
+                  <span><i class="bi bi-graph-up me-1"></i> Hasil Link Budget & Diagnosa</span>
+                  <span id="res-badge-status" class="badge ct-status-optimal" style="font-size: 11px;">Optimal / Prima</span>
+                </h6>
+
+                <!-- Perbandingan Estimasi vs Aktual -->
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px;">
+                  <div style="background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 10px; padding: 10px; text-align: center;">
+                    <div style="font-size: 10px; color: #94a3b8; text-transform: uppercase; font-weight: 700;">Est. Teoretis</div>
+                    <div id="res-est-rx" style="font-size: 16px; font-weight: 900; color: #38bdf8; margin-top: 3px;">-16.45 dBm</div>
+                  </div>
+                  <div style="background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 10px; padding: 10px; text-align: center;">
+                    <div style="font-size: 10px; color: #94a3b8; text-transform: uppercase; font-weight: 700;">Aktual Dual-ACS</div>
+                    <div id="res-act-rx" style="font-size: 16px; font-weight: 900; color: #34d399; margin-top: 3px;">-18.20 dBm</div>
+                  </div>
+                  <div style="background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 10px; padding: 10px; text-align: center;">
+                    <div style="font-size: 10px; color: #94a3b8; text-transform: uppercase; font-weight: 700;">Deviasi (Δ)</div>
+                    <div id="res-delta-rx" style="font-size: 16px; font-weight: 900; color: #f59e0b; margin-top: 3px;">1.75 dB</div>
+                  </div>
+                </div>
+
+                <!-- Rincian Redaman per Segmen -->
+                <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 10px; padding: 10px 14px; margin-bottom: 14px; font-size: 11.5px;">
+                  <div class="d-flex justify-content-between mb-1 text-slate-300">
+                    <span class="text-muted">Total Jarak Kabel:</span>
+                    <strong id="res-breakdown-cable-dist">1.65 km (1.650 m)</strong>
+                  </div>
+                  <div class="d-flex justify-content-between mb-1 text-slate-300">
+                    <span class="text-muted">Redaman Kabel Fiber (0.35 dB/km):</span>
+                    <strong id="res-breakdown-cable-loss" class="text-info">0.58 dB</strong>
+                  </div>
+                  <div class="d-flex justify-content-between mb-1 text-slate-300">
+                    <span class="text-muted">Redaman Splitter (ODC + ODP):</span>
+                    <strong id="res-breakdown-splitter-loss" class="text-warning">17.70 dB</strong>
+                  </div>
+                  <div class="d-flex justify-content-between mb-1 text-slate-300">
+                    <span class="text-muted">Konektor Adaptor & Sambungan Splicing:</span>
+                    <strong id="res-breakdown-conn-loss">1.50 dB</strong>
+                  </div>
+                  <div class="d-flex justify-content-between pt-2 border-top border-slate-700" style="font-size: 12px;">
+                    <span class="fw-bold text-white">Total Redaman Teoretis (Loss):</span>
+                    <strong id="res-breakdown-total-loss" class="text-danger">19.78 dB</strong>
+                  </div>
+                </div>
+
+                <!-- Diagnosa & Rekomendasi Lapangan -->
+                <div id="res-diagnosis-box" style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 10px; padding: 12px; margin-bottom: 10px;">
+                  <div style="font-weight: 800; font-size: 12px; color: #34d399; margin-bottom: 4px; display:flex; align-items:center; gap:6px;">
+                    <i class="bi bi-shield-check" id="res-diag-icon"></i> <span id="res-diag-title">Diagnosa Sistem</span>
+                  </div>
+                  <div id="res-diag-desc" style="font-size: 11.5px; color: #e2e8f0; line-height: 1.4; margin-bottom: 6px;">
+                    Redaman optik sangat ideal, transmisi GPON berkinerja prima.
+                  </div>
+                  <div id="res-diag-rec" style="font-size: 11px; color: #94a3b8; font-style: italic;">
+                    <i class="bi bi-tools me-1"></i> Rekomendasi: Koneksi optik stabil. Tidak memerlukan tindakan perbaikan.
+                  </div>
+                </div>
+
+                <!-- Info Dual-ACS Source -->
+                <div id="res-acs-source-box" style="font-size: 10.5px; color: #94a3b8; display:flex; justify-content:space-between; align-items:center;">
+                  <span><i class="bi bi-hdd-network me-1"></i> Sumber ACS: <b id="res-acs-source" class="text-slate-200">Built-in ACS</b></span>
+                  <span>Update: <b id="res-acs-time" class="text-slate-200">-</b></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="mf">
+          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="resetOpticalSimulation()">
+            <i class="bi bi-arrow-counterclockwise me-1"></i> Reset Parameter
+          </button>
+          <button type="button" class="btn btn-g" onclick="closeModal('opticalCalculatorModal')">Tutup</button>
+        </div>
+      </div>
+    </div>
+
     <script id="settings-data" type="application/json"><%- JSON.stringify(settings) %></script>
     <script id="customers-data"
       type="application/json"><%- JSON.stringify(customers).replace(/<\/script/g, '<\\/script').replace(/<!--/g, '<\\!--') %></script>
     <script id="odps-data"
       type="application/json"><%- JSON.stringify(odps).replace(/<\/script/g, '<\\/script').replace(/<!--/g, '<\\!--') %></script>
+    <script id="optical-data"
+      type="application/json"><%- JSON.stringify(typeof opticalData !== 'undefined' && opticalData ? opticalData : { summary: {}, customers: {} }).replace(/<\/script/g, '<\\/script').replace(/<!--/g, '<\\!--') %></script>
     <script>
       const I18N = {
         layerDark: "<%= t('admin.map.layers.dark', 'Mode Gelap (Dark Mode)') %>",
@@ -1533,12 +2063,17 @@
       const freeCustGroup = L.layerGroup().addTo(map);
       const suspendedCustGroup = L.layerGroup().addTo(map);
       const odpMarkerObjects = {};
+      const customerDropPolylines = [];
+      const customerMarkerObjects = [];
+      let isOpticalModeActive = false;
 
       let customers = [];
       let odps = [];
+      let opticalData = { summary: {}, customers: {} };
       try {
         customers = JSON.parse(document.getElementById('customers-data').textContent || '[]');
         odps = JSON.parse(document.getElementById('odps-data').textContent || '[]');
+        opticalData = JSON.parse(document.getElementById('optical-data').textContent || '{"summary":{},"customers":{}}');
       } catch (e) {
         console.error("Data mapping error:", e);
       }
@@ -1839,6 +2374,15 @@
             const cableDistanceMeters = calculateCableDistance(pathCoords);
             const formattedDist = formatCableDistance(cableDistanceMeters);
 
+            // Data Redaman Optik (Link Budget & Dual-ACS)
+            const optInfo = opticalData && opticalData.customers ? opticalData.customers[cust.id] : null;
+            const rxEstStr = optInfo && optInfo.budget ? optInfo.budget.estimatedRxPowerDbm + ' dBm' : '-';
+            const rxActStr = optInfo && optInfo.acs && optInfo.acs.rxPower !== null ? optInfo.acs.rxPower + ' dBm' : (optInfo && optInfo.acs && optInfo.acs.isOnline ? 'Online (N/A)' : 'Offline / -');
+            const deltaStr = optInfo && optInfo.evaluation && optInfo.evaluation.deltaDbm !== null ? optInfo.evaluation.deltaDbm + ' dB' : '-';
+            const optStatusLabel = optInfo && optInfo.evaluation ? optInfo.evaluation.statusLabel : 'Belum Terdeteksi';
+            const optBadgeClass = optInfo && optInfo.evaluation ? optInfo.evaluation.badgeClass : 'ct-status-unknown';
+            const optColor = optInfo && optInfo.evaluation ? optInfo.evaluation.color : '#94a3b8';
+
             const tooltipHtml = `
               <div class="cable-tooltip-card">
                 <div class="ct-header">
@@ -1862,6 +2406,32 @@
                   <div class="ct-dist-label"><i class="bi bi-rulers"></i> Panjang Jalur Kabel:</div>
                   <div class="ct-dist-val">${formattedDist}</div>
                 </div>
+
+                <!-- Bagian Redaman Optik Link Budget & Dual-ACS -->
+                <div class="ct-optical-box">
+                  <div class="ct-opt-row" style="margin-bottom: 2px;">
+                    <span class="ct-opt-lbl"><i class="bi bi-activity" style="color:${optColor};"></i> Status Optik:</span>
+                    <span class="badge ${optBadgeClass}" style="font-size:10px; padding:2px 6px;">${optStatusLabel}</span>
+                  </div>
+                  <div class="ct-opt-row">
+                    <span class="ct-opt-lbl"><i class="bi bi-calculator"></i> Est. Link Budget:</span>
+                    <strong class="ct-opt-val" style="color:#38bdf8;">${rxEstStr}</strong>
+                  </div>
+                  <div class="ct-opt-row">
+                    <span class="ct-opt-lbl"><i class="bi bi-reception-4"></i> RX Aktual Dual-ACS:</span>
+                    <strong class="ct-opt-val" style="color:${optColor};">${rxActStr}</strong>
+                  </div>
+                  <div class="ct-opt-row">
+                    <span class="ct-opt-lbl"><i class="bi bi-arrow-left-right"></i> Deviasi (\u0394):</span>
+                    <strong class="ct-opt-val" style="color:${deltaStr !== '-' && parseFloat(deltaStr) > 4 ? '#f87171' : '#cbd5e1'};">${deltaStr}</strong>
+                  </div>
+                </div>
+
+                <div style="margin-top: 6px; text-align: center;">
+                  <button type="button" class="btn btn-sm" onclick="openOpticalCalculatorModal(${cust.id})" style="width: 100%; font-size: 10.5px; padding: 4px 8px; border-radius: 6px; background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.35);">
+                    <i class="bi bi-calculator-fill me-1"></i> Buka Simulasi Redaman
+                  </button>
+                </div>
                 ${cust.package_name ? `<div class="ct-extra"><i class="bi bi-speedometer2"></i> Paket: ${escapeHtml(cust.package_name)}</div>` : ''}
               </div>
             `;
@@ -1873,6 +2443,13 @@
               dashArray: '8, 8',
               className: 'flowing-line'
             }).addTo(targetGroup);
+
+            customerDropPolylines.push({
+              polyline,
+              customerId: cust.id,
+              defaultColor: cableColor,
+              opticalColor: optColor
+            });
 
             polyline.bindTooltip(tooltipHtml, {
               sticky: true,
@@ -1891,7 +2468,7 @@
 
             polyline.on('mouseout', function () {
               this.setStyle({
-                weight: 3,
+                weight: isOpticalModeActive ? 4 : 3,
                 opacity: 0.85
               });
             });
@@ -1921,6 +2498,18 @@
             })
           }).addTo(targetGroup);
 
+          const optInfoCust = opticalData && opticalData.customers ? opticalData.customers[cust.id] : null;
+          const optColorCust = optInfoCust && optInfoCust.evaluation ? optInfoCust.evaluation.color : '#94a3b8';
+          const rxActStrCust = optInfoCust && optInfoCust.acs && optInfoCust.acs.rxPower !== null ? optInfoCust.acs.rxPower + ' dBm' : (optInfoCust && optInfoCust.acs && optInfoCust.acs.isOnline ? 'Online (N/A)' : 'Offline / -');
+          const rxEstStrCust = optInfoCust && optInfoCust.budget ? optInfoCust.budget.estimatedRxPowerDbm + ' dBm' : '-';
+
+          customerMarkerObjects.push({
+            marker,
+            customerId: cust.id,
+            defaultHtml: markerHtml,
+            opticalColor: optColorCust
+          });
+
           const statusBadgeClass = is_free ? 'cp-chip-free' : (is_active ? 'cp-chip-active' : 'cp-chip-suspended');
           const statusText = is_free ? 'Free' : (is_active ? I18N.statusActive : I18N.statusSuspended);
 
@@ -1941,6 +2530,7 @@
             <div class="cp-meta-item"><i class="bi bi-router"></i><span>${cust.pppoe_username || '-'}</span></div>
             <div class="cp-meta-item"><i class="bi bi-tag"></i><span>${cust.genieacs_tag || '-'}</span></div>
             <div class="cp-meta-item"><i class="bi bi-receipt"></i><span>${Number(cust.unpaid_count || 0)} belum bayar</span></div>
+            <div class="cp-meta-item"><i class="bi bi-activity" style="color:${optColorCust};"></i><span>Redaman: <strong style="color:${optColorCust};">${rxActStrCust}</strong> (Est: ${rxEstStrCust})</span></div>
             <div class="cp-meta-item"><i class="bi bi-geo-alt"></i><span>${cust.address || '-'}</span></div>
           </div>
 
@@ -1962,6 +2552,7 @@
 
           <div class="popup-actions">
              <button onclick="startCableDrawing(${cust.id}, ${cust.lat}, ${cust.lng}, ${cust.odp_id})" class="btn btn-sm btn-p"><i class="bi bi-pencil-fill me-1"></i>Gambar Jalur</button>
+             <button onclick="openOpticalCalculatorModal(${cust.id})" class="btn btn-sm btn-outline-success" style="padding: 4px 8px; font-size: 11px; border-radius: 6px;"><i class="bi bi-calculator-fill me-1"></i>Redaman</button>
              <a href="/admin/customers?search=${encodeURIComponent(cust.name || '')}" class="btn btn-sm btn-g"><i class="bi bi-eye me-1"></i>Detail</a>
              <a href="${waLink}" target="_blank" class="btn btn-sm btn-wa"><i class="bi bi-whatsapp"></i></a>
           </div>
@@ -2626,11 +3217,294 @@
         return `https://wa.me/${to}?text=${encodeURIComponent(msg)}`;
       }
 
-      function buildMapsLink(lat, lng) {
-        const la = Number(lat);
-        const lo = Number(lng);
-        if (!Number.isFinite(la) || !Number.isFinite(lo)) return 'javascript:void(0)';
-        return `https://www.google.com/maps?q=${encodeURIComponent(String(la))},${encodeURIComponent(String(lo))}`;
+      // ─── OPTICAL POWER BUDGET CALCULATOR & DUAL-ACS FUNCTIONS ───
+
+      function toggleOpticalMode() {
+        const chk = document.getElementById('toggle-optical-mode');
+        isOpticalModeActive = chk ? chk.checked : false;
+
+        const legendCard = document.getElementById('opticalLegendCard');
+        if (legendCard) {
+          if (isOpticalModeActive) legendCard.classList.add('show');
+          else legendCard.classList.remove('show');
+        }
+
+        // Restyle Polylines
+        customerDropPolylines.forEach(item => {
+          if (item.polyline) {
+            item.polyline.setStyle({
+              color: isOpticalModeActive ? item.opticalColor : item.defaultColor,
+              weight: isOpticalModeActive ? 4 : 3,
+              opacity: isOpticalModeActive ? 0.95 : 0.85,
+              dashArray: isOpticalModeActive ? null : '8, 8'
+            });
+          }
+        });
+
+        // Restyle Markers
+        customerMarkerObjects.forEach(item => {
+          if (item.marker && item.marker.setIcon) {
+            if (isOpticalModeActive) {
+              const glowHtml = `
+                <div class="cust-pin-wrapper" title="Optical Signal Level">
+                  <div class="cust-pin-pulse" style="background:${item.opticalColor}; opacity:0.6;"></div>
+                  <div class="cust-pin" style="background:${item.opticalColor}; border:2px solid #ffffff; box-shadow: 0 0 14px ${item.opticalColor}; color:#ffffff;">
+                    <i class="bi bi-activity"></i>
+                  </div>
+                </div>
+              `;
+              item.marker.setIcon(L.divIcon({
+                html: glowHtml,
+                className: 'custom-div-icon',
+                iconSize: [32, 32],
+                iconAnchor: [16, 16]
+              }));
+            } else {
+              item.marker.setIcon(L.divIcon({
+                html: item.defaultHtml,
+                className: 'custom-div-icon',
+                iconSize: [32, 32],
+                iconAnchor: [16, 16]
+              }));
+            }
+          }
+        });
+      }
+
+      function getSplitterLossClient(ratio) {
+        const map = {
+          '1:1': 0.0, 'none': 0.0, 'direct': 0.0,
+          '1:2': 3.7, '1:4': 7.2, '1:8': 10.5,
+          '1:16': 13.8, '1:32': 17.1, '1:64': 20.5
+        };
+        return map[ratio] !== undefined ? map[ratio] : 0.0;
+      }
+
+      function openOpticalCalculatorModal(customerId) {
+        const select = document.getElementById('calc-customer-select');
+        if (select) {
+          if (customerId) {
+            select.value = String(customerId);
+          } else if (!select.value && customers.length > 0) {
+            select.value = String(customers[0].id);
+          }
+          onSelectCalcCustomer(select.value);
+        }
+        openModal('opticalCalculatorModal');
+      }
+
+      function onSelectCalcCustomer(customerId) {
+        const metaBox = document.getElementById('calc-customer-meta');
+        if (!customerId) {
+          if (metaBox) metaBox.style.display = 'none';
+          runOpticalSimulation();
+          return;
+        }
+
+        const optCust = opticalData && opticalData.customers ? opticalData.customers[customerId] : null;
+        const custObj = customers.find(c => String(c.id) === String(customerId));
+
+        if (metaBox) {
+          metaBox.style.display = 'block';
+          document.getElementById('ccm-name').textContent = custObj ? custObj.name : '-';
+          document.getElementById('ccm-odp').textContent = optCust ? optCust.odpName : (custObj && custObj.odp_name ? custObj.odp_name : '-');
+          const totalMeters = optCust && optCust.budget ? optCust.budget.totalCableDistanceMeters : 0;
+          document.getElementById('ccm-dist').textContent = formatCableDistance(totalMeters);
+        }
+
+        if (optCust && optCust.budget) {
+          document.getElementById('input-drop-dist').value = optCust.budget.dropDistanceMeters || 150;
+          document.getElementById('input-dist-dist').value = optCust.budget.distributionDistanceMeters || 500;
+          document.getElementById('input-feeder-dist').value = optCust.budget.feederDistanceMeters || 1000;
+          document.getElementById('input-tx-power').value = optCust.budget.txPowerDbm || 3.5;
+          document.getElementById('input-odc-ratio').value = optCust.budget.odcSplitRatio || '1:4';
+          document.getElementById('input-odp-ratio').value = optCust.budget.odpSplitRatio || '1:8';
+          document.getElementById('input-attenuation').value = 0.35;
+          document.getElementById('input-connector').value = 1.5;
+        }
+
+        runOpticalSimulation();
+      }
+
+      function onOpticalParamChange() {
+        runOpticalSimulation();
+      }
+
+      function runOpticalSimulation() {
+        const dropDist = parseFloat(document.getElementById('input-drop-dist').value) || 0;
+        const distDist = parseFloat(document.getElementById('input-dist-dist').value) || 0;
+        const feederDist = parseFloat(document.getElementById('input-feeder-dist').value) || 0;
+        const txPower = parseFloat(document.getElementById('input-tx-power').value) || 3.5;
+        const odcRatio = document.getElementById('input-odc-ratio').value || '1:4';
+        const odpRatio = document.getElementById('input-odp-ratio').value || '1:8';
+        const attenuation = parseFloat(document.getElementById('input-attenuation').value) || 0.35;
+        const connectorLoss = parseFloat(document.getElementById('input-connector').value) || 1.5;
+
+        // Update Slider Display Badges
+        document.getElementById('val-drop-dist').textContent = `${Math.round(dropDist)} meter`;
+        document.getElementById('val-dist-dist').textContent = `${Math.round(distDist)} meter`;
+        document.getElementById('val-feeder-dist').textContent = `${Math.round(feederDist)} meter`;
+        document.getElementById('val-tx-power').textContent = `${txPower >= 0 ? '+' : ''}${txPower.toFixed(2)} dBm`;
+        document.getElementById('val-attenuation').textContent = `${attenuation.toFixed(2)} dB/km`;
+        document.getElementById('val-connector').textContent = `${connectorLoss.toFixed(2)} dB`;
+
+        // Calculations
+        const feederLoss = (feederDist / 1000) * attenuation;
+        const distLoss = (distDist / 1000) * attenuation;
+        const dropLoss = (dropDist / 1000) * attenuation;
+        const totalCableDist = feederDist + distDist + dropDist;
+        const totalCableLoss = feederLoss + distLoss + dropLoss;
+
+        const odcLoss = getSplitterLossClient(odcRatio);
+        const odpLoss = getSplitterLossClient(odpRatio);
+        const totalSplitterLoss = odcLoss + odpLoss;
+
+        const totalLoss = totalCableLoss + totalSplitterLoss + connectorLoss;
+        const estRx = txPower - totalLoss;
+
+        // Update Topo Chain
+        document.getElementById('topo-tx-display').textContent = `${txPower >= 0 ? '+' : ''}${txPower.toFixed(2)} dBm`;
+        document.getElementById('topo-feeder-loss').textContent = `-${feederLoss.toFixed(2)} dB`;
+        document.getElementById('topo-odc-ratio').textContent = `${odcRatio} (${odcLoss.toFixed(1)} dB)`;
+        document.getElementById('topo-dist-loss').textContent = `-${distLoss.toFixed(2)} dB`;
+        document.getElementById('topo-odp-ratio').textContent = `${odpRatio} (${odpLoss.toFixed(1)} dB)`;
+        document.getElementById('topo-drop-loss').textContent = `-${dropLoss.toFixed(2)} dB`;
+        document.getElementById('topo-rx-display').textContent = `${estRx.toFixed(2)} dBm`;
+
+        // Update Breakdown Card
+        document.getElementById('res-breakdown-cable-dist').textContent = `${(totalCableDist / 1000).toFixed(2)} km (${Math.round(totalCableDist).toLocaleString('id-ID')} m)`;
+        document.getElementById('res-breakdown-cable-loss').textContent = `${totalCableLoss.toFixed(2)} dB`;
+        document.getElementById('res-breakdown-splitter-loss').textContent = `${totalSplitterLoss.toFixed(2)} dB`;
+        document.getElementById('res-breakdown-conn-loss').textContent = `${connectorLoss.toFixed(2)} dB`;
+        document.getElementById('res-breakdown-total-loss').textContent = `${totalLoss.toFixed(2)} dB`;
+        document.getElementById('res-est-rx').textContent = `${estRx.toFixed(2)} dBm`;
+
+        // Check Selected Customer Actual Data
+        const custId = document.getElementById('calc-customer-select').value;
+        const optCust = (custId && opticalData && opticalData.customers) ? opticalData.customers[custId] : null;
+
+        let actRx = null;
+        let acsSource = 'Built-in ACS';
+        let acsTime = '-';
+
+        if (optCust && optCust.acs) {
+          actRx = optCust.acs.rxPower;
+          acsSource = optCust.acs.acsSource || 'Dual-ACS';
+          acsTime = optCust.acs.lastInform ? new Date(optCust.acs.lastInform).toLocaleTimeString('id-ID') : '-';
+        }
+
+        const resActEl = document.getElementById('res-act-rx');
+        const resDeltaEl = document.getElementById('res-delta-rx');
+        const resBadge = document.getElementById('res-badge-status');
+        const diagBox = document.getElementById('res-diagnosis-box');
+        const diagIcon = document.getElementById('res-diag-icon');
+        const diagTitle = document.getElementById('res-diag-title');
+        const diagDesc = document.getElementById('res-diag-desc');
+        const diagRec = document.getElementById('res-diag-rec');
+
+        document.getElementById('res-acs-source').textContent = acsSource;
+        document.getElementById('res-acs-time').textContent = acsTime;
+
+        if (actRx !== null && Number.isFinite(actRx)) {
+          resActEl.textContent = `${actRx.toFixed(2)} dBm`;
+          const delta = Math.abs(actRx - estRx);
+          resDeltaEl.textContent = `${delta.toFixed(2)} dB`;
+
+          // Evaluate Status
+          let statusLabel = 'Optimal / Prima';
+          let statusBadgeClass = 'ct-status-optimal';
+          let boxBorder = 'rgba(16, 185, 129, 0.4)';
+          let boxBg = 'rgba(16, 185, 129, 0.12)';
+          let iconClass = 'bi-shield-check';
+          let descText = 'Redaman optik sangat ideal, transmisi GPON berkinerja prima.';
+          let recText = 'Rekomendasi: Koneksi optik stabil. Tidak memerlukan tindakan pemeliharaan.';
+
+          if (actRx > -8.0) {
+            statusLabel = 'Sinyal Overload';
+            statusBadgeClass = 'ct-status-critical';
+            boxBorder = 'rgba(236, 72, 153, 0.4)';
+            boxBg = 'rgba(236, 72, 153, 0.12)';
+            iconClass = 'bi-exclamation-octagon-fill';
+            descText = 'Sinyal optik terlalu kuat (> -8 dBm). Berisiko merusak receiver ONT.';
+            recText = 'Rekomendasi: Pasang optical attenuator atau naikkan rasio splitter ODP.';
+          } else if (actRx < -29.0) {
+            statusLabel = 'Kritis / Redaman Buruk';
+            statusBadgeClass = 'ct-status-critical';
+            boxBorder = 'rgba(239, 68, 68, 0.4)';
+            boxBg = 'rgba(239, 68, 68, 0.12)';
+            iconClass = 'bi-slash-circle-fill';
+            descText = 'Sinyal di bawah sensitivitas minimum receiver ONT (< -29 dBm). Rawan gangguan disconnect.';
+            recText = 'Rekomendasi: Periksa tekukan kabel drop (macro-bending), bersihkan konektor SC/APC, atau uji redaman dengan OPM.';
+          } else if (actRx < -27.0) {
+            statusLabel = 'Peringatan / Sinyal Rendah';
+            statusBadgeClass = 'ct-status-warning';
+            boxBorder = 'rgba(249, 115, 22, 0.4)';
+            boxBg = 'rgba(249, 115, 22, 0.12)';
+            iconClass = 'bi-exclamation-triangle-fill';
+            descText = 'Sinyal mendekati ambang batas putus (-27 s/d -28.9 dBm).';
+            recText = 'Rekomendasi: Inspeksi jalur kabel dan pastikan adapter ODP tertancap rapat.';
+          } else if (actRx < -23.0) {
+            statusLabel = 'Standar / Wajar';
+            statusBadgeClass = 'ct-status-normal';
+            boxBorder = 'rgba(245, 158, 11, 0.4)';
+            boxBg = 'rgba(245, 158, 11, 0.12)';
+            iconClass = 'bi-info-circle-fill';
+            descText = 'Kualitas sinyal dalam batas operasional wajar FTTH GPON.';
+            recText = 'Rekomendasi: Link aman dan dapat diandalkan.';
+          }
+
+          if (delta > 4.5) {
+            descText += ` Perhatian: Deviasi tinggi (${delta.toFixed(2)} dB di bawah estimasi). Kemungkinan besar terdapat lekukan tajam kabel atau sambungan fusion kotor.`;
+          }
+
+          resBadge.textContent = statusLabel;
+          resBadge.className = `badge ${statusBadgeClass}`;
+          diagBox.style.borderColor = boxBorder;
+          diagBox.style.background = boxBg;
+          diagIcon.className = `bi ${iconClass}`;
+          diagTitle.textContent = statusLabel;
+          diagDesc.textContent = descText;
+          diagRec.innerHTML = `<i class="bi bi-tools me-1"></i> ${recText}`;
+        } else {
+          resActEl.textContent = 'Belum Ada';
+          resDeltaEl.textContent = '-';
+          resBadge.textContent = 'Estimasi Teoretis Saja';
+          resBadge.className = 'badge ct-status-unknown';
+          diagBox.style.borderColor = 'rgba(56, 189, 248, 0.3)';
+          diagBox.style.background = 'rgba(56, 189, 248, 0.08)';
+          diagIcon.className = 'bi bi-info-circle';
+          diagTitle.textContent = 'Simulasi Desain Link Budget';
+          diagDesc.textContent = `Berdasarkan parameter topologi kabel, estimasi daya terima pada ONT adalah ${estRx.toFixed(2)} dBm.`;
+          diagRec.innerHTML = '<i class="bi bi-broadcast me-1"></i> Hubungkan ONT ke Dual-ACS untuk mendapatkan verifikasi redaman aktual secara real-time.';
+        }
+      }
+
+      function resetOpticalSimulation() {
+        document.getElementById('input-drop-dist').value = 150;
+        document.getElementById('input-dist-dist').value = 500;
+        document.getElementById('input-feeder-dist').value = 1000;
+        document.getElementById('input-tx-power').value = 3.5;
+        document.getElementById('input-odc-ratio').value = '1:4';
+        document.getElementById('input-odp-ratio').value = '1:8';
+        document.getElementById('input-attenuation').value = 0.35;
+        document.getElementById('input-connector').value = 1.5;
+        runOpticalSimulation();
+      }
+
+      async function refreshOpticalLive() {
+        try {
+          const res = await fetch('/admin/api/optical-budget/live');
+          const json = await res.json();
+          if (json.ok && json.data) {
+            opticalData = json.data;
+            runOpticalSimulation();
+            if (isOpticalModeActive) {
+              toggleOpticalMode();
+            }
+          }
+        } catch (err) {
+          console.error("Gagal refresh live optical data:", err);
+        }
       }
     </script>
 </body>

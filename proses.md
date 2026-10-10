@@ -2,6 +2,74 @@
 
 ---
 
+## [2026-10-11] Implementasi Kalkulator Redaman Optik di Peta Jaringan (Link Budget GPON + Integrasi RX Power Dual-ACS)
+
+### 1. Kebutuhan Fitur & Analisis Permasalahan
+- **Latar Belakang**:
+  1. Aplikasi telah memiliki data rute jalur kabel fiber optik (Feeder, Distribusi, dan Drop Cable) serta fitur Dual-ACS (Built-in ACS + External GenieACS).
+  2. Pengguna meminta penambahan fitur **"Kalkulator Redaman Optik di Peta"** yang memanfaatkan kedua data tersebut secara terintegrasi.
+  3. Administrator dan teknisi lapangan membutuhkan visualisasi dan verifikasi matematis mutu sinyal optik:
+     - Berapa redaman teoretis (link budget) berdasarkan panjang kabel aktual dan rasio splitter ODC/ODP yang terpasang?
+     - Berapa daya terima (RX Power) riil yang terukur pada modem ONT/ONU pelanggan melalui Dual-ACS?
+     - Apakah terdapat deviasi mencurigakan ($\Delta = |\text{RX Aktual} - \text{RX Teoretis}|$) yang mengindikasikan adanya lekukan tajam (*macro-bending*), kabel terjepit di tiang, atau konektor adaptor kotor?
+
+### 2. Solusi yang Diterapkan (Clean Architecture & Production-Ready)
+1. **Service Domain Khusus (`services/opticalPowerService.js`)**:
+   - Membangun service independen dengan prinsip SOLID & Clean Architecture:
+     - **Formula Haversine & Geodetik**: Menghitung jarak akumulatif kabel secara presisi berdasarkan array koordinat polyline rute kabel.
+     - **Tabel Insertion Loss Splitter Standar**: Mengakomodasi rasio splitter standar GPON (`1:2` = 3.7 dB, `1:4` = 7.2 dB, `1:8` = 10.5 dB, `1:16` = 13.8 dB, `1:32` = 17.1 dB, `1:64` = 20.5 dB, `direct`/`none` = 0 dB).
+     - **Link Budget GPON Calculation**:
+       $$\text{Loss Kabel} = (\text{Feeder} + \text{Distribusi} + \text{Drop}) \times 0.35\text{ dB/km}$$
+       $$\text{Total Loss} = \text{Loss Kabel} + \text{Loss Splitter ODC} + \text{Loss Splitter ODP} + \text{Loss Konektor/Splicing}$$
+       $$\text{Estimated RX} = \text{TX Power SFP OLT} - \text{Total Loss}$$
+     - **Parser TR-069 Optical Unit**: Mendukung pembacaan desimal dBm standar maupun konversi unit linear vendor ONT ($0.1\,\mu\text{W} \rightarrow 30 + 10 \times \log_{10}(\text{val} \times 10^{-7})$).
+     - **Evaluasi Mutu & Diagnosa Deviasi**:
+       - *Optimal / Prima*: -15.00 s/d -22.99 dBm (`#10b981`)
+       - *Standar / Wajar*: -23.00 s/d -26.99 dBm (`#f59e0b`)
+       - *Peringatan Rendah*: -27.00 s/d -28.99 dBm (`#f97316`)
+       - *Kritis / Loss*: < -29.00 dBm (`#ef4444`)
+       - *Overload*: > -8.00 dBm (`#ec4899`)
+       - *Deviasi $\Delta > 4.5\text{ dB}$*: Diagnosis otomatis mendeteksi potensi macro-bending tajam atau sambungan kotor.
+     - **Dual-ACS Aggregator**: Menghubungkan pembacaan parameter optical power dari Built-in ACS (`acs_devices`) dan External GenieACS dengan pencocokan multi-key (GenieACS Tag, PPPoE Username, Nomor HP).
+
+2. **Rute Backend Portal Admin & Teknisi**:
+   - [`routes/adminPortal.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/routes/adminPortal.js) & [`routes/admin/maps.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/routes/admin/maps.js):
+     - Rute `GET /map` menyuntikkan `opticalData = opticalPowerSvc.getOpticalNetworkTopologyData()`.
+     - Endpoint `GET /api/optical-budget/live` menyediakan live polling data redaman optik tanpa reload halaman.
+   - [`routes/techPortal.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/routes/techPortal.js):
+     - Rute `GET /tech/map` dan endpoint `GET /tech/api/optical-budget/live` menyuntikkan data yang sama untuk portal teknisi lapangan.
+
+3. **Antarmuka Interaktif Admin (`views/admin/map.ejs`) & Teknisi (`views/tech/map.ejs`)**:
+   - **Hover Tooltip Kabel Drop**: Ditambahkan box ringkasan redaman optik (`.ct-optical-box`) yang menampilkan status mutu sinyal, estimasi link budget, RX aktual Dual-ACS, deviasi $\Delta$, serta tombol cepat *"Buka Simulasi Redaman"*.
+   - **Popup Customer Marker**: Menampilkan indikator redaman optik dan tombol *"Redaman"* yang langsung membuka modal kalkulator.
+   - **Layer Switcher "Mode Redaman Optik"**:
+     - Checkbox toggle layer di legend bar (`#toggle-optical-mode`).
+     - Saat diaktifkan, kabel drop dan marker pelanggan berubah warna secara dinamis menjadi visual heatmap mutu sinyal optik:
+       - Hijau (`#10b981`): Optimal
+       - Kuning (`#f59e0b`): Normal
+       - Oranye (`#f97316`): Warning
+       - Merah (`#ef4444`): Kritis
+       - Abu-abu (`#64748b`): Unmonitored / Offline
+   - **Floating Optical Legend Card (`#opticalLegendCard`)**: Kartu legenda mengambang di pojok bawah peta yang otomatis muncul saat Mode Redaman Optik aktif.
+   - **Modal Simulator Interaktif (`#opticalCalculatorModal`)**:
+     - Dropdown pemilihan pelanggan (auto-populate panjang kabel aktual dan ODP induk).
+     - Rantai visual topologi link (OLT SFP $\rightarrow$ Feeder $\rightarrow$ ODC $\rightarrow$ Distribusi $\rightarrow$ ODP $\rightarrow$ Drop Cable $\rightarrow$ ONT).
+     - Live reactive slider simulasi: TX Power SFP OLT, rasio splitter ODC & ODP, panjang kabel per segmen, koefisien redaman fiber, dan loss konektor.
+     - Perbandingan teoretis vs aktual Dual-ACS vs deviasi secara real-time.
+     - Kotak diagnosa sistem dan rekomendasi penanganan lapangan bagi teknisi.
+
+4. **Pengujian Menyeluruh (Automated Testing)**:
+   - Membuat test suite [`tests/opticalPowerBudget.test.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/tests/opticalPowerBudget.test.js) yang memverifikasi 17 skenario (formula jarak geodetik, redaman splitter, link budget teoretis, parser TR-069, evaluasi mutu, ekstraksi topologi, serta kompilasi view template EJS).
+   - Seluruh test lolos 100% (**17/17 PASSED**), serta tidak ada regresi pada pengujian Dual-ACS (**8/8 PASSED**).
+   - Bump version sistem ke **`15.6.0`** pada [`version.txt`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/version.txt).
+
+### 3. Dampak Perubahan Terhadap Sistem
+- Mempercepat identifikasi gangguan fisik fiber optik (*physical layer troubleshooting*) bagi teknisi dan NOC secara drastis.
+- Menghilangkan kebutuhan penghitungan manual redaman saat merencanakan tarikan kabel pelanggan baru.
+- Menjaga keandalan layanan FTTH GPON dengan deteksi dini kabel tertekuk (*macro-bending*) sebelum terjadi putus total (*loss signal*).
+
+---
+
 ## [2026-10-07] Implementasi Fitur Masa Tenggang Isolir Pelanggan H+3 Setelah Tanggal Jatuh Tempo (Hybrid Global & Per-Pelanggan Override)
 
 ### 1. Kebutuhan Fitur & Analisis Permasalahan

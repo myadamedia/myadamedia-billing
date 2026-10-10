@@ -3,6 +3,7 @@ const router = express.Router();
 const techSvc = require('../services/techService');
 const customerSvc = require('../services/customerService');
 const odpSvc = require('../services/odpService');
+const opticalPowerSvc = require('../services/opticalPowerService');
 const { getSetting, getNowLocal, getCurrentDateInTimezone, getNowLocalISO, formatDateLocal, getSettings } = require('../config/settingsManager');
 const mikrotikService = require('../services/mikrotikService');
 const db = require('../config/database');
@@ -163,6 +164,12 @@ router.get('/map', requireTechSession, (req, res) => {
     FROM tickets
     WHERE status != 'resolved' AND lat IS NOT NULL AND lat != '' AND lng IS NOT NULL AND lng != ''
   `).all();
+  let opticalData = null;
+  try {
+    opticalData = opticalPowerSvc.getOpticalNetworkTopologyData();
+  } catch (e) {
+    console.error('[TechMap] Error generating optical data:', e.message);
+  }
   
   res.render('tech/map', { 
     title: 'Peta Jaringan', 
@@ -171,9 +178,19 @@ router.get('/map', requireTechSession, (req, res) => {
     customers, 
     odps,
     tickets,
+    opticalData,
     msg: flashMsg(req),
     settings: getSetting('office_lat') ? { office_lat: getSetting('office_lat'), office_lng: getSetting('office_lng') } : {}
   });
+});
+
+router.get('/api/optical-budget/live', requireTechSession, (req, res) => {
+  try {
+    const data = opticalPowerSvc.getOpticalNetworkTopologyData();
+    res.json({ ok: true, data });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
 });
 
 // --- ACTIONS ---
