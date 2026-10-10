@@ -2,6 +2,72 @@
 
 ---
 
+## [2026-10-11] Pemulihan Data & Perbaikan Tuntas Hilangnya Ikon dan Lokasi Pelanggan pada Peta Jaringan Admin (/admin/map) & Teknisi (/tech/map)
+
+### 1. Kebutuhan & Akar Permasalahan (Root Cause Analysis)
+- **Laporan Pengguna**:
+  Pengguna melaporkan bahwa saat mengakses `http://localhost:3001/admin/map`, ikon dan lokasi pelanggan tidak muncul / hilang di peta Leaflet.
+- **Investigasi Mendalam**:
+  1. **Anomali Database Operasional Aktif (`database/billing.db`)**:
+     - Tabel operasional `customers` dan `odps` dalam file `database/billing.db` kosong (`customers: 0`, `odps: 0`).
+     - Sementara itu, file backup resmi yang utuh (`backups/billing_db_20260913_014759.db`) menyimpan 81 pelanggan riil (79 dengan koordinat GPS valid), 22 ODP, 6 paket, 1 router MikroTik, 1 OLT, dan 2 teknisi.
+  2. **JavaScript ReferenceError di Loop Rendering Pelanggan (`views/admin/map.ejs`)**:
+     - Pada baris perenderan marker pelanggan (`customers.forEach`), terpanggil fungsi pembantu `buildMapsLink(cust.lat, cust.lng)`:
+       ```javascript
+       const mapsLink = buildMapsLink(cust.lat, cust.lng);
+       ```
+     - Fungsi `buildMapsLink` tidak terdefinisi di file `views/admin/map.ejs`, menyebabkan JavaScript di browser melempar exception:
+       `ReferenceError: buildMapsLink is not defined`.
+     - Akibat exception fatal ini, loop perenderan langsung terhenti di pelanggan pertama, marker group pelanggan (`activeCustGroup`) berakhir dengan 0 layer, dan proses penambahan pin pelanggan gagal total.
+  3. **Auto-Centering Leaflet (`fitBounds`)**:
+     - Kode auto-zoom sebelumnya mengandalkan `map._layers` yang tidak mengagregasikan koordinat array data ODP dan pelanggan secara eksplisit.
+     - Akibatnya saat marker gagal di-mount, peta jatuh ke fallback koordinat default kantor (`-6.200000, 106.816666` di Jakarta Pusat), jauh dari lokasi riil sebaran klaster pelanggan di Pamulang/Curug/Bojongsari (`-6.389..., 106.735...`).
+
+### 2. Tindakan Solusi yang Diterapkan
+1. **Pemulihan Database Terkendali & Aman (Safe Transactional Restore)**:
+   - Dibuat cadangan database aktif terlebih dahulu ke `backups/billing_db_pre_restore_20261011.db`.
+   - Melakukan transfer data tabel operasional dari `backups/billing_db_20260913_014759.db` ke `database/billing.db` dengan skema adaptif (hanya menyalin kolom yang beririsan dan mempertahankan kolom-kolom migrasi baru dengan nilai default-nya):
+     - `customers`: 81 record dipulihkan (79 dengan koordinat GPS).
+     - `odps`: 22 record dipulihkan.
+     - `packages`: 6 paket pelanggan dipulihkan (BASIC, BASIC A, LITE, STARTER, dll).
+     - `routers`: 1 router MikroTik dipulihkan.
+     - `olts`: 1 OLT GPON dipulihkan.
+     - `technicians`, `invoices`, `vouchers`, `voucher_batches`, `voucher_packages`, `agents`, `acs_devices`, `payroll_settings` dipulihkan utuh.
+   - Tabel konfigurasi aktif seperti `app_settings` (9 setting kunci), `admins`, dan `expense_categories` tetap dipertahankan 100%.
+2. **Perbaikan Definisi Fungsi `buildMapsLink` di `views/admin/map.ejs`**:
+   - Menambahkan implementasi fungsi `buildMapsLink(lat, lng)` dengan validasi `Number.isFinite` untuk mengembalikan tautan Google Maps yang aman dan terhindar dari crash:
+     ```javascript
+     function buildMapsLink(lat, lng) {
+       const la = Number(lat);
+       const lo = Number(lng);
+       if (!Number.isFinite(la) || !Number.isFinite(lo)) return 'javascript:void(0)';
+       return `https://www.google.com/maps?q=${encodeURIComponent(String(la))},${encodeURIComponent(String(lo))}`;
+     }
+     ```
+3. **Penyempurnaan Auto FitBounds Berbasis Array Spasial (`views/admin/map.ejs` & `views/tech/map.ejs`)**:
+   - Mengagregasikan seluruh koordinat numerik dari array `odps` dan `customers` ke dalam `allBoundsCoords`.
+   - Mengarahkan Leaflet untuk memanggil `map.fitBounds(L.latLngBounds(allBoundsCoords).pad(0.08))` secara otomatis saat halaman pertama kali dibuka, sehingga kamera langsung terpusat dan melakukan zoom in presisi (Zoom Level 17) ke klaster pelanggan.
+
+### 3. File yang Dimodifikasi & Ditambahkan
+- `[RESTORE]` [`database/billing.db`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/database/billing.db)
+- `[BACKUP]` [`backups/billing_db_pre_restore_20261011.db`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/backups/billing_db_pre_restore_20261011.db)
+- `[MODIFY]` [`views/admin/map.ejs`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/views/admin/map.ejs)
+- `[MODIFY]` [`views/tech/map.ejs`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/views/tech/map.ejs)
+
+### 4. Hasil Pengujian & Verifikasi
+- **Diagnostik DOM Browser Headless Chrome**:
+  - `customersLen`: 81 pelanggan terbaca.
+  - `odpsLen`: 22 ODP terbaca.
+  - `activeCustCount`: Melonjak dari 0 ke **144** layer (pin marker + drop cable polylines).
+  - `mapCenter`: Terpusat di `lat: -6.391247, lng: 106.735424` (kawasan Bojongsari/Curug).
+  - `errors`: 0 (Bebas error JavaScript).
+- **Verifikasi HTTP Live**:
+  - Request ke `http://localhost:3001/admin/map` mengembalikan **HTTP 200 OK** (panjang payload 370 KB) lengkap dengan data pelanggan, ODP, dan skrip visualisasi.
+- **Unit & Integration Tests**:
+  - `30 passed, 30 total` (Jest Test Suites 3/3 lolos 100%).
+
+---
+
 ## [2026-10-11] Implementasi Mass Outage & Fiber Cut Auto-Detection (Deteksi Putus Kabel Massal Otomatis pada Peta GPON FTTH)
 
 ### 1. Kebutuhan Fitur & Analisis Permasalahan

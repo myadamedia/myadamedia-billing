@@ -3162,9 +3162,29 @@
       });
 
       // Auto zoom to markers if exist
-      const group = L.featureGroup(Object.values(map._layers).filter(l => l instanceof L.Marker || l instanceof L.CircleMarker));
-      if (group.getLayers().length > 0) {
-        map.fitBounds(group.getBounds().pad(0.1));
+      const allBoundsCoords = [];
+      if (Array.isArray(odps)) {
+        odps.forEach(o => {
+          if (o.lat && o.lng && !isNaN(parseFloat(o.lat)) && !isNaN(parseFloat(o.lng))) {
+            allBoundsCoords.push([parseFloat(o.lat), parseFloat(o.lng)]);
+          }
+        });
+      }
+      if (Array.isArray(customers)) {
+        customers.forEach(c => {
+          if (c.lat && c.lng && !isNaN(parseFloat(c.lat)) && !isNaN(parseFloat(c.lng))) {
+            allBoundsCoords.push([parseFloat(c.lat), parseFloat(c.lng)]);
+          }
+        });
+      }
+
+      if (allBoundsCoords.length > 0) {
+        map.fitBounds(L.latLngBounds(allBoundsCoords).pad(0.08));
+      } else {
+        const group = L.featureGroup(Object.values(map._layers).filter(l => l instanceof L.Marker || l instanceof L.CircleMarker));
+        if (group.getLayers().length > 0) {
+          map.fitBounds(group.getBounds().pad(0.1));
+        }
       }
 
       window.toggleLayers = function () {
@@ -3432,6 +3452,13 @@
         const msg = `Halo ${String(name || '').trim()}`;
         if (!to) return 'javascript:void(0)';
         return `https://wa.me/${to}?text=${encodeURIComponent(msg)}`;
+      }
+
+      function buildMapsLink(lat, lng) {
+        const la = Number(lat);
+        const lo = Number(lng);
+        if (!Number.isFinite(la) || !Number.isFinite(lo)) return 'javascript:void(0)';
+        return `https://www.google.com/maps?q=${encodeURIComponent(String(la))},${encodeURIComponent(String(lo))}`;
       }
 
       // ─── OPTICAL POWER BUDGET CALCULATOR & DUAL-ACS FUNCTIONS ───

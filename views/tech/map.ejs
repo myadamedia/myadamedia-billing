@@ -2475,6 +2475,26 @@
       if (!prefSuspended) map.removeLayer(suspendedCustGroup);
       if (!prefTickets) map.removeLayer(ticketGroup);
 
+      // Auto zoom to markers if exist
+      const allBoundsCoords = [];
+      if (Array.isArray(odps)) {
+        odps.forEach(o => {
+          if (o.lat && o.lng && !isNaN(parseFloat(o.lat)) && !isNaN(parseFloat(o.lng))) {
+            allBoundsCoords.push([parseFloat(o.lat), parseFloat(o.lng)]);
+          }
+        });
+      }
+      if (Array.isArray(customers)) {
+        customers.forEach(c => {
+          if (c.lat && c.lng && !isNaN(parseFloat(c.lat)) && !isNaN(parseFloat(c.lng))) {
+            allBoundsCoords.push([parseFloat(c.lat), parseFloat(c.lng)]);
+          }
+        });
+      }
+      if (allBoundsCoords.length > 0) {
+        map.fitBounds(L.latLngBounds(allBoundsCoords).pad(0.08));
+      }
+
       // Fix for blank map on load
       setTimeout(() => {
         map.invalidateSize();
