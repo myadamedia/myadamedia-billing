@@ -32,7 +32,10 @@ const SENSITIVE_FIELDS = [
   'telegram_bot_token',
   'xendit_api_key',
   'duitku_api_key',
-  'session_secret'
+  'session_secret',
+  'gdrive_service_account_json',
+  'gdrive_oauth_client_secret',
+  'gdrive_oauth_refresh_token'
 ];
 
 /**

@@ -2,6 +2,60 @@
 
 ---
 
+## [2026-10-11] Implementasi Fitur Multi-Cloud Automated Backup (Google Drive & Telegram Admin) - Versi 15.9.0
+
+### 1. Kebutuhan Fitur & Latar Belakang
+- **Kebutuhan Pengguna**:
+  Pengguna meminta pengembangan fitur **Multi-Cloud Automated Backup (Drive/Telegram)** untuk sistem billing MyAdamedia agar salinan cadangan database SQLite (`billing.db`) dan konfigurasi sistem (`settings.json`) dapat diunggah secara otomatis dan aman ke Google Drive serta dikirim ke Telegram Admin secara terjadwal atau manual.
+- **Tujuan Pengembangan**:
+  1. **Disaster Recovery Tingkat Tinggi**: Menghindari risiko kehilangan data akibat kerusakan hardware server, penghapusan tidak disengaja, atau server down dengan menduplikasi backup ke dua cloud eksternal terpisah (Google Drive + Telegram).
+  2. **Dukungan Google Drive REST API v3 Mandiri**: Mengintegrasikan otentikasi Google Cloud Service Account (RS256 JWT assertion) dan OAuth2 Refresh Token menggunakan native Node.js `crypto` & `axios`, tanpa menambah dependensi berat (`googleapis`).
+  3. **Auto-Backup Cron Multi-Cloud Scheduler**: Sinkronisasi otomatis terjadwal (default jam 02:00 WIB) dengan opsi target fleksibel: Lokal Saja, Telegram Saja, Google Drive Saja, atau Multi-Cloud (Drive + Telegram).
+  4. **Enkripsi Kredensial Sensitif**: Kredensial Google Service Account JSON dan OAuth Secret disimpan terenkripsi dengan AES-256-GCM di `settings.json`.
+  5. **Rotasi & Retensi Otomatis**: Fitur pembersihan berkas cadangan lama di Google Drive secara otomatis berdasarkan jumlah hari retensi yang dapat dikonfigurasi.
+  6. **UI Admin Interaktif**: Penambahan tombol aksi instan, indikator status multi-cloud real-time, pengujian koneksi langsung (*Live Test Connection*), dan modal pengaturan lengkap di `/admin/backup`.
+
+### 2. Solusi & Arsitektur yang Diterapkan
+1. **Service Layer: Google Drive REST API v3 (`services/googleDriveBackupService.js`)**:
+   - Fungsi `parseServiceAccountKey`: Parsing dan validasi kunci Service Account JSON.
+   - Fungsi `createServiceAccountJwt`: Pembuatan JWT RS256 bertanda tangan digital dengan RSA Private Key.
+   - Fungsi `getAccessToken`: Penukaran assertion ke `oauth2.googleapis.com/token` dengan caching token in-memory berbasis waktu kedaluwarsa.
+   - Fungsi `testConnection`: Uji validitas kredensial, info pemilik akun GCP, status kuota Google Drive, serta pengecekan izin tulis pada folder target.
+   - Fungsi `uploadFile`: Multipart/related upload v3 untuk mengunggah berkas `.db` dan `.json` beserta metadata ke Google Drive.
+   - Fungsi `listCloudBackups` & `cleanupOldCloudBackups`: Monitoring dan rotasi penghapusan file lama di Google Drive sesuai batas hari retensi.
+2. **Orkestrasi Multi-Cloud & Scheduler (`services/backupService.js`)**:
+   - Fungsi `uploadBackupToCloud(fileNameOrPath, destinations, options)`: Mengirimkan berkas cadangan ke Telegram Admin, Google Drive, atau keduanya secara paralel.
+   - Pembaharuan `scheduleAutoBackup()`: Membaca pengaturan `backup_cloud_destination` dan secara otomatis mengunggah cadangan harian ke cloud yang dipilih.
+3. **Keamanan Kredensial (`config/settingsEncryption.js`)**:
+   - Mendaftarkan `gdrive_service_account_json`, `gdrive_oauth_client_secret`, dan `gdrive_oauth_refresh_token` ke dalam `SENSITIVE_FIELDS` sehingga otomatis terenkripsi menggunakan AES-256-GCM.
+4. **Endpoint Admin Controller (`routes/adminPortal.js`)**:
+   - `POST /admin/backup/send-gdrive`: Pengiriman manual berkas cadangan dari tabel riwayat ke Google Drive.
+   - `POST /admin/backup/test-gdrive`: Uji koneksi interaktif Google Drive API v3 via AJAX.
+   - `POST /admin/backup/save-gdrive-settings`: Penyimpanan konfigurasi Google Drive dan target multi-cloud.
+   - Pembaharuan `GET /admin/backup` & `POST /admin/backup/create` untuk mendukung opsi pengiriman `send_cloud` ('none', 'telegram', 'gdrive', 'both').
+5. **Presentation Layer (`views/admin/backup.ejs`)**:
+   - Hero banner: Tambahan tombol "Backup & Multi-Cloud" dan "Konfigurasi Multi-Cloud".
+   - Status cards: Menampilkan status aktif Telegram Admin dan Google Drive (Folder ID, Auth Type, tombol uji koneksi cepat).
+   - Form buat backup: Tambahan opsi checkbox unggah langsung ke Google Drive.
+   - Tabel riwayat: Tombol baru "Kirim ke Google Drive" (<i class="bi bi-google"></i>) berdampingan dengan Telegram.
+   - Modal Konfigurasi Multi-Cloud: Modal lengkap dengan form Service Account / OAuth, live test banner, dan pengaturan retensi cloud.
+6. **Unit & Integration Testing (`tests/multiCloudBackup.test.js`)**:
+   - 22 test cases mencakup pembuatan JWT RS256, token exchange, upload multipart, uji kuota, retensi pembersihan, orkestrasi multi-cloud, dan kompilasi template EJS tanpa error.
+
+### 3. File yang Dimodifikasi & Ditambahkan
+- `[NEW]` [`services/googleDriveBackupService.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/googleDriveBackupService.js)
+- `[MODIFY]` [`services/backupService.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/backupService.js)
+- `[MODIFY]` [`config/settingsEncryption.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/config/settingsEncryption.js)
+- `[MODIFY]` [`routes/adminPortal.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/routes/adminPortal.js)
+- `[MODIFY]` [`views/admin/backup.ejs`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/views/admin/backup.ejs)
+- `[NEW]` [`tests/multiCloudBackup.test.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/tests/multiCloudBackup.test.js)
+- `[MODIFY]` [`version.txt`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/version.txt) (dinaikkan ke `15.9.0`)
+
+### 4. Hasil Pengujian & Verifikasi
+- **Jest Unit & Integration Test Suite**: 27/27 test cases di `tests/multiCloudBackup.test.js`, `tests/backupTelegram.test.js`, `tests/backupService.test.js`, dan `tests/flushDatabase.test.js` lulus 100% (PASS).
+
+---
+
 ## [2026-10-11] Implementasi Fitur Mandiri (Self-Service) Ganti Wi-Fi & QR Code Auto-Connect di Portal Pelanggan (/customer/dashboard) - Versi 15.8.0
 
 ### 1. Kebutuhan Fitur & Latar Belakang

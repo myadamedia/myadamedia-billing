@@ -4266,6 +4266,9 @@ router.post('/settings', requireAdminSession, express.urlencoded({ extended: tru
 // ─── BACKUP & RECOVERY ──────────────────────────────────────────────────────
 router.get('/backup', requireAdminSession, requireSidebarMenuAccess('backup'), (req, res) => {
   const result = backupSvc.listBackups();
+  const gdriveSvc = require('../services/googleDriveBackupService');
+  const isGdriveConfigured = gdriveSvc.isGoogleDriveConfigured();
+
   res.render('admin/backup', {
     title: 'Backup & Recovery',
     company: company(),
@@ -4273,13 +4276,14 @@ router.get('/backup', requireAdminSession, requireSidebarMenuAccess('backup'), (
     msg: flashMsg(req),
     backups: result.backups || [],
     total: result.total || 0,
-    getSetting
+    getSetting,
+    isGdriveConfigured
   });
 });
 
 router.post('/backup/create', requireAdminSession, express.urlencoded({ extended: true }), async (req, res) => {
   try {
-    const { type, send_telegram } = req.body;
+    const { type, send_telegram, send_gdrive, send_cloud } = req.body;
     let result;
 
     if (type === 'all') {
@@ -4296,15 +4300,21 @@ router.post('/backup/create', requireAdminSession, express.urlencoded({ extended
     const isSuccess = result.success || (result.database && result.database.success);
     if (isSuccess) {
       const createdFile = result.fileName || (result.database ? result.database.fileName : null);
-      let tgNote = '';
+      let cloudNotes = [];
 
-      if ((send_telegram === '1' || send_telegram === 'true') && createdFile) {
-        try {
-          const filePath = backupSvc.getBackupFilePath(createdFile);
-          if (filePath && fs.existsSync(filePath)) {
+      // Periksa target pengiriman cloud
+      const shouldSendTelegram = send_telegram === '1' || send_telegram === 'true' || send_cloud === 'telegram' || send_cloud === 'both';
+      const shouldSendGdrive = send_gdrive === '1' || send_gdrive === 'true' || send_cloud === 'gdrive' || send_cloud === 'both';
+
+      if (createdFile) {
+        const filePath = backupSvc.getBackupFilePath(createdFile);
+        const operator = req.session?.username || (req.session?.isCashier ? req.session.cashierName : 'Administrator');
+
+        // 1. Jalur Telegram
+        if (shouldSendTelegram && filePath && fs.existsSync(filePath)) {
+          try {
             const stats = fs.statSync(filePath);
             const sizeMB = (stats.size / (1024 * 1024)).toFixed(2);
-            const operator = req.session?.username || (req.session?.isCashier ? req.session.cashierName : 'Administrator');
             const caption =
               `📦 *CADANGAN DATABASE MYADAMEDIA*\n` +
               `============================\n` +
@@ -4318,17 +4328,36 @@ router.post('/backup/create', requireAdminSession, express.urlencoded({ extended
             const telegramBot = require('../services/telegramBot');
             const sent = await telegramBot.sendTelegramAdminDocument(filePath, caption);
             if (sent) {
-              tgNote = ' & berkas berhasil dikirim ke Telegram Admin';
+              cloudNotes.push('Telegram Admin: Terkirim');
             } else {
-              tgNote = ' (pengiriman ke Telegram gagal, periksa setting bot)';
+              cloudNotes.push('Telegram Admin: Gagal kirim');
             }
+          } catch (tgErr) {
+            cloudNotes.push(`Telegram: ${tgErr.message}`);
           }
-        } catch (tgErr) {
-          tgNote = ` (gagal kirim Telegram: ${tgErr.message})`;
+        }
+
+        // 2. Jalur Google Drive
+        if (shouldSendGdrive && filePath && fs.existsSync(filePath)) {
+          try {
+            const gdriveSvc = require('../services/googleDriveBackupService');
+            const driveRes = await gdriveSvc.uploadFile(filePath, {
+              fileName: createdFile,
+              description: `Backup dibuat via Admin Portal oleh ${operator} pada ${getNowLocal()}`
+            });
+            if (driveRes.success) {
+              cloudNotes.push(`Google Drive: Terunggah (ID: ${driveRes.fileId})`);
+            } else {
+              cloudNotes.push(`Google Drive: ${driveRes.error || 'Gagal upload'}`);
+            }
+          } catch (driveErr) {
+            cloudNotes.push(`Google Drive: ${driveErr.message}`);
+          }
         }
       }
 
-      req.session._msg = { type: 'success', text: `Backup berhasil dibuat: ${createdFile || 'Database & Settings'}${tgNote}.` };
+      const noteStr = cloudNotes.length > 0 ? ` [${cloudNotes.join(', ')}]` : '';
+      req.session._msg = { type: 'success', text: `Backup berhasil dibuat: ${createdFile || 'Database & Settings'}${noteStr}.` };
     } else {
       req.session._msg = { type: 'error', text: `Gagal backup: ${result.error || 'Terjadi kesalahan sistem'}` };
     }
@@ -4380,6 +4409,138 @@ router.post('/backup/send-telegram', requireAdminSession, express.urlencoded({ e
     }
   } catch (err) {
     req.session._msg = { type: 'error', text: `Gagal kirim ke Telegram: ${err.message}` };
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.status(400).json({ ok: false, error: err.message });
+    }
+  }
+  res.redirect('/admin/backup');
+});
+
+// ── Multi-Cloud: Upload manual ke Google Drive ──
+router.post('/backup/send-gdrive', requireAdminSession, express.urlencoded({ extended: true }), express.json(), async (req, res) => {
+  try {
+    const fileName = req.body.fileName || req.query.fileName;
+    if (!fileName) throw new Error('Nama file backup tidak valid');
+
+    const filePath = backupSvc.getBackupFilePath(fileName);
+    if (!filePath || !fs.existsSync(filePath)) {
+      throw new Error('Berkas backup tidak ditemukan di direktori penyimpanan');
+    }
+
+    const gdriveSvc = require('../services/googleDriveBackupService');
+    const driveConfigured = gdriveSvc.isGoogleDriveConfigured();
+    if (!driveConfigured) {
+      throw new Error('Google Drive belum dikonfigurasi atau belum diaktifkan. Silakan periksa pengaturan di modal Multi-Cloud Backup.');
+    }
+
+    const operator = req.session?.username || (req.session?.isCashier ? req.session.cashierName : 'Administrator');
+    const result = await gdriveSvc.uploadFile(filePath, {
+      fileName: path.basename(fileName),
+      description: `Manual Upload dari Admin Portal oleh ${operator} pada ${getNowLocal()}`
+    });
+
+    if (!result.success) {
+      throw new Error(result.error || 'Terjadi kesalahan saat upload ke Google Drive');
+    }
+
+    req.session._msg = { type: 'success', text: `Berkas "${path.basename(fileName)}" berhasil diunggah ke Google Drive! (ID File: ${result.fileId})` };
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.json({ ok: true, message: `Berkas "${path.basename(fileName)}" berhasil diunggah ke Google Drive!`, fileId: result.fileId, webViewLink: result.webViewLink });
+    }
+  } catch (err) {
+    req.session._msg = { type: 'error', text: `Gagal kirim ke Google Drive: ${err.message}` };
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.status(400).json({ ok: false, error: err.message });
+    }
+  }
+  res.redirect('/admin/backup');
+});
+
+// ── Multi-Cloud: Test Koneksi Google Drive API v3 ──
+router.post('/backup/test-gdrive', requireAdminSession, express.urlencoded({ extended: true }), express.json(), async (req, res) => {
+  try {
+    const gdriveSvc = require('../services/googleDriveBackupService');
+    const { authType, serviceAccountJson, folderId, clientId, clientSecret, refreshToken } = req.body;
+
+    const customConfig = (serviceAccountJson || clientId) ? {
+      authType: authType || 'service_account',
+      serviceAccountJson,
+      folderId,
+      clientId,
+      clientSecret,
+      refreshToken
+    } : null;
+
+    const testRes = await gdriveSvc.testConnection(customConfig);
+    return res.json(testRes);
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ── Multi-Cloud: Simpan Pengaturan Google Drive & Cloud Destinations ──
+router.post('/backup/save-gdrive-settings', requireAdminSession, express.urlencoded({ extended: true }), express.json(), async (req, res) => {
+  try {
+    const {
+      gdrive_backup_enabled,
+      gdrive_auth_type,
+      gdrive_service_account_json,
+      gdrive_folder_id,
+      gdrive_oauth_client_id,
+      gdrive_oauth_client_secret,
+      gdrive_oauth_refresh_token,
+      gdrive_retention_days,
+      backup_cloud_destination,
+      telegram_backup_auto_send
+    } = req.body;
+
+    const currSettings = getSettings();
+
+    currSettings.gdrive_backup_enabled = (gdrive_backup_enabled === 'true' || gdrive_backup_enabled === '1' || gdrive_backup_enabled === true);
+    if (gdrive_auth_type) currSettings.gdrive_auth_type = gdrive_auth_type;
+    
+    // Simpan service account json jika diisi
+    if (gdrive_service_account_json && gdrive_service_account_json.trim()) {
+      currSettings.gdrive_service_account_json = gdrive_service_account_json.trim();
+    }
+
+    if (gdrive_folder_id !== undefined) currSettings.gdrive_folder_id = gdrive_folder_id.trim();
+    if (gdrive_oauth_client_id !== undefined) currSettings.gdrive_oauth_client_id = gdrive_oauth_client_id.trim();
+    if (gdrive_oauth_client_secret && gdrive_oauth_client_secret.trim()) {
+      currSettings.gdrive_oauth_client_secret = gdrive_oauth_client_secret.trim();
+    }
+    if (gdrive_oauth_refresh_token && gdrive_oauth_refresh_token.trim()) {
+      currSettings.gdrive_oauth_refresh_token = gdrive_oauth_refresh_token.trim();
+    }
+
+    if (gdrive_retention_days !== undefined) {
+      const days = parseInt(gdrive_retention_days, 10);
+      currSettings.gdrive_retention_days = (!isNaN(days) && days > 0) ? days : 30;
+    }
+
+    if (backup_cloud_destination) {
+      currSettings.backup_cloud_destination = backup_cloud_destination;
+    }
+
+    if (telegram_backup_auto_send !== undefined) {
+      currSettings.telegram_backup_auto_send = (telegram_backup_auto_send === 'true' || telegram_backup_auto_send === '1' || telegram_backup_auto_send === true);
+    }
+
+    // Reset token cache agar konfigurasi baru langsung berlaku
+    const gdriveSvc = require('../services/googleDriveBackupService');
+    gdriveSvc.resetTokenCache();
+
+    const saved = saveSettings(currSettings);
+    if (!saved) {
+      throw new Error('Gagal menyimpan ke berkas konfigurasi sistem');
+    }
+
+    req.session._msg = { type: 'success', text: 'Konfigurasi Multi-Cloud Backup (Google Drive) berhasil disimpan!' };
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.json({ ok: true, message: 'Konfigurasi Multi-Cloud Backup berhasil disimpan!' });
+    }
+  } catch (err) {
+    req.session._msg = { type: 'error', text: `Gagal simpan konfigurasi: ${err.message}` };
     if (req.xhr || req.headers.accept?.includes('application/json')) {
       return res.status(400).json({ ok: false, error: err.message });
     }

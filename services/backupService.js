@@ -5,7 +5,7 @@
 const fs = require('fs');
 const path = require('path');
 const { logger } = require('../config/logger');
-const { getSetting, getSettings, getCurrentDateInTimezone, getNowLocalISO } = require('../config/settingsManager');
+const { getSetting, getSettings, getCurrentDateInTimezone, getNowLocal, getNowLocalISO } = require('../config/settingsManager');
 const db = require('../config/database');
 
 const projectRoot = path.join(__dirname, '..');
@@ -375,6 +375,142 @@ function checkBackupCapacity(maxSizeMB = 500) {
 }
 
 /**
+ * Unggah berkas cadangan ke Cloud Eksternal (Multi-Cloud: Telegram & Google Drive)
+ * @param {string} fileNameOrPath - Nama file backup atau absolute path
+ * @param {string|Array<string>} destinations - 'telegram', 'gdrive', 'both', atau array ['telegram', 'gdrive']
+ * @param {object} options - Opsi tambahan (operator, caption, folderId)
+ */
+async function uploadBackupToCloud(fileNameOrPath, destinations = 'both', options = {}) {
+  const result = {
+    fileName: null,
+    filePath: null,
+    telegram: { attempted: false, success: false, error: null },
+    gdrive: { attempted: false, success: false, error: null, fileId: null, webViewLink: null }
+  };
+
+  try {
+    let filePath = fileNameOrPath;
+    if (!path.isAbsolute(fileNameOrPath)) {
+      filePath = getBackupFilePath(fileNameOrPath);
+    }
+
+    if (!filePath || !fs.existsSync(filePath)) {
+      throw new Error(`Berkas cadangan tidak ditemukan: ${fileNameOrPath}`);
+    }
+
+    const fileName = path.basename(filePath);
+    result.fileName = fileName;
+    result.filePath = filePath;
+
+    const stats = fs.statSync(filePath);
+    const sizeMB = (stats.size / (1024 * 1024)).toFixed(2);
+    const sizeKB = Math.round(stats.size / 1024);
+    const timeStr = typeof getNowLocal === 'function' ? getNowLocal() : new Date().toLocaleString('id-ID');
+
+    // Normalisasi list destinasi
+    let destList = [];
+    if (Array.isArray(destinations)) {
+      destList = destinations.map(d => String(d).toLowerCase());
+    } else if (typeof destinations === 'string') {
+      const d = destinations.toLowerCase();
+      if (d === 'both' || d === 'all') {
+        destList = ['telegram', 'gdrive'];
+      } else {
+        destList = [d];
+      }
+    }
+
+    // 1. Pengiriman ke Telegram Admin (Disaster Recovery Cadangan Luar)
+    if (destList.includes('telegram')) {
+      result.telegram.attempted = true;
+      try {
+        const tgEnabled = getSetting('telegram_enabled', false);
+        const tgBotToken = getSetting('telegram_bot_token', '');
+        const tgAdminId = getSetting('telegram_admin_id', '');
+
+        if (!tgEnabled || !tgBotToken || !tgAdminId) {
+          result.telegram.error = 'Bot Telegram belum aktif atau Admin ID belum diset';
+          logger.warn(`[MultiCloud] Lewati Telegram: ${result.telegram.error}`);
+        } else {
+          const telegramBot = require('./telegramBot');
+          const operator = options.operator || 'Auto-Backup Scheduler';
+          const caption = options.caption ||
+            `📦 *AUTO-BACKUP DATABASE (SCHEDULED)*\n` +
+            `============================\n` +
+            `🏷️ *File:* \`${fileName}\`\n` +
+            `📊 *Ukuran:* ${sizeMB} MB (${sizeKB} KB)\n` +
+            `📅 *Waktu:* ${timeStr}\n` +
+            `👤 *Operator:* ${operator}\n` +
+            `☁️ *Penyimpanan:* Telegram Cloud Disaster Recovery\n` +
+            `============================\n` +
+            `_Simpan berkas database ini untuk pemulihan (restore) jika dibutuhkan._`;
+
+          const sent = await telegramBot.sendTelegramAdminDocument(filePath, caption);
+          if (sent) {
+            result.telegram.success = true;
+            logger.info(`[MultiCloud] Auto-backup database berhasil dikirim ke Telegram Admin: ${fileName}`);
+          } else {
+            result.telegram.error = 'Gagal mengirim berkas ke Telegram Admin';
+          }
+        }
+      } catch (tgErr) {
+        result.telegram.error = tgErr.message;
+        logger.error(`[MultiCloud] Error kirim Telegram: ${tgErr.message}`);
+      }
+    }
+
+    // 2. Pengiriman ke Google Drive
+    if (destList.includes('gdrive') || destList.includes('drive')) {
+      result.gdrive.attempted = true;
+      try {
+        const gdriveSvc = require('./googleDriveBackupService');
+        const driveConfigured = gdriveSvc.isGoogleDriveConfigured();
+
+        if (!driveConfigured && !options.skipConfigCheck) {
+          result.gdrive.error = 'Google Drive belum dikonfigurasi atau belum diaktifkan';
+          logger.warn(`[MultiCloud] Lewati Google Drive: ${result.gdrive.error}`);
+        } else {
+          const driveRes = await gdriveSvc.uploadFile(filePath, {
+            fileName,
+            folderId: options.folderId,
+            customConfig: options.customConfig,
+            description: `Auto-Backup MyAdamedia Billing dibuat pada ${timeStr} oleh ${options.operator || 'System'}`
+          });
+
+          if (driveRes.success) {
+            result.gdrive.success = true;
+            result.gdrive.fileId = driveRes.fileId;
+            result.gdrive.webViewLink = driveRes.webViewLink;
+            logger.info(`[MultiCloud] Auto-backup database berhasil dikirim ke Google Drive: ${fileName} (ID: ${driveRes.fileId})`);
+
+            // Rotasi retensi Google Drive
+            const retentionDays = getSetting('gdrive_retention_days', 30);
+            if (retentionDays && retentionDays > 0) {
+              gdriveSvc.cleanupOldCloudBackups(retentionDays, { customConfig: options.customConfig, folderId: options.folderId }).catch(err => {
+                logger.warn(`[MultiCloud] Retensi Google Drive warning: ${err.message}`);
+              });
+            }
+          } else {
+            result.gdrive.error = driveRes.error;
+          }
+        }
+      } catch (driveErr) {
+        result.gdrive.error = driveErr.message;
+        logger.error(`[MultiCloud] Error upload Google Drive: ${driveErr.message}`);
+      }
+    }
+
+    return result;
+  } catch (err) {
+    logger.error(`[MultiCloud] uploadBackupToCloud fatal: ${err.message}`);
+    return {
+      ...result,
+      error: err.message
+    };
+  }
+}
+
+/**
  * Jadwal backup otomatis
  */
 function scheduleAutoBackup() {
@@ -394,31 +530,32 @@ function scheduleAutoBackup() {
     if (result.database.success && result.settings.success) {
       logger.info('[Backup] Scheduled backup completed successfully');
 
-      // Pengiriman otomatis ke Telegram Admin (Disaster Recovery Cadangan Luar)
+      // Pengiriman Multi-Cloud Otomatis (Telegram & Google Drive)
       try {
+        const cloudDest = getSetting('backup_cloud_destination', 'both'); // 'none', 'telegram', 'gdrive', 'both'
         const autoTg = getSetting('telegram_backup_auto_send', true);
-        const tgEnabled = getSetting('telegram_enabled', false);
-        if (autoTg && tgEnabled && result.database.fileName) {
-          const telegramBot = require('./telegramBot');
+        const autoDrive = getSetting('gdrive_backup_enabled', false);
+
+        let targets = [];
+        if (cloudDest === 'both' || cloudDest === 'all') {
+          if (autoTg) targets.push('telegram');
+          if (autoDrive) targets.push('gdrive');
+        } else if (cloudDest === 'telegram' && autoTg) {
+          targets.push('telegram');
+        } else if (cloudDest === 'gdrive' && autoDrive) {
+          targets.push('gdrive');
+        }
+
+        if (targets.length > 0 && result.database.fileName) {
           const filePath = getBackupFilePath(result.database.fileName);
           if (filePath) {
-            const sizeMB = (result.database.size / (1024 * 1024)).toFixed(2);
-            const caption =
-              `📦 *AUTO-BACKUP DATABASE (SCHEDULED)*\n` +
-              `============================\n` +
-              `🏷️ *File:* \`${result.database.fileName}\`\n` +
-              `📊 *Ukuran:* ${sizeMB} MB\n` +
-              `📅 *Waktu:* ${getNowLocal()}\n` +
-              `🤖 *Tipe:* Cadangan Otomatis Harian\n` +
-              `============================\n` +
-              `_Simpan berkas database ini untuk pemulihan (restore) jika dibutuhkan._`;
-
-            await telegramBot.sendTelegramAdminDocument(filePath, caption);
-            logger.info(`[Backup] Auto-backup database berhasil dikirim ke Telegram Admin: ${result.database.fileName}`);
+            await uploadBackupToCloud(filePath, targets, {
+              operator: 'Auto-Backup Scheduler'
+            });
           }
         }
-      } catch (tgErr) {
-        logger.error(`[Backup] Gagal mengirim auto-backup ke Telegram: ${tgErr.message}`);
+      } catch (cloudErr) {
+        logger.error(`[Backup] Gagal mengirim auto-backup ke multi-cloud: ${cloudErr.message}`);
       }
     } else {
       logger.error('[Backup] Scheduled backup failed');
@@ -910,6 +1047,7 @@ module.exports = {
   scheduleAutoBackup,
   getBackupFilePath,
   saveUploadedDatabase,
-  flushDatabase
+  flushDatabase,
+  uploadBackupToCloud
 };
 

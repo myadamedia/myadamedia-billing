@@ -66,44 +66,97 @@
               <i class="bi bi-telegram me-1"></i> Backup & Kirim ke Telegram
             </button>
           </form>
+          <form action="/admin/backup/create" method="POST" style="display:inline" onsubmit="return confirm('Buat backup database terbaru dan langsung unggah ke Multi-Cloud (Telegram & Google Drive)?')">
+            <input type="hidden" name="type" value="database">
+            <input type="hidden" name="send_cloud" value="both">
+            <button type="submit" class="btn btn-sm" style="border-radius: 12px; font-weight: 800; padding: 10px 18px; background: #059669; color: #ffffff; border: none; box-shadow: 0 6px 20px rgba(5,150,105,0.35); display: inline-flex; align-items: center;" title="Buat cadangan database dan unggah ke Telegram & Google Drive secara paralel">
+              <i class="bi bi-cloud-arrow-up-fill me-1"></i> Backup & Multi-Cloud
+            </button>
+          </form>
+          <button type="button" class="btn btn-sm" onclick="openModal('cloudSettingsModal')" style="border-radius: 12px; font-weight: 800; padding: 10px 18px; background: rgba(255,255,255,0.92); color: #1e293b; border: none; box-shadow: 0 6px 20px rgba(0,0,0,0.18); display: inline-flex; align-items: center;">
+            <i class="bi bi-cloud-gear-fill me-1" style="color: #4f46e5;"></i> Konfigurasi Multi-Cloud
+          </button>
         </div>
       </div>
     </div>
 
-    <!-- Status Integrasi Telegram Disaster Recovery -->
+    <!-- Status Integrasi Multi-Cloud (Telegram & Google Drive) -->
     <% 
       const isTgActive = typeof getSetting === 'function' && getSetting('telegram_enabled', false);
       const tgBotToken = typeof getSetting === 'function' ? getSetting('telegram_bot_token', '') : '';
       const tgAdminId = typeof getSetting === 'function' ? getSetting('telegram_admin_id', '') : '';
       const isTgConfigured = isTgActive && tgBotToken && tgAdminId;
+      const isDriveEnabled = typeof getSetting === 'function' && getSetting('gdrive_backup_enabled', false);
+      const gdriveFolderId = typeof getSetting === 'function' ? getSetting('gdrive_folder_id', '') : '';
+      const gdriveAuthType = typeof getSetting === 'function' ? getSetting('gdrive_auth_type', 'service_account') : 'service_account';
+      const cloudDest = typeof getSetting === 'function' ? getSetting('backup_cloud_destination', 'both') : 'both';
     %>
-    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:12px 18px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;box-shadow:0 4px 15px rgba(0,0,0,0.06)">
-      <div style="display:flex;align-items:center;gap:12px">
-        <div style="width:38px;height:38px;border-radius:10px;background:rgba(0,136,204,0.15);color:#0088cc;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">
-          <i class="bi bi-telegram"></i>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));gap:14px;margin-bottom:20px">
+      <!-- Status Telegram -->
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;box-shadow:0 4px 15px rgba(0,0,0,0.06)">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="width:40px;height:40px;border-radius:10px;background:rgba(0,136,204,0.15);color:#0088cc;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">
+            <i class="bi bi-telegram"></i>
+          </div>
+          <div>
+            <div style="font-weight:700;font-size:13px;display:flex;align-items:center;gap:8px">
+              Integrasi Pengiriman Telegram:
+              <% if (isTgConfigured) { %>
+                <span class="badge bs" style="font-size:10px;padding:3px 8px"><i class="bi bi-check-circle-fill"></i> AKTIF & SIAP</span>
+              <% } else { %>
+                <span class="badge bd" style="font-size:10px;padding:3px 8px"><i class="bi bi-exclamation-triangle-fill"></i> BELUM AKTIF</span>
+              <% } %>
+            </div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">
+              <% if (isTgConfigured) { %>
+                Penerima Chat ID Admin: <code style="color:var(--primary);font-weight:700"><%= tgAdminId %></code>
+              <% } else { %>
+                Bot belum aktif. Aktifkan di <a href="/admin/settings" style="color:var(--primary);font-weight:700;text-decoration:underline">Pengaturan Sistem</a>.
+              <% } %>
+            </div>
+          </div>
         </div>
         <div>
-          <div style="font-weight:700;font-size:13px;display:flex;align-items:center;gap:8px">
-            Integrasi Pengiriman Telegram:
-            <% if (isTgConfigured) { %>
-              <span class="badge bs" style="font-size:10px;padding:3px 8px"><i class="bi bi-check-circle-fill"></i> AKTIF & SIAP</span>
-            <% } else { %>
-              <span class="badge bd" style="font-size:10px;padding:3px 8px"><i class="bi bi-exclamation-triangle-fill"></i> BELUM AKTIF</span>
-            <% } %>
-          </div>
-          <div style="font-size:12px;color:var(--muted);margin-top:2px">
-            <% if (isTgConfigured) { %>
-              Penerima Chat ID Admin: <code style="color:var(--primary);font-weight:700"><%= tgAdminId %></code>. Auto-backup harian otomatis terkirim ke Telegram.
-            <% } else { %>
-              Bot Telegram belum aktif atau Admin ID belum diset. Aktifkan di <a href="/admin/settings" style="color:var(--primary);font-weight:700;text-decoration:underline">Pengaturan Sistem</a> untuk mengaktifkan pengiriman berkas.
-            <% } %>
-          </div>
+          <a href="/admin/settings" class="btn btn-g btn-sm" style="font-size:11px;font-weight:600">
+            <i class="bi bi-gear"></i> Set Bot
+          </a>
         </div>
       </div>
-      <div>
-        <a href="/admin/settings" class="btn btn-g btn-sm" style="font-size:11px;font-weight:600">
-          <i class="bi bi-gear"></i> Pengaturan Bot Telegram
-        </a>
+
+      <!-- Status Google Drive -->
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;box-shadow:0 4px 15px rgba(0,0,0,0.06)">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="width:40px;height:40px;border-radius:10px;background:rgba(15,157,88,0.15);color:#0f9d58;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">
+            <i class="bi bi-google"></i>
+          </div>
+          <div>
+            <div style="font-weight:700;font-size:13px;display:flex;align-items:center;gap:8px">
+              Google Drive Cloud Backup:
+              <% if (isDriveEnabled && isGdriveConfigured) { %>
+                <span class="badge bs" style="font-size:10px;padding:3px 8px"><i class="bi bi-check-circle-fill"></i> TERHUBUNG</span>
+              <% } else if (isDriveEnabled && !isGdriveConfigured) { %>
+                <span class="badge bw" style="font-size:10px;padding:3px 8px"><i class="bi bi-exclamation-circle-fill"></i> KUNCI BELUM LENGKAP</span>
+              <% } else { %>
+                <span class="badge bd" style="font-size:10px;padding:3px 8px"><i class="bi bi-x-circle-fill"></i> NONAKTIF</span>
+              <% } %>
+            </div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">
+              <% if (isDriveEnabled && isGdriveConfigured) { %>
+                Folder: <code style="color:var(--success);font-weight:700"><%= gdriveFolderId || 'Root Drive' %></code> | Auth: <%= gdriveAuthType === 'service_account' ? 'Service Account' : 'OAuth2' %>
+              <% } else { %>
+                Simpan cadangan ke Google Drive secara otomatis via Service Account / OAuth2.
+              <% } %>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button type="button" class="btn btn-g btn-sm" onclick="testGdriveConnection(this)" style="font-size:11px;font-weight:600" title="Uji Koneksi Google Drive">
+            <i class="bi bi-arrow-repeat"></i> Test
+          </button>
+          <button type="button" class="btn btn-g btn-sm" onclick="openModal('cloudSettingsModal')" style="font-size:11px;font-weight:600">
+            <i class="bi bi-sliders"></i> Setting
+          </button>
+        </div>
       </div>
     </div>
 
@@ -157,10 +210,16 @@
                 <option value="settings">Settings Saja</option>
               </select>
             </div>
-            <div class="fg" style="margin-top:10px;margin-bottom:14px">
+            <div class="fg" style="margin-top:10px;margin-bottom:6px">
               <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;color:var(--text);font-weight:600">
                 <input type="checkbox" name="send_telegram" value="1" style="width:16px;height:16px;accent-color:#0088cc" checked>
                 <span><i class="bi bi-telegram" style="color:#0088cc"></i> Langsung kirim hasil backup ke Telegram Admin</span>
+              </label>
+            </div>
+            <div class="fg" style="margin-top:0px;margin-bottom:14px">
+              <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;color:var(--text);font-weight:600">
+                <input type="checkbox" name="send_gdrive" value="1" style="width:16px;height:16px;accent-color:#0f9d58" <%= (typeof isGdriveConfigured !== 'undefined' && isGdriveConfigured) ? 'checked' : '' %>>
+                <span><i class="bi bi-google" style="color:#0f9d58"></i> Langsung unggah hasil backup ke Google Drive</span>
               </label>
             </div>
             <button type="submit" class="btn btn-p w-100">
@@ -271,6 +330,12 @@
                         <input type="hidden" name="fileName" value="<%= backup.fileName %>">
                         <button type="submit" class="btn btn-g btn-sm" style="color:#0088cc" title="Kirim file backup ini ke Telegram Admin">
                           <i class="bi bi-telegram"></i>
+                        </button>
+                      </form>
+                      <form method="POST" action="/admin/backup/send-gdrive" style="display:inline" onsubmit="return confirmSendGdrive(event, '<%= backup.fileName %>')">
+                        <input type="hidden" name="fileName" value="<%= backup.fileName %>">
+                        <button type="submit" class="btn btn-g btn-sm" style="color:#0f9d58" title="Kirim file backup ini ke Google Drive">
+                          <i class="bi bi-google"></i>
                         </button>
                       </form>
                       <button type="button" class="btn btn-g btn-sm text-success" onclick="restoreBackup('<%= backup.fileName %>', '<%= backup.type %>')" title="Restore">
@@ -384,15 +449,255 @@
   </div>
 </div>
 
+<!-- MODAL: PENGATURAN MULTI-CLOUD BACKUP (GOOGLE DRIVE & TELEGRAM) -->
+<div class="modal" id="cloudSettingsModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:9999;backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px">
+  <div class="modal-box" style="background:var(--bg2);border:1px solid var(--border);border-radius:20px;max-width:680px;width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,0.35);overflow:hidden">
+    <div class="mh" style="padding:18px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--bg3)">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="width:40px;height:40px;border-radius:12px;background:rgba(79,70,229,0.12);color:var(--primary);display:flex;align-items:center;justify-content:center;font-size:22px">
+          <i class="bi bi-cloud-arrow-up-fill"></i>
+        </div>
+        <div>
+          <h5 style="margin:0;font-size:16px;font-weight:800;color:var(--text)">Konfigurasi Multi-Cloud Backup</h5>
+          <p style="margin:2px 0 0 0;font-size:12px;color:var(--muted)">Cadangan otomatis ke Google Drive & Telegram Admin</p>
+        </div>
+      </div>
+      <button type="button" class="btn btn-g btn-sm" onclick="closeModal('cloudSettingsModal')" style="border-radius:8px">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+
+    <form action="/admin/backup/save-gdrive-settings" method="POST" id="cloudSettingsForm" style="overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:18px">
+      <!-- Live Test Result Banner -->
+      <div id="driveTestAlert" style="display:none;padding:12px 16px;border-radius:12px;font-size:13px;line-height:1.5"></div>
+
+      <!-- Section 1: Google Drive Toggle -->
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:14px;padding:16px">
+        <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;margin:0">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="width:36px;height:36px;border-radius:10px;background:rgba(15,157,88,0.15);color:#0f9d58;display:flex;align-items:center;justify-content:center;font-size:20px">
+              <i class="bi bi-google"></i>
+            </div>
+            <div>
+              <div style="font-weight:700;font-size:14px;color:var(--text)">Aktifkan Cadangan Google Drive</div>
+              <div style="font-size:12px;color:var(--muted)">Unggah berkas database (.db) dan pengaturan (.json) secara otomatis</div>
+            </div>
+          </div>
+          <input type="checkbox" name="gdrive_backup_enabled" id="cfgGdriveEnabled" value="true" style="width:20px;height:20px;accent-color:#0f9d58" <%= (typeof getSetting === 'function' && getSetting('gdrive_backup_enabled', false)) ? 'checked' : '' %>>
+        </label>
+      </div>
+
+      <!-- Section 2: Google Drive Authentication -->
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div class="fg">
+          <label class="fl" style="font-weight:700">Metode Autentikasi Google Cloud</label>
+          <select class="fs" name="gdrive_auth_type" id="cfgGdriveAuthType" onchange="toggleAuthFields()">
+            <% const curAuthType = typeof getSetting === 'function' ? getSetting('gdrive_auth_type', 'service_account') : 'service_account'; %>
+            <option value="service_account" <%= curAuthType === 'service_account' ? 'selected' : '' %>>Google Service Account (Direkomendasikan - Tanpa Kedaluwarsa)</option>
+            <option value="oauth" <%= curAuthType === 'oauth' ? 'selected' : '' %>>OAuth 2.0 Client (Refresh Token)</option>
+          </select>
+        </div>
+
+        <!-- Panel Service Account -->
+        <div id="panelServiceAccount" style="display:<%= curAuthType === 'service_account' ? 'block' : 'none' %>">
+          <div class="fg">
+            <label class="fl" style="font-weight:700;display:flex;justify-content:space-between">
+              <span>Service Account JSON Key <span class="text-danger">*</span></span>
+              <small class="text-muted">Format: JSON dari GCP Console</small>
+            </label>
+            <textarea class="fc" name="gdrive_service_account_json" id="cfgGdriveSaJson" rows="5" style="font-family:monospace;font-size:11px;line-height:1.4" placeholder='{
+  "type": "service_account",
+  "project_id": "proyek-anda",
+  "private_key_id": "...",
+  "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
+  "client_email": "billing-backup@proyek-anda.iam.gserviceaccount.com"
+}'><%= (typeof getSetting === 'function' && getSetting('gdrive_service_account_json', '')) ? getSetting('gdrive_service_account_json', '') : '' %></textarea>
+          </div>
+          <div style="background:rgba(79,70,229,0.06);border:1px solid rgba(79,70,229,0.2);border-radius:10px;padding:10px 14px;font-size:11px;color:var(--text);line-height:1.5;margin-top:8px">
+            <b><i class="bi bi-lightbulb text-warning"></i> Panduan Singkat Service Account:</b><br>
+            1. Buka <b>console.cloud.google.com</b> &rarr; Menu <b>APIs & Services</b> &rarr; Aktifkan <b>Google Drive API</b>.<br>
+            2. Menu <b>IAM & Admin &rarr; Service Accounts</b> &rarr; Buat Service Account &rarr; Tab <b>Keys &rarr; Add Key (JSON)</b>.<br>
+            3. Buka folder tujuan di Google Drive Anda &rarr; <b>Bagikan (Share)</b> ke email Service Account sebagai <b>Editor</b>.
+          </div>
+        </div>
+
+        <!-- Panel OAuth 2.0 -->
+        <div id="panelOAuth" style="display:<%= curAuthType === 'oauth' ? 'block' : 'none' %>">
+          <div class="fg" style="margin-bottom:10px">
+            <label class="fl">OAuth Client ID</label>
+            <input type="text" class="fc" name="gdrive_oauth_client_id" id="cfgGdriveClientId" value="<%= typeof getSetting === 'function' ? getSetting('gdrive_oauth_client_id', '') : '' %>" placeholder="xxx.apps.googleusercontent.com">
+          </div>
+          <div class="fg" style="margin-bottom:10px">
+            <label class="fl">OAuth Client Secret</label>
+            <input type="password" class="fc" name="gdrive_oauth_client_secret" id="cfgGdriveClientSecret" value="<%= typeof getSetting === 'function' ? getSetting('gdrive_oauth_client_secret', '') : '' %>" placeholder="••••••••">
+          </div>
+          <div class="fg">
+            <label class="fl">OAuth Refresh Token</label>
+            <input type="password" class="fc" name="gdrive_oauth_refresh_token" id="cfgGdriveRefreshToken" value="<%= typeof getSetting === 'function' ? getSetting('gdrive_oauth_refresh_token', '') : '' %>" placeholder="1//04xxx">
+          </div>
+        </div>
+
+        <!-- Folder ID & Retention -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="fg">
+            <label class="fl" style="font-weight:700">Target Folder ID Google Drive</label>
+            <input type="text" class="fc" name="gdrive_folder_id" id="cfgGdriveFolderId" value="<%= typeof getSetting === 'function' ? getSetting('gdrive_folder_id', '') : '' %>" placeholder="Contoh: 1AbCdEfGhIjKlMnOpQrStUvWxYz">
+            <small class="text-muted" style="font-size:11px">Kosongkan jika ingin menyimpan di root Drive</small>
+          </div>
+          <div class="fg">
+            <label class="fl" style="font-weight:700">Retensi Backup di Cloud (Hari)</label>
+            <input type="number" class="fc" name="gdrive_retention_days" id="cfgGdriveRetention" value="<%= typeof getSetting === 'function' ? getSetting('gdrive_retention_days', 30) : 30 %>" min="1" max="365">
+            <small class="text-muted" style="font-size:11px">Backup lebih dari X hari otomatis dibersihkan</small>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 3: Destinasi Auto-Backup (Cron Jam 02:00) -->
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:14px;padding:16px">
+        <h6 style="margin:0 0 10px 0;font-size:13px;font-weight:800;color:var(--text)"><i class="bi bi-clock-history text-primary"></i> Target Auto-Backup Terjadwal (Harian)</h6>
+        <div class="fg" style="margin-bottom:10px">
+          <label class="fl">Tujuan Pengiriman Cadangan Otomatis</label>
+          <select class="fs" name="backup_cloud_destination" id="cfgCloudDest">
+            <% const curDest = typeof getSetting === 'function' ? getSetting('backup_cloud_destination', 'both') : 'both'; %>
+            <option value="both" <%= curDest === 'both' ? 'selected' : '' %>>Multi-Cloud: Google Drive + Telegram Admin (Direkomendasikan)</option>
+            <option value="gdrive" <%= curDest === 'gdrive' ? 'selected' : '' %>>Google Drive Saja</option>
+            <option value="telegram" <%= curDest === 'telegram' ? 'selected' : '' %>>Telegram Admin Saja</option>
+            <option value="none" <%= curDest === 'none' ? 'selected' : '' %>>Lokal Server Saja (Tanpa Cloud)</option>
+          </select>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;color:var(--text);font-weight:600">
+          <input type="checkbox" name="telegram_backup_auto_send" id="cfgTgAutoSend" value="true" style="width:16px;height:16px;accent-color:#0088cc" <%= (typeof getSetting === 'function' && getSetting('telegram_backup_auto_send', true)) ? 'checked' : '' %>>
+          <span><i class="bi bi-telegram" style="color:#0088cc"></i> Izinkan bot Telegram mengirim file cadangan ke Admin Chat ID</span>
+        </label>
+      </div>
+
+      <div class="mf" style="border-top:1px solid var(--border);padding-top:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+        <button type="button" class="btn btn-g btn-sm" id="btnTestDriveModal" onclick="testGdriveFromModal(this)" style="font-weight:700">
+          <i class="bi bi-patch-check"></i> Uji Koneksi Google Drive
+        </button>
+        <div style="display:flex;gap:8px">
+          <button type="button" class="btn btn-g" onclick="closeModal('cloudSettingsModal')">Batal</button>
+          <button type="submit" class="btn btn-p" style="font-weight:800">
+            <i class="bi bi-check2-circle"></i> Simpan Pengaturan
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
   function openModal(id) {
     const el = document.getElementById(id);
-    if (el) el.classList.add('show');
+    if (el) {
+      el.style.display = 'flex';
+      el.classList.add('show');
+    }
   }
 
   function closeModal(id) {
     const el = document.getElementById(id);
-    if (el) el.classList.remove('show');
+    if (el) {
+      el.style.display = 'none';
+      el.classList.remove('show');
+    }
+  }
+
+  function toggleAuthFields() {
+    const authType = document.getElementById('cfgGdriveAuthType').value;
+    const panelSa = document.getElementById('panelServiceAccount');
+    const panelOAuth = document.getElementById('panelOAuth');
+    if (panelSa) panelSa.style.display = authType === 'service_account' ? 'block' : 'none';
+    if (panelOAuth) panelOAuth.style.display = authType === 'oauth' ? 'block' : 'none';
+  }
+
+  async function testGdriveFromModal(btn) {
+    const alertEl = document.getElementById('driveTestAlert');
+    const origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Menguji...';
+
+    if (alertEl) {
+      alertEl.style.display = 'block';
+      alertEl.style.background = 'rgba(79,70,229,0.1)';
+      alertEl.style.border = '1px solid rgba(79,70,229,0.3)';
+      alertEl.style.color = 'var(--text)';
+      alertEl.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> Menghubungi Google Drive API v3...';
+    }
+
+    try {
+      const payload = {
+        authType: document.getElementById('cfgGdriveAuthType')?.value || 'service_account',
+        serviceAccountJson: document.getElementById('cfgGdriveSaJson')?.value || '',
+        folderId: document.getElementById('cfgGdriveFolderId')?.value || '',
+        clientId: document.getElementById('cfgGdriveClientId')?.value || '',
+        clientSecret: document.getElementById('cfgGdriveClientSecret')?.value || '',
+        refreshToken: document.getElementById('cfgGdriveRefreshToken')?.value || ''
+      };
+
+      const res = await fetch('/admin/backup/test-gdrive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+
+      if (data.ok) {
+        alertEl.style.background = 'rgba(16,185,129,0.12)';
+        alertEl.style.border = '1px solid rgba(16,185,129,0.4)';
+        alertEl.style.color = '#047857';
+        let folderMsg = data.folder ? ` | Folder: <b>${data.folder.name}</b> (${data.folder.canAddChildren ? 'Izin Tulis OK' : 'Hanya Baca'})` : ' | Target: <b>Root Drive</b>';
+        let quotaMsg = data.storage ? ` | Kuota Digunakan: <b>${data.storage.usageMB} MB / ${data.storage.limitMB} MB (${data.storage.percent}%)</b>` : '';
+        alertEl.innerHTML = `<i class="bi bi-check-circle-fill"></i> <b>Koneksi Google Drive Berhasil!</b><br>Akun: <b>${data.user}</b> (${data.email || ''})${folderMsg}${quotaMsg}`;
+      } else {
+        alertEl.style.background = 'rgba(239,68,68,0.12)';
+        alertEl.style.border = '1px solid rgba(239,68,68,0.4)';
+        alertEl.style.color = '#b91c1c';
+        alertEl.innerHTML = `<i class="bi bi-x-circle-fill"></i> <b>Koneksi Gagal:</b> ${data.error || 'Tidak dapat terhubung'}`;
+      }
+    } catch (err) {
+      if (alertEl) {
+        alertEl.style.background = 'rgba(239,68,68,0.12)';
+        alertEl.style.border = '1px solid rgba(239,68,68,0.4)';
+        alertEl.style.color = '#b91c1c';
+        alertEl.innerHTML = `<i class="bi bi-x-circle-fill"></i> <b>Error:</b> ${err.message}`;
+      }
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+    }
+  }
+
+  async function testGdriveConnection(btn) {
+    const origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> ...';
+    try {
+      const res = await fetch('/admin/backup/test-gdrive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      if (data.ok) {
+        alert(`KONEKSI GOOGLE DRIVE SUKSES!\n\nAkun: ${data.user} (${data.email || ''})\nFolder: ${data.folder ? data.folder.name : 'Root Drive'}\nStorage: ${data.storage ? data.storage.usageMB + ' MB / ' + data.storage.limitMB + ' MB' : '-'}`);
+      } else {
+        alert(`KONEKSI GOOGLE DRIVE GAGAL:\n\n${data.error || 'Periksa kembali kredensial'}`);
+      }
+    } catch (err) {
+      alert(`Error uji koneksi: ${err.message}`);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+    }
+  }
+
+  function confirmSendGdrive(e, fileName) {
+    if (!confirm(`Unggah file backup "${fileName}" ke Google Drive sekarang?`)) {
+      if (e) e.preventDefault();
+      return false;
+    }
+    return true;
   }
 
   const flushForm = document.getElementById('flushForm');
