@@ -1255,6 +1255,12 @@ module.exports = {
     createAxiosInstance,
     isBuiltinAcsEnabled,
     
+    // Built-in ACS helpers
+    builtinRowToDevice,
+    inflateParams,
+    matchesQuery,
+    createBuiltinAxiosProxy,
+    
     // GenieACS API methods (now support multi-server)
     getDevices: genieacsApi.getDevices,
     getDevice: genieacsApi.getDevice,

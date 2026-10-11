@@ -2117,6 +2117,56 @@ router.get('/api/pppoe-traffic', async (req, res) => {
   }
 });
 
+router.get('/api/device-metrics', async (req, res) => {
+  const loginId = req.session && req.session.phone;
+  if (!loginId) return res.status(401).json({ ok: false, error: 'unauthorized' });
+
+  try {
+    const cleanLogin = String(loginId || '').replace(/\D/g, '');
+    const profile = customerSvc.getAllCustomers().find(c => {
+      const cleanDb = String(c.phone || '').replace(/\D/g, '');
+      return (cleanLogin && cleanDb === cleanLogin) || 
+             c.phone === loginId || 
+             c.genieacs_tag === loginId || 
+             c.pppoe_username === loginId;
+    }) || null;
+
+    const tagToQuery = (profile && (profile.genieacs_tag || profile.pppoe_username || profile.phone)) || req.session.pppoe_username || loginId;
+    const deviceData = await customerDevice.getCustomerDeviceData(tagToQuery);
+
+    if (!deviceData) {
+      return res.json({
+        ok: true,
+        online: false,
+        status: 'Offline',
+        rxPower: '-',
+        isEstimatedRx: false,
+        opticalQuality: null,
+        connectedUsers: [],
+        totalAssociations: 0,
+        ssid: '-'
+      });
+    }
+
+    return res.json({
+      ok: true,
+      online: deviceData.status === 'Online',
+      status: deviceData.status || 'Offline',
+      rxPower: deviceData.rxPower || '-',
+      isEstimatedRx: !!deviceData.isEstimatedRx,
+      opticalQuality: deviceData.opticalQuality || null,
+      connectedUsers: deviceData.connectedUsers || [],
+      totalAssociations: Number.isFinite(deviceData.totalAssociations) ? deviceData.totalAssociations : 0,
+      ssid: deviceData.ssid || '-',
+      lastInform: deviceData.lastInform || '-',
+      uptime: deviceData.uptime || '-'
+    });
+  } catch (err) {
+    logger.debug(`[CustomerPortal] Error fetching live device metrics: ${err.message}`);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 router.get('/api/wifi/info', async (req, res) => {
   const loginId = String(req.session?.phone ?? '').replace(/[\r\n\t]+/g, '').trim();
   const pppoeSession = String(req.session?.pppoe_username ?? '').replace(/[\r\n\t]+/g, '').trim();

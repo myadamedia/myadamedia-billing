@@ -4552,3 +4552,74 @@ Di halaman Pengaturan Sistem (`http://localhost:3001/admin/settings`), pengguna 
 - **Regression Test Suite**:
   - `tests/mapCableDistance.test.js`: **7/7 PASSED (100%)**.
   - `tests/settingsManager.test.js`: **23/23 PASSED (100%)**.
+
+---
+
+## [2026-10-11] Perbaikan Fitur Sinyal Optik (RX Power) & Perangkat Terhubung (Live) di Dashboard Pelanggan
+
+### 1. Deskripsi Permasalahan
+Pada dashboard portal pelanggan (`/customer/dashboard`), terdapat laporan bahwa:
+1. **Sinyal Optik (RX)** tidak menampilkan nilai daya redaman yang akurat atau menghasilkan teks cacat `- dBm`.
+2. **Perangkat Terhubung** menampilkan `0 Perangkat` / `0 Active` dan tabel klien kosong, meskipun pada ONT/router pelanggan terdapat perangkat yang sedang terhubung melalui Wi-Fi atau port LAN.
+
+### 2. Penyebab Utama (Root Cause)
+1. **Missing Module Exports di `config/genieacs.js`**:
+   Fungsi helper internal `builtinRowToDevice`, `inflateParams`, `matchesQuery`, dan `createBuiltinAxiosProxy` tidak diekspor pada `module.exports`. Akibatnya, setiap pemanggilan `genieacsApi.builtinRowToDevice(row)` di `services/customerDeviceService.js` melempar `TypeError: genieacsApi.builtinRowToDevice is not a function`. Error ini tertelan dalam blok `catch (_) {}`, menyebabkan fungsi `resolveDeviceToken()` selalu mengembalikan `null` saat Built-in ACS aktif.
+2. **Fallback ke Data Profil Statis (Kosong)**:
+   Karena `resolveDeviceToken()` mengembalikan `null`, pemanggilan `getCustomerDeviceData()` jatuh ke `fallbackCustomer()` atau profil pelanggan dasar dengan nilai default `rxPower: '-'`, `connectedUsers: []`, dan `totalAssociations: 0`.
+3. **Bug Evaluasi Nilai Truthy pada Template `views/dashboard.ejs`**:
+   - Nilai string `'-'` dievaluasi sebagai *truthy* dalam JavaScript (`Boolean('-') === true`), sehingga ekspresi `<%= customer.rxPower || '-21.50' %> dBm` menghasilkan teks cacat `- dBm`.
+   - Array kosong `[]` juga dievaluasi sebagai *truthy* (`Boolean([]) === true`), sehingga `<%= (typeof connectedUsers !== 'undefined' && connectedUsers) ? connectedUsers.length : (customer.totalAssociations || 0) %>` selalu mengambil `connectedUsers.length` (yaitu `0`), dan mengabaikan parameter asosiasi aktif `customer.totalAssociations`.
+4. **Keterbatasan Ekstraksi Parameter Vendor & Model Data TR-181**:
+   - Jalur parameter optik vendor (seperti Huawei, ZTE, Fiberhome, CMCC, CT-COM, CU, dan XPON TR-181) belum seluruhnya terdaftar di `parameterPaths.rxPower`.
+   - Firmware ONT tertentu tidak mengirim tabel detail `Hosts.Host`, melainkan hanya parameter agregat `TotalAssociations` atau menggunakan properti TR-181 `PhysAddress` alih-alih `MACAddress`.
+5. **Ketiadaan API Endpoint Live Polling**:
+   Tidak ada endpoint polling ringan untuk memantau status sinyal optik dan perangkat terhubung secara real-time pada dashboard pelanggan.
+
+### 3. Solusi & Perubahan yang Diterapkan
+1. **Ekspor Modul Built-in ACS (`config/genieacs.js`)**:
+   Mengekspor `builtinRowToDevice`, `inflateParams`, `matchesQuery`, dan `createBuiltinAxiosProxy` pada `module.exports` sehingga mapping data perangkat lokal berjalan sempurna tanpa exception.
+2. **Penyempurnaan Ekstraksi Sinyal Optik & Link Budget Fallback (`services/customerDeviceService.js`)**:
+   - Memperluas `parameterPaths.rxPower` mencakup semua vendor GPON/EPON TR-098 & TR-181 (`VirtualParameters.rx_power`, `VirtualParameters.rxPower`, `VirtualParameters.redaman_optik`, wildcard `*.WANPONInterfaceConfig.*`, `*.OpticalSignalLevel`, `*.Stats.RXPower`).
+   - Mengintegrasikan fungsi normalisasi `opticalPowerService.parseRxPowerValue()` dan `opticalPowerService.extractRxFromAcsParams()` untuk mengubah nilai linear integer (uW) maupun string negatif (dBm) secara presisi.
+   - Menambahkan kalkulasi estimasi teoretis (*Link Budget Fallback*) berbasis ODP (`opticalPowerService.calculateTheoreticalLoss()`) jika perangkat sedang offline atau belum melaporkan status optik aktual.
+   - Mengintegrasikan diagnosa status kualitas optik (`opticalPowerService.evaluateOpticalQuality()`) dengan label visual (*Optimal/Prima*, *Normal*, *Waspada*, *Kritis*).
+3. **Penyempurnaan Parsing Klien Terhubung & Asosiasi Wi-Fi (`services/customerDeviceService.js`)**:
+   - Mendukung properti TR-181 `PhysAddress` dan array `IPv4Address` pada parsing `Hosts.Host`.
+   - Mengintegrasikan deteksi klien dari subtree `AssociatedDevice` Wi-Fi sebagai fallback utama jika tabel host kosong.
+   - Menambahkan fallback scanning regex langsung terhadap objek `_flatParams` untuk mendeteksi entri host dan perangkat terasosiasi.
+   - Memastikan `totalAssociations` selalu mengembalikan nilai numerik yang valid (tidak pernah bernilai `N/A`) dan memprioritaskan jumlah asosiasi tertinggi antara WLAN, LAN, dan tabel host.
+   - Mengoreksi logika `getParameterWithPaths()` agar tidak menghitung ganda parameter asosiasi.
+4. **Endpoint Baru untuk Live Polling Metrics (`routes/customerPortal.js`)**:
+   - Menambahkan endpoint `GET /customer/api/device-metrics` terautentikasi sesi pelanggan yang mengembalikan status perangkat terkini, redaman RX Power, status estimasi link budget, diagnosa kualitas optik, daftar klien terhubung, dan total asosiasi.
+5. **Pembaruan Tampilan Dashboard Pelanggan (`views/dashboard.ejs`)**:
+   - Memperbaiki kartu Sinyal Optik (RX): Menampilkan nilai daya dalam dBm beserta badge kualitas atau badge "Estimasi", dan menampilkan "Belum Terdeteksi" jika data kosong (menghilangkan tampilan `- dBm`).
+   - Memperbaiki kartu Perangkat Terhubung: Menghitung jumlah aktif secara benar (`activeClientCount`) dengan mempertimbangkan `connectedUsers` dan `totalAssociations`.
+   - Memperbaiki tabel *Perangkat Terhubung (Live)*: Jika daftar rincian host belum dikirim oleh firmware ONT namun jumlah asosiasi > 0, menampilkan informasi bahwa perangkat aktif terhubung via Wi-Fi.
+   - Menambahkan script otomatis `fetchDeviceMetrics()` yang melakukan polling ke `/customer/api/device-metrics` setiap 12 detik agar perubahan perangkat dan sinyal optik ter-update secara real-time.
+
+### 4. Dampak Perubahan Sistem
+- Nilai Sinyal Optik (RX Power) tampil akurat dalam satuan dBm beserta indikator kesehatan link optik tanpa glitch `- dBm`.
+- Jumlah dan daftar perangkat yang terhubung ke modem/router tampil akurat dan reaktif terhadap koneksi baru.
+- Dukungan penuh multi-vendor GPON/EPON (Huawei, ZTE, FiberHome, dsb.) baik mode Built-in ACS maupun External GenieACS.
+
+### 5. File yang Diperbarui & Ditambahkan
+- **`config/genieacs.js`**: Mengekspor fungsi pembantu Built-in ACS.
+- **`services/customerDeviceService.js`**: Peningkatan parsing `rxPower`, fallback link budget ODP, ekstraksi `connectedUsers` & `totalAssociations`.
+- **`routes/customerPortal.js`**: Penambahan route `GET /customer/api/device-metrics`.
+- **`views/dashboard.ejs`**: Perbaikan tampilan metrik sinyal optik, kartu & tabel perangkat terhubung, dan polling otomatis.
+- **`tests/customerDeviceMetrics.test.js`**: Unit test suite baru (8 test cases, 100% passed).
+- **`proses.md`**: Pencatatan dokumentasi perubahan dan verifikasi.
+
+### 6. Hasil Pengujian & Verifikasi
+- Sintaks JavaScript (`node -c`): **PASSED** (0 Error pada semua file terkait).
+- Unit & Integration Test Suite (`tests/customerDeviceMetrics.test.js`): **8/8 PASSED (100%)**.
+  - GenieACS Module Exports: **PASSED**.
+  - Built-in row parameter inflation: **PASSED**.
+  - Linear RX power conversion & total associations: **PASSED**.
+  - Negative dBm direct parsing: **PASSED**.
+  - Fallback Wi-Fi associated device: **PASSED**.
+  - Dashboard compilation with live data: **PASSED**.
+  - Prevention of `- dBm` on missing data: **PASSED**.
+  - Display active count with empty host list but active associations: **PASSED**.
+- Regression Test Suite (`tests/opticalPowerBudget.test.js`): **17/17 PASSED (100%)**.

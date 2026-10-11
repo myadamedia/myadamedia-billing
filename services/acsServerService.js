@@ -415,8 +415,22 @@ function upsertDevice(deviceId, deviceInfo, params, ipAddress) {
   }
   if (!existing || existingTags.length === 0) {
     try {
-      const pppoeUser = params['InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.Username']
-        || params['Device.PPP.Interface.1.Username'] || '';
+      let pppoeUser = '';
+      for (const [k, v] of Object.entries(params)) {
+        if (k.toLowerCase().includes('wanpppconnection') && k.toLowerCase().endsWith('.username')) {
+          if (v && typeof v === 'string' && v.trim()) {
+            pppoeUser = v.trim();
+            break;
+          }
+        }
+      }
+      if (!pppoeUser) {
+        pppoeUser = params['InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.Username']
+          || params['InternetGatewayDevice.WANDevice.1.WANConnectionDevice.2.WANPPPConnection.1.Username']
+          || params['Device.PPP.Interface.1.Username']
+          || params['VirtualParameters.pppoeUsername']
+          || '';
+      }
       const sn = deviceInfo.SerialNumber || '';
       let matchedCust = null;
       if (pppoeUser) {
@@ -675,10 +689,11 @@ function queueHostRefresh(deviceId) {
     const currentParams = existing.params ? JSON.parse(existing.params) : {};
     const isTr181 = Object.keys(currentParams).some(k => k.startsWith('Device.'));
     const groups = isTr181 ? [
-      ['Device.Hosts.Host.'],
+      ['Device.Hosts.Host.', 'Device.WiFi.AccessPoint.1.AssociatedDeviceNumberOfEntries', 'Device.WiFi.AccessPoint.2.AssociatedDeviceNumberOfEntries', 'Device.Hosts.HostNumberOfEntries'],
       ['Device.WiFi.AccessPoint.1.AssociatedDevice.'],
       ['Device.WiFi.AccessPoint.2.AssociatedDevice.']
     ] : [
+      ['InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.TotalAssociations', 'InternetGatewayDevice.LANDevice.1.WLANConfiguration.5.TotalAssociations', 'InternetGatewayDevice.LANDevice.1.Hosts.HostNumberOfEntries'],
       ['InternetGatewayDevice.LANDevice.1.Hosts.Host.'],
       ['InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.AssociatedDevice.'],
       ['InternetGatewayDevice.LANDevice.1.WLANConfiguration.5.AssociatedDevice.']

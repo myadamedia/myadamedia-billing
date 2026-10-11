@@ -146,6 +146,28 @@ async function resolveDeviceToken(input) {
     try {
       const db = require('../config/database');
       const tokenLower = token.toLowerCase();
+      const cleanDigits = tokenLower.replace(/\D/g, '');
+
+      const convertRow = (r) => {
+        if (!r) return null;
+        if (typeof genieacsApi.builtinRowToDevice === 'function') {
+          return genieacsApi.builtinRowToDevice(r);
+        }
+        let params = {};
+        try { params = typeof r.params === 'string' ? JSON.parse(r.params || '{}') : (r.params || {}); } catch (_) {}
+        let tags = [];
+        try { tags = typeof r.tags === 'string' ? JSON.parse(r.tags || '[]') : (r.tags || []); } catch (_) {}
+        let dev = {};
+        if (typeof genieacsApi.inflateParams === 'function') {
+          dev = genieacsApi.inflateParams(params);
+        }
+        dev._id = String(r.id || '');
+        dev._tags = Array.isArray(tags) ? tags : [];
+        dev._flatParams = params;
+        dev._ip = r.ip_address || null;
+        dev._lastInform = r.last_inform || null;
+        return dev;
+      };
       
       // 1.1 Direct match acs_devices
       let row = db.prepare(`
@@ -154,11 +176,12 @@ async function resolveDeviceToken(input) {
            OR LOWER(serial_number) = ? 
            OR (tags IS NOT NULL AND LOWER(tags) LIKE ?) 
            OR (params IS NOT NULL AND LOWER(params) LIKE ?)
+           OR (? != '' AND (LOWER(id) LIKE ? OR LOWER(serial_number) LIKE ?))
         ORDER BY last_inform DESC LIMIT 1
-      `).get(tokenLower, tokenLower, `%${tokenLower}%`, `%${tokenLower}%`);
+      `).get(tokenLower, tokenLower, `%${tokenLower}%`, `%${tokenLower}%`, cleanDigits, `%${cleanDigits}%`, `%${cleanDigits}%`);
 
       if (row) {
-        const dev = genieacsApi.builtinRowToDevice(row);
+        const dev = convertRow(row);
         if (dev && dev._id) return dev;
       }
 
@@ -169,23 +192,32 @@ async function resolveDeviceToken(input) {
            OR LOWER(genieacs_tag) = ? 
            OR LOWER(pppoe_username) = ? 
            OR CAST(id AS TEXT) = ?
-      `).get(tokenLower, tokenLower, tokenLower, tokenLower);
+           OR (? != '' AND (REPLACE(phone, '+', '') LIKE ? OR phone LIKE ?))
+        LIMIT 1
+      `).get(tokenLower, tokenLower, tokenLower, tokenLower, cleanDigits, `%${cleanDigits}%`, `%${cleanDigits}%`);
 
       if (cust) {
-        const custTag = (cust.genieacs_tag || cust.phone || cust.pppoe_username || '').toLowerCase();
-        const pppUser = (cust.pppoe_username || '').toLowerCase();
+        const custTag = (cust.genieacs_tag || '').toLowerCase().trim();
+        const pppUser = (cust.pppoe_username || '').toLowerCase().trim();
+        const phoneUser = (cust.phone || '').toLowerCase().trim();
+        const phoneDigits = phoneUser.replace(/\D/g, '');
         
         row = db.prepare(`
           SELECT * FROM acs_devices 
-          WHERE LOWER(id) = ? 
-             OR LOWER(serial_number) = ? 
-             OR (tags IS NOT NULL AND LOWER(tags) LIKE ?) 
-             OR (? != '' AND params IS NOT NULL AND LOWER(params) LIKE ?)
+          WHERE (? != '' AND (LOWER(id) = ? OR LOWER(serial_number) = ? OR (tags IS NOT NULL AND LOWER(tags) LIKE ?)))
+             OR (? != '' AND (params IS NOT NULL AND LOWER(params) LIKE ? OR (tags IS NOT NULL AND LOWER(tags) LIKE ?)))
+             OR (? != '' AND (tags IS NOT NULL AND LOWER(tags) LIKE ? OR params IS NOT NULL AND LOWER(params) LIKE ?))
+             OR (? != '' AND (tags IS NOT NULL AND LOWER(tags) LIKE ? OR params IS NOT NULL AND LOWER(params) LIKE ?))
           ORDER BY last_inform DESC LIMIT 1
-        `).get(custTag, custTag, `%${custTag}%`, pppUser, `%${pppUser}%`);
+        `).get(
+          custTag, custTag, custTag, `%${custTag}%`,
+          pppUser, `%${pppUser}%`, `%${pppUser}%`,
+          phoneUser, `%${phoneUser}%`, `%${phoneUser}%`,
+          phoneDigits, `%${phoneDigits}%`, `%${phoneDigits}%`
+        );
 
         if (row) {
-          const dev = genieacsApi.builtinRowToDevice(row);
+          const dev = convertRow(row);
           if (dev && dev._id) return dev;
         }
       }
@@ -199,10 +231,11 @@ async function resolveDeviceToken(input) {
           WHERE LOWER(id) = ? 
              OR LOWER(serial_number) = ? 
              OR (tags IS NOT NULL AND LOWER(tags) LIKE ?)
-          LIMIT 1
-        `).get(cLow, cLow, `%${cLow}%`);
+             OR (params IS NOT NULL AND LOWER(params) LIKE ?)
+          ORDER BY last_inform DESC LIMIT 1
+        `).get(cLow, cLow, `%${cLow}%`, `%${cLow}%`);
         if (row) {
-          const dev = genieacsApi.builtinRowToDevice(row);
+          const dev = convertRow(row);
           if (dev && dev._id) return dev;
         }
       }
@@ -258,19 +291,33 @@ const parameterPaths = {
   rxPower: [
     'VirtualParameters.RXPower',
     'VirtualParameters.redaman',
+    'VirtualParameters.rx_power',
+    'VirtualParameters.rxPower',
+    'VirtualParameters.redaman_optik',
     'InternetGatewayDevice.WANDevice.1.WANPONInterfaceConfig.RXPower',
+    'InternetGatewayDevice.WANDevice.*.WANPONInterfaceConfig.RXPower',
+    'InternetGatewayDevice.WANDevice.*.WANPONInterfaceConfig.RxPower',
     'InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANOAM.RXPower',
     'InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.X_HW_OpticalSignal.RXPower',
+    'InternetGatewayDevice.WANDevice.*.WANConnectionDevice.*.X_HW_OpticalSignal.RXPower',
     'InternetGatewayDevice.WANDevice.1.X_GponInterfaceConfig.RXPower',
     'InternetGatewayDevice.WANDevice.1.X_GponInterfaceConfig.RxPower',
+    'InternetGatewayDevice.WANDevice.*.X_GponInterfaceConfig.RXPower',
+    'InternetGatewayDevice.WANDevice.*.X_GponInterfaceConfig.RxPower',
     'InternetGatewayDevice.WANDevice.1.X_GponInterafceConfig.RXPower',
     'InternetGatewayDevice.WANDevice.1.X_GponInterafceConfig.RxPower',
     'InternetGatewayDevice.WANDevice.1.X_ZTE_GponInterfaceConfig.RXPower',
     'InternetGatewayDevice.WANDevice.1.X_ZTE_GponInterfaceConfig.RxPower',
+    'InternetGatewayDevice.WANDevice.*.X_ZTE_GponInterfaceConfig.RXPower',
+    'InternetGatewayDevice.WANDevice.*.X_ZTE_GponInterfaceConfig.RxPower',
     'InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.X_ZTE_OpticalSignal.RXPower',
     'InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.X_ZTE_OpticalSignal.RxPower',
+    'InternetGatewayDevice.WANDevice.*.WANConnectionDevice.*.X_ZTE_OpticalSignal.RXPower',
+    'InternetGatewayDevice.WANDevice.*.WANConnectionDevice.*.X_ZTE_OpticalSignal.RxPower',
     'InternetGatewayDevice.WANDevice.1.X_HW_GponInterfaceConfig.RXPower',
     'InternetGatewayDevice.WANDevice.1.X_HW_GponInterfaceConfig.RxPower',
+    'InternetGatewayDevice.WANDevice.*.X_HW_GponInterfaceConfig.RXPower',
+    'InternetGatewayDevice.WANDevice.*.X_HW_GponInterfaceConfig.RxPower',
     'InternetGatewayDevice.WANDevice.1.X_ZTE-COM_WANPONInterfaceConfig.RXPower',
     'InternetGatewayDevice.WANDevice.1.X_FH_GponInterfaceConfig.RXPower',
     'InternetGatewayDevice.WANDevice.1.X_CMCC_EponInterfaceConfig.RXPower',
@@ -279,7 +326,10 @@ const parameterPaths = {
     'InternetGatewayDevice.WANDevice.1.X_CT-COM_GponInterfaceConfig.RXPower',
     'InternetGatewayDevice.WANDevice.1.X_CU_WANEPONInterfaceConfig.OpticalTransceiver.RXPower',
     'Device.Optical.Interface.1.OpticalSignalLevel',
-    'Device.XPON.Interface.1.Stats.RXPower'
+    'Device.Optical.Interface.*.OpticalSignalLevel',
+    'Device.XPON.Interface.1.Stats.RXPower',
+    'Device.XPON.Interface.*.Stats.RXPower',
+    'Device.XPON.Interface.*.Stats.RxPower'
   ],
   pppoeIP: [
     'VirtualParameters.pppoeIP',
@@ -562,8 +612,8 @@ function getParameterWithPaths(device, paths) {
       }
     }
 
-    // 2. Try flat params direct lookup if device._flatParams is available
-    if (device._flatParams && typeof device._flatParams === 'object') {
+    // 2. Try flat params direct lookup if device._flatParams is available and no match in tree
+    if (matches.length === 0 && device._flatParams && typeof device._flatParams === 'object') {
       const pLower = p.toLowerCase();
       for (const [fKey, rawFVal] of Object.entries(device._flatParams)) {
         let fVal = rawFVal;
@@ -686,7 +736,7 @@ function mapDeviceData(device, tag) {
         if (assoc && typeof assoc === 'object') {
           const assocArr = Array.isArray(assoc) ? assoc : Object.values(assoc).filter(v => v && typeof v === 'object');
           assocArr.forEach(item => {
-            const m = item?.AssociatedDeviceMACAddress?._value || item?.MACAddress?._value || item?.AssociatedDeviceMACAddress || item?.MACAddress;
+            const m = item?.AssociatedDeviceMACAddress?._value || item?.MACAddress?._value || item?.PhysAddress?._value || item?.AssociatedDeviceMACAddress || item?.MACAddress || item?.PhysAddress;
             const ipVal = item?.AssociatedDeviceIPAddress?._value || item?.IPAddress?._value || item?.AssociatedDeviceIPAddress || item?.IPAddress || '-';
             if (m && typeof m === 'string') {
               const macClean = m.toLowerCase().trim();
@@ -712,8 +762,8 @@ function mapDeviceData(device, tag) {
 
       for (const entry of hostEntries) {
         const hostname = (typeof entry?.HostName === 'object' ? entry?.HostName?._value : entry?.HostName) || 'Unknown';
-        const ip = (typeof entry?.IPAddress === 'object' ? entry?.IPAddress?._value : entry?.IPAddress) || '-';
-        const mac = (typeof entry?.MACAddress === 'object' ? entry?.MACAddress?._value : entry?.MACAddress) || '-';
+        const ip = (typeof entry?.IPAddress === 'object' ? entry?.IPAddress?._value : (entry?.IPv4Address?.[1]?.IPAddress?._value || entry?.IPAddress)) || '-';
+        const mac = (typeof entry?.MACAddress === 'object' ? entry?.MACAddress?._value : (entry?.PhysAddress?._value || entry?.MACAddress || entry?.PhysAddress)) || '-';
         const iface = (typeof entry?.InterfaceType === 'object' ? entry?.InterfaceType?._value : entry?.InterfaceType || entry?.Interface) || '-';
 
         const rawActive = typeof entry?.Active === 'object' ? entry?.Active?._value : entry?.Active;
@@ -740,7 +790,7 @@ function mapDeviceData(device, tag) {
       }
     }
 
-    // Fallback: If Hosts.Host tree was empty/missing, add Wi-Fi associated devices directly
+    // Fallback 1: If Hosts.Host tree was empty/missing, add Wi-Fi associated devices directly
     if (connectedUsers.length === 0 && wifiAssocMap.size > 0) {
       for (const [macKey, info] of wifiAssocMap) {
         connectedUsers.push({
@@ -752,25 +802,76 @@ function mapDeviceData(device, tag) {
         });
       }
     }
+
+    // Fallback 2: Scan _flatParams directly if connectedUsers is still empty
+    if (connectedUsers.length === 0 && device._flatParams && typeof device._flatParams === 'object') {
+      const flat = device._flatParams;
+      const flatHosts = new Map();
+      for (const [k, v] of Object.entries(flat)) {
+        const val = v && typeof v === 'object' && v._value !== undefined ? v._value : v;
+        if (val === undefined || val === null) continue;
+        
+        const hostMatch = k.match(/(?:Hosts\.Host|LANDevice\.\d+\.Hosts\.Host)\.(\d+)\.([A-Za-z0-9_]+)/i);
+        if (hostMatch) {
+          const idx = hostMatch[1];
+          const field = hostMatch[2].toLowerCase();
+          if (!flatHosts.has(idx)) flatHosts.set(idx, { hostname: 'Unknown', ip: '-', mac: '-', iface: 'LAN/Wi-Fi', status: 'Online' });
+          const item = flatHosts.get(idx);
+          if (field === 'hostname') item.hostname = String(val);
+          if (field === 'ipaddress') item.ip = String(val);
+          if (field === 'macaddress' || field === 'physaddress') item.mac = String(val);
+          if (field === 'active') {
+            const aStr = String(val).toLowerCase();
+            if (aStr === 'false' || aStr === '0' || aStr === 'no') item.status = 'Offline';
+          }
+        }
+        
+        const assocMatch = k.match(/(?:AssociatedDevice|AccessPoint\.\d+\.AssociatedDevice)\.(\d+)\.([A-Za-z0-9_]+)/i);
+        if (assocMatch) {
+          const idx = 'assoc_' + assocMatch[1];
+          const field = assocMatch[2].toLowerCase();
+          if (!flatHosts.has(idx)) flatHosts.set(idx, { hostname: 'Wi-Fi Client', ip: '-', mac: '-', iface: 'Wi-Fi (WLAN)', status: 'Online' });
+          const item = flatHosts.get(idx);
+          if (field.includes('macaddress') || field.includes('physaddress')) item.mac = String(val);
+          if (field.includes('ipaddress')) item.ip = String(val);
+        }
+      }
+      for (const item of flatHosts.values()) {
+        if (item.mac !== '-' || item.ip !== '-') {
+          connectedUsers.push(item);
+        }
+      }
+    }
   } catch (e) {}
 
-  let rxPower = getParameterWithPaths(device, parameterPaths.rxPower);
-  if (rxPower !== 'N/A' && rxPower !== '-' && rxPower !== '') {
-    const num = parseFloat(rxPower);
-    if (!isNaN(num) && num > 0) {
-      const dbVal = 30 + (Math.log10(num * Math.pow(10, -7)) * 10);
-      rxPower = (Math.ceil(dbVal * 100) / 100).toFixed(2);
+  let totalAssociations = getParameterWithPaths(device, parameterPaths.userConnected);
+  if (totalAssociations === 'N/A' || !totalAssociations || totalAssociations === 0 || totalAssociations === '0') {
+    if (device._flatParams && typeof device._flatParams === 'object') {
+      let assocSum = 0;
+      for (const [k, v] of Object.entries(device._flatParams)) {
+        if (/totalassociations|associateddevicenumberofentries/i.test(k)) {
+          const val = parseInt(v && typeof v === 'object' && v._value !== undefined ? v._value : v, 10);
+          if (!isNaN(val) && val > 0) assocSum += val;
+        }
+      }
+      if (assocSum > 0) totalAssociations = assocSum;
     }
   }
+  const onlineUserCount = connectedUsers.filter(u => u.status === 'Online').length;
+  if ((totalAssociations === 'N/A' || !totalAssociations || totalAssociations === 0 || totalAssociations === '0') && connectedUsers.length > 0) {
+    totalAssociations = onlineUserCount;
+  } else if (typeof totalAssociations === 'number' && onlineUserCount > totalAssociations) {
+    totalAssociations = onlineUserCount;
+  }
+  if (totalAssociations === 'N/A' || !totalAssociations) {
+    totalAssociations = 0;
+  } else {
+    totalAssociations = parseInt(totalAssociations, 10) || 0;
+  }
+
   const pppoeIP = extractPppoeIp(device);
   const pppoeUsername = extractPppoeUser(device);
   const uptimeRaw = getParameterWithPaths(device, parameterPaths.uptime);
-  let totalAssociations = getParameterWithPaths(device, parameterPaths.userConnected);
-
-  // Fallback: If N/A or 0, count from connectedUsers list (LAN + WLAN)
-  if ((totalAssociations === 'N/A' || totalAssociations === 0 || totalAssociations === '0') && connectedUsers.length > 0) {
-    totalAssociations = connectedUsers.filter(u => u.status === 'Online').length;
-  }
 
   function formatUptime(seconds) {
     if (!seconds || seconds === 'N/A' || seconds === '-') return seconds || 'N/A';
@@ -813,17 +914,63 @@ function mapDeviceData(device, tag) {
   const devIdClean = device?._id ? String(device._id).toLowerCase().trim() : '';
 
   if (pppoeClean) {
-    dbCustomer = db.prepare('SELECT id, name, phone, genieacs_tag, pppoe_username FROM customers WHERE LOWER(pppoe_username) = ?').get(pppoeClean);
+    dbCustomer = db.prepare('SELECT id, name, phone, genieacs_tag, pppoe_username, odp_id FROM customers WHERE LOWER(pppoe_username) = ?').get(pppoeClean);
   }
   if (!dbCustomer && tagClean) {
-    dbCustomer = db.prepare('SELECT id, name, phone, genieacs_tag, pppoe_username FROM customers WHERE LOWER(genieacs_tag) = ? OR LOWER(phone) = ?').get(tagClean, tagClean);
+    dbCustomer = db.prepare('SELECT id, name, phone, genieacs_tag, pppoe_username, odp_id FROM customers WHERE LOWER(genieacs_tag) = ? OR LOWER(phone) = ?').get(tagClean, tagClean);
   }
   if (!dbCustomer && snClean) {
-    dbCustomer = db.prepare('SELECT id, name, phone, genieacs_tag, pppoe_username FROM customers WHERE LOWER(genieacs_tag) = ? OR LOWER(phone) = ?').get(snClean, snClean);
+    dbCustomer = db.prepare('SELECT id, name, phone, genieacs_tag, pppoe_username, odp_id FROM customers WHERE LOWER(genieacs_tag) = ? OR LOWER(phone) = ?').get(snClean, snClean);
   }
   if (!dbCustomer && devIdClean) {
-    dbCustomer = db.prepare('SELECT id, name, phone, genieacs_tag, pppoe_username FROM customers WHERE LOWER(genieacs_tag) = ?').get(devIdClean);
+    dbCustomer = db.prepare('SELECT id, name, phone, genieacs_tag, pppoe_username, odp_id FROM customers WHERE LOWER(genieacs_tag) = ?').get(devIdClean);
   }
+
+  // Optical Power Parsing & ODP Link Budget Fallback
+  const opticalPowerService = require('./opticalPowerService');
+  let rawRx = getParameterWithPaths(device, parameterPaths.rxPower);
+  let parsedRx = null;
+  if (rawRx && rawRx !== 'N/A' && rawRx !== '-' && rawRx !== '') {
+    parsedRx = opticalPowerService.parseRxPowerValue(rawRx);
+  }
+  if (parsedRx === null && device?._flatParams) {
+    parsedRx = opticalPowerService.extractRxFromAcsParams(device._flatParams);
+  }
+
+  let estimatedRx = null;
+  let isEstimatedRx = false;
+  if (dbCustomer && dbCustomer.id) {
+    try {
+      const custFull = db.prepare('SELECT id, odp_id, lat, lng, cable_path FROM customers WHERE id = ?').get(dbCustomer.id);
+      if (custFull && custFull.odp_id) {
+        const odp = db.prepare('SELECT id, lat, lng, split_ratio FROM odps WHERE id = ?').get(custFull.odp_id);
+        if (odp) {
+          let dropMeters = 50;
+          if (custFull.lat && custFull.lng && odp.lat && odp.lng) {
+            dropMeters = opticalPowerService.calculateHaversineDistance(odp.lat, odp.lng, custFull.lat, custFull.lng) || 50;
+          }
+          const lossCalc = opticalPowerService.calculateTheoreticalLoss({
+            dropDistanceMeters: dropMeters,
+            odpSplitRatio: odp.split_ratio || '1:8'
+          });
+          if (lossCalc && Number.isFinite(lossCalc.estimatedRxPowerDbm)) {
+            estimatedRx = lossCalc.estimatedRxPowerDbm;
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  let finalRxPower = '-';
+  if (parsedRx !== null) {
+    finalRxPower = (Math.round(parsedRx * 100) / 100).toFixed(2);
+    isEstimatedRx = false;
+  } else if (estimatedRx !== null) {
+    finalRxPower = (Math.round(estimatedRx * 100) / 100).toFixed(2);
+    isEstimatedRx = true;
+  }
+
+  const opticalQuality = opticalPowerService.evaluateOpticalQuality(parsedRx, estimatedRx);
 
   const customerName = dbCustomer ? dbCustomer.name : '-';
   const customerPhone = dbCustomer ? dbCustomer.phone : '';
@@ -846,7 +993,9 @@ function mapDeviceData(device, tag) {
     status,
     lastInform,
     connectedUsers,
-    rxPower: rxPower === 'N/A' ? '-' : rxPower,
+    rxPower: finalRxPower,
+    isEstimatedRx,
+    opticalQuality,
     pppoeIP: pppoeIP === 'N/A' ? '-' : pppoeIP,
     pppoeUsername: pppoeUsername === 'N/A' ? '-' : pppoeUsername,
     pppoeUptime: pppoeUptime === 'N/A' ? '-' : pppoeUptime,
@@ -884,6 +1033,31 @@ async function getCustomerDeviceData(tag) {
       `).get(tagClean, tagClean, tagClean, tagClean, cleanNum, `%${cleanNum}%`, `%${cleanNum}%`);
 
       if (profile) {
+        let estRx = null;
+        let isEst = false;
+        let optQuality = null;
+        if (profile.odp_id) {
+          try {
+            const opticalPowerService = require('./opticalPowerService');
+            const odp = db.prepare('SELECT id, lat, lng, split_ratio FROM odps WHERE id = ?').get(profile.odp_id);
+            if (odp) {
+              let dropMeters = 50;
+              if (profile.lat && profile.lng && odp.lat && odp.lng) {
+                dropMeters = opticalPowerService.calculateHaversineDistance(odp.lat, odp.lng, profile.lat, profile.lng) || 50;
+              }
+              const lossCalc = opticalPowerService.calculateTheoreticalLoss({
+                dropDistanceMeters: dropMeters,
+                odpSplitRatio: odp.split_ratio || '1:8'
+              });
+              if (lossCalc && Number.isFinite(lossCalc.estimatedRxPowerDbm)) {
+                estRx = (Math.round(lossCalc.estimatedRxPowerDbm * 100) / 100).toFixed(2);
+                isEst = true;
+                optQuality = opticalPowerService.evaluateOpticalQuality(null, lossCalc.estimatedRxPowerDbm);
+              }
+            }
+          } catch (_) {}
+        }
+
         return {
           phone: profile.phone || tag,
           customerName: profile.name || '-',
@@ -893,7 +1067,9 @@ async function getCustomerDeviceData(tag) {
           status: profile.status === 'active' ? 'Online' : 'Offline',
           lastInform: '-',
           connectedUsers: [],
-          rxPower: '-',
+          rxPower: estRx || '-',
+          isEstimatedRx: isEst,
+          opticalQuality: optQuality,
           pppoeIP: profile.static_ip || profile.pppoe_remote_address || '-',
           pppoeUsername: profile.pppoe_username || '-',
           pppoeUptime: '-',
