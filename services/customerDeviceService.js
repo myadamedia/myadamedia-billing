@@ -11,6 +11,44 @@ const genieacsApi = require('../config/genieacs');
 // Helper: Search device across all servers (always get full data)
 async function searchDeviceAcrossServers(query, fullData = true) {
   try {
+    // 1. Jika Built-in ACS aktif, prioritaskan pencarian di SQLite lokal acs_devices
+    if (genieacsApi.isBuiltinAcsEnabled()) {
+      try {
+        const db = require('../config/database');
+        let searchKeys = [];
+        if (query && query.$or && Array.isArray(query.$or)) {
+          for (const item of query.$or) {
+            if (item._id) searchKeys.push(String(item._id).trim().toLowerCase());
+            if (item._tags) searchKeys.push(String(item._tags).trim().toLowerCase());
+            if (item['VirtualParameters.pppoeUsername']) searchKeys.push(String(item['VirtualParameters.pppoeUsername']).trim().toLowerCase());
+          }
+        } else if (typeof query === 'object') {
+          for (const v of Object.values(query)) {
+            if (typeof v === 'string') searchKeys.push(v.trim().toLowerCase());
+          }
+        }
+
+        for (const k of searchKeys) {
+          if (!k) continue;
+          const row = db.prepare(`
+            SELECT * FROM acs_devices 
+            WHERE LOWER(id) = ? 
+               OR LOWER(serial_number) = ? 
+               OR (tags IS NOT NULL AND LOWER(tags) LIKE ?) 
+               OR (params IS NOT NULL AND LOWER(params) LIKE ?)
+            LIMIT 1
+          `).get(k, k, `%${k}%`, `%${k}%`);
+
+          if (row) {
+            const dev = genieacsApi.builtinRowToDevice(row);
+            if (dev && dev._id) return dev;
+          }
+        }
+      } catch (builtinErr) {
+        logger.debug(`[CustomerDevice] Builtin search error: ${builtinErr.message}`);
+      }
+    }
+
     const servers = genieacsApi.getAllACSServers();
     
     for (const server of servers) {
@@ -29,12 +67,12 @@ async function searchDeviceAcrossServers(query, fullData = true) {
         try {
           response = await instance.get('/devices', {
             params,
-            timeout: 15000
+            timeout: 2500
           });
         } catch (e) {
           response = await instance.get('/api/devices', {
             params,
-            timeout: 15000
+            timeout: 2500
           });
         }
         
@@ -103,6 +141,77 @@ async function resolveDeviceToken(input) {
   const token = String(input ?? '').replace(/[\r\n\t]+/g, '').trim();
   if (!token) return null;
 
+  // 1. Jika Built-in ACS aktif, prioritaskan SQLite secara cepat dan tuntas
+  if (genieacsApi.isBuiltinAcsEnabled()) {
+    try {
+      const db = require('../config/database');
+      const tokenLower = token.toLowerCase();
+      
+      // 1.1 Direct match acs_devices
+      let row = db.prepare(`
+        SELECT * FROM acs_devices 
+        WHERE LOWER(id) = ? 
+           OR LOWER(serial_number) = ? 
+           OR (tags IS NOT NULL AND LOWER(tags) LIKE ?) 
+           OR (params IS NOT NULL AND LOWER(params) LIKE ?)
+        ORDER BY last_inform DESC LIMIT 1
+      `).get(tokenLower, tokenLower, `%${tokenLower}%`, `%${tokenLower}%`);
+
+      if (row) {
+        const dev = genieacsApi.builtinRowToDevice(row);
+        if (dev && dev._id) return dev;
+      }
+
+      // 1.2 Match via customers table
+      const cust = db.prepare(`
+        SELECT * FROM customers 
+        WHERE LOWER(phone) = ? 
+           OR LOWER(genieacs_tag) = ? 
+           OR LOWER(pppoe_username) = ? 
+           OR CAST(id AS TEXT) = ?
+      `).get(tokenLower, tokenLower, tokenLower, tokenLower);
+
+      if (cust) {
+        const custTag = (cust.genieacs_tag || cust.phone || cust.pppoe_username || '').toLowerCase();
+        const pppUser = (cust.pppoe_username || '').toLowerCase();
+        
+        row = db.prepare(`
+          SELECT * FROM acs_devices 
+          WHERE LOWER(id) = ? 
+             OR LOWER(serial_number) = ? 
+             OR (tags IS NOT NULL AND LOWER(tags) LIKE ?) 
+             OR (? != '' AND params IS NOT NULL AND LOWER(params) LIKE ?)
+          ORDER BY last_inform DESC LIMIT 1
+        `).get(custTag, custTag, `%${custTag}%`, pppUser, `%${pppUser}%`);
+
+        if (row) {
+          const dev = genieacsApi.builtinRowToDevice(row);
+          if (dev && dev._id) return dev;
+        }
+      }
+
+      // 1.3 Match via candidate phone/tag variants in SQLite
+      const candidates = expandTagCandidates(token);
+      for (const cand of candidates) {
+        const cLow = cand.toLowerCase();
+        row = db.prepare(`
+          SELECT * FROM acs_devices 
+          WHERE LOWER(id) = ? 
+             OR LOWER(serial_number) = ? 
+             OR (tags IS NOT NULL AND LOWER(tags) LIKE ?)
+          LIMIT 1
+        `).get(cLow, cLow, `%${cLow}%`);
+        if (row) {
+          const dev = genieacsApi.builtinRowToDevice(row);
+          if (dev && dev._id) return dev;
+        }
+      }
+
+      // Built-in ACS is authoritative when enabled and no external servers match
+      return null;
+    } catch (_) {}
+  }
+
   const direct = await findDeviceByTag(token);
   if (direct && direct._id) return direct;
 
@@ -111,57 +220,6 @@ async function resolveDeviceToken(input) {
 
   const found = await findDeviceWithTagVariants(token);
   if (found && found.device && found.device._id) return found.device;
-
-  // Fallback resolution via SQLite acs_devices & customers tables
-  try {
-    const db = require('../config/database');
-    const tokenLower = token.toLowerCase();
-    
-    // 1. Direct match in acs_devices by id, serial_number, tags, or params
-    const row = db.prepare(`
-      SELECT * FROM acs_devices 
-      WHERE LOWER(id) = ? 
-         OR LOWER(serial_number) = ? 
-         OR (tags IS NOT NULL AND LOWER(tags) LIKE ?) 
-         OR (params IS NOT NULL AND LOWER(params) LIKE ?)
-      ORDER BY last_inform DESC LIMIT 1
-    `).get(tokenLower, tokenLower, `%${tokenLower}%`, `%${tokenLower}%`);
-
-    if (row) {
-      const dev = genieacsApi.builtinRowToDevice(row);
-      if (dev && dev._id) return dev;
-    }
-
-    // 2. Search customers table to resolve phone / tag / pppoe_username to acs_devices
-    const cust = db.prepare(`
-      SELECT * FROM customers 
-      WHERE LOWER(phone) = ? 
-         OR LOWER(genieacs_tag) = ? 
-         OR LOWER(pppoe_username) = ? 
-         OR CAST(id AS TEXT) = ?
-    `).get(tokenLower, tokenLower, tokenLower, tokenLower);
-
-    if (cust) {
-      const custTag = (cust.genieacs_tag || cust.phone || cust.pppoe_username || '').toLowerCase();
-      const pppUser = (cust.pppoe_username || '').toLowerCase();
-      
-      const devRow = db.prepare(`
-        SELECT * FROM acs_devices 
-        WHERE LOWER(id) = ? 
-           OR LOWER(serial_number) = ? 
-           OR (tags IS NOT NULL AND LOWER(tags) LIKE ?) 
-           OR (? != '' AND params IS NOT NULL AND LOWER(params) LIKE ?)
-        ORDER BY last_inform DESC LIMIT 1
-      `).get(custTag, custTag, `%${custTag}%`, pppUser, `%${pppUser}%`);
-
-      if (devRow) {
-        const dev = genieacsApi.builtinRowToDevice(devRow);
-        if (dev && dev._id) return dev;
-      }
-    }
-  } catch (err) {
-    logger.debug(`[CustomerDevice] Builtin resolution fallback info: ${err.message}`);
-  }
 
   return null;
 }
@@ -485,7 +543,10 @@ function getParameterWithPaths(device, paths) {
     // 1. Try wildcard traverse on inflated device object
     const matches = getWildcardMatches(device, p);
     for (const m of matches) {
-      const val = m.value;
+      let val = m.value;
+      if (val && typeof val === 'object') {
+        val = val._value !== undefined ? val._value : val.value;
+      }
       if (val !== undefined && val !== null && val !== '' && val !== 'N/A') {
         const isIpPath = p.toLowerCase().includes('ipaddress') || p.toLowerCase().includes('pppoeip') || p.toLowerCase().includes('pppip');
         if (isIpPath && String(val) === '0.0.0.0') continue;
@@ -504,7 +565,11 @@ function getParameterWithPaths(device, paths) {
     // 2. Try flat params direct lookup if device._flatParams is available
     if (device._flatParams && typeof device._flatParams === 'object') {
       const pLower = p.toLowerCase();
-      for (const [fKey, fVal] of Object.entries(device._flatParams)) {
+      for (const [fKey, rawFVal] of Object.entries(device._flatParams)) {
+        let fVal = rawFVal;
+        if (fVal && typeof fVal === 'object') {
+          fVal = fVal._value !== undefined ? fVal._value : fVal.value;
+        }
         if (fKey.toLowerCase() === pLower && fVal !== undefined && fVal !== null && fVal !== '' && fVal !== 'N/A') {
           const isIpPath = p.toLowerCase().includes('ipaddress') || p.toLowerCase().includes('pppoeip') || p.toLowerCase().includes('pppip');
           if (isIpPath && String(fVal) === '0.0.0.0') continue;
@@ -600,8 +665,8 @@ function mapDeviceData(device, tag) {
 
   if (status === 'Offline' || status === 'Unknown') {
     const pppIp = extractPppoeIp(device);
-    const rx = extractRxPower(device);
-    if ((pppIp && pppIp !== 'N/A' && pppIp !== '-') || (rx && rx !== 'N/A' && rx !== '-')) {
+    const rx = getParameterWithPaths(device, parameterPaths.rxPower);
+    if ((pppIp && pppIp !== 'N/A' && pppIp !== '-') || (rx && rx !== 'N/A' && rx !== '')) {
       status = 'Online';
     }
   }
@@ -1189,6 +1254,162 @@ async function updatePassword(tag, newPassword, actor = null) {
   }
 }
 
+/**
+ * Mengambil detail konfigurasi Wi-Fi lengkap untuk portal pelanggan mandiri
+ */
+async function getWifiDetails(tag) {
+  try {
+    const data = await getCustomerDeviceData(tag);
+    if (!data) {
+      return {
+        ok: false,
+        online: false,
+        status: 'Perangkat Tidak Ditemukan',
+        ssid24: '-',
+        ssid5g: null,
+        has5g: false,
+        model: '-',
+        rxPower: '-',
+        connectedCount: 0,
+        serialNumber: '-'
+      };
+    }
+
+    let rawSsid24 = data.ssid;
+    if (rawSsid24 && typeof rawSsid24 === 'object') {
+      rawSsid24 = rawSsid24._value !== undefined ? rawSsid24._value : (rawSsid24.value || '');
+    }
+    let ssid24 = (rawSsid24 && rawSsid24 !== '-' && rawSsid24 !== 'N/A') ? String(rawSsid24).trim() : 'MyAdamedia-WiFi';
+    let ssid5g = null;
+    let has5g = false;
+
+    // Periksa apakah perangkat memiliki 5 GHz dari database SQLite atau device
+    try {
+      const db = require('../config/database');
+      const devRow = db.prepare('SELECT params FROM acs_devices WHERE id = ?').get(data.serialNumber);
+      if (devRow && devRow.params) {
+        const flatParams = typeof devRow.params === 'string' ? JSON.parse(devRow.params) : devRow.params;
+        if (flatParams && typeof flatParams === 'object') {
+          for (const k of Object.keys(flatParams)) {
+            const kLow = k.toLowerCase();
+            if (kLow.includes('wlanconfiguration') && (kLow.includes('.5.') || kLow.includes('.6.') || kLow.includes('.2.')) && kLow.endsWith('.ssid')) {
+              let val = flatParams[k]?._value !== undefined ? flatParams[k]._value : flatParams[k];
+              if (val && typeof val === 'object') val = val._value || val.value;
+              if (val && typeof val === 'string' && val.trim() && val !== '0' && val !== 'N/A') {
+                ssid5g = val.trim();
+                has5g = true;
+                break;
+              }
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
+    return {
+      ok: true,
+      deviceId: data.serialNumber || '-',
+      online: data.status === 'Online',
+      status: data.status || 'Offline',
+      ssid24,
+      ssid5g,
+      has5g,
+      model: data.model || data.productClass || 'ONT Router',
+      rxPower: data.rxPower || '-',
+      connectedCount: Array.isArray(data.connectedUsers) ? data.connectedUsers.length : (Number(data.totalAssociations) || 0),
+      serialNumber: data.serialNumber || '-',
+      pppoeUsername: data.pppoeUsername || '-'
+    };
+  } catch (err) {
+    logger.error(`[getWifiDetails] Error: ${err.message}`);
+    return {
+      ok: false,
+      online: false,
+      status: 'Error: ' + err.message,
+      ssid24: '-',
+      ssid5g: null,
+      has5g: false,
+      model: '-',
+      rxPower: '-',
+      connectedCount: 0,
+      serialNumber: '-'
+    };
+  }
+}
+
+/**
+ * Pembaruan terpadu SSID & Password Wi-Fi dalam satu proses
+ */
+async function updateWifiComplete(tag, { ssid, password, ssid5g, sync5g = true }, actor = null) {
+  let changedSsid = false;
+  let changedPassword = false;
+  const messages = [];
+
+  const newSsid = String(ssid ?? '').replace(/[\r\n\t]+/g, '').trim();
+  const newPw = String(password ?? '').replace(/[\r\n\t]+/g, '').trim();
+  const custom5g = String(ssid5g ?? '').replace(/[\r\n\t]+/g, '').trim();
+
+  // 1. Proses SSID jika diisi
+  if (newSsid) {
+    const okSsid = await updateSSID(tag, newSsid, actor);
+    if (okSsid) {
+      changedSsid = true;
+      messages.push('Nama Wi-Fi (SSID) berhasil diperbarui');
+    } else {
+      return {
+        ok: false,
+        changedSsid: false,
+        changedPassword: false,
+        message: 'Gagal memperbarui Nama Wi-Fi (SSID). Pastikan router Anda dalam keadaan online.'
+      };
+    }
+  }
+
+  // 2. Proses Password jika diisi
+  if (newPw) {
+    if (newPw.length < 8) {
+      return {
+        ok: false,
+        changedSsid,
+        changedPassword: false,
+        message: 'Password Wi-Fi harus memiliki panjang minimal 8 karakter.'
+      };
+    }
+    const okPw = await updatePassword(tag, newPw, actor);
+    if (okPw) {
+      changedPassword = true;
+      messages.push('Password Wi-Fi berhasil diperbarui');
+    } else {
+      return {
+        ok: false,
+        changedSsid,
+        changedPassword: false,
+        message: 'Gagal memperbarui Password Wi-Fi. Pastikan router Anda dalam keadaan online.'
+      };
+    }
+  }
+
+  if (!changedSsid && !changedPassword) {
+    return {
+      ok: false,
+      changedSsid: false,
+      changedPassword: false,
+      message: 'Tidak ada perubahan yang dikirim. Masukkan Nama Wi-Fi atau Password baru.'
+    };
+  }
+
+  return {
+    ok: true,
+    changedSsid,
+    changedPassword,
+    message: messages.join(' & ') + ' secara sukses.',
+    details: {
+      ssid: newSsid || null,
+      passwordLength: newPw ? newPw.length : null
+    }
+  };
+}
+
 async function requestReboot(tag, actor = null) {
   const device = await resolveDeviceToken(tag);
   if (!device || !device._id) return { ok: false, message: 'Perangkat tidak ditemukan.' };
@@ -1642,6 +1863,8 @@ module.exports = {
   fallbackCustomer,
   updateSSID,
   updatePassword,
+  getWifiDetails,
+  updateWifiComplete,
   requestReboot,
   updateCustomerTag,
   listDevicesWithTags,

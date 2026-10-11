@@ -809,6 +809,8 @@ const {
   fallbackCustomer,
   updateSSID,
   updatePassword,
+  getWifiDetails,
+  updateWifiComplete,
   requestReboot,
   updateCustomerTag,
   deleteConnectedClient
@@ -2112,6 +2114,253 @@ router.get('/api/pppoe-traffic', async (req, res) => {
     return res.json({ ok: false, error: e.message || 'failed' });
   } finally {
     if (conn && conn.api) conn.api.close();
+  }
+});
+
+router.get('/api/wifi/info', async (req, res) => {
+  const loginId = String(req.session?.phone ?? '').replace(/[\r\n\t]+/g, '').trim();
+  const pppoeSession = String(req.session?.pppoe_username ?? '').replace(/[\r\n\t]+/g, '').trim();
+  if (!loginId && !pppoeSession) {
+    return res.status(401).json({ ok: false, error: 'Unauthorized - Silakan login terlebih dahulu' });
+  }
+
+  const profile = findCustomerProfileByLoginId(loginId || pppoeSession);
+  const tokenCandidates = [];
+  for (const v of [pppoeSession, loginId, profile?.pppoe_username, profile?.genieacs_tag, profile?.phone]) {
+    const s = String(v ?? '').replace(/[\r\n\t]+/g, '').trim();
+    if (s && !tokenCandidates.includes(s)) tokenCandidates.push(s);
+  }
+
+  for (const token of tokenCandidates) {
+    const info = await getWifiDetails(token);
+    if (info && info.ok) {
+      return res.json({ ok: true, data: info });
+    }
+  }
+
+  return res.json({
+    ok: true,
+    data: {
+      online: false,
+      status: 'Offline / Belum Terdeteksi',
+      ssid24: 'MyAdamedia-WiFi',
+      ssid5g: null,
+      has5g: false,
+      connectedCount: 0
+    }
+  });
+});
+
+router.post('/api/wifi/update', async (req, res) => {
+  const loginId = String(req.session?.phone ?? '').replace(/[\r\n\t]+/g, '').trim();
+  const pppoeSession = String(req.session?.pppoe_username ?? '').replace(/[\r\n\t]+/g, '').trim();
+  if (!loginId && !pppoeSession) {
+    return res.status(401).json({ ok: false, error: 'Unauthorized - Sesi login telah berakhir' });
+  }
+
+  const { ssid, password, ssid5g, sync5g } = req.body || {};
+  const newSsid = String(ssid ?? '').replace(/[\r\n\t]+/g, '').trim();
+  const newPassword = String(password ?? '').replace(/[\r\n\t]+/g, '').trim();
+
+  if (!newSsid && !newPassword) {
+    return res.status(400).json({ ok: false, error: 'Mohon isi Nama Wi-Fi (SSID) atau Password baru.' });
+  }
+
+  if (newPassword && newPassword.length < 8) {
+    return res.status(400).json({ ok: false, error: 'Password Wi-Fi minimal harus 8 karakter.' });
+  }
+
+  const profile = findCustomerProfileByLoginId(loginId || pppoeSession);
+  const tokenCandidates = [];
+  for (const v of [pppoeSession, loginId, profile?.pppoe_username, profile?.genieacs_tag, profile?.phone]) {
+    const s = String(v ?? '').replace(/[\r\n\t]+/g, '').trim();
+    if (s && !tokenCandidates.includes(s)) tokenCandidates.push(s);
+  }
+
+  const actor = {
+    type: 'customer',
+    id: profile ? profile.id : null,
+    name: profile ? profile.name : (loginId || pppoeSession),
+    ip: req.ip || req.headers['x-forwarded-for'] || null,
+    userAgent: req.headers['user-agent'] || null
+  };
+
+  let result = null;
+  for (const token of tokenCandidates) {
+    result = await updateWifiComplete(token, { ssid: newSsid, password: newPassword, ssid5g, sync5g }, actor);
+    if (result && result.ok) break;
+  }
+
+  if (!result || !result.ok) {
+    return res.status(500).json({
+      ok: false,
+      error: result?.message || 'Gagal mengirim konfigurasi ke router. Pastikan modem Anda menyala normal.'
+    });
+  }
+
+  // Notifikasi WhatsApp resmi
+  try {
+    const settings = getSettingsWithCache();
+    if (settings.whatsapp_enabled) {
+      const targetPhone = profile?.phone || loginId;
+      if (targetPhone) {
+        const { sendWA, whatsappStatus } = await import('../services/whatsappBot.mjs');
+        if (whatsappStatus && whatsappStatus.connection === 'open') {
+          const now = getNowLocal();
+          let detailText = '';
+          if (result.changedSsid) detailText += `📡 *Nama Wi-Fi (SSID):* ${newSsid}\n`;
+          if (result.changedPassword) detailText += `🔐 *Password Baru:* ${newPassword}\n`;
+
+          const msg = `📶 *PENGATURAN WI-FI MANDIRI BERHASIL*\n\n` +
+            `Halo *${profile?.name || targetPhone}*,\n` +
+            `Konfigurasi Wi-Fi rumah Anda telah berhasil diperbarui.\n\n` +
+            `🕒 *Waktu:* ${now}\n` +
+            detailText + `\n` +
+            `⚠️ *PENTING:* Seluruh perangkat (HP/Laptop/Smart TV) akan terputus dari Wi-Fi lama. Silakan sambungkan kembali dengan memilih nama Wi-Fi dan password di atas.\n\n` +
+            `_Pesan otomatis dari ${settings.company_header || 'MyAdamedia Network'}_`;
+          await sendWA(targetPhone, msg);
+        }
+      }
+    }
+  } catch (e) {
+    logger.debug(`[CustomerPortal] WA Notification error on wifi update: ${e.message}`);
+  }
+
+  return res.json({
+    ok: true,
+    message: result.message,
+    details: result.details
+  });
+});
+
+router.post('/change-wifi', async (req, res) => {
+  const loginId = String(req.session?.phone ?? '').replace(/[\r\n\t]+/g, '').trim();
+  const pppoeSession = String(req.session?.pppoe_username ?? '').replace(/[\r\n\t]+/g, '').trim();
+  if (!loginId && !pppoeSession) return res.redirect('/customer/login');
+
+  const { ssid, password, ssid5g, sync5g } = req.body || {};
+  const newSsid = String(ssid ?? '').replace(/[\r\n\t]+/g, '').trim();
+  const newPassword = String(password ?? '').replace(/[\r\n\t]+/g, '').trim();
+
+  if (!newSsid && !newPassword) {
+    req.session._msg = { type: 'danger', text: 'Mohon isi Nama Wi-Fi (SSID) atau Password baru.' };
+    return res.redirect('/customer/dashboard');
+  }
+
+  if (newPassword && newPassword.length < 8) {
+    req.session._msg = { type: 'danger', text: 'Password Wi-Fi minimal harus 8 karakter.' };
+    return res.redirect('/customer/dashboard');
+  }
+
+  const profile = findCustomerProfileByLoginId(loginId || pppoeSession);
+  const tokenCandidates = [];
+  for (const v of [pppoeSession, loginId, profile?.pppoe_username, profile?.genieacs_tag, profile?.phone]) {
+    const s = String(v ?? '').replace(/[\r\n\t]+/g, '').trim();
+    if (s && !tokenCandidates.includes(s)) tokenCandidates.push(s);
+  }
+
+  const actor = {
+    type: 'customer',
+    id: profile ? profile.id : null,
+    name: profile ? profile.name : (loginId || pppoeSession),
+    ip: req.ip || req.headers['x-forwarded-for'] || null,
+    userAgent: req.headers['user-agent'] || null
+  };
+
+  let result = null;
+  for (const token of tokenCandidates) {
+    result = await updateWifiComplete(token, { ssid: newSsid, password: newPassword, ssid5g, sync5g }, actor);
+    if (result && result.ok) break;
+  }
+
+  if (result && result.ok) {
+    req.session._msg = { type: 'success', text: result.message };
+  } else {
+    req.session._msg = { type: 'danger', text: result?.message || 'Gagal mengubah konfigurasi Wi-Fi. Pastikan router Anda menyala.' };
+  }
+
+  // Notifikasi WhatsApp
+  if (result && result.ok) {
+    try {
+      const settings = getSettingsWithCache();
+      if (settings.whatsapp_enabled) {
+        const targetPhone = profile?.phone || loginId;
+        if (targetPhone) {
+          const { sendWA, whatsappStatus } = await import('../services/whatsappBot.mjs');
+          if (whatsappStatus && whatsappStatus.connection === 'open') {
+            const now = getNowLocal();
+            let detailText = '';
+            if (result.changedSsid) detailText += `📡 *Nama Wi-Fi (SSID):* ${newSsid}\n`;
+            if (result.changedPassword) detailText += `🔐 *Password Baru:* ${newPassword}\n`;
+
+            const msg = `📶 *PENGATURAN WI-FI MANDIRI BERHASIL*\n\n` +
+              `Halo *${profile?.name || targetPhone}*,\n` +
+              `Konfigurasi Wi-Fi rumah Anda telah berhasil diperbarui.\n\n` +
+              `🕒 *Waktu:* ${now}\n` +
+              detailText + `\n` +
+              `⚠️ *PENTING:* Seluruh perangkat Anda akan terputus dari Wi-Fi lama. Silakan sambungkan kembali HP/Laptop Anda ke nama Wi-Fi dan password di atas.\n\n` +
+              `_Pesan otomatis dari ${settings.company_header || 'MyAdamedia Network'}_`;
+            await sendWA(targetPhone, msg);
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  return res.redirect('/customer/dashboard');
+});
+
+router.get('/api/wifi/qr', async (req, res) => {
+  const loginId = String(req.session?.phone ?? '').replace(/[\r\n\t]+/g, '').trim();
+  const pppoeSession = String(req.session?.pppoe_username ?? '').replace(/[\r\n\t]+/g, '').trim();
+  if (!loginId && !pppoeSession) {
+    return res.status(401).json({ ok: false, error: 'Unauthorized' });
+  }
+
+  let ssid = String(req.query.ssid || '').trim();
+  let password = String(req.query.password || '').trim();
+
+  if (!ssid) {
+    const profile = findCustomerProfileByLoginId(loginId || pppoeSession);
+    const tokenCandidates = [pppoeSession, loginId, profile?.pppoe_username, profile?.genieacs_tag, profile?.phone].filter(Boolean);
+    for (const t of tokenCandidates) {
+      const info = await getWifiDetails(t);
+      if (info && info.ssid24 && info.ssid24 !== '-') {
+        ssid = info.ssid24;
+        break;
+      }
+    }
+  }
+
+  if (!ssid || ssid === '-') {
+    return res.status(400).json({ ok: false, error: 'SSID tidak ditemukan untuk membuat QR Code' });
+  }
+
+  const escapeWifi = (s) => String(s).replace(/([\\;,:"])/g, '\\$1');
+  const qrString = password 
+    ? `WIFI:T:WPA;S:${escapeWifi(ssid)};P:${escapeWifi(password)};;`
+    : `WIFI:T:nopass;S:${escapeWifi(ssid)};;`;
+
+  try {
+    const qrDataUrl = await QRCode.toDataURL(qrString, {
+      errorCorrectionLevel: 'M',
+      margin: 2,
+      scale: 8,
+      color: {
+        dark: '#0f172a',
+        light: '#ffffff'
+      }
+    });
+
+    return res.json({
+      ok: true,
+      qrDataUrl,
+      qrString,
+      ssid,
+      hasPassword: !!password
+    });
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: 'Gagal membuat QR Code: ' + err.message });
   }
 });
 

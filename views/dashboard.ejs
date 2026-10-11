@@ -345,6 +345,103 @@
       font-size: 24px;
     }
 
+    /* ─── WI-FI SELF-SERVICE & QR ENHANCEMENTS ─── */
+    .wifi-tab-nav {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 4px;
+      display: flex;
+      gap: 4px;
+      margin-bottom: 16px;
+    }
+    .wifi-tab-btn {
+      flex: 1;
+      padding: 8px 10px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-sub);
+      background: transparent;
+      border: none;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      text-decoration: none;
+    }
+    .wifi-tab-btn:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .wifi-tab-btn.active {
+      color: #ffffff !important;
+      background: var(--primary-accent);
+      box-shadow: 0 4px 12px var(--primary-glow);
+    }
+    .pw-strength-meter {
+      height: 5px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      margin-top: 6px;
+      overflow: hidden;
+    }
+    .pw-strength-bar {
+      height: 100%;
+      width: 0%;
+      transition: all 0.3s ease;
+      border-radius: 6px;
+    }
+    .pw-strength-weak { width: 33%; background: #ef4444; }
+    .pw-strength-medium { width: 66%; background: #f59e0b; }
+    .pw-strength-strong { width: 100%; background: #10b981; }
+    .qr-standee-card {
+      background: linear-gradient(145deg, rgba(30, 41, 59, 0.85) 0%, rgba(15, 23, 42, 0.95) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 20px;
+      padding: 24px;
+      text-align: center;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+      position: relative;
+      overflow: hidden;
+    }
+    .qr-frame {
+      background: #ffffff;
+      padding: 14px;
+      border-radius: 16px;
+      display: inline-block;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
+      margin: 12px 0;
+    }
+    .qr-frame img {
+      width: 200px;
+      height: 200px;
+      display: block;
+      image-rendering: pixelated;
+    }
+    .pulse-dot-online {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #10b981;
+      display: inline-block;
+      box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+      animation: pulseGreen 2s infinite;
+    }
+    .pulse-dot-offline {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #ef4444;
+      display: inline-block;
+    }
+    @keyframes pulseGreen {
+      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { box-shadow: 0 0 0 7px rgba(16, 185, 129, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
     /* Navigation Floating Bar for Mobile */
     .bottom-nav-bar {
       position: fixed;
@@ -839,36 +936,44 @@
         <div class="glass-card p-4 h-100">
           <h5 class="fw-bold mb-3 section-title"><i class="bi bi-tools text-warning me-2"></i> Fitur Mandiri & Router</h5>
           
-          <div class="row g-3">
+          <div class="row g-2 mb-2">
             <div class="col-6">
-              <a href="#wifi-modal" class="btn-self-service" data-bs-toggle="modal" data-bs-target="#wifiModal">
-                <i class="bi bi-wifi text-primary"></i>
+              <a href="#wifi-modal" class="btn-self-service h-100" data-bs-toggle="modal" data-bs-target="#wifiModal" onclick="loadLiveWifiInfo()">
+                <i class="bi bi-wifi text-primary fs-3"></i>
                 <span class="fw-bold small text-main">Ganti Wi-Fi</span>
-                <span class="text-sub text-truncate px-1" style="font-size: 10px; max-width: 100%;" title="<%= (customer && customer.ssid && customer.ssid !== '-' && customer.ssid !== 'N/A') ? customer.ssid : 'Nama & Password' %>"><%= (customer && customer.ssid && customer.ssid !== '-' && customer.ssid !== 'N/A') ? customer.ssid : 'Nama & Password' %></span>
+                <span class="text-sub text-truncate px-1" style="font-size: 10px; max-width: 100%;" id="btnWifiSsidLabel" title="<%= (customer && customer.ssid && customer.ssid !== '-' && customer.ssid !== 'N/A') ? customer.ssid : 'Nama & Password' %>"><%= (customer && customer.ssid && customer.ssid !== '-' && customer.ssid !== 'N/A') ? customer.ssid : 'Nama & Password' %></span>
               </a>
             </div>
 
             <div class="col-6">
-              <button type="button" class="btn-self-service" data-bs-toggle="modal" data-bs-target="#rebootModal">
-                <i class="bi bi-arrow-repeat text-danger"></i>
-                <span class="fw-bold small text-main">Reboot Router</span>
-                <span class="text-sub" style="font-size: 10px;">Restart Perangkat</span>
+              <button type="button" class="btn-self-service h-100" data-bs-toggle="modal" data-bs-target="#wifiQrModal" onclick="openWifiQrModal()">
+                <i class="bi bi-qr-code-scan text-info fs-3"></i>
+                <span class="fw-bold small text-main">QR Wi-Fi Tamu</span>
+                <span class="text-sub" style="font-size: 10px;">Scan Auto-Connect</span>
               </button>
             </div>
 
-            <div class="col-6">
-              <button type="button" class="btn-self-service" data-bs-toggle="modal" data-bs-target="#ticketModal">
-                <i class="bi bi-headset text-success"></i>
-                <span class="fw-bold small text-main">Lapor Gangguan</span>
-                <span class="text-sub" style="font-size: 10px;">Buka Tiket CS</span>
+            <div class="col-4">
+              <button type="button" class="btn-self-service h-100 py-2" data-bs-toggle="modal" data-bs-target="#rebootModal">
+                <i class="bi bi-arrow-repeat text-danger fs-5"></i>
+                <span class="fw-bold text-main" style="font-size: 11px;">Reboot</span>
+                <span class="text-sub" style="font-size: 9px;">Restart ONT</span>
               </button>
             </div>
 
-            <div class="col-6">
-              <button type="button" class="btn-self-service" onclick="runDiagnosticTest()">
-                <i class="bi bi-lightning-charge-fill text-warning"></i>
-                <span class="fw-bold small text-main">Cek Koneksi</span>
-                <span class="text-sub" style="font-size: 10px;">Tes Latensi Live</span>
+            <div class="col-4">
+              <button type="button" class="btn-self-service h-100 py-2" data-bs-toggle="modal" data-bs-target="#ticketModal">
+                <i class="bi bi-headset text-success fs-5"></i>
+                <span class="fw-bold text-main" style="font-size: 11px;">Bantuan</span>
+                <span class="text-sub" style="font-size: 9px;">Tiket CS</span>
+              </button>
+            </div>
+
+            <div class="col-4">
+              <button type="button" class="btn-self-service h-100 py-2" onclick="runDiagnosticTest()">
+                <i class="bi bi-lightning-charge-fill text-warning fs-5"></i>
+                <span class="fw-bold text-main" style="font-size: 11px;">Latensi</span>
+                <span class="text-sub" style="font-size: 9px;">Tes Live</span>
               </button>
             </div>
           </div>
@@ -1052,44 +1157,207 @@
     </a>
   </div>
 
-  <!-- MODAL: GANTI SSID & PASSWORD WI-FI -->
+  <!-- MODAL: GANTI SSID & PASSWORD WI-FI LENGKAP -->
   <div class="modal fade" id="wifiModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
       <div class="modal-content modal-content-dark">
         <div class="modal-header border-0 pb-0">
-          <h5 class="modal-title fw-bold text-main"><i class="bi bi-wifi text-primary me-2"></i> Pengaturan Wi-Fi Mandiri</h5>
+          <div class="d-flex align-items-center gap-2">
+            <div class="p-2 rounded-circle" style="background: rgba(99, 102, 241, 0.15); color: var(--primary-accent);">
+              <i class="bi bi-wifi fs-4"></i>
+            </div>
+            <div>
+              <h5 class="modal-title fw-bold text-main mb-0">Pengaturan Wi-Fi Mandiri</h5>
+              <span class="small text-sub" style="font-size: 11px;">Konfigurasi Nama (SSID) & Password Router Rumah</span>
+            </div>
+          </div>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body p-4">
-          <!-- Banner Wi-Fi Name Saat Ini -->
-          <div class="p-3 rounded-3 mb-3 d-flex align-items-center justify-content-between" style="background: rgba(99, 102, 241, 0.12); border: 1px solid rgba(99, 102, 241, 0.3);">
+          <!-- Banner Status Router Live -->
+          <div class="p-3 rounded-4 mb-3 d-flex flex-wrap align-items-center justify-content-between gap-2" style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.25);">
             <div>
-              <div class="small text-sub" style="font-size: 11px;"><i class="bi bi-info-circle me-1"></i> Nama Wi-Fi (SSID) Saat Ini:</div>
-              <div class="fw-bold fs-6 text-info mt-1"><i class="bi bi-wifi me-1"></i> <%= (customer && customer.ssid && customer.ssid !== '-' && customer.ssid !== 'N/A') ? customer.ssid : 'Belum Terdeteksi' %></div>
+              <div class="small text-sub" style="font-size: 11px;"><i class="bi bi-router me-1"></i> Status Router & Nama Wi-Fi Saat Ini:</div>
+              <div class="d-flex align-items-center gap-2 mt-1">
+                <span id="wifiRouterPulseDot" class="pulse-dot-online"></span>
+                <span id="wifiRouterStatusText" class="fw-bold small text-main">Router Terhubung</span>
+                <span class="text-sub">|</span>
+                <span class="fw-bold fs-6 text-info"><i class="bi bi-wifi me-1"></i><span id="liveCurrentSsid"><%= (customer && customer.ssid && customer.ssid !== '-' && customer.ssid !== 'N/A') ? customer.ssid : 'Belum Terdeteksi' %></span></span>
+                <button type="button" class="btn btn-sm btn-outline-custom py-0 px-2 rounded-pill" onclick="copyCurrentSsid()" title="Salin SSID" style="font-size: 10px;">
+                  <i class="bi bi-clipboard"></i> Salin
+                </button>
+              </div>
             </div>
-            <span class="badge bg-primary rounded-pill"><i class="bi bi-check-circle me-1"></i> Aktif</span>
+            <div class="d-flex align-items-center gap-2">
+              <button type="button" class="btn btn-sm btn-outline-info rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#wifiQrModal" onclick="openWifiQrModal()">
+                <i class="bi bi-qr-code-scan me-1"></i> Tampilkan QR Code
+              </button>
+            </div>
           </div>
 
-          <form method="POST" action="/customer/change-ssid" class="mb-4">
-            <label class="form-label text-sub small fw-semibold">Nama Wi-Fi (SSID) Baru</label>
-            <div class="input-group mb-2">
-              <input type="text" class="form-control rounded-start-3" name="ssid" value="<%= (customer && customer.ssid && customer.ssid !== '-' && customer.ssid !== 'N/A') ? customer.ssid : '' %>" placeholder="<%= (customer && customer.ssid && customer.ssid !== '-' && customer.ssid !== 'N/A') ? customer.ssid : 'Masukkan SSID Wi-Fi baru' %>" required maxlength="32">
-              <button class="btn btn-primary" type="submit">Simpan SSID</button>
+          <!-- Alert Feedback Container -->
+          <div id="wifiAlertBox" class="alert d-none mb-3 py-2 px-3 small rounded-3" role="alert"></div>
+
+          <!-- Tab Navigation -->
+          <div class="wifi-tab-nav">
+            <button type="button" class="wifi-tab-btn active" id="tabBtnBoth" onclick="switchWifiTab('both')">
+              <i class="bi bi-gear-wide-connected"></i> Ganti Sekaligus
+            </button>
+            <button type="button" class="wifi-tab-btn" id="tabBtnSsid" onclick="switchWifiTab('ssid')">
+              <i class="bi bi-tag-fill"></i> Ganti Nama Saja
+            </button>
+            <button type="button" class="wifi-tab-btn" id="tabBtnPw" onclick="switchWifiTab('password')">
+              <i class="bi bi-key-fill"></i> Ganti Password Saja
+            </button>
+          </div>
+
+          <!-- Form Tab 1: Ganti Sekaligus (SSID + Password) -->
+          <form id="formWifiBoth" method="POST" action="/customer/change-wifi" onsubmit="handleWifiSubmit(event, 'both')">
+            <div class="mb-3">
+              <label class="form-label text-sub small fw-semibold">Nama Wi-Fi (SSID) Baru</label>
+              <div class="input-group">
+                <span class="input-group-text bg-transparent border-secondary text-sub"><i class="bi bi-wifi"></i></span>
+                <input type="text" class="form-control" id="inputBothSsid" name="ssid" value="<%= (customer && customer.ssid && customer.ssid !== '-' && customer.ssid !== 'N/A') ? customer.ssid : '' %>" placeholder="Contoh: Rumah-Keluarga" maxlength="32">
+              </div>
+              <div class="form-text text-sub" style="font-size: 11px;">Maksimal 32 karakter. Disarankan tidak menggunakan spasi atau karakter khusus.</div>
             </div>
-            <div class="form-text text-sub" style="font-size: 11px;">Perubahan SSID akan memutus koneksi sementara sampai Anda menyambungkan kembali HP ke nama Wi-Fi baru.</div>
+
+            <div class="mb-3">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <label class="form-label text-sub small fw-semibold mb-0">Password Wi-Fi Baru</label>
+                <button type="button" class="btn btn-link btn-sm text-decoration-none p-0 text-info" style="font-size: 11px;" onclick="generateSafePassword('inputBothPw')">
+                  <i class="bi bi-shuffle me-1"></i> Acak Password Aman
+                </button>
+              </div>
+              <div class="input-group">
+                <span class="input-group-text bg-transparent border-secondary text-sub"><i class="bi bi-lock"></i></span>
+                <input type="password" id="inputBothPw" class="form-control" name="password" placeholder="Minimal 8 karakter" minlength="8" maxlength="32" oninput="updateStrengthMeter(this.value, 'meterBothBar', 'meterBothText')">
+                <button type="button" class="btn btn-outline-custom" onclick="togglePasswordVisibility('inputBothPw', this)"><i class="bi bi-eye"></i></button>
+              </div>
+              <div class="pw-strength-meter">
+                <div id="meterBothBar" class="pw-strength-bar"></div>
+              </div>
+              <div class="d-flex justify-content-between align-items-center mt-1">
+                <span class="text-sub" style="font-size: 10px;">Kekuatan Password: <strong id="meterBothText" class="text-warning">Belum Diisi</strong></span>
+                <span class="text-sub" style="font-size: 10px;">Min. 8 karakter</span>
+              </div>
+            </div>
+
+            <div class="form-check form-switch mb-3">
+              <input class="form-check-input" type="checkbox" id="sync5gBoth" name="sync5g" value="true" checked>
+              <label class="form-check-label text-sub small" for="sync5gBoth">
+                Otomatis sinkronkan frekuensi 5 GHz (Nama SSID ditambah <code>-5G</code>)
+              </label>
+            </div>
+
+            <div class="p-2 rounded-3 mb-3" style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25);">
+              <div class="small text-warning" style="font-size: 11px;">
+                <i class="bi bi-exclamation-triangle-fill me-1"></i> <strong>Perhatian:</strong> Setelah disimpan, semua perangkat (HP, Laptop, TV) akan terputus dari Wi-Fi. Anda harus menghubungkan kembali perangkat menggunakan nama/password baru.
+              </div>
+            </div>
+
+            <button type="submit" id="btnSubmitBoth" class="btn btn-action-glow w-100 py-2">
+              <i class="bi bi-check2-circle me-1"></i> Simpan Nama & Password Wi-Fi
+            </button>
           </form>
 
-          <hr class="border-secondary opacity-25">
-
-          <form method="POST" action="/customer/change-password">
-            <label class="form-label text-sub small fw-semibold">Password Wi-Fi Baru</label>
-            <div class="input-group mb-2">
-              <input type="password" id="wifiPassInput" class="form-control rounded-start-3" name="password" placeholder="Minimal 8 karakter" required minlength="8" maxlength="32">
-              <button type="button" class="btn btn-outline-custom" onclick="togglePassVisibility()"><i class="bi bi-eye" id="passEyeIcon"></i></button>
-              <button class="btn btn-success" type="submit">Simpan Password</button>
+          <!-- Form Tab 2: Ganti Nama SSID Saja -->
+          <form id="formWifiSsid" method="POST" action="/customer/change-ssid" class="d-none" onsubmit="handleWifiSubmit(event, 'ssid')">
+            <div class="mb-3">
+              <label class="form-label text-sub small fw-semibold">Nama Wi-Fi (SSID) Baru</label>
+              <div class="input-group">
+                <span class="input-group-text bg-transparent border-secondary text-sub"><i class="bi bi-wifi"></i></span>
+                <input type="text" class="form-control" id="inputSsidOnly" name="ssid" value="<%= (customer && customer.ssid && customer.ssid !== '-' && customer.ssid !== 'N/A') ? customer.ssid : '' %>" placeholder="Masukkan nama Wi-Fi baru" required maxlength="32">
+              </div>
+              <div class="form-text text-sub" style="font-size: 11px;">Password Wi-Fi Anda tidak akan berubah, hanya nama sinyal Wi-Fi yang diperbarui.</div>
             </div>
-            <div class="form-text text-sub" style="font-size: 11px;">Gunakan minimal 8 karakter kombinasi huruf & angka.</div>
+
+            <div class="form-check form-switch mb-3">
+              <input class="form-check-input" type="checkbox" id="sync5gSsid" name="sync5g" value="true" checked>
+              <label class="form-check-label text-sub small" for="sync5gSsid">
+                Otomatis perbarui nama Wi-Fi 5 GHz (Nama-5G)
+              </label>
+            </div>
+
+            <button type="submit" id="btnSubmitSsid" class="btn btn-primary w-100 py-2 rounded-3 fw-bold">
+              <i class="bi bi-check-lg me-1"></i> Simpan Nama Wi-Fi (SSID)
+            </button>
           </form>
+
+          <!-- Form Tab 3: Ganti Password Saja -->
+          <form id="formWifiPw" method="POST" action="/customer/change-password" class="d-none" onsubmit="handleWifiSubmit(event, 'password')">
+            <div class="mb-3">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <label class="form-label text-sub small fw-semibold mb-0">Password Wi-Fi Baru</label>
+                <button type="button" class="btn btn-link btn-sm text-decoration-none p-0 text-info" style="font-size: 11px;" onclick="generateSafePassword('inputPwOnly')">
+                  <i class="bi bi-shuffle me-1"></i> Acak Password Aman
+                </button>
+              </div>
+              <div class="input-group">
+                <span class="input-group-text bg-transparent border-secondary text-sub"><i class="bi bi-lock"></i></span>
+                <input type="password" id="inputPwOnly" class="form-control" name="password" placeholder="Minimal 8 karakter" required minlength="8" maxlength="32" oninput="updateStrengthMeter(this.value, 'meterPwBar', 'meterPwText')">
+                <button type="button" class="btn btn-outline-custom" onclick="togglePasswordVisibility('inputPwOnly', this)"><i class="bi bi-eye"></i></button>
+              </div>
+              <div class="pw-strength-meter">
+                <div id="meterPwBar" class="pw-strength-bar"></div>
+              </div>
+              <div class="d-flex justify-content-between align-items-center mt-1">
+                <span class="text-sub" style="font-size: 10px;">Kekuatan Password: <strong id="meterPwText" class="text-warning">Belum Diisi</strong></span>
+                <span class="text-sub" style="font-size: 10px;">Min. 8 karakter</span>
+              </div>
+            </div>
+
+            <button type="submit" id="btnSubmitPw" class="btn btn-success w-100 py-2 rounded-3 fw-bold">
+              <i class="bi bi-key-fill me-1"></i> Simpan Password Baru
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: QR CODE WI-FI RUMAH (SIAP SCAN & CETAK) -->
+  <div class="modal fade" id="wifiQrModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content modal-content-dark">
+        <div class="modal-header border-0 pb-0">
+          <div class="d-flex align-items-center gap-2">
+            <div class="p-2 rounded-circle" style="background: rgba(59, 130, 246, 0.15); color: #38bdf8;">
+              <i class="bi bi-qr-code-scan fs-4"></i>
+            </div>
+            <div>
+              <h5 class="modal-title fw-bold text-main mb-0">QR Code Wi-Fi Rumah</h5>
+              <span class="small text-sub" style="font-size: 11px;">Scan kamera untuk otomatis terhubung tanpa ketik password</span>
+            </div>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-4 text-center">
+          <div class="qr-standee-card">
+            <div class="small text-uppercase tracking-wider text-muted fw-bold mb-1" style="font-size: 10px; letter-spacing: 1px;">Wi-Fi Tamu & Keluarga</div>
+            <h5 class="fw-bold text-white mb-2" id="qrCardSsidTitle"><%= (customer && customer.ssid && customer.ssid !== '-' && customer.ssid !== 'N/A') ? customer.ssid : 'MyAdamedia-WiFi' %></h5>
+            
+            <div class="qr-frame">
+              <img id="wifiQrImage" src="" alt="QR Code Wi-Fi" class="img-fluid" style="display: none;">
+              <div id="wifiQrLoading" class="py-5">
+                <div class="spinner-border text-primary" role="status"></div>
+                <div class="small text-muted mt-2">Membuat kode QR...</div>
+              </div>
+            </div>
+
+            <p class="small text-sub mb-3" style="font-size: 11px;">
+              Arahkan kamera smartphone (iPhone / Android) ke kode QR ini untuk langsung tersambung ke internet rumah Anda.
+            </p>
+
+            <div class="d-flex gap-2 justify-content-center">
+              <button type="button" class="btn btn-sm btn-outline-custom rounded-pill px-3" onclick="downloadWifiQrPng()">
+                <i class="bi bi-download me-1"></i> Simpan Gambar QR
+              </button>
+              <button type="button" class="btn btn-sm btn-primary rounded-pill px-3" onclick="copyCurrentSsid()">
+                <i class="bi bi-clipboard me-1"></i> Salin Nama Wi-Fi
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1219,16 +1487,358 @@
       }
     }
 
-    // Visibility toggle for Wi-Fi password input
+    // Visibility toggle for Wi-Fi password input (Legacy support)
     function togglePassVisibility() {
       const passInput = document.getElementById('wifiPassInput');
       const eyeIcon = document.getElementById('passEyeIcon');
+      if (!passInput) return;
       if (passInput.type === 'password') {
         passInput.type = 'text';
-        eyeIcon.className = 'bi bi-eye-slash';
+        if (eyeIcon) eyeIcon.className = 'bi bi-eye-slash';
       } else {
         passInput.type = 'password';
-        eyeIcon.className = 'bi bi-eye';
+        if (eyeIcon) eyeIcon.className = 'bi bi-eye';
+      }
+    }
+
+    // ==========================================
+    // WI-FI SELF SERVICE CLIENT CONTROLLERS
+    // ==========================================
+    function switchWifiTab(tab) {
+      const formBoth = document.getElementById('formWifiBoth');
+      const formSsid = document.getElementById('formWifiSsid');
+      const formPw = document.getElementById('formWifiPw');
+      const btnBoth = document.getElementById('tabBtnBoth');
+      const btnSsid = document.getElementById('tabBtnSsid');
+      const btnPw = document.getElementById('tabBtnPw');
+      const alertBox = document.getElementById('wifiAlertBox');
+      if (alertBox) alertBox.classList.add('d-none');
+
+      if (tab === 'both') {
+        if (formBoth) formBoth.classList.remove('d-none');
+        if (formSsid) formSsid.classList.add('d-none');
+        if (formPw) formPw.classList.add('d-none');
+        if (btnBoth) btnBoth.classList.add('active');
+        if (btnSsid) btnSsid.classList.remove('active');
+        if (btnPw) btnPw.classList.remove('active');
+      } else if (tab === 'ssid') {
+        if (formBoth) formBoth.classList.add('d-none');
+        if (formSsid) formSsid.classList.remove('d-none');
+        if (formPw) formPw.classList.add('d-none');
+        if (btnBoth) btnBoth.classList.remove('active');
+        if (btnSsid) btnSsid.classList.add('active');
+        if (btnPw) btnPw.classList.remove('active');
+      } else if (tab === 'password') {
+        if (formBoth) formBoth.classList.add('d-none');
+        if (formSsid) formSsid.classList.remove('d-none');
+        if (formPw) formPw.classList.remove('d-none');
+        if (btnBoth) btnBoth.classList.remove('active');
+        if (btnSsid) btnSsid.classList.remove('active');
+        if (btnPw) btnPw.classList.add('active');
+      }
+    }
+
+    function togglePasswordVisibility(inputId, btn) {
+      const input = document.getElementById(inputId);
+      if (!input) return;
+      const icon = btn ? btn.querySelector('i') : null;
+      if (input.type === 'password') {
+        input.type = 'text';
+        if (icon) {
+          icon.classList.remove('bi-eye');
+          icon.classList.add('bi-eye-slash');
+        }
+      } else {
+        input.type = 'password';
+        if (icon) {
+          icon.classList.remove('bi-eye-slash');
+          icon.classList.add('bi-eye');
+        }
+      }
+    }
+
+    function updateStrengthMeter(val, barId, textId) {
+      const bar = document.getElementById(barId);
+      const text = document.getElementById(textId);
+      if (!bar || !text) return;
+
+      const password = String(val || '');
+      if (!password) {
+        bar.style.width = '0%';
+        bar.style.backgroundColor = 'transparent';
+        text.innerText = 'Belum Diisi';
+        text.className = 'text-warning';
+        return;
+      }
+
+      let score = 0;
+      if (password.length >= 8) score += 1;
+      if (password.length >= 10) score += 1;
+      if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score += 1;
+      if (/\d/.test(password)) score += 1;
+      if (/[^a-zA-Z0-9]/.test(password)) score += 1;
+
+      if (password.length < 8) {
+        bar.style.width = '25%';
+        bar.style.backgroundColor = '#ef4444';
+        text.innerText = 'Terlalu Pendek (Min 8 Karakter)';
+        text.className = 'text-danger';
+      } else if (score <= 2) {
+        bar.style.width = '45%';
+        bar.style.backgroundColor = '#f97316';
+        text.innerText = 'Cukup Lemah';
+        text.className = 'text-warning';
+      } else if (score <= 4) {
+        bar.style.width = '75%';
+        bar.style.backgroundColor = '#eab308';
+        text.innerText = 'Kuat & Aman';
+        text.className = 'text-info';
+      } else {
+        bar.style.width = '100%';
+        bar.style.backgroundColor = '#10b981';
+        text.innerText = 'Sangat Kuat!';
+        text.className = 'text-success';
+      }
+    }
+
+    function generateSafePassword(inputId) {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%&*';
+      const uppers = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+      const lowers = 'abcdefghijkmnopqrstuvwxyz';
+      const digits = '23456789';
+      const symbols = '!@#$%&*';
+
+      let password = '';
+      password += uppers.charAt(Math.floor(Math.random() * uppers.length));
+      password += lowers.charAt(Math.floor(Math.random() * lowers.length));
+      password += digits.charAt(Math.floor(Math.random() * digits.length));
+      password += symbols.charAt(Math.floor(Math.random() * symbols.length));
+
+      for (let i = 4; i < 11; i++) {
+        password += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      password = password.split('').sort(() => 0.5 - Math.random()).join('');
+
+      const input = document.getElementById(inputId);
+      if (input) {
+        input.value = password;
+        input.type = 'text';
+        const btn = input.nextElementSibling;
+        if (btn) {
+          const icon = btn.querySelector('i');
+          if (icon) {
+            icon.classList.remove('bi-eye');
+            icon.classList.add('bi-eye-slash');
+          }
+        }
+        if (inputId === 'inputBothPw') {
+          updateStrengthMeter(password, 'meterBothBar', 'meterBothText');
+        } else if (inputId === 'inputPwOnly') {
+          updateStrengthMeter(password, 'meterPwBar', 'meterPwText');
+        }
+      }
+    }
+
+    function copyCurrentSsid() {
+      const ssidEl = document.getElementById('liveCurrentSsid');
+      const ssid = ssidEl ? ssidEl.innerText.trim() : '';
+      if (!ssid || ssid === 'Belum Terdeteksi' || ssid === '-') {
+        alert('Nama Wi-Fi belum terdeteksi.');
+        return;
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(ssid).then(() => {
+          alert(`Nama Wi-Fi "${ssid}" berhasil disalin ke clipboard!`);
+        }).catch(() => {
+          prompt('Salin nama Wi-Fi ini:', ssid);
+        });
+      } else {
+        prompt('Salin nama Wi-Fi ini:', ssid);
+      }
+    }
+
+    async function loadLiveWifiInfo() {
+      try {
+        const res = await fetch('/customer/api/wifi/info');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && data.ok && data.data) {
+          const ssid = data.data.ssid24 || data.data.ssid5g || '';
+          if (ssid && ssid !== '-') {
+            const ssidEl = document.getElementById('liveCurrentSsid');
+            if (ssidEl) ssidEl.innerText = ssid;
+            const btnLabel = document.getElementById('btnWifiSsidLabel');
+            if (btnLabel) {
+              btnLabel.innerText = ssid;
+              btnLabel.title = ssid;
+            }
+            const qrTitle = document.getElementById('qrCardSsidTitle');
+            if (qrTitle) qrTitle.innerText = ssid;
+
+            const inputBothSsid = document.getElementById('inputBothSsid');
+            if (inputBothSsid && !inputBothSsid.value) inputBothSsid.value = ssid;
+            const inputSsidOnly = document.getElementById('inputSsidOnly');
+            if (inputSsidOnly && !inputSsidOnly.value) inputSsidOnly.value = ssid;
+          }
+          const dot = document.getElementById('wifiRouterPulseDot');
+          const statusText = document.getElementById('wifiRouterStatusText');
+          if (dot && statusText) {
+            if (data.data.online) {
+              dot.className = 'pulse-dot-online';
+              statusText.innerText = 'Router Online (' + (data.data.model || 'ONT') + ')';
+            } else {
+              dot.className = 'pulse-dot-offline';
+              statusText.innerText = 'Router Offline / Standby';
+            }
+          }
+        }
+      } catch (e) {
+        console.debug('loadLiveWifiInfo error', e);
+      }
+    }
+
+    async function openWifiQrModal() {
+      const loading = document.getElementById('wifiQrLoading');
+      const img = document.getElementById('wifiQrImage');
+      const cardTitle = document.getElementById('qrCardSsidTitle');
+
+      if (loading) loading.style.display = 'block';
+      if (img) img.style.display = 'none';
+
+      const currentSsid = (document.getElementById('liveCurrentSsid')?.innerText || '').trim();
+      const validSsid = (currentSsid && currentSsid !== 'Belum Terdeteksi' && currentSsid !== '-') ? currentSsid : '';
+      if (cardTitle && validSsid) cardTitle.innerText = validSsid;
+
+      try {
+        const url = '/customer/api/wifi/qr' + (validSsid ? `?ssid=${encodeURIComponent(validSsid)}` : '');
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data && data.ok && data.qrDataUrl) {
+          if (img) {
+            img.src = data.qrDataUrl;
+            img.style.display = 'inline-block';
+          }
+          if (cardTitle && data.ssid) cardTitle.innerText = data.ssid;
+          if (loading) loading.style.display = 'none';
+        } else {
+          if (loading) loading.innerHTML = `<span class="text-danger small"><i class="bi bi-exclamation-circle me-1"></i> ${data?.error || 'Gagal memuat QR Code'}</span>`;
+        }
+      } catch (err) {
+        if (loading) loading.innerHTML = `<span class="text-danger small"><i class="bi bi-exclamation-circle me-1"></i> Terjadi kesalahan memuat QR</span>`;
+      }
+    }
+
+    function downloadWifiQrPng() {
+      const img = document.getElementById('wifiQrImage');
+      if (!img || !img.src) {
+        alert('QR Code belum selesai dimuat.');
+        return;
+      }
+      const currentSsid = document.getElementById('qrCardSsidTitle')?.innerText || 'WiFi';
+      const a = document.createElement('a');
+      a.href = img.src;
+      a.download = `WiFi-QR-${currentSsid.replace(/\s+/g, '_')}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    async function handleWifiSubmit(event, mode) {
+      event.preventDefault();
+      const alertBox = document.getElementById('wifiAlertBox');
+      if (alertBox) alertBox.classList.add('d-none');
+
+      let ssid = '';
+      let password = '';
+      let sync5g = true;
+      let btn = null;
+      let originalBtnHtml = '';
+
+      if (mode === 'both') {
+        ssid = (document.getElementById('inputBothSsid')?.value || '').trim();
+        password = (document.getElementById('inputBothPw')?.value || '').trim();
+        sync5g = document.getElementById('sync5gBoth')?.checked ?? true;
+        btn = document.getElementById('btnSubmitBoth');
+      } else if (mode === 'ssid') {
+        ssid = (document.getElementById('inputSsidOnly')?.value || '').trim();
+        sync5g = document.getElementById('sync5gSsid')?.checked ?? true;
+        btn = document.getElementById('btnSubmitSsid');
+      } else if (mode === 'password') {
+        password = (document.getElementById('inputPwOnly')?.value || '').trim();
+        btn = document.getElementById('btnSubmitPw');
+      }
+
+      if (mode === 'both' && !ssid && !password) {
+        showAlert('danger', 'Mohon isi Nama Wi-Fi (SSID) atau Password baru.');
+        return;
+      }
+      if (mode === 'ssid' && !ssid) {
+        showAlert('danger', 'Nama Wi-Fi (SSID) tidak boleh kosong.');
+        return;
+      }
+      if (mode === 'password' && (!password || password.length < 8)) {
+        showAlert('danger', 'Password Wi-Fi baru minimal 8 karakter.');
+        return;
+      }
+      if (password && password.length < 8) {
+        showAlert('danger', 'Password Wi-Fi baru minimal 8 karakter.');
+        return;
+      }
+
+      const confirmMsg = "Perhatian: Semua perangkat yang terhubung (HP/Laptop) akan terputus dari Wi-Fi setelah perubahan ini disimpan.\\n\\nApakah Anda yakin ingin melanjutkan?";
+      if (!confirm(confirmMsg)) return;
+
+      if (btn) {
+        originalBtnHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span> Menyimpan ke Router...';
+      }
+
+      try {
+        const res = await fetch('/customer/api/wifi/update', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({ ssid, password, sync5g })
+        });
+
+        const data = await res.json();
+
+        if (res.ok && data.ok) {
+          showAlert('success', `<i class="bi bi-check-circle-fill me-1"></i> <strong>Berhasil!</strong> ${data.message || 'Konfigurasi Wi-Fi berhasil diperbarui.'} Silakan sambungkan kembali perangkat Anda.`);
+          if (ssid) {
+            const ssidEl = document.getElementById('liveCurrentSsid');
+            if (ssidEl) ssidEl.innerText = ssid;
+            const btnLabel = document.getElementById('btnWifiSsidLabel');
+            if (btnLabel) {
+              btnLabel.innerText = ssid;
+              btnLabel.title = ssid;
+            }
+          }
+          if (document.getElementById('inputBothPw')) document.getElementById('inputBothPw').value = '';
+          if (document.getElementById('inputPwOnly')) document.getElementById('inputPwOnly').value = '';
+          updateStrengthMeter('', 'meterBothBar', 'meterBothText');
+          updateStrengthMeter('', 'meterPwBar', 'meterPwText');
+        } else {
+          showAlert('danger', `<i class="bi bi-exclamation-triangle-fill me-1"></i> <strong>Gagal:</strong> ${data.error || 'Gagal mengubah konfigurasi Wi-Fi. Silakan coba lagi.'}`);
+        }
+      } catch (err) {
+        showAlert('danger', `<i class="bi bi-exclamation-triangle-fill me-1"></i> Terjadi kesalahan koneksi: ${err.message}`);
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = originalBtnHtml;
+        }
+      }
+
+      function showAlert(type, html) {
+        if (!alertBox) return;
+        alertBox.className = `alert alert-${type} mb-3 py-2 px-3 small rounded-3`;
+        alertBox.innerHTML = html;
+        alertBox.classList.remove('d-none');
+        alertBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
     }
 

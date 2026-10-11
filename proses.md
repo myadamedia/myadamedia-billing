@@ -2,6 +2,82 @@
 
 ---
 
+## [2026-10-11] Implementasi Fitur Mandiri (Self-Service) Ganti Wi-Fi & QR Code Auto-Connect di Portal Pelanggan (/customer/dashboard) - Versi 15.8.0
+
+### 1. Kebutuhan Fitur & Latar Belakang
+- **Kebutuhan Pengguna**:
+  Pengguna menginginkan fitur **Self-Service Ganti Wi-Fi di Portal Pelanggan** agar pelanggan ISP dapat mengubah Nama Wi-Fi (SSID) dan Kata Sandi (Password) router rumah mereka sendiri secara mandiri tanpa harus menghubungi customer service atau teknisi.
+- **Tujuan Pengembangan**:
+  1. Memberikan kemandirian penuh bagi pelanggan untuk mengatur Wi-Fi rumah kapan saja selama 24/7.
+  2. Mengurangi beban tiket aduan teknisi / CS terkait hal rutin seperti ganti password berkala.
+  3. Menyediakan antarmuka modern yang ramah pengguna dengan 3 tab fleksibel:
+     - **Ganti Sekaligus**: Ubah Nama SSID & Password dalam 1 tombol.
+     - **Ganti Nama Saja**: Hanya memperbarui SSID tanpa mengubah password yang sudah tersimpan di perangkat.
+     - **Ganti Password Saja**: Hanya memperbarui password untuk keamanan berkala.
+  4. Menyediakan fitur **QR Code Wi-Fi Rumah (Standee Siap Scan & Cetak)**:
+     - Tamu atau keluarga cukup mengarahkan kamera smartphone untuk langsung otomatis tersambung ke Wi-Fi tanpa perlu repot mengetik password manual.
+     - Mendukung tombol unduh file gambar QR Code (`.png`) dan salin SSID.
+  5. Fitur keamanan pendukung:
+     - **Real-time Password Strength Meter** (evaluasi panjang karakter, angka, simbol, kombinasi huruf).
+     - **Random Strong Password Generator** ("Acak Password Aman") yang menghasilkan kombinasi password acak ramah router.
+     - **Auto-Sync Dual-Band 5 GHz**: Opsi otomatis menyinkronkan frekuensi 5 GHz (SSID ditambah suffix `-5G`).
+     - **Notifikasi WhatsApp Resmi**: Konfirmasi otomatis dikirimkan ke nomor WhatsApp pelanggan setelah konfigurasi berhasil diperbarui di router.
+
+### 2. Solusi & Arsitektur yang Diterapkan
+1. **Penyempurnaan Backend & Integrasi TR-069 Multi-Server (`services/customerDeviceService.js`)**:
+   - Menambahkan fungsi `getWifiDetails(tag)` untuk mengekstrak informasi live Wi-Fi (SSID 2.4G, SSID 5G, model ONT, status online/offline, dan jumlah perangkat terhubung).
+   - Menambahkan fungsi `updateWifiComplete(tag, { ssid, password, ssid5g, sync5g }, actor)`:
+     - Mendukung update TR-098 (`WLANConfiguration.1` & `WLANConfiguration.5/2`) dan TR-181 (`Device.WiFi`).
+     - Sinkronisasi parameter lokal SQLite `acs_devices` untuk Built-in ACS.
+     - Pencatatan jejak audit (*audit trail*) `UPDATE_WIFI_COMPLETE` di tabel `activity_logs`.
+   - Mengoptimalkan `searchDeviceAcrossServers` dan `resolveDeviceToken` agar resolusi Built-in ACS berbasis SQLite berjalan instan (< 10 ms) tanpa membuang waktu mencoba polling remote server yang tidak aktif.
+   - Memperbaiki parsing nilai parameter pada `getParameterWithPaths` agar objek `{ _value }` di-unwrap ke string murni sehingga terhindar dari `[object Object]`.
+2. **Endpoint API Modern & Fallback Form Standard (`routes/customerPortal.js`)**:
+   - `GET /customer/api/wifi/info`: Mengembalikan status live router dan nama Wi-Fi saat ini (JSON).
+   - `POST /customer/api/wifi/update`: Endpoint AJAX modern untuk memperbarui SSID dan/atau Password Wi-Fi dengan respons JSON cepat, status loading, dan pengiriman notifikasi WhatsApp otomatis.
+   - `POST /customer/change-wifi`: Handler fallback form POST tradisional untuk kompatibilitas jika JavaScript klien dimatikan.
+   - `GET /customer/api/wifi/qr`: Generator QR Code Wi-Fi format standar (`WIFI:T:WPA;S:...;P:...;;`) menggunakan library `qrcode` yang menghasilkan data URL PNG berkualitas tinggi.
+3. **Penyempurnaan Tampilan Antarmuka Pelanggan (`views/dashboard.ejs`)**:
+   - Menambahkan tombol fitur mandiri **Ganti Wi-Fi** dan **QR Wi-Fi Tamu** di kartu "Fitur Mandiri & Router".
+   - Merancang Modal Modern `#wifiModal`:
+     - Banner status live router dengan *pulse dot animation* dan tombol salin SSID.
+     - Tab navigasi (`wifi-tab-nav`) dengan 3 mode: Ganti Sekaligus, Ganti Nama Saja, Ganti Password Saja.
+     - Password strength bar dengan visualisasi persentase dan teks keamanan.
+     - Tombol "Acak Password Aman" dan toggle visibility mata password.
+     - Kotak peringatan interaktif bahwa perangkat akan terputus sesaat setelah Wi-Fi diperbarui.
+   - Merancang Modal Standee `#wifiQrModal`:
+     - Kartu standee siap scan dengan frame QR kontras tinggi, tombol simpan gambar QR (`.png`), dan tombol salin nama Wi-Fi.
+   - Menambahkan pengendali JavaScript client-side: `switchWifiTab`, `togglePasswordVisibility`, `updateStrengthMeter`, `generateSafePassword`, `copyCurrentSsid`, `loadLiveWifiInfo`, `openWifiQrModal`, `downloadWifiQrPng`, dan `handleWifiSubmit`.
+
+### 3. File yang Dimodifikasi & Ditambahkan
+- `[MODIFY]` [`services/customerDeviceService.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/customerDeviceService.js)
+- `[MODIFY]` [`routes/customerPortal.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/routes/customerPortal.js)
+- `[MODIFY]` [`views/dashboard.ejs`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/views/dashboard.ejs)
+- `[NEW]` [`tests/customerWifiSelfService.test.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/tests/customerWifiSelfService.test.js)
+- `[NEW]` [`tests/customerWifiRoutes.test.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/tests/customerWifiRoutes.test.js)
+- `[MODIFY]` [`version.txt`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/version.txt) (dinaikkan ke `15.8.0`)
+
+### 4. Hasil Pengujian & Verifikasi
+- **Unit & Integration Test Suite (`tests/customerWifiSelfService.test.js`)**:
+  - `getWifiDetails`: PASS
+  - `updateWifiComplete` (Sekaligus SSID & Password): PASS
+  - `updateWifiComplete` (SSID Saja): PASS
+  - `updateWifiComplete` (Password Saja): PASS
+  - `updateWifiComplete` (Validasi Password < 8 Karakter): PASS
+  - `updateWifiComplete` (Perangkat Tidak Ditemukan): PASS
+  - `QR Code generation`: PASS
+  - `views/dashboard.ejs rendering`: PASS
+  - Total: **8/8 PASS** (Waktu eksekusi: ~2.7 detik).
+- **HTTP Endpoint E2E Integration Suite (`tests/customerWifiRoutes.test.js`)**:
+  - `GET /customer/api/wifi/info`: PASS (200 OK)
+  - `POST /customer/api/wifi/update`: PASS (200 OK)
+  - `GET /customer/api/wifi/qr`: PASS (200 OK)
+  - Total: **3/3 PASS**.
+- **Regression Test (`tests/customerWifiPassword.test.js`)**:
+  - Total: **5/5 PASS** (Bebas regresi).
+
+---
+
 ## [2026-10-11] Pemulihan Data & Perbaikan Tuntas Hilangnya Ikon dan Lokasi Pelanggan pada Peta Jaringan Admin (/admin/map) & Teknisi (/tech/map)
 
 ### 1. Kebutuhan & Akar Permasalahan (Root Cause Analysis)
