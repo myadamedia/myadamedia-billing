@@ -2047,60 +2047,73 @@ async function listDevicesWithTags(limit = 250) {
 
 /** Mengambil semua perangkat tanpa melihat tag. */
 async function listAllDevices(limit = 999999, acsId = null) {
+  let allDevices = [];
+
+  // 1. Ambil data lokal dari SQLite Built-in ACS jika aktif
+  if (genieacsApi.isBuiltinAcsEnabled() && (!acsId || acsId === 'all' || acsId === 'builtin')) {
+    try {
+      const db = require('../config/database');
+      const rows = db.prepare('SELECT * FROM acs_devices ORDER BY last_inform DESC LIMIT ?').all(limit);
+      if (rows && rows.length > 0) {
+        allDevices.push(...rows.map(r => genieacsApi.builtinRowToDevice(r)));
+      }
+    } catch (_) {}
+  }
+
   let servers = genieacsApi.getAllACSServers();
   if (acsId && acsId !== 'all') {
     servers = servers.filter(s => String(s.id) === String(acsId));
   }
   
-  let allDevices = [];
-  let lastError = null;
+  // Kecualikan server builtin dari pemanggilan HTTP axios
+  servers = servers.filter(s => s.id !== 'builtin');
 
-  // Query servers in parallel using Promise.allSettled
-  const promises = servers.map(async (server) => {
-    try {
-      const instance = genieacsApi.createAxiosInstance(server);
-      const params = {
-        limit,
-        projection: '_id,_tags,_lastInform,DeviceID.SerialNumber,VirtualParameters,InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.Username,InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.2.Username,InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.ExternalIPAddress,Device.PPP.Interface.1.Username,Device.PPP.Interface.1.ExternalIPAddress,InternetGatewayDevice.DeviceInfo.ModelName,InternetGatewayDevice.DeviceInfo.SoftwareVersion,InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID,InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.TotalAssociations,InternetGatewayDevice.LANDevice.1.WLANConfiguration.5.TotalAssociations,InternetGatewayDevice.LANDevice.1.Hosts.HostNumberOfEntries,Device.WiFi.AccessPoint.1.AssociatedDeviceNumberOfEntries,Device.Hosts.HostNumberOfEntries,InternetGatewayDevice.LANDevice.1.Hosts.Host,Device.Hosts.Host'
-      };
-      let response;
+  // Query external servers in parallel with fast timeout
+  if (servers.length > 0) {
+    const promises = servers.map(async (server) => {
       try {
-        response = await instance.get(`/devices`, { params, timeout: 8000 });
+        const instance = genieacsApi.createAxiosInstance(server);
+        const params = {
+          limit,
+          projection: '_id,_tags,_lastInform,DeviceID.SerialNumber,VirtualParameters,InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.Username,InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.2.Username,InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.ExternalIPAddress,Device.PPP.Interface.1.Username,Device.PPP.Interface.1.ExternalIPAddress,InternetGatewayDevice.DeviceInfo.ModelName,InternetGatewayDevice.DeviceInfo.SoftwareVersion,InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.SSID,InternetGatewayDevice.LANDevice.1.WLANConfiguration.1.TotalAssociations,InternetGatewayDevice.LANDevice.1.WLANConfiguration.5.TotalAssociations,InternetGatewayDevice.LANDevice.1.Hosts.HostNumberOfEntries,Device.WiFi.AccessPoint.1.AssociatedDeviceNumberOfEntries,Device.Hosts.HostNumberOfEntries,InternetGatewayDevice.LANDevice.1.Hosts.Host,Device.Hosts.Host'
+        };
+        let response;
+        try {
+          response = await instance.get(`/devices`, { params, timeout: 2500 });
+        } catch (e) {
+          response = await instance.get(`/api/devices`, { params, timeout: 2500 });
+        }
+        const rows = Array.isArray(response.data) ? response.data : [];
+        rows.forEach(d => {
+          d._acs_server_id = server.id;
+          d._acs_server_name = server.name;
+        });
+        return rows;
       } catch (e) {
-        response = await instance.get(`/api/devices`, { params, timeout: 8000 });
+        logger.warn(`[CustomerDevice] External ACS ${server.name} unreachable: ${e.message}`);
+        return [];
       }
-      const rows = Array.isArray(response.data) ? response.data : [];
-      rows.forEach(d => {
-        d._acs_server_id = server.id;
-        d._acs_server_name = server.name;
-      });
-      return rows;
-    } catch (e) {
-      logger.error(`[CustomerDevice] Error listing devices on ${server.name}: ${e.message}`);
-      throw e;
-    }
-  });
+    });
 
-  const results = await Promise.allSettled(promises);
-  results.forEach((r) => {
-    if (r.status === 'fulfilled') {
-      allDevices.push(...r.value);
-    } else {
-      lastError = r.reason;
-    }
-  });
-  
-  if (allDevices.length === 0) {
-    try {
-      const db = require('../config/database');
-      const rows = db.prepare('SELECT * FROM acs_devices ORDER BY last_inform DESC LIMIT ?').all(limit);
-      if (rows && rows.length > 0) {
-        allDevices = rows.map(r => genieacsApi.builtinRowToDevice(r));
+    const results = await Promise.allSettled(promises);
+    results.forEach((r) => {
+      if (r.status === 'fulfilled' && Array.isArray(r.value)) {
+        allDevices.push(...r.value);
       }
-    } catch (_) {}
+    });
+  }
+
+  // Deduplikasi perangkat berdasarkan _id
+  const seenIds = new Set();
+  const uniqueDevices = [];
+  for (const dev of allDevices) {
+    if (dev && dev._id && !seenIds.has(dev._id)) {
+      seenIds.add(dev._id);
+      uniqueDevices.push(dev);
+    }
   }
   
-  return { ok: true, devices: allDevices.slice(0, limit) };
+  return { ok: true, devices: uniqueDevices.slice(0, limit) };
 }
 
 async function updateCustomerTag(oldTag, newTag) {
