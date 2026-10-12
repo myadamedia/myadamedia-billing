@@ -2,6 +2,39 @@
 
 ---
 
+## [2026-10-12] Perbaikan & Penyelarasan Akurasi Sinyal Optik (RX Power) OLT & ACS pada Portal Pelanggan (/customer/dashboard) - Versi 15.9.6
+
+### 1. Masalah & Latar Belakang
+- **Keluhan Pengguna**: Sinyal Optik (RX) di Portal Pelanggan (`http://localhost:3001/customer/dashboard`) tidak sesuai dengan nilai aktual di OLT dan ACS (sering menampilkan nilai statis teoretis `-19.03 dBm Estimasi`).
+- **Akar Masalah (Root Causes)**:
+  1. **TR-069 Vendor Parameter Formula (ACS)**:
+     - Modem berstandar CT-COM / ZTE / FiberHome melaporkan parameter redaman optik (`X_CT-COM_EponInterfaceConfig.RXPower`) dalam bentuk integer linear $\mu W$ (misal `177`, `85`, `98`).
+     - Formula baku TR-069 CT-COM / GenieACS yang tepat adalah $10 \log_{10}(\text{raw} / 10000)$, yang menghasilkan $-17.52$ dBm, $-20.71$ dBm, dan $-20.09$ dBm. Sebelumnya nilai tersebut tidak terkonversi dengan benar atau jatuh ke estimasi.
+  2. **Pemetaan Dual ACS Map**:
+     - Parameter PPPoE Username TR-069 standar (`InternetGatewayDevice.WANDevice.*.WANPPPConnection.*.Username`) dan ekstraksi Customer ID pattern (`DGT-2026-007` -> Cust 7, `DGT-2026-009` -> Cust 9) belum tercakup dalam pencocokan akun ACS ke database pelanggan.
+  3. **SNMP OID Converter (OLT)**:
+     - MIB OLT SNMP (Hioso, HSGQ, BDCOM, VSOL, CDATA) mengembalikan nilai integer redaman positif (misal `214` atau `195` untuk 0.1 dBm). Di kode lama `oltService.js`, semua angka $> 0$ ditolak (`if (v > 0) continue;`), menyebabkan OLT selalu melaporkan `'N/A'`.
+  4. **Absensi Integrasi OLT di Customer Device Service**:
+     - Pada `customerDeviceService.js`, jika modem belum terdaftar di ACS, sistem langsung jatuh ke estimasi link budget ODP teoretis (`-19.03 dBm`) tanpa memeriksa relasi `olt_id` dan daftar ONU di OLT.
+
+### 2. Solusi & Perubahan yang Diterapkan
+1. **Normalisasi & Formula Redaman Optik (`services/opticalPowerService.js`)**:
+   - Menambahkan formula TR-069 CT-COM linear $10 \log_{10}(\text{raw} / 10000)$ di `parseRxPowerValue(rawVal)`.
+   - Mendukung format skala 0.01 dBm (misal `-2140` -> `-21.40 dBm`), skala 0.1 dBm (misal `195` -> `-19.50 dBm`), dan string desimal dengan suffix dBm.
+   - Memperluas pemetaan `getDualAcsRxPowerMap()` untuk mengenali `WANPPPConnection.*.Username`, pola nomor registrasi pelanggan (`DGT-2026-xxx`), dan fallback OLT ONU.
+2. **Koreksi SNMP Parser OLT (`services/oltService.js`)**:
+   - Memperbaiki `pickFirstPlausible()` dan `computeRxDbm()` agar integer positif OLT dikonversi presisi menjadi redaman dBm bertanda negatif (misal `214` -> `-21.40 dBm`, `195` -> `-19.50 dBm`).
+   - Menyediakan fungsi `getOltStatsSync(id)` untuk pembacaan cache stats OLT secara sinkron dan instan.
+3. **Integrasi OLT ONU ke Portal Pelanggan (`services/customerDeviceService.js`)**:
+   - Mengimplementasikan `lookupOnuFromOltSync(customer, serialNumber, pppoeUser)` dan `lookupOnuFromOlt(customer, serialNumber, pppoeUser)`.
+   - Pada `mapDeviceData`: query customer menyertakan `olt_id`, dan jika parameter TR-069 RX kosong, sistem otomatis mengecek OLT stats cache sebelum jatuh ke estimasi ODP.
+   - Pada `getCustomerDeviceData` dan `fallbackCustomer`: memprioritaskan data aktual ACS dan OLT terlebih dahulu. Estimasi matematis ODP hanya digunakan sebagai deviasi kualitas atau fallback terakhir jika kedua sumber offline.
+4. **Unit & Integration Test Suite (`tests/oltCustomerDeviceIntegration.test.js`)**:
+   - Menambahkan 5 skenario test verifikasi integrasi OLT ONU, pencocokan PPPoE/Serial, dan formula TR-069 CT-COM.
+   - Semua 31/31 unit test Jest di 3 test suite (`oltCustomerDeviceIntegration.test.js`, `customerDeviceMetrics.test.js`, `opticalPowerBudget.test.js`) lulus 100% (PASS).
+
+---
+
 ## [2026-10-11] Implementasi Fitur Multi-Cloud Automated Backup (Google Drive & Telegram Admin) - Versi 15.9.0
 
 ### 1. Kebutuhan Fitur & Latar Belakang
@@ -4749,6 +4782,7 @@ Pengguna melaporkan bahwa pada dashboard portal pelanggan (`http://localhost:300
 - **Verifikasi Live HTTP Endpoint (`http://localhost:3001`)**:
   - Daemon proses `app-customer.js` di-restart dan memuat seluruh perbaikan kode terbaru.
   - Sesi live login, rendering HTML dashboard pelanggan (`/customer/dashboard`), dan endpoint AJAX polling (`/customer/api/device-metrics`) diverifikasi sukses menghasilkan nilai Sinyal Optik (RX) presisi dan Perangkat Terhubung $\ge 1$ perangkat aktif.
+- **Versi Sistem**: Di-bump ke `15.9.4` pada [`version.txt`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/version.txt).
 
 
 

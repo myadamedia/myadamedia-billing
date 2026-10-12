@@ -834,34 +834,48 @@ const pickFirstPlausible = (candidates) => {
   for (const v of candidates) {
     if (!Number.isFinite(v)) continue;
     if (v < -50 || v > 10) continue;
-    if (v > 0) continue;
+    if (v > 0) {
+      if (v >= 5 && v <= 45) return -Math.abs(v);
+      continue;
+    }
     return v;
   }
   return null;
 };
 
 const computeRxDbm = (brand, raw) => {
+  if (raw == null) return null;
   const signal = parseSignal(raw);
   if (signal != null) return signal;
 
   const n = bufferToInt(raw);
-  if (n == null) return null;
-  if (n === 0 || n === 65535) return null;
+  if (n == null || n === 0 || n === 65535 || n === -32768) return null;
 
   const signed = (n >= 0 && n <= 65535) ? toSigned16(n) : n;
   if (signed == null) return null;
 
-  if (typeof signed === 'number' && signed < 0 && signed >= -60 && signed <= 10) return signed;
+  const abs = Math.abs(signed);
+
+  // Jika sudah berupa float negatif dalam range optik (-50 s/d -5)
+  if (signed < 0 && signed >= -50 && signed <= -5) return Math.round(signed * 100) / 100;
+
+  // Jika ribuan (0.01 dBm seperti Huawei / ZTE C300)
+  if (abs >= 500 && abs <= 6000) return Math.round(-(abs / 100) * 100) / 100;
+
+  // Jika ratusan (0.1 dBm seperti Hioso / VSOL / BDCOM / CDATA)
+  if (abs >= 50 && abs <= 500) return Math.round(-(abs / 10) * 100) / 100;
+
+  // Jika puluhan positif (misal 19.5 atau 21)
+  if (abs >= 5 && abs <= 45) return Math.round(-abs * 100) / 100;
 
   const ordered = brand === 'huawei'
-    ? [signed / 100, signed / 10, signed / 1000, (signed / 100) - 100, (signed / 10) - 100]
-    : [signed / 10, signed / 100, signed / 1000, (signed / 10) - 100, (signed / 100) - 100];
+    ? [-(abs / 100), -(abs / 10), signed / 100, signed / 10]
+    : [-(abs / 10), -(abs / 100), signed / 10, signed / 100];
 
   const picked = pickFirstPlausible(ordered);
-  if (picked != null) return picked;
+  if (picked != null) return Math.round(picked * 100) / 100;
 
-  const fallback = pickFirstPlausible([signed / 10, signed / 100, signed / 1000]);
-  return fallback;
+  return null;
 };
 
 const safeToString = (val) => {
@@ -926,18 +940,29 @@ const pickSnTable = async (session, activeProfile) => {
 
 const parseSignal = (val) => {
   if (val == null) return null;
-  if (typeof val === 'number') return Number.isFinite(val) ? val : null;
   if (typeof val === 'bigint') return null;
-  const s = safeToString(val);
-  if (!s) return null;
-  const m = s.match(/[-+]?\d*\.?\d+/);
-  if (!m) return null;
-  const num = Number(m[0]);
-  if (!Number.isFinite(num)) return null;
+  
+  let num = null;
+  if (typeof val === 'number') {
+    num = val;
+  } else {
+    const s = safeToString(val);
+    if (!s) return null;
+    const clean = s.replace(/dBm|dB/gi, '').trim();
+    const m = clean.match(/[-+]?\d*\.?\d+/);
+    if (!m) return null;
+    num = Number(m[0]);
+  }
+
+  if (!Number.isFinite(num) || num === 0 || num === 65535 || num === -32768) return null;
   const abs = Math.abs(num);
-  if (abs > 500) return num / 100;
-  if (abs > 50) return num / 10;
-  return num;
+
+  if (abs >= 500 && abs <= 6000) return Math.round(-(abs / 100) * 100) / 100;
+  if (abs >= 50 && abs <= 500) return Math.round(-(abs / 10) * 100) / 100;
+  if (abs >= 5 && abs <= 45) return Math.round(-abs * 100) / 100;
+  if (num < 0 && num >= -50 && num <= -5) return Math.round(num * 100) / 100;
+
+  return null;
 };
 
 const getHrCpuPercent = async (session) => {
@@ -2174,7 +2199,19 @@ async function configureWanViaAcs(sn, data) {
    return await telnetLoginAndRun(olt.host, olt.web_user, olt.web_password, cmds, telnetOptsFromOlt(olt));
  }
  
- module.exports = {
-  getAllOlts, getActiveOlts, getOltById, createOlt, updateOlt, deleteOlt, getOltStats, rebootOnu, renameOnu, authorizeOnu,
+ function getOltStatsSync(id) {
+  const cacheKeyFull = `${id}:true`;
+  const cachedFull = statsCache.get(cacheKeyFull);
+  if (cachedFull && cachedFull.data) return cachedFull.data;
+
+  const cacheKeyShort = `${id}:false`;
+  const cachedShort = statsCache.get(cacheKeyShort);
+  if (cachedShort && cachedShort.data) return cachedShort.data;
+
+  return null;
+}
+
+module.exports = {
+  getAllOlts, getActiveOlts, getOltById, createOlt, updateOlt, deleteOlt, getOltStats, getOltStatsSync, rebootOnu, renameOnu, authorizeOnu,
   configureOnuWan, configureZteWanViaGoApi, configureWanViaAcs
 };

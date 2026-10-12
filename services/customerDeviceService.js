@@ -680,6 +680,122 @@ function phoneFromPnJid(jid) {
   return digits || null;
 }
 
+/**
+ * Mencari ONU di OLT berdasarkan customer / serialNumber / pppoeUser
+ * Secara sinkron dari statsCache OLT yang sudah ada.
+ */
+function lookupOnuFromOltSync(customer, serialNumber = null, pppoeUser = null) {
+  if (!customer && !serialNumber && !pppoeUser) return null;
+  try {
+    const oltService = require('./oltService');
+    const opticalPowerService = require('./opticalPowerService');
+    const targetOltId = customer?.olt_id || null;
+
+    const snNorm = (sn) => String(sn || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    const strNorm = (s) => String(s || '').toLowerCase().trim();
+
+    const searchSN = snNorm(serialNumber || customer?.genieacs_tag);
+    const searchPPP = strNorm(pppoeUser || customer?.pppoe_username);
+    const searchName = strNorm(customer?.name);
+    const searchPhone = strNorm(customer?.phone).replace(/\D/g, '');
+
+    // List OLT yang akan diperiksa: prioritaskan customer.olt_id jika ada
+    let oltsToCheck = [];
+    if (targetOltId) {
+      oltsToCheck.push(targetOltId);
+    } else {
+      const activeOlts = oltService.getActiveOlts();
+      if (Array.isArray(activeOlts)) {
+        oltsToCheck = activeOlts.map(o => o.id);
+      }
+    }
+
+    for (const oltId of oltsToCheck) {
+      const stats = oltService.getOltStatsSync(oltId);
+      if (!stats || !Array.isArray(stats.onus) || stats.onus.length === 0) continue;
+
+      for (const onu of stats.onus) {
+        let isMatch = false;
+        const onuSN = snNorm(onu.sn);
+        const onuName = strNorm(onu.name);
+
+        // 1. Cocokkan Serial Number
+        if (searchSN && searchSN.length >= 6 && (onuSN === searchSN || onuSN.includes(searchSN) || searchSN.includes(onuSN))) {
+          isMatch = true;
+        }
+        // 2. Cocokkan PPPoE Username
+        else if (searchPPP && searchPPP.length >= 3 && onuName && (onuName === searchPPP || onuName.includes(searchPPP) || searchPPP.includes(onuName))) {
+          isMatch = true;
+        }
+        // 3. Cocokkan Nama Pelanggan
+        else if (searchName && searchName.length >= 3 && onuName && (onuName === searchName || onuName.includes(searchName) || searchName.includes(onuName))) {
+          isMatch = true;
+        }
+        // 4. Cocokkan Phone
+        else if (searchPhone && searchPhone.length >= 6 && onuName && onuName.replace(/\D/g, '').includes(searchPhone)) {
+          isMatch = true;
+        }
+
+        if (isMatch) {
+          const parsedRx = opticalPowerService.parseRxPowerValue(onu.rx);
+          return {
+            onu,
+            oltId,
+            oltName: stats.name || 'OLT',
+            parsedRx,
+            rx: (parsedRx !== null) ? (Math.round(parsedRx * 100) / 100).toFixed(2) : onu.rx,
+            tx: onu.tx,
+            status: onu.status || 'Online',
+            uptime: onu.uptime || '-',
+            distance: onu.distance || '-',
+            sn: onu.sn || searchSN || '-',
+            name: onu.name || '-'
+          };
+        }
+      }
+    }
+  } catch (err) {
+    logger.debug(`[CustomerDevice] lookupOnuFromOltSync error: ${err.message}`);
+  }
+  return null;
+}
+
+/**
+ * Async version: jika sync tidak menemukan, coba fetch OLT stats (dengan safety timeout)
+ */
+async function lookupOnuFromOlt(customer, serialNumber = null, pppoeUser = null) {
+  const syncMatch = lookupOnuFromOltSync(customer, serialNumber, pppoeUser);
+  if (syncMatch) return syncMatch;
+
+  try {
+    const oltService = require('./oltService');
+    const targetOltId = customer?.olt_id || null;
+    let oltsToCheck = [];
+    if (targetOltId) {
+      oltsToCheck.push(targetOltId);
+    } else {
+      const activeOlts = oltService.getActiveOlts();
+      if (Array.isArray(activeOlts)) {
+        oltsToCheck = activeOlts.map(o => o.id);
+      }
+    }
+
+    for (const oltId of oltsToCheck) {
+      try {
+        await Promise.race([
+          oltService.getOltStats(oltId, true),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('OLT stats timeout')), 4000))
+        ]);
+        const found = lookupOnuFromOltSync(customer, serialNumber, pppoeUser);
+        if (found) return found;
+      } catch (_) {}
+    }
+  } catch (err) {
+    logger.debug(`[CustomerDevice] lookupOnuFromOlt async error: ${err.message}`);
+  }
+  return null;
+}
+
 function mapDeviceData(device, tag, clientContext = null) {
   if (!device) return null;
 
@@ -918,16 +1034,16 @@ function mapDeviceData(device, tag, clientContext = null) {
   const devIdClean = device?._id ? String(device._id).toLowerCase().trim() : '';
 
   if (pppoeClean) {
-    dbCustomer = db.prepare('SELECT id, name, phone, genieacs_tag, pppoe_username, odp_id, status FROM customers WHERE LOWER(pppoe_username) = ?').get(pppoeClean);
+    dbCustomer = db.prepare('SELECT id, name, phone, genieacs_tag, pppoe_username, odp_id, status, olt_id, static_ip, pppoe_remote_address, address FROM customers WHERE LOWER(pppoe_username) = ?').get(pppoeClean);
   }
   if (!dbCustomer && tagClean) {
-    dbCustomer = db.prepare('SELECT id, name, phone, genieacs_tag, pppoe_username, odp_id, status FROM customers WHERE LOWER(genieacs_tag) = ? OR LOWER(phone) = ?').get(tagClean, tagClean);
+    dbCustomer = db.prepare('SELECT id, name, phone, genieacs_tag, pppoe_username, odp_id, status, olt_id, static_ip, pppoe_remote_address, address FROM customers WHERE LOWER(genieacs_tag) = ? OR LOWER(phone) = ?').get(tagClean, tagClean);
   }
   if (!dbCustomer && snClean) {
-    dbCustomer = db.prepare('SELECT id, name, phone, genieacs_tag, pppoe_username, odp_id, status FROM customers WHERE LOWER(genieacs_tag) = ? OR LOWER(phone) = ?').get(snClean, snClean);
+    dbCustomer = db.prepare('SELECT id, name, phone, genieacs_tag, pppoe_username, odp_id, status, olt_id, static_ip, pppoe_remote_address, address FROM customers WHERE LOWER(genieacs_tag) = ? OR LOWER(phone) = ?').get(snClean, snClean);
   }
   if (!dbCustomer && devIdClean) {
-    dbCustomer = db.prepare('SELECT id, name, phone, genieacs_tag, pppoe_username, odp_id, status FROM customers WHERE LOWER(genieacs_tag) = ?').get(devIdClean);
+    dbCustomer = db.prepare('SELECT id, name, phone, genieacs_tag, pppoe_username, odp_id, status, olt_id, static_ip, pppoe_remote_address, address FROM customers WHERE LOWER(genieacs_tag) = ?').get(devIdClean);
   }
 
   // Optical Power Parsing & ODP Link Budget Fallback
@@ -939,6 +1055,31 @@ function mapDeviceData(device, tag, clientContext = null) {
   }
   if (parsedRx === null && device?._flatParams) {
     parsedRx = opticalPowerService.extractRxFromAcsParams(device._flatParams);
+  }
+
+  // Fallback 1: Cek Dual ACS Map (Built-in + External GenieACS) jika belum terdeteksi dari single tree
+  if (parsedRx === null && dbCustomer?.id) {
+    try {
+      const dualMap = opticalPowerService.getDualAcsRxPowerMap();
+      const dualDev = dualMap.get(dbCustomer.id);
+      if (dualDev && dualDev.rxPower) {
+        parsedRx = opticalPowerService.parseRxPowerValue(dualDev.rxPower);
+      }
+    } catch (_) {}
+  }
+
+  // Fallback 2: Cek OLT ONU Cache (Hioso / ZTE / Huawei / BDCOM / VSOL)
+  let matchedOltOnu = null;
+  if (parsedRx === null) {
+    try {
+      matchedOltOnu = lookupOnuFromOltSync(dbCustomer, serialNumber, pppoeUsername);
+      if (matchedOltOnu && matchedOltOnu.parsedRx !== null) {
+        parsedRx = matchedOltOnu.parsedRx;
+        if (status === 'Offline' && matchedOltOnu.status === 'Online') {
+          status = 'Online';
+        }
+      }
+    } catch (_) {}
   }
 
   let estimatedRx = null;
@@ -1062,11 +1203,51 @@ async function getCustomerDeviceData(tag, clientContext = null) {
       `).get(tagClean, tagClean, tagClean, tagClean, cleanNum, `%${cleanNum}%`, `%${cleanNum}%`);
 
       if (profile) {
-        let estRx = null;
+        const opticalPowerService = require('./opticalPowerService');
+        let actualRx = null;
         let isEst = false;
         let optQuality = null;
+        let resolvedSerial = profile.genieacs_tag || '-';
+        let resolvedModel = 'ONT / Router';
+        let resolvedStatus = profile.status === 'active' ? 'Online' : 'Offline';
+        let resolvedUptime = '-';
+
+        // 1. Cek Dual ACS Map (Built-in + External GenieACS)
+        let matchedDualDev = null;
         try {
-          const opticalPowerService = require('./opticalPowerService');
+          const dualMap = opticalPowerService.getDualAcsRxPowerMap();
+          matchedDualDev = dualMap.get(profile.id);
+          if (matchedDualDev && matchedDualDev.rxPower) {
+            const pRx = opticalPowerService.parseRxPowerValue(matchedDualDev.rxPower);
+            if (pRx !== null) {
+              actualRx = pRx;
+              resolvedSerial = matchedDualDev.serialNumber || resolvedSerial;
+              resolvedModel = matchedDualDev.model || resolvedModel;
+              resolvedStatus = matchedDualDev.isOnline ? 'Online' : resolvedStatus;
+            }
+          }
+        } catch (_) {}
+
+        // 2. Cek OLT ONU (Hioso / ZTE / Huawei / BDCOM / VSOL)
+        let matchedOlt = null;
+        if (actualRx === null) {
+          try {
+            matchedOlt = await lookupOnuFromOlt(profile, profile.genieacs_tag, profile.pppoe_username);
+            if (matchedOlt && matchedOlt.parsedRx !== null) {
+              actualRx = matchedOlt.parsedRx;
+              resolvedSerial = matchedOlt.sn && matchedOlt.sn !== '-' ? matchedOlt.sn : resolvedSerial;
+              resolvedStatus = matchedOlt.status || resolvedStatus;
+              resolvedUptime = matchedOlt.uptime || resolvedUptime;
+              if (matchedOlt.onu && matchedOlt.onu.firmware && matchedOlt.onu.firmware !== '-') {
+                resolvedModel = `ONT / ${matchedOlt.onu.firmware}`;
+              }
+            }
+          } catch (_) {}
+        }
+
+        // 3. Hitung estimasi matematis link budget ODP (untuk pembanding deviasi kualitas)
+        let odpEstimatedRx = null;
+        try {
           let odp = null;
           if (profile.odp_id) {
             odp = db.prepare('SELECT * FROM odps WHERE id = ?').get(profile.odp_id);
@@ -1085,23 +1266,29 @@ async function getCustomerDeviceData(tag, clientContext = null) {
               odpSplitRatio: splitRatio
             });
             if (lossCalc && Number.isFinite(lossCalc.estimatedRxPowerDbm)) {
-              estRx = (Math.round(lossCalc.estimatedRxPowerDbm * 100) / 100).toFixed(2);
-              isEst = true;
-              optQuality = opticalPowerService.evaluateOpticalQuality(null, lossCalc.estimatedRxPowerDbm);
+              odpEstimatedRx = lossCalc.estimatedRxPowerDbm;
             }
           }
         } catch (_) {}
 
-        if (!estRx || estRx === '-') {
-          estRx = '-19.00';
+        let finalRx = '-19.00';
+        if (actualRx !== null) {
+          finalRx = (Math.round(actualRx * 100) / 100).toFixed(2);
+          isEst = false;
+          optQuality = opticalPowerService.evaluateOpticalQuality(actualRx, odpEstimatedRx);
+        } else if (odpEstimatedRx !== null) {
+          finalRx = (Math.round(odpEstimatedRx * 100) / 100).toFixed(2);
           isEst = true;
-          const opticalPowerService = require('./opticalPowerService');
+          optQuality = opticalPowerService.evaluateOpticalQuality(null, odpEstimatedRx);
+        } else {
+          finalRx = '-19.00';
+          isEst = true;
           optQuality = opticalPowerService.evaluateOpticalQuality(null, -19.00);
         }
 
         let fallbackUsers = [];
         let fallbackAssoc = 0;
-        if (profile.status === 'active' || clientContext) {
+        if (resolvedStatus === 'Online' || profile.status === 'active' || clientContext) {
           const clientHost = (clientContext && clientContext.deviceType) || 'Perangkat Wi-Fi Aktif';
           const clientIp = (clientContext && clientContext.ip) || profile.static_ip || profile.pppoe_remote_address || '192.168.1.100';
           fallbackUsers.push({
@@ -1120,21 +1307,21 @@ async function getCustomerDeviceData(tag, clientContext = null) {
           customerPhone: profile.phone || '-',
           customerTag: profile.genieacs_tag || profile.pppoe_username || profile.phone || tag,
           ssid: profile.notes ? (profile.notes.match(/SSID:\s*([^\n,]+)/i)?.[1] || '-') : (profile.name ? `Wi-Fi_${profile.name.replace(/\s+/g, '')}` : '-'),
-          status: profile.status === 'active' ? 'Online' : 'Offline',
+          status: resolvedStatus,
           lastInform: '-',
           connectedUsers: fallbackUsers,
-          rxPower: estRx || '-19.00',
+          rxPower: finalRx,
           isEstimatedRx: isEst,
           opticalQuality: optQuality,
           pppoeIP: profile.static_ip || profile.pppoe_remote_address || '-',
           pppoeUsername: profile.pppoe_username || '-',
           pppoeUptime: '-',
-          serialNumber: profile.genieacs_tag || '-',
+          serialNumber: resolvedSerial,
           productClass: 'ONT / Router',
           lokasi: profile.address || '-',
           softwareVersion: '-',
-          model: 'ONT / Router',
-          uptime: '-',
+          model: resolvedModel,
+          uptime: resolvedUptime,
           totalAssociations: fallbackAssoc
         };
       }
@@ -1191,6 +1378,35 @@ function fallbackCustomer(tag, clientContext = null) {
     }
 
     const opticalPowerService = require('./opticalPowerService');
+    let actualFallbackRx = null;
+    let actualSerial = '-';
+
+    // 1. Cek Dual ACS Map
+    if (profile && profile.id) {
+      try {
+        const dualMap = opticalPowerService.getDualAcsRxPowerMap();
+        const dualDev = dualMap.get(profile.id);
+        if (dualDev && dualDev.rxPower) {
+          const p = opticalPowerService.parseRxPowerValue(dualDev.rxPower);
+          if (p !== null) {
+            actualFallbackRx = p;
+            actualSerial = dualDev.serialNumber || actualSerial;
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 2. Cek OLT Sync
+    if (actualFallbackRx === null && profile) {
+      try {
+        const matchedOlt = lookupOnuFromOltSync(profile, profile.genieacs_tag, profile.pppoe_username);
+        if (matchedOlt && matchedOlt.parsedRx !== null) {
+          actualFallbackRx = matchedOlt.parsedRx;
+          actualSerial = matchedOlt.sn || actualSerial;
+        }
+      } catch (_) {}
+    }
+
     let odp = null;
     if (profile && profile.odp_id) {
       odp = db.prepare('SELECT * FROM odps WHERE id = ?').get(profile.odp_id);
@@ -1198,6 +1414,7 @@ function fallbackCustomer(tag, clientContext = null) {
     if (!odp) {
       odp = db.prepare('SELECT * FROM odps LIMIT 1').get();
     }
+    let odpEstRxVal = null;
     if (odp) {
       const splitRatio = odp.split_ratio || (odp.port_capacity ? ('1:' + odp.port_capacity) : '1:8');
       let dropMeters = 50;
@@ -1209,12 +1426,21 @@ function fallbackCustomer(tag, clientContext = null) {
         odpSplitRatio: splitRatio
       });
       if (lossCalc && Number.isFinite(lossCalc.estimatedRxPowerDbm)) {
-        estRx = (Math.round(lossCalc.estimatedRxPowerDbm * 100) / 100).toFixed(2);
-        isEst = true;
-        optQuality = opticalPowerService.evaluateOpticalQuality(null, lossCalc.estimatedRxPowerDbm);
+        odpEstRxVal = lossCalc.estimatedRxPowerDbm;
       }
     }
-    if (!optQuality) {
+
+    if (actualFallbackRx !== null) {
+      estRx = (Math.round(actualFallbackRx * 100) / 100).toFixed(2);
+      isEst = false;
+      optQuality = opticalPowerService.evaluateOpticalQuality(actualFallbackRx, odpEstRxVal);
+    } else if (odpEstRxVal !== null) {
+      estRx = (Math.round(odpEstRxVal * 100) / 100).toFixed(2);
+      isEst = true;
+      optQuality = opticalPowerService.evaluateOpticalQuality(null, odpEstRxVal);
+    } else {
+      estRx = '-19.00';
+      isEst = true;
       optQuality = opticalPowerService.evaluateOpticalQuality(null, -19.00);
     }
 
@@ -1242,7 +1468,7 @@ function fallbackCustomer(tag, clientContext = null) {
     pppoeIP: '-',
     pppoeUsername: pppUser,
     pppoeUptime: '-',
-    serialNumber: '-',
+    serialNumber: actualSerial || '-',
     productClass: 'ONT / Router',
     lokasi: '-',
     softwareVersion: '-',
@@ -2175,5 +2401,7 @@ module.exports = {
   phoneFromPnJid,
   deleteConnectedClient,
   enableRemoteWebAccess,
-  proxyOntWebRequest
+  proxyOntWebRequest,
+  lookupOnuFromOltSync,
+  lookupOnuFromOlt
 };

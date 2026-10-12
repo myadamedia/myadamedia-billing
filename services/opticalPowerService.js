@@ -237,20 +237,42 @@ function parseRxPowerValue(rawVal) {
 
   let cleanStr = String(rawVal).trim().replace(/dBm|dB/gi, '').trim();
   const num = parseFloat(cleanStr);
-  if (!Number.isFinite(num)) return null;
+  if (!Number.isFinite(num) || num === 0 || num === 65535 || num === -32768) return null;
 
-  // Jika sudah dalam format standar dBm negatif (misal -18.5)
-  if (num < 0) {
-    return Math.round(num * 100) / 100;
+  const abs = Math.abs(num);
+
+  // 1. Skala ribuan (0.01 dBm / hundredths of dBm seperti Huawei / ZTE C300 MIB / TR-069, misal -2140 atau 2140)
+  if (abs >= 500 && abs <= 6000) {
+    return Math.round(-(abs / 100) * 100) / 100;
   }
 
-  // Jika nilai berupa raw linear unit positif (TR-069 optical transceiver)
+  // 2. Skala desimal langsung dBm standar (rentang -50 s/d -5)
+  if (num < 0 && num >= -50 && num <= -5) {
+    return Math.round(num * 100) / 100;
+  }
+  // Magnitude desimal langsung positif tanpa tanda minus (misal 19.5 atau 21.4)
+  if (num > 0 && num >= 5 && num <= 45 && !Number.isInteger(num)) {
+    return Math.round(-num * 100) / 100;
+  }
+
+  // 3. Nilai integer positif (TR-069 optical transceiver atau 0.1 dBm)
   if (num > 0) {
-    // Formula standard TR-069: 30 + 10 * log10(val * 10^-7)
+    // Formula standard TR-069 linear optical transceiver (GenieACS / CT-COM): 30 + 10 * log10(val * 10^-7)
+    // yaitu: 10 * log10(val / 10000)
     const dbVal = 30 + (Math.log10(num * Math.pow(10, -7)) * 10);
-    if (Number.isFinite(dbVal)) {
+    if (Number.isFinite(dbVal) && (dbVal <= 10 || num >= 10000)) {
       return Math.round(dbVal * 100) / 100;
     }
+
+    // Jika di luar rentang linear TR-069 yang wajar, periksa apakah skala 0.1 dBm (misal 195 -> -19.5 dBm, 214 -> -21.4 dBm)
+    if (abs >= 50 && abs <= 500) {
+      return Math.round(-(abs / 10) * 100) / 100;
+    }
+  }
+
+  // 4. Skala ratusan negatif (0.1 dBm bertanda minus, misal -195 -> -19.50)
+  if (num < 0 && abs >= 50 && abs <= 500) {
+    return Math.round(-(abs / 10) * 100) / 100;
   }
 
   return null;
@@ -485,16 +507,29 @@ function getDualAcsRxPowerMap() {
         } catch (_) {}
       }
 
-      // Cek parameter PPPoE Username di params
+      // Cek parameter PPPoE Username di params (mendukung TR-069 standar dan vendor)
       if (dev.params) {
         try {
           const p = typeof dev.params === 'string' ? JSON.parse(dev.params) : dev.params;
-          const pUser = p?.['VirtualParameters.pppoeUsername']?._value ||
-            p?.['VirtualParameters.pppoeUsername'] ||
-            p?.['VirtualParameters.pppUsername']?._value ||
-            p?.['VirtualParameters.pppUsername'];
-          if (pUser) {
-            pppoeToDevMap.set(String(pUser).toLowerCase().trim(), devSummary);
+          for (const [pk, pv] of Object.entries(p)) {
+            const pkLower = pk.toLowerCase();
+            if (pkLower.includes('wanpppconnection') && pkLower.endsWith('username') ||
+                pkLower.includes('ppp.interface') && pkLower.endsWith('username') ||
+                pkLower.includes('pppoeusername') || pkLower.includes('pppusername')) {
+              const uVal = pv && typeof pv === 'object' && pv._value !== undefined ? pv._value : pv;
+              if (uVal && typeof uVal === 'string' && uVal.trim()) {
+                const uClean = uVal.toLowerCase().trim();
+                pppoeToDevMap.set(uClean, devSummary);
+                // Ekstraksi ID pelanggan jika ada format DGT-2026-007 atau MDE-0007
+                const mId = uClean.match(/(?:dgt|mde|plg|cust)[-_]?\d*[-_]?0*(\d+)/i);
+                if (mId && mId[1]) {
+                  const numId = parseInt(mId[1], 10);
+                  if (numId > 0 && !idMap.has(numId)) {
+                    idMap.set(numId, devSummary);
+                  }
+                }
+              }
+            }
           }
         } catch (_) {}
       }
@@ -504,19 +539,24 @@ function getDualAcsRxPowerMap() {
     for (const cust of customers) {
       let matchedDev = null;
 
-      // Prioritas 1: genieacs_tag
-      if (cust.genieacs_tag) {
+      // Prioritas 1: Pencocokan langsung ID pelanggan (dari pattern username ONT DGT-2026-007 / MDE-0007)
+      if (idMap.has(cust.id)) {
+        matchedDev = idMap.get(cust.id);
+      }
+
+      // Prioritas 2: genieacs_tag
+      if (!matchedDev && cust.genieacs_tag) {
         const cleanTag = String(cust.genieacs_tag).toLowerCase().trim();
         matchedDev = tagToDevMap.get(cleanTag) || snMap.get(cleanTag) || idMap.get(cleanTag);
       }
 
-      // Prioritas 2: pppoe_username
+      // Prioritas 3: pppoe_username
       if (!matchedDev && cust.pppoe_username) {
         const cleanPppoe = String(cust.pppoe_username).toLowerCase().trim();
         matchedDev = pppoeToDevMap.get(cleanPppoe) || tagToDevMap.get(cleanPppoe) || snMap.get(cleanPppoe);
       }
 
-      // Prioritas 3: phone
+      // Prioritas 4: phone
       if (!matchedDev && cust.phone) {
         const cleanPhone = String(cust.phone).replace(/\D/g, '');
         if (cleanPhone) {
@@ -527,6 +567,45 @@ function getDualAcsRxPowerMap() {
             matchedDev = tagToDevMap.get('62' + cleanPhone.slice(1));
           }
         }
+      }
+
+      // Prioritas 5: OLT integration fallback (jika OLT aktif dan pelanggan terdaftar di OLT)
+      if (!matchedDev && cust.olt_id) {
+        try {
+          const oltSvc = require('./oltService');
+          const oltStats = oltSvc.getOltStatsSync ? oltSvc.getOltStatsSync(cust.olt_id) : null;
+          if (oltStats && Array.isArray(oltStats.onus)) {
+            const snTarget = String(cust.genieacs_tag || '').toUpperCase().trim();
+            const userTarget = String(cust.pppoe_username || '').toLowerCase().trim();
+            const nameTarget = String(cust.name || '').toLowerCase().trim();
+            const idStr = String(cust.id).padStart(3, '0');
+
+            const matchedOnu = oltStats.onus.find(o => {
+              const oSn = String(o.sn || '').toUpperCase().trim();
+              const oName = String(o.name || '').toLowerCase().trim();
+              return (snTarget && oSn.length > 3 && (oSn.includes(snTarget) || snTarget.includes(oSn))) ||
+                     (userTarget && oName && (oName.includes(userTarget) || userTarget.includes(oName))) ||
+                     (nameTarget && oName && (oName.includes(nameTarget) || nameTarget.includes(oName))) ||
+                     (oName && oName.includes(idStr));
+            });
+
+            if (matchedOnu && matchedOnu.rx && matchedOnu.rx !== 'N/A' && matchedOnu.rx !== '-') {
+              const oltRx = parseRxPowerValue(matchedOnu.rx);
+              if (oltRx !== null) {
+                matchedDev = {
+                  deviceId: matchedOnu.id || matchedOnu.index || `OLT-ONU-${cust.id}`,
+                  serialNumber: matchedOnu.sn || matchedOnu.name || `ONU-${cust.id}`,
+                  manufacturer: oltStats.brand || 'OLT',
+                  productClass: 'ONU',
+                  rxPower: oltRx,
+                  isOnline: String(matchedOnu.status || '').toLowerCase().includes('on') || matchedOnu.status === 'Online',
+                  lastInform: null,
+                  acsSource: 'OLT'
+                };
+              }
+            }
+          }
+        } catch (_) {}
       }
 
       if (matchedDev) {
