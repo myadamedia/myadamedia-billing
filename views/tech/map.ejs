@@ -878,6 +878,9 @@
           <button type="button" class="btn btn-sm btn-success" onclick="broadcastCurrentIncidentWa()" style="border-radius:6px; font-weight:700; font-size:11px; padding:3px 9px;">
             <i class="bi bi-whatsapp me-1"></i>WA
           </button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="dismissMassOutageBanner()" style="border-radius:6px; font-weight:700; font-size:11px; padding:3px 7px; color:#f8fafc; border-color:rgba(255,255,255,0.25);" title="Sembunyikan Banner">
+            <i class="bi bi-x-lg"></i>
+          </button>
         </div>
       </div>
 
@@ -1291,8 +1294,8 @@
       const customerMarkerObjects = [];
 
       const officeCoords = {
-        lat: parseFloat(appSettings.office_lat) || -6.200000,
-        lng: parseFloat(appSettings.office_lng) || 106.816666
+        lat: parseFloat(String(appSettings.office_lat || '').trim()) || -6.389427,
+        lng: parseFloat(String(appSettings.office_lng || '').trim()) || 106.735005
       };
 
       // Initialize Map
@@ -1517,10 +1520,16 @@
               parentCoords
             ];
           } else {
-            pathCoords = [
-              [parseFloat(odp.lat), parseFloat(odp.lng)],
-              [officeCoords.lat, officeCoords.lng]
-            ];
+            const nodeLatLng = L.latLng(parseFloat(odp.lat), parseFloat(odp.lng));
+            const officeLatLng = L.latLng(officeCoords.lat, officeCoords.lng);
+            if (nodeLatLng.distanceTo(officeLatLng) > 15) {
+              pathCoords = [
+                [parseFloat(odp.lat), parseFloat(odp.lng)],
+                [officeCoords.lat, officeCoords.lng]
+              ];
+            } else {
+              pathCoords = [];
+            }
           }
 
           let ponColor = isOdc ? '#a78bfa' : '#94a3b8';
@@ -2326,6 +2335,11 @@
         }
       }
 
+      window.dismissMassOutageBanner = function () {
+        const banner = document.getElementById('massOutageBanner');
+        if (banner) banner.classList.remove('show');
+      };
+
       window.focusCurrentIncident = function () {
         if (!currentIncident) return;
         window.focusIncidentCable(currentIncident.incidentId);
@@ -2337,7 +2351,11 @@
 
         if (Array.isArray(inc.cableCoords) && inc.cableCoords.length >= 2) {
           const bounds = L.latLngBounds(inc.cableCoords);
-          map.fitBounds(bounds, { padding: [60, 60], maxZoom: 18, animate: true, duration: 1.2 });
+          if (bounds.getNorthEast().distanceTo(bounds.getSouthWest()) < 25) {
+            map.flyTo(inc.centroid || inc.cableCoords[0], 18, { duration: 1.2 });
+          } else {
+            map.fitBounds(bounds, { padding: [60, 60], maxZoom: 18, animate: true, duration: 1.2 });
+          }
         } else if (inc.centroid) {
           map.flyTo(inc.centroid, 17, { duration: 1.2 });
         }

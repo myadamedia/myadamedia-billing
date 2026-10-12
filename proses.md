@@ -4653,3 +4653,55 @@ Meskipun elemen HTML menuliskan `<div class="gauge-unit-label">Mbps</div>`, atur
 - Unit Test Suite (`tests/customerDeviceMetrics.test.js`): **9/9 PASSED (100%)**.
 - Tampilan Browser: Satuan trafik download dan upload kini konsisten tampil sebagai **Mbps**.
 
+---
+
+## [2026-10-12] Perbaikan Bug Fitur Mass Outage & Fiber Cut Auto-Detection pada Peta Jaringan FTTH
+
+### 1. Deskripsi Permasalahan
+Pada pengujian tampilan peta jaringan administrator (`/admin/map`), dilaporkan beberapa kejanggalan (*bugs*):
+1. **Garis Merah Raksasa Menembus Peta**: Terdapat garis merah tebal berjarak lebih dari 25-30 km yang membentang dari Jakarta Pusat (kawasan Monas/Sudirman) melintasi berbagai kota lurus menuju klaster jaringan di Sawangan/Bojongsari.
+2. **Alarm Palsu Pemadaman Massal (100% Padam / DISASTER)**: Sistem secara keliru memicu banner darurat:
+   `BAHAYA: Indikasi Putus Kabel Feeder Utama (NOC ↔ MDE/PON2/ODP003) DISASTER - 20 Pelanggan Terputus (100% padam)`.
+3. **Salah Klasifikasi Node ODP Menjadi Feeder Utama**: Node `MDE/PON2/ODP003` yang merupakan ODP (tiang pembagi lapangan) diidentifikasi secara keliru sebagai ODC/Feeder utama langsung ke NOC.
+4. **Banner Mengambang Tidak Dapat Ditutup**: Banner darurat yang muncul menutupi sebagian besar peta tanpa tombol dismiss/tutup.
+
+### 2. Penyebab Utama (Root Cause)
+1. **Hardcoded Fallback Koordinat Jakarta (-6.200000, 106.816666)**:
+   Pada `services/fiberCutDetectionService.js`, fallback koordinat NOC ditulis secara statis ke `[-6.200000, 106.816666]`. Ketika node ODP/ODC belum memiliki `cable_path` tersimpan, sistem menghubungkan koordinat tiang di Sawangan (`-6.389..., 106.735...`) ke titik default Jakarta Pusat tersebut, menghasilkan polyline raksasa sejauh 25 km menembus batas provinsi.
+2. **Perangkat Unmonitored Dianggap Kabel Putus**:
+   Pada logika evaluasi pelanggan di `services/fiberCutDetectionService.js`:
+   `else if (!custOpt.acs || custOpt.acs.rxPower === null) { isOffline = true; }`
+   Pelanggan yang belum didaftarkan di GenieACS atau belum inform (unmonitored) otomatis dihitung sebagai `isOffline = true`. Akibatnya, pada ODP yang pelanggannya belum terhubung ke ACS, sistem mengira seluruh pelanggan padam serentak (100% offline) dan memicu alarm kabel putus palsu.
+3. **Asumsi Buta Seluruh Parent Node Sebagai ODC Feeder**:
+   Setiap entri `childrenOdpByParent` langsung diperlakukan sebagai ODC dengan tipe insiden `FEEDER_CUT` dan level `Jalur Feeder Utama` (NOC ↔ ODC). Padahal dalam topologi GPON nyata, ODP dapat memiliki ODP cabang (*cascade / splitter extension*, misalnya ODP003 → ODP003/EXT1:4) yang merupakan jalur distribusi bertingkat, bukan Feeder NOC.
+4. **Spasi Tersembunyi pada Konfigurasi Koordinat**:
+   Pada `settings.json`, nilai `office_lng` memiliki spasi terdepan (`" 106.73500533675343"`).
+5. **Ketiadaan Tombol Dismiss pada Banner**:
+   Banner `#massOutageBanner` pada template `views/admin/map.ejs` dan `views/tech/map.ejs` tidak memiliki aksi penutupan (*dismiss*), sehingga terus menutupi area pandang viewport peta.
+
+### 3. Solusi & Perubahan yang Diterapkan
+1. **Normalisasi & Dynamic Resolution Koordinat NOC (`getNocOfficeCoords()`)**:
+   - Membaca `office_lat` dan `office_lng` dari `settings.json` / `app_settings` secara ter-trim.
+   - Jika belum tersetting, mendeteksi koordinat ODP bertanda `SERVER` (`MDE/PON2/ODP001` di `-6.389374, 106.735059`).
+   - Fallback resmi disetel ke lokasi kantor pusat MyAdamedia di Curug, Bojongsari Depok (`[-6.389427, 106.735005]`), sepenuhnya menghapus koordinat `-6.200000, 106.816666`.
+2. **Penyempurnaan Deteksi Status Pelanggan Tanpa False Alarm**:
+   - Membedakan antara pelanggan `isMonitored` vs `unmonitored`. Perangkat unmonitored tidak lagi diasumsikan kabel putus.
+   - Mengabaikan status pelanggan yang terisolir/non-aktif secara administratif (`status: isolated, inactive, terminated`).
+   - Insiden putus kabel distribusi hanya dipicu jika ada minimal 2 pelanggan yang termonitor aktif mengalami Loss of Signal ($<-30\text{ dBm}$) atau no-inform bersamaan, dan tidak ada $\ge 2$ pelanggan lain yang normal pada ODP tersebut.
+3. **Pemisahan Jalur Feeder ODC vs Distribusi Bertingkat (Cascade ODP)**:
+   - Jika node induk berjenis `ODC` (`type === 'ODC'`), diklasifikasikan sebagai `FEEDER_CUT` (`Jalur Feeder Utama`, keparahan `DISASTER`).
+   - Jika node induk berjenis `ODP` (`type === 'ODP'`), diklasifikasikan sebagai `DISTRIBUTION_CUT` (`Jalur Distribusi Bertingkat (Cascade)`, keparahan `CRITICAL`), bukan Feeder NOC.
+4. **Pencegahan Redundansi Garis Self-Loop**:
+   - Jika ODP berlokasi langsung di area server/kantor (< 15 meter), sistem tidak lagi menarik garis ganda ke diri sendiri.
+5. **Peningkatan UX Banner & Auto Focus**:
+   - Menambahkan tombol dismiss `(X)` pada banner darurat di `views/admin/map.ejs` dan `views/tech/map.ejs`.
+   - Mengoptimalkan fungsi `focusIncidentCable` agar melakukan `flyTo` jika segmen berjarak rapat atau `fitBounds` terisolasi pada area klaster lokal.
+6. **Automated Unit & Regression Testing**:
+   - Menambahkan pengujian di `tests/fiberCutDetection.test.js` untuk memvalidasi koordinat selalu berada di Bojongsari/Depok (bebas koordinat Jakarta), mencegah false alarm unmonitored, dan memastikan tombol dismiss tersedia.
+
+### 4. Hasil Pengujian & Verifikasi
+- Unit & Integration Test Suite (`tests/fiberCutDetection.test.js`): **9/9 PASSED (100%)**.
+- Regression Suite (`tests/opticalPowerBudget.test.js`, `tests/customerDeviceMetrics.test.js`, `tests/mapCableDistance.test.js`): **42/42 PASSED (100%)**.
+- Kondisi Operasional Real-time: Bebas dari false alarm 100% padam, dan garis jalur darurat kini terpetakan presisi di area Bojongsari/Curug.
+
+

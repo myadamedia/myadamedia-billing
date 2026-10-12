@@ -548,8 +548,8 @@ function getDualAcsRxPowerMap() {
  */
 function getOpticalNetworkTopologyData() {
   const settings = getSettings();
-  const officeLat = parseFloat(settings.office_lat) || -6.200000;
-  const officeLng = parseFloat(settings.office_lng) || 106.816666;
+  const officeLat = parseFloat(String(settings.office_lat || '').trim()) || -6.389427;
+  const officeLng = parseFloat(String(settings.office_lng || '').trim()) || 106.735005;
 
   const odps = db.prepare(`
     SELECT o.*, 
@@ -696,6 +696,7 @@ function getOpticalNetworkTopologyData() {
     customersOptical[cust.id] = {
       customerId: cust.id,
       customerName: cust.name,
+      status: cust.status || 'active',
       odpId: cust.odp_id,
       odpName: targetOdp ? targetOdp.name : (cust.odp_name || '-'),
       budget,

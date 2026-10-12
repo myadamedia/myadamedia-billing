@@ -21,12 +21,41 @@ const { logger } = require('../config/logger');
 // Ambang batas deteksi insiden (thresholds)
 const THRESHOLDS = {
   MIN_CUSTOMERS_FOR_ODP_DETECTION: 2,   // Minimal pelanggan terpasang di ODP untuk deteksi
-  MIN_OFFLINE_RATIO_DISTRIBUTION: 0.50, // Minimal 50% pelanggan offline di 1 ODP
-  MIN_OFFLINE_COUNT_DISTRIBUTION: 2,    // Atau minimal 2 pelanggan offline di 1 ODP
+  MIN_MONITORED_CUSTOMERS: 2,           // Minimal pelanggan yang termonitor di ODP untuk deteksi
+  MIN_OFFLINE_RATIO_DISTRIBUTION: 0.60, // Minimal 60% pelanggan termonitor offline serentak
+  MIN_OFFLINE_COUNT_DISTRIBUTION: 2,    // Minimal 2 pelanggan termonitor offline serentak
   MIN_ODPS_FOR_ODC_DETECTION: 2,        // Minimal ODP anak di bawah ODC untuk deteksi Feeder
   MIN_OFFLINE_ODP_RATIO_FEEDER: 0.50,   // Minimal 50% ODP anak padam untuk vonis Feeder Cut
   OFFLINE_INFORM_WINDOW_MS: 20 * 60 * 1000 // 20 menit tanpa inform / LOS
 };
+
+/**
+ * Mendapatkan koordinat Kantor Pusat / NOC yang valid
+ * Menghindari fallback usang ke Jakarta Pusat (-6.2, 106.816) jika jaringan berada di Bojongsari/Curug
+ * @returns {Array} [lat, lng]
+ */
+function getNocOfficeCoords() {
+  const { getSettings } = require('../config/settingsManager');
+  const settings = getSettings();
+  const lat = parseFloat(String(settings.office_lat || '').trim());
+  const lng = parseFloat(String(settings.office_lng || '').trim());
+
+  if (Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0 && Math.abs(lat - (-6.2)) > 0.05) {
+    return [lat, lng];
+  }
+
+  try {
+    const serverOdp = db.prepare("SELECT lat, lng FROM odps WHERE (description LIKE '%SERVER%' OR name LIKE '%SERVER%') AND lat IS NOT NULL AND lat != '' LIMIT 1").get();
+    if (serverOdp && serverOdp.lat && serverOdp.lng) {
+      const sLat = parseFloat(serverOdp.lat);
+      const sLng = parseFloat(serverOdp.lng);
+      if (Number.isFinite(sLat) && Number.isFinite(sLng)) return [sLat, sLng];
+    }
+  } catch (_) {}
+
+  // Fallback resmi: Kantor pusat MyAdamedia di Jl. Indah 1 Curug, Bojongsari Depok
+  return [-6.389427, 106.735005];
+}
 
 /**
  * Menghitung koordinat centroid (tengah) dari array koordinat
@@ -62,6 +91,8 @@ function calculateCentroid(pathCoords) {
  */
 function detectFiberCuts(options = {}) {
   try {
+    const nocCoords = getNocOfficeCoords();
+
     // 1. Ambil data topologi lengkap & status Dual-ACS dari opticalPowerService
     const topoData = opticalPowerSvc.getOpticalNetworkTopologyData();
     const customersMap = topoData.customers || {};
@@ -104,26 +135,44 @@ function detectFiberCuts(options = {}) {
       }
 
       // Tentukan apakah pelanggan dianggap offline / LOS
+      let isMonitored = false;
       let isOffline = false;
       let offlineReason = '';
 
-      if (custOpt.acs && custOpt.acs.isOnline === false) {
+      // Abaikan pelanggan non-aktif / terisolir secara administratif dari indikasi putus kabel fisik
+      const custStatus = String(custOpt.status || '').toLowerCase();
+      const isAdministrativelySuspended = ['isolated', 'isolir', 'inactive', 'nonaktif', 'terminated'].includes(custStatus);
+
+      if (isAdministrativelySuspended) {
+        isMonitored = false;
+        isOffline = false;
+        offlineReason = 'Status Administratif Isolir/Nonaktif';
+      } else if (custOpt.acs && custOpt.acs.isOnline === false) {
+        isMonitored = true;
         isOffline = true;
-        offlineReason = 'ONT Offline / Hilang Sinyal (No Inform)';
+        offlineReason = 'ONT Hilang Sinyal (No Inform / ACS Offline)';
       } else if (custOpt.evaluation && custOpt.evaluation.statusKey === 'critical' && custOpt.evaluation.rxActualDbm !== null && custOpt.evaluation.rxActualDbm < -30.0) {
+        isMonitored = true;
         isOffline = true;
-        offlineReason = `Loss of Signal (Rx ${custOpt.evaluation.rxActualDbm} dBm)`;
-      } else if (!custOpt.acs || custOpt.acs.rxPower === null) {
-        // Fallback jika unmonitored di ACS tapi terdaftar
-        isOffline = true;
-        offlineReason = 'Perangkat Belum Tersambung ke ACS';
+        offlineReason = `Loss of Signal (Redaman Kritis ${custOpt.evaluation.rxActualDbm} dBm)`;
+      } else if (custOpt.acs && custOpt.acs.isOnline === true) {
+        isMonitored = true;
+        isOffline = false;
+        offlineReason = '';
+      } else {
+        // Belum dimonitor di Dual-ACS: JANGAN diasumsikan kabel putus
+        isMonitored = false;
+        isOffline = false;
+        offlineReason = 'Belum Dimonitor ACS';
       }
 
       // Override jika opsi testing memaksakan status
       if (options.offlineCustomerIds && options.offlineCustomerIds.includes(custId)) {
+        isMonitored = true;
         isOffline = true;
         offlineReason = 'Simulated Offline';
       } else if (options.onlineCustomerIds && options.onlineCustomerIds.includes(custId)) {
+        isMonitored = true;
         isOffline = false;
         offlineReason = '';
       }
@@ -132,6 +181,7 @@ function detectFiberCuts(options = {}) {
         id: custId,
         name: custOpt.customerName,
         odpId,
+        isMonitored,
         isOffline,
         offlineReason,
         rxActual: custOpt.acs?.rxPower || null,
@@ -151,14 +201,21 @@ function detectFiberCuts(options = {}) {
       const totalCusts = custs.length;
       if (totalCusts === 0) continue;
 
+      const monitoredCusts = custs.filter(c => c.isMonitored);
       const offlineCusts = custs.filter(c => c.isOffline);
+      const onlineCusts = monitoredCusts.filter(c => !c.isOffline);
       const offlineCount = offlineCusts.length;
-      const offlineRatio = offlineCount / totalCusts;
+      const monitoredCount = monitoredCusts.length;
+      const offlineRatio = monitoredCount > 0 ? (offlineCount / monitoredCount) : 0;
 
-      // Evaluasi Kriteria Putus Kabel Distribusi
+      // Evaluasi Kriteria Putus Kabel Distribusi:
+      // Hanya dipicu jika ada cukup perangkat termonitor (>=2) yang padam serentak
+      // dan tidak ada >= 2 perangkat termonitor lain yang sedang online normal pada ODP yang sama
       const isThresholdMet = (
-        totalCusts >= THRESHOLDS.MIN_CUSTOMERS_FOR_ODP_DETECTION &&
-        (offlineRatio >= THRESHOLDS.MIN_OFFLINE_RATIO_DISTRIBUTION || offlineCount >= THRESHOLDS.MIN_OFFLINE_COUNT_DISTRIBUTION)
+        monitoredCount >= THRESHOLDS.MIN_MONITORED_CUSTOMERS &&
+        offlineCount >= THRESHOLDS.MIN_OFFLINE_COUNT_DISTRIBUTION &&
+        offlineRatio >= THRESHOLDS.MIN_OFFLINE_RATIO_DISTRIBUTION &&
+        onlineCusts.length < 2
       );
 
       if (isThresholdMet) {
@@ -173,18 +230,26 @@ function detectFiberCuts(options = {}) {
         if (odp.cable_path) {
           try {
             const p = JSON.parse(odp.cable_path);
-            if (Array.isArray(p)) cableCoords = p;
+            if (Array.isArray(p) && p.length >= 2) cableCoords = p;
           } catch (_) {}
         }
-        if (cableCoords.length < 2 && odp.lat && odp.lng && parentOdc && parentOdc.lat && parentOdc.lng) {
-          cableCoords = [
-            [parseFloat(parentOdc.lat), parseFloat(parentOdc.lng)],
-            [parseFloat(odp.lat), parseFloat(odp.lng)]
-          ];
+        if (cableCoords.length < 2 && odp.lat && odp.lng) {
+          const oLat = parseFloat(odp.lat);
+          const oLng = parseFloat(odp.lng);
+          if (parentOdc && parentOdc.lat && parentOdc.lng) {
+            cableCoords = [
+              [parseFloat(parentOdc.lat), parseFloat(parentOdc.lng)],
+              [oLat, oLng]
+            ];
+          } else {
+            cableCoords = [
+              nocCoords,
+              [oLat, oLng]
+            ];
+          }
         }
 
         const centroid = calculateCentroid(cableCoords) || (odp.lat && odp.lng ? [parseFloat(odp.lat), parseFloat(odp.lng)] : null);
-
         const severity = offlineRatio >= 0.8 ? 'CRITICAL' : 'HIGH';
 
         distributionCutIncidents.push({
@@ -201,6 +266,7 @@ function detectFiberCuts(options = {}) {
           oltName: odp.olt_name || '-',
           ponPort: odp.pon_port || '-',
           totalCustomers: totalCusts,
+          monitoredCount,
           offlineCount,
           offlineRatio: Math.round(offlineRatio * 100),
           severity,
@@ -216,13 +282,14 @@ function detectFiberCuts(options = {}) {
       }
     }
 
-    // 5. Analisis Level ODC: Deteksi Potensi Putus Kabel Feeder (Feeder Cut)
+    // 5. Analisis Level ODC / Parent: Deteksi Potensi Putus Kabel Feeder
     const feederCutIncidents = [];
-    const consolidatedOdpIds = new Set(); // ODP yang sudah dicover oleh Feeder Cut
+    const cascadeDistributionCuts = [];
+    const consolidatedOdpIds = new Set(); // ODP yang sudah dicover oleh Feeder / Cascade Cut
 
-    for (const [odcId, childOdps] of childrenOdpByParent.entries()) {
-      const odc = odpMap.get(odcId);
-      if (!odc) continue;
+    for (const [parentId, childOdps] of childrenOdpByParent.entries()) {
+      const parentNode = odpMap.get(parentId);
+      if (!parentNode) continue;
 
       const totalChildOdps = childOdps.length;
       if (totalChildOdps < THRESHOLDS.MIN_ODPS_FOR_ODC_DETECTION) continue;
@@ -232,71 +299,122 @@ function detectFiberCuts(options = {}) {
       const cutOdpRatio = cutChildOdps.length / totalChildOdps;
 
       if (cutOdpRatio >= THRESHOLDS.MIN_OFFLINE_ODP_RATIO_FEEDER) {
-        // Feeder Cut Terdeteksi!
         cutChildOdps.forEach(o => consolidatedOdpIds.add(o.id));
 
+        const isActualOdc = parentNode.type === 'ODC';
+
         let cableCoords = [];
-        if (odc.cable_path) {
+        if (parentNode.cable_path) {
           try {
-            const p = JSON.parse(odc.cable_path);
-            if (Array.isArray(p)) cableCoords = p;
+            const p = JSON.parse(parentNode.cable_path);
+            if (Array.isArray(p) && p.length >= 2) cableCoords = p;
           } catch (_) {}
         }
-        if (cableCoords.length < 2 && odc.lat && odc.lng) {
-          cableCoords = [
-            [-6.200000, 106.816666], // Fallback NOC office coords
-            [parseFloat(odc.lat), parseFloat(odc.lng)]
-          ];
+        if (cableCoords.length < 2 && parentNode.lat && parentNode.lng) {
+          const pLat = parseFloat(parentNode.lat);
+          const pLng = parseFloat(parentNode.lng);
+          if (parentNode.parent_odp_id && odpMap.has(parentNode.parent_odp_id)) {
+            const grandParent = odpMap.get(parentNode.parent_odp_id);
+            if (grandParent && grandParent.lat && grandParent.lng) {
+              cableCoords = [
+                [parseFloat(grandParent.lat), parseFloat(grandParent.lng)],
+                [pLat, pLng]
+              ];
+            }
+          } else {
+            cableCoords = [
+              nocCoords,
+              [pLat, pLng]
+            ];
+          }
         }
 
-        const centroid = calculateCentroid(cableCoords) || (odc.lat && odc.lng ? [parseFloat(odc.lat), parseFloat(odc.lng)] : null);
+        const centroid = calculateCentroid(cableCoords) || (parentNode.lat && parentNode.lng ? [parseFloat(parentNode.lat), parseFloat(parentNode.lng)] : null);
 
-        // Agregasi seluruh pelanggan di bawah ODC ini yang offline
+        // Agregasi seluruh pelanggan di bawah parent node ini yang offline
         let allAffectedCusts = [];
         for (const childOdp of childOdps) {
           const custs = customersByOdp.get(childOdp.id) || [];
           allAffectedCusts.push(...custs.filter(c => c.isOffline));
         }
 
-        feederCutIncidents.push({
-          incidentId: `FEEDER-CUT-${odc.id}`,
-          type: 'FEEDER_CUT',
-          level: 'Jalur Feeder Utama',
-          title: `BAHAYA: Indikasi Putus Kabel Feeder Utama (NOC ↔ ${odc.name})`,
-          targetNodeId: odc.id,
-          targetNodeName: odc.name,
-          targetNodeType: 'ODC',
-          parentNodeId: null,
-          parentNodeName: 'Kantor Pusat / NOC',
-          parentNodeType: 'NOC',
-          oltName: odc.olt_name || '-',
-          ponPort: odc.pon_port || '-',
-          totalChildOdps,
-          offlineChildOdpCount: cutChildOdps.length,
-          offlineChildOdpRatio: Math.round(cutOdpRatio * 100),
-          totalCustomers: allAffectedCusts.length,
-          offlineCount: allAffectedCusts.length,
-          severity: 'DISASTER',
-          cableCoords,
-          centroid,
-          affectedOdpNames: cutChildOdps.map(o => o.name),
-          affectedCustomers: allAffectedCusts.map(c => ({
-            id: c.id,
-            name: c.name,
-            reason: c.offlineReason
-          })),
-          detectedAt: new Date().toISOString()
-        });
+        if (isActualOdc) {
+          // Benar-benar FEEDER CUT (NOC ↔ ODC)
+          feederCutIncidents.push({
+            incidentId: `FEEDER-CUT-${parentNode.id}`,
+            type: 'FEEDER_CUT',
+            level: 'Jalur Feeder Utama',
+            title: `BAHAYA: Indikasi Putus Kabel Feeder Utama (NOC ↔ ${parentNode.name})`,
+            targetNodeId: parentNode.id,
+            targetNodeName: parentNode.name,
+            targetNodeType: 'ODC',
+            parentNodeId: null,
+            parentNodeName: 'Kantor Pusat / NOC',
+            parentNodeType: 'NOC',
+            oltName: parentNode.olt_name || '-',
+            ponPort: parentNode.pon_port || '-',
+            totalChildOdps,
+            offlineChildOdpCount: cutChildOdps.length,
+            offlineChildOdpRatio: Math.round(cutOdpRatio * 100),
+            totalCustomers: allAffectedCusts.length,
+            offlineCount: allAffectedCusts.length,
+            severity: 'DISASTER',
+            cableCoords,
+            centroid,
+            affectedOdpNames: cutChildOdps.map(o => o.name),
+            affectedCustomers: allAffectedCusts.map(c => ({
+              id: c.id,
+              name: c.name,
+              reason: c.offlineReason
+            })),
+            detectedAt: new Date().toISOString()
+          });
+        } else {
+          // Parent node adalah ODP cabang (Cascade Distribution Cut, bukan Feeder NOC)
+          const grandParent = parentNode.parent_odp_id ? odpMap.get(parentNode.parent_odp_id) : null;
+          const upParentName = grandParent ? grandParent.name : 'NOC / OLT Pusat';
+          const upParentType = grandParent ? (grandParent.type || 'ODC') : 'NOC';
+
+          cascadeDistributionCuts.push({
+            incidentId: `CASCADE-CUT-${parentNode.id}`,
+            type: 'DISTRIBUTION_CUT',
+            level: 'Jalur Distribusi Bertingkat (Cascade)',
+            title: `Indikasi Putus Kabel Distribusi Induk (${upParentName} ↔ ${parentNode.name})`,
+            targetNodeId: parentNode.id,
+            targetNodeName: parentNode.name,
+            targetNodeType: 'ODP',
+            parentNodeId: grandParent ? grandParent.id : null,
+            parentNodeName: upParentName,
+            parentNodeType: upParentType,
+            oltName: parentNode.olt_name || '-',
+            ponPort: parentNode.pon_port || '-',
+            totalChildOdps,
+            offlineChildOdpCount: cutChildOdps.length,
+            offlineChildOdpRatio: Math.round(cutOdpRatio * 100),
+            totalCustomers: allAffectedCusts.length,
+            offlineCount: allAffectedCusts.length,
+            severity: 'CRITICAL',
+            cableCoords,
+            centroid,
+            affectedOdpNames: cutChildOdps.map(o => o.name),
+            affectedCustomers: allAffectedCusts.map(c => ({
+              id: c.id,
+              name: c.name,
+              reason: c.offlineReason
+            })),
+            detectedAt: new Date().toISOString()
+          });
+        }
       }
     }
 
     // 6. Konsolidasi Insiden (Root-Cause Isolation)
-    // Saring distribution cut yang sudah termasuk dalam cakupan Feeder Cut agar teknisi fokus ke titik asal
+    // Saring distribution cut yang sudah termasuk dalam cakupan Feeder / Cascade Cut
     const finalDistributionCuts = distributionCutIncidents.filter(
       d => !consolidatedOdpIds.has(d.targetNodeId)
     );
 
-    const allIncidents = [...feederCutIncidents, ...finalDistributionCuts];
+    const allIncidents = [...feederCutIncidents, ...cascadeDistributionCuts, ...finalDistributionCuts];
     const totalAffectedCustomers = allIncidents.reduce((sum, inc) => sum + (inc.offlineCount || 0), 0);
 
     return {

@@ -155,6 +155,54 @@ describe('Fiber Cut & Mass Outage Auto-Detection Engine Suite', () => {
     const renderedHtml = compiledFn(mockData);
     expect(renderedHtml).toContain('id="massOutageBanner"');
     expect(renderedHtml).toContain('id="massOutageModal"');
+    expect(renderedHtml).toContain('dismissMassOutageBanner');
+  });
+
+  test('7. detectFiberCuts should not trigger false alarm when customers are unmonitored in ACS', () => {
+    // Dengan database normal tanpa simulasi offline paksa, tidak boleh ada false alarm mass outage
+    const result = fiberCutSvc.detectFiberCuts();
+    expect(result.ok).toBe(true);
+    expect(result.summary.hasMassOutage).toBe(false);
+    expect(result.incidents.length).toBe(0);
+  });
+
+  test('8. Simulated cut cable coords must use local coordinates in Bojongsari/Sawangan and never fallback to Jakarta (-6.2)', () => {
+    const opticalPowerSvc = require('../services/opticalPowerService');
+    const topo = opticalPowerSvc.getOpticalNetworkTopologyData();
+    const custEntries = Object.entries(topo.customers || {});
+    
+    if (custEntries.length >= 2) {
+      const firstCust = custEntries[0][1];
+      const sameOdpCusts = custEntries.filter(([id, c]) => c.odpId === firstCust.odpId);
+
+      if (sameOdpCusts.length >= 2) {
+        const offlineIds = sameOdpCusts.map(([id]) => parseInt(id, 10));
+        const res = fiberCutSvc.detectFiberCuts({ offlineCustomerIds: offlineIds });
+
+        expect(res.ok).toBe(true);
+        expect(res.incidents.length).toBeGreaterThan(0);
+        
+        for (const inc of res.incidents) {
+          if (Array.isArray(inc.cableCoords) && inc.cableCoords.length >= 2) {
+            for (const pt of inc.cableCoords) {
+              const lat = parseFloat(pt[0]);
+              const lng = parseFloat(pt[1]);
+              // Koordinat harus di wilayah Sawangan/Bojongsari/Depok (~ -6.38 s/d -6.40, 106.72 s/d 106.75)
+              // dan BUKAN Jakarta Pusat (-6.200000, 106.816666)
+              expect(lat).toBeLessThan(-6.30);
+              expect(lng).toBeLessThan(106.80);
+              expect(lat).not.toBeCloseTo(-6.200000, 2);
+            }
+          }
+        }
+      }
+    }
+  });
+
+  test('9. views/admin/map.ejs must contain dismiss button for massOutageBanner', () => {
+    const templatePath = path.join(__dirname, '../views/admin/map.ejs');
+    const content = fs.readFileSync(templatePath, 'utf8');
+    expect(content).toContain('dismissMassOutageBanner()');
   });
 
 });
