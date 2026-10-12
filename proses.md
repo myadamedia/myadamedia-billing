@@ -2,7 +2,7 @@
 
 ---
 
-## [2026-10-12] Perbaikan & Penyelarasan Akurasi Sinyal Optik (RX Power) OLT & ACS pada Portal Pelanggan (/customer/dashboard) - Versi 15.9.6
+## [2026-10-12] Perbaikan & Penyelarasan Akurasi Sinyal Optik (RX Power) OLT & ACS pada Portal Pelanggan (/customer/dashboard) - Versi 15.9.7
 
 ### 1. Masalah & Latar Belakang
 - **Keluhan Pengguna**: Sinyal Optik (RX) di Portal Pelanggan (`http://localhost:3001/customer/dashboard`) tidak sesuai dengan nilai aktual di OLT dan ACS (sering menampilkan nilai statis teoretis `-19.03 dBm Estimasi`).
