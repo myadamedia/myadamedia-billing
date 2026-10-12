@@ -4623,3 +4623,33 @@ Pada dashboard portal pelanggan (`/customer/dashboard`), terdapat laporan bahwa:
   - Prevention of `- dBm` on missing data: **PASSED**.
   - Display active count with empty host list but active associations: **PASSED**.
 - Regression Test Suite (`tests/opticalPowerBudget.test.js`): **17/17 PASSED (100%)**.
+
+---
+
+## [2026-10-11] Standardisasi Format Satuan Trafik Kecepatan Menjadi "Mbps" di Dashboard Pelanggan
+
+### 1. Deskripsi Permasalahan
+Pada pengukur kecepatan (*speed gauge*) di dashboard pelanggan (`views/dashboard.ejs`), satuan trafik tampil sebagai **MBPS** (huruf kapital seluruhnya), yang dapat menimbulkan kerancuan antara *Megabytes per second* (MB/s atau MBps) dan *Megabits per second* (Mbps). Pengguna meminta agar format unit trafik distandarkan menjadi **Mbps**.
+
+### 2. Penyebab Utama (Root Cause)
+Pada file [views/dashboard.ejs](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/views/dashboard.ejs), class CSS `.gauge-unit-label` memiliki properti:
+```css
+.gauge-unit-label {
+  ...
+  text-transform: uppercase;
+}
+```
+Meskipun elemen HTML menuliskan `<div class="gauge-unit-label">Mbps</div>`, aturan CSS `text-transform: uppercase` secara otomatis mengubah tampilannya di layar browser menjadi kapital semua (**MBPS**).
+
+### 3. Solusi & Perubahan yang Diterapkan
+1. **Pembaruan Aturan CSS di [views/dashboard.ejs](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/views/dashboard.ejs)**:
+   Mengubah `text-transform: uppercase;` menjadi `text-transform: none;` pada `.gauge-unit-label` agar kapitalisasi teks asli (`Mbps`) dipertahankan secara akurat.
+2. **Defensive Formatting di Client-Side Script**:
+   Pada fungsi `fetchTrafficData()`, menambahkan pembaruan eksplisit elemen unit `#pppoe_rx_unit` dan `#pppoe_tx_unit` agar selalu menampilkan `Mbps`.
+3. **Automated Test Suite**:
+   Menambahkan pengujian unit di [tests/customerDeviceMetrics.test.js](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/tests/customerDeviceMetrics.test.js) untuk memastikan elemen unit memuat `Mbps` dan aturan `.gauge-unit-label` tidak memaksakan `uppercase`.
+
+### 4. Hasil Pengujian & Verifikasi
+- Unit Test Suite (`tests/customerDeviceMetrics.test.js`): **9/9 PASSED (100%)**.
+- Tampilan Browser: Satuan trafik download dan upload kini konsisten tampil sebagai **Mbps**.
+

@@ -205,5 +205,31 @@ describe('Customer Device Metrics & Dashboard Features', () => {
       expect(html).toContain('Estimasi');
       expect(html).toContain('3 Perangkat Terhubung Aktif');
     });
+
+    test('should format traffic units as "Mbps" and not force uppercase "MBPS"', () => {
+      const data = {
+        customer: { rxPower: '-20.00', totalAssociations: 1, ssid: 'Test' },
+        profile: { id: 1, name: 'User' },
+        invoices: [],
+        tickets: [],
+        settings: {},
+        paymentChannels: [],
+        trafficMaxDownMbps: 10,
+        trafficMaxUpMbps: 10,
+        connectedUsers: [],
+        customerBalance: 0,
+        isLoggedIn: true,
+        showPPOB: false,
+        notif: null,
+        promoBanners: []
+      };
+
+      const html = ejs.render(template, data, { views: [path.join(__dirname, '../views')] });
+      expect(html).toContain('id="pppoe_rx_unit">Mbps</div>');
+      expect(html).toContain('id="pppoe_tx_unit">Mbps</div>');
+      expect(template).toContain('.gauge-unit-label {');
+      expect(template).toContain('text-transform: none;');
+      expect(template).not.toMatch(/\.gauge-unit-label\s*\{[^}]*text-transform:\s*uppercase/i);
+    });
   });
 });

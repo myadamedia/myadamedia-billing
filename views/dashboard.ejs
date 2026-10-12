@@ -292,7 +292,7 @@
       font-weight: 700;
       color: var(--text-sub) !important;
       margin-top: 3px;
-      text-transform: uppercase;
+      text-transform: none;
     }
 
     .hero-banner-card {
@@ -1953,6 +1953,11 @@
 
             document.getElementById('pppoe_rx_value').innerText = rxVal;
             document.getElementById('pppoe_tx_value').innerText = txVal;
+
+            const rxUnit = document.getElementById('pppoe_rx_unit');
+            if (rxUnit && rxUnit.innerText !== 'Mbps') rxUnit.innerText = 'Mbps';
+            const txUnit = document.getElementById('pppoe_tx_unit');
+            if (txUnit && txUnit.innerText !== 'Mbps') txUnit.innerText = 'Mbps';
 
             let rxMax = parseFloat(document.getElementById('pppoe_rx_gauge').dataset.max || 10);
             let txMax = parseFloat(document.getElementById('pppoe_tx_gauge').dataset.max || 10);
