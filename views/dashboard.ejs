@@ -2044,6 +2044,44 @@
           if (countEl) countEl.innerText = displayCount;
           if (badgeEl) badgeEl.innerText = `${displayCount} Active`;
 
+          const tbody = document.getElementById('liveConnectedClientsTbody');
+          if (tbody && users.length > 0) {
+            let rowsHtml = '';
+            users.forEach(function(dev) {
+              const iface = String(dev.iface || '');
+              const isWiFi = iface.toLowerCase().includes('wifi') || iface.toLowerCase().includes('wlan') || iface.toLowerCase().includes('802.11');
+              const isDevOnline = String(dev.status || '').toLowerCase() === 'online' || String(dev.status || '').toLowerCase() === 'active' || String(dev.status || '') === '1' || dev.active === true;
+              rowsHtml += `<tr>
+                <td>
+                  <div class="d-flex align-items-center gap-2">
+                    <div class="rounded-3 p-2 d-flex align-items-center justify-content-center" style="background: rgba(99,102,241,0.2); color: var(--primary-accent); width: 34px; height: 34px;">
+                      <i class="bi bi-${isWiFi ? 'wifi' : 'ethernet'} fs-5"></i>
+                    </div>
+                    <div>
+                      <div class="fw-bold text-main">${dev.hostname || 'Device'}</div>
+                      <div class="small text-sub">${iface || 'LAN/WLAN'}</div>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <div class="small text-main fw-semibold">${dev.ip || '-'}</div>
+                  <div class="small text-sub font-monospace" style="font-size: 10px;">${dev.mac || '-'}</div>
+                </td>
+                <td>
+                  <span class="pill-badge ${isDevOnline ? 'pill-active' : 'pill-suspended'}" style="font-size: 9px;">
+                    ${isDevOnline ? 'ONLINE' : 'OFFLINE'}
+                  </span>
+                </td>
+                <td class="text-end">
+                  <button class="btn btn-outline-danger btn-sm rounded-circle p-1" style="width: 28px; height: 28px; line-height: 1;" onclick="deleteCustomerConnectedClient('${dev.mac || ''}', '${dev.ip || ''}', '${dev.hostname || 'Perangkat'}')" title="Hapus Perangkat Terhubung">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </td>
+              </tr>`;
+            });
+            tbody.innerHTML = rowsHtml;
+          }
+
           // 3. Update SSID if available
           if (data.ssid && data.ssid !== '-' && data.ssid !== 'N/A') {
             const btnSsid = document.getElementById('btnWifiSsidLabel');

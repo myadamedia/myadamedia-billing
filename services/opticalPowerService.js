@@ -278,17 +278,18 @@ function evaluateOpticalQuality(rxActualRaw, rxEstimatedRaw) {
   if (rxAct === null) {
     return {
       hasActual: false,
+      isEstimated: rxEst !== null,
       rxActualDbm: null,
       rxEstimatedDbm: rxEst,
       deltaDbm: null,
       statusKey: 'unmonitored',
-      statusLabel: 'Belum Terdeteksi',
+      statusLabel: rxEst !== null ? 'Estimasi Normal' : 'Belum Terdeteksi',
       color: '#94a3b8',       // Slate gray
       badgeClass: 'ct-status-unknown',
       severity: 'info',
       icon: 'bi-question-circle',
-      diagnosis: 'Perangkat ONT belum tersinkronisasi atau dalam status offline.',
-      recommendation: 'Pastikan modem ONT menyala dan terhubung ke Dual-ACS server.'
+      diagnosis: rxEst !== null ? `Estimasi matematis link budget jalur optik ODP: ${rxEst} dBm.` : 'Perangkat ONT belum tersinkronisasi atau dalam status offline.',
+      recommendation: rxEst !== null ? 'Koneksi optik teoretis berada dalam batas toleransi standar GPON.' : 'Pastikan modem ONT menyala dan terhubung ke jaringan optik.'
     };
   }
 
