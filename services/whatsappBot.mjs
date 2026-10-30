@@ -984,10 +984,12 @@ export async function startWhatsAppBot() {
     if (qr) {
       whatsappStatus.qr = qr;
       whatsappStatus.connection = 'qr';
-      qrShownSinceStart = true;
-      notifiedAdminForQr = false;
-      logger.info(`[WA] QR Code Baru Dihasilkan: ${qr.slice(0, 20)}...`);
-      qrcode.generate(qr, { small: true });
+      if (!qrShownSinceStart) {
+        qrShownSinceStart = true;
+        notifiedAdminForQr = false;
+        logger.info(`[WA] QR Code Baru Dihasilkan: ${qr.slice(0, 20)}...`);
+        qrcode.generate(qr, { small: true });
+      }
     }
 
     if (connection) {

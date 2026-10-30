@@ -1088,11 +1088,49 @@ async function sendPppoeStatusNotification(pppoeData) {
   const profile = pppoeData.profile || '-';
   const ipAddress = pppoeData.ipAddress || '-';
   const time = pppoeData.time || getNowLocal();
+  const routerName = pppoeData.routerName || null;
 
   const oltName = pppoeData.oltName || null;
   const ontStatus = pppoeData.ontStatus || (isOffline ? 'PwrDown / down' : 'Online / UP');
   const offlineReason = pppoeData.offlineReason || (isOffline ? 'Dying_gasp / TIMEOUT / Other' : null);
   const rxPower = pppoeData.rxPower || null;
+
+  const ontNorm = String(ontStatus || '').toLowerCase();
+  const isOntUp = ontNorm.includes('online') || ontNorm.includes('up');
+
+  const message = formatPppoeStatusMessage(pppoeData);
+  if (!message) return false;
+
+  const sendFn = (module.exports && module.exports.sendTelegramAdminNotification) || sendTelegramAdminNotification;
+  return await sendFn(message);
+}
+
+/**
+ * Format teks pesan notifikasi status PPPoE untuk Telegram
+ * @param {object} pppoeData
+ * @returns {string}
+ */
+function formatPppoeStatusMessage(pppoeData) {
+  if (!pppoeData || !pppoeData.username) return '';
+
+  const status = pppoeData.status || 'offline';
+  const isOffline = status === 'offline';
+
+  const username = String(pppoeData.username).trim();
+  const customerName = pppoeData.customerName || '-';
+  const phone = pppoeData.phone || '-';
+  const profile = pppoeData.profile || '-';
+  const ipAddress = pppoeData.ipAddress || '-';
+  const time = pppoeData.time || getNowLocal();
+  const routerName = pppoeData.routerName || null;
+
+  const oltName = pppoeData.oltName || null;
+  const ontStatus = pppoeData.ontStatus || (isOffline ? 'PwrDown / down' : 'Online / UP');
+  const offlineReason = pppoeData.offlineReason || (isOffline ? 'Dying_gasp / TIMEOUT / Other' : null);
+  const rxPower = pppoeData.rxPower || null;
+
+  const ontNorm = String(ontStatus || '').toLowerCase();
+  const isOntUp = ontNorm.includes('online') || ontNorm.includes('up');
 
   let message = '';
   if (isOffline) {
@@ -1105,6 +1143,10 @@ async function sendPppoeStatusNotification(pppoeData) {
       `📦 *Paket/Profile:* ${profile}\n` +
       `🌐 *IP Terakhir:* ${ipAddress}\n`;
 
+    if (routerName) {
+      message += `🖧 *Router:* ${routerName}\n`;
+    }
+
     if (oltName || ontStatus || offlineReason || rxPower) {
       message += `----------------------------\n`;
       if (oltName) message += `📡 *OLT:* ${oltName}\n`;
@@ -1113,10 +1155,14 @@ async function sendPppoeStatusNotification(pppoeData) {
       if (rxPower) message += `📊 *Redaman (RX):* ${rxPower}\n`;
     }
 
+    const footerOffline = isOntUp
+      ? `_Status: Sesi PPP Terputus / Reconnecting (ONT Fisik Normal di OLT)_`
+      : `_Status: Terputus dari Router & OLT_`;
+
     message +=
       `============================\n` +
       `📅 *Waktu Putus:* ${time}\n` +
-      `_Status: Terputus dari Router & OLT_`;
+      footerOffline;
   } else {
     message =
       `✅ *RECOVERY: USER PPPoE CONNECTED*\n` +
@@ -1126,6 +1172,10 @@ async function sendPppoeStatusNotification(pppoeData) {
       `📞 *No. WA:* ${phone}\n` +
       `📦 *Paket/Profile:* ${profile}\n` +
       `🌐 *IP Aktif:* ${ipAddress}\n`;
+
+    if (routerName) {
+      message += `🖧 *Router:* ${routerName}\n`;
+    }
 
     if (oltName || ontStatus || rxPower) {
       message += `----------------------------\n`;
@@ -1140,7 +1190,7 @@ async function sendPppoeStatusNotification(pppoeData) {
       `_Status: Kembali Online di Router & OLT_`;
   }
 
-  return await sendTelegramAdminNotification(message);
+  return message;
 }
 
 // Export for manual re-init from settings and sending notifications
@@ -1150,7 +1200,8 @@ module.exports = {
   sendTelegramAdminNotification,
   sendTelegramDocument,
   sendTelegramAdminDocument,
-  sendPppoeStatusNotification
+  sendPppoeStatusNotification,
+  formatPppoeStatusMessage
 };
 
 

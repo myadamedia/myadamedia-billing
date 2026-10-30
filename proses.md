@@ -2,6 +2,54 @@
 
 ---
 
+## [2026-10-30] Perbaikan Anti-False Alert PPPoE Disconnected & Multi-Router Monitoring Engine (Telegram Bot) - Versi 15.9.8
+
+### 1. Masalah & Latar Belakang
+- **Keluhan Pengguna**: Sering muncul notifikasi `🚨 ALERT: USER PPPoE DISCONNECTED` pada bot Telegram, namun saat diperiksa di OLT dan MikroTik, perangkat fisik pelanggan (ONT) dan sesi PPPoE sebenarnya berstatus normal / online.
+- **Akar Masalah (Root Causes)**:
+  1. **Multi-Router Target Mismatch**: Task 9 di `services/cronService.js` sebelumnya memanggil `getPppoeSecrets()` dan `getPppoeActive()` tanpa argumen router (`routerId = null`). Router default di `settings.json` (`172.99.12.2:8778`) berstatus offline/unreachable (`ECONNREFUSED`), sedangkan router operasional sesungguhnya adalah Router ID 1 (`10.10.10.1:8778`) yang melayani 85 secrets dan 84 sesi aktif. Di database pelanggan, 49 dari 62 pelanggan yang terdaftar di Router 1 memiliki kolom `router_id = NULL`.
+  2. **Silent Failure & Cache Eviction pada `getPppoeActive()`**: Fungsi `getPppoeActive()` di `services/mikrotikService.js` menangkap error koneksi/timeout dan mengembalikan array kosong `[]` jika stale cache kedaluwarsa (> 2 detik). Cron Task 9 tidak mendeteksi error ini karena `Array.isArray([])` bernilai `true`, sehingga `activeMap` menjadi kosong (0 sesi aktif) dan seluruh pelanggan online seketika dianggap terputus massal.
+  3. **Ketiadaan Flap Damping / Multi-Strike Debounce (Aturan 1-Strike)**: Pada jaringan FTTH, ONT pelanggan kadang melakukan re-negosiasi PPP sesaat (2–5 detik) akibat LCP timeout atau lease renewal IP sementara link laser optik GPON OLT tetap `Online / UP` (-19 dBm). Polling cron 2-menitan yang berjalan di jeda tersebut langsung memicu alert offline tanpa verifikasi ulang (*debounce*).
+  4. **Strict Case-Sensitive Username Matching**: Penggunaan `Map.has()` case-sensitive menyebabkan perbedaan kapitalisasi huruf nama antara secret dan sesi aktif memicu false alert.
+
+### 2. Solusi & Perubahan yang Diterapkan
+1. **Multi-Router Aggregation & Circuit Breaker (`services/cronService.js`)**:
+   - Membaca seluruh router aktif dari `mikrotikService.getAllRouters()`.
+   - Mengambil data secrets dan active sessions dari setiap router target secara paralel menggunakan `Promise.allSettled`.
+   - **Circuit Breaker**: Jika koneksi API ke suatu router gagal atau timeout, status user pada router tersebut dipertahankan (tidak diubah menjadi offline) dan dicatat sebagai warning di logger.
+   - **Mass Drop Anomaly Check**: Jika suatu router memiliki >= 5 secrets namun active sessions = 0, sistem mendeteksi gangguan komunikasi socket RouterOS dan menahan siklus agar tidak membombardir notifikasi false alert massal.
+2. **Immediate Targeted Double-Check & 2-Strike Flap Damping (`services/cronService.js` & `services/mikrotikService.js`)**:
+   - Menambahkan fungsi `checkPppoeActiveUser(username, routerId)` di `mikrotikService.js` untuk verifikasi instan targeted query (`/ppp/active/print ?name=...`).
+   - Saat user terdeteksi hilang dari batch active list, sistem melakukan double-check instan via `checkPppoeActiveUser`. Jika user terdeteksi, transisi offline dibatalkan.
+   - **Cross-Layer Validation dengan OLT**: Jika user tetap tidak ada di MikroTik, sistem mengecek OLT via `oltService.getOltStats()`. Jika ONT OLT terdeteksi `Online / UP`, sistem menahan alert pada Strike 1 (menandai kemungkinan flapping). Alert hanya dikirim jika pada siklus berikutnya (Strike 2) user masih offline. Sebaliknya, jika ONT terkonfirmasi padam (`PwrDown` / `LOS` / `Dying_gasp`), alert dikirim seketika.
+3. **Format Pesan Cerdas & Modularitas (`services/telegramBot.js`)**:
+   - Mengekstrak fungsi `formatPppoeStatusMessage(pppoeData)` agar mudah diuji secara independen (Clean Code & Single Responsibility).
+   - Menampilkan nama Router asal (`🖧 Router: ...`) pada pesan Telegram.
+   - Menyesuaikan footer status dinamis: jika ONT OLT terdeteksi `Online / UP`, pesan berbunyi `_Status: Sesi PPP Terputus / Reconnecting (ONT Fisik Normal di OLT)_`. Jika padam, berbunyi `_Status: Terputus dari Router & OLT_`.
+4. **Normalisasi Case-Insensitive**:
+   - Seluruh pencocokan username dinormalisasi menggunakan `.toLowerCase().trim()`.
+5. **Unit Testing Komprehensif (`tests/telegramPppoeAntiFalseAlert.test.js`)**:
+   - Menambahkan 12 unit test Jest yang memverifikasi `checkPppoeActiveUser`, `throwOnError`, `formatPppoeStatusMessage`, format status ONT OLT, case-insensitive matching, Circuit Breaker anomaly check, dan 2-strike debounce flapping. Seluruh 12 test lulus 100%.
+
+### 3. File yang Diubah & Ditambahkan
+- `[MODIFY]` [`services/mikrotikService.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/mikrotikService.js)
+- `[MODIFY]` [`services/cronService.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/cronService.js)
+- `[MODIFY]` [`services/telegramBot.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/services/telegramBot.js)
+- `[NEW]` [`tests/telegramPppoeAntiFalseAlert.test.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/tests/telegramPppoeAntiFalseAlert.test.js)
+- `[MODIFY]` [`file md/implementation_plan.md`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/file%20md/implementation_plan.md)
+- `[MODIFY]` [`version.txt`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/version.txt)
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/proses.md)
+
+### 4. Hasil Pengujian & Verifikasi
+- **Unit Testing**:
+  - `tests/telegramPppoeAntiFalseAlert.test.js`: 12/12 passed (100%).
+  - `tests/telegramPppoeNotification.test.js`: 7/7 passed (100%).
+- **Sistem Status**:
+  - Multi-router monitoring berhasil memetakan Router 1 (`10.10.10.1`) dengan 85 secrets dan 84 sesi aktif.
+  - False alarm massal akibat koneksi gagal ke router default `172.99.12.2` berhasil dicegah berkat Circuit Breaker.
+
+---
+
 ## [2026-10-12] Perbaikan & Penyelarasan Akurasi Sinyal Optik (RX Power) OLT & ACS pada Portal Pelanggan (/customer/dashboard) - Versi 15.9.7
 
 ### 1. Masalah & Latar Belakang

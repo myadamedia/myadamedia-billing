@@ -828,8 +828,9 @@ function startCronJobs() {
     }
   });
 
-  // 9. PPPoE Disconnected & Recovery Monitoring (Telegram Notification) - Setiap 2 Menit
+  // 9. PPPoE Disconnected & Recovery Monitoring (Telegram Notification) - Multi-Router & Anti-False Alert Engine
   const pppoeUserStates = new Map();
+  const pppoeOfflineCandidates = new Map();
 
   cron.schedule('*/2 * * * *', async () => {
     const notifyEnabled = getSetting('telegram_pppoe_notify_enabled', true);
@@ -838,45 +839,94 @@ function startCronJobs() {
 
     logger.info('[CRON] Menjalankan pemantauan status PPPoE untuk notifikasi Telegram...');
     try {
-      let secrets, active;
-      try {
-        [secrets, active] = await Promise.all([
-          mikrotikService.getPppoeSecrets(),
-          mikrotikService.getPppoeActive()
-        ]);
-      } catch (err) {
-        logger.warn(`[CRON] Gagal mengambil data PPPoE dari MikroTik (Skip Notifikasi Telegram): ${err.message}`);
-        return;
-      }
+      const getRoutersFn = (mikrotikService && mikrotikService.getAllRouters) || (() => []);
+      const allRouters = getRoutersFn();
+      const activeRouters = Array.isArray(allRouters) ? allRouters.filter(r => r && r.is_active !== 0) : [];
+      const targetRouters = activeRouters.length > 0 ? activeRouters : [{ id: null, name: 'Default Router' }];
 
-      if (!Array.isArray(secrets) || !Array.isArray(active)) {
-        logger.warn('[CRON] Data PPPoE dari MikroTik tidak valid (Skip Notifikasi Telegram)');
-        return;
-      }
+      // Ambil data secrets dan active sessions dari setiap router target secara paralel
+      const routerResults = await Promise.allSettled(
+        targetRouters.map(async (r) => {
+          const rid = r ? r.id : null;
+          const rName = r ? (r.name || `Router #${rid}`) : 'Default Router';
+          const [secrets, active] = await Promise.all([
+            mikrotikService.getPppoeSecrets(rid, { throwOnError: true }),
+            mikrotikService.getPppoeActive(rid, { throwOnError: true })
+          ]);
+          return {
+            routerId: rid,
+            routerName: rName,
+            secrets: Array.isArray(secrets) ? secrets : [],
+            active: Array.isArray(active) ? active : []
+          };
+        })
+      );
 
       const activeMap = new Map();
-      active.forEach((row) => {
-        const name = String(row && row.name ? row.name : '').trim();
-        if (name) activeMap.set(name, row);
-      });
+      const combinedSecrets = [];
+      let totalValidRouters = 0;
+
+      for (const res of routerResults) {
+        if (res.status !== 'fulfilled' || !res.value) {
+          logger.warn(`[CRON] Skip pemantauan PPPoE router karena kegagalan API/koneksi: ${res.reason?.message || res.reason}`);
+          continue;
+        }
+
+        const { routerId, routerName, secrets, active } = res.value;
+
+        // Circuit Breaker: Mass Drop Anomaly Check
+        // Jika router memiliki >= 5 secrets namun active = 0, anggap gangguan komunikasi API alih-alih pemadaman massal
+        if (secrets.length >= 5 && active.length === 0) {
+          logger.warn(`[CRON] Anomali: Sesi aktif pada ${routerName} kosong padahal terdapat ${secrets.length} secrets. Menahan siklus untuk mencegah false alert.`);
+          continue;
+        }
+
+        totalValidRouters++;
+
+        for (const act of active) {
+          const rawName = String(act && act.name ? act.name : '').trim();
+          if (rawName) {
+            const key = rawName.toLowerCase();
+            activeMap.set(key, { ...act, _routerId: routerId, _routerName: routerName });
+          }
+        }
+
+        for (const sec of secrets) {
+          const rawName = String(sec && sec.name ? sec.name : '').trim();
+          if (rawName) {
+            combinedSecrets.push({
+              secret: sec,
+              routerId,
+              routerName,
+              rawName,
+              normalizedName: rawName.toLowerCase()
+            });
+          }
+        }
+      }
+
+      if (combinedSecrets.length === 0 && targetRouters.length > 0 && totalValidRouters === 0) {
+        logger.warn('[CRON] Tidak ada router MikroTik yang merespons valid pada siklus ini. Skip pemantauan PPPoE Telegram.');
+        return;
+      }
 
       const customers = customerSvc.getAllCustomers();
       const customerMap = new Map();
       (customers || []).forEach((row) => {
-        const username = String(row && row.pppoe_username ? row.pppoe_username : '').trim();
+        const username = String(row && row.pppoe_username ? row.pppoe_username : '').trim().toLowerCase();
         if (username) customerMap.set(username, row);
       });
 
       // Pengecekan inisialisasi awal (boot pertama kali)
       if (pppoeUserStates.size === 0) {
-        secrets.forEach((secret) => {
-          const username = String(secret && secret.name ? secret.name : '').trim();
-          if (!username) return;
-          const isOnline = activeMap.has(username);
-          const activeRow = activeMap.get(username);
-          pppoeUserStates.set(username, {
+        combinedSecrets.forEach(({ rawName, normalizedName, routerId, routerName }) => {
+          const isOnline = activeMap.has(normalizedName);
+          const activeRow = activeMap.get(normalizedName);
+          pppoeUserStates.set(normalizedName, {
             status: isOnline ? 'online' : 'offline',
-            lastIp: activeRow ? (activeRow.address || '-') : '-'
+            lastIp: activeRow ? (activeRow.address || '-') : '-',
+            routerId,
+            routerName
           });
         });
         logger.info(`[CRON] State PPPoE Telegram diinisialisasi dengan ${pppoeUserStates.size} user.`);
@@ -884,46 +934,59 @@ function startCronJobs() {
       }
 
       // Loop semua secret aktif
-      for (const secret of secrets) {
-        const username = String(secret && secret.name ? secret.name : '').trim();
-        if (!username) continue;
-
+      for (const { secret, routerId, routerName, rawName, normalizedName } of combinedSecrets) {
         // Skip jika secret di-disable oleh admin
         const disabled = secret.disabled === true || secret.disabled === 1 || String(secret.disabled).toLowerCase() === 'true';
         if (disabled) continue;
 
-        const isOnline = activeMap.has(username);
-        const activeRow = activeMap.get(username) || null;
+        const isOnline = activeMap.has(normalizedName);
+        const activeRow = isOnline ? activeMap.get(normalizedName) : null;
         const currentStatus = isOnline ? 'online' : 'offline';
 
-        const prevStateObj = pppoeUserStates.get(username);
+        const prevStateObj = pppoeUserStates.get(normalizedName);
         const prevStatus = prevStateObj ? prevStateObj.status : null;
         const prevIp = (prevStateObj && prevStateObj.lastIp && prevStateObj.lastIp !== '-') ? prevStateObj.lastIp : null;
         const lastIp = activeRow ? (activeRow.address || '-') : (prevStateObj ? prevStateObj.lastIp : '-');
 
-        const customer = customerMap.get(username);
+        const customer = customerMap.get(normalizedName);
         const customerName = customer && customer.name ? customer.name : '-';
         const phone = customer && customer.phone ? customer.phone : '-';
         const profile = secret.profile || (customer && customer.package_name ? customer.package_name : '-');
 
         // SINKRONISASI IP ISOLIR PASCA RESTART ONT:
-        // Jika pelanggan berstatus suspended / isolated dan sedang online di PPPoE:
         if (customer && (customer.status === 'suspended' || customer.status === 'isolated') && isOnline && activeRow && activeRow.address) {
           const currentIp = String(activeRow.address).trim();
           const oldIp = (prevIp && prevIp !== '-' && prevIp !== currentIp) ? prevIp : null;
-          mikrotikService.handlePppoeIpChanged(username, currentIp, oldIp, customer.router_id).catch(err => {
-            logger.warn(`[CRON] Sinkronisasi IP isolir baru untuk ${username}: ${err.message}`);
+          const targetRouterId = customer.router_id || routerId;
+          mikrotikService.handlePppoeIpChanged(rawName, currentIp, oldIp, targetRouterId).catch(err => {
+            logger.warn(`[CRON] Sinkronisasi IP isolir baru untuk ${rawName}: ${err.message}`);
           });
         }
 
         if (prevStatus === 'online' && currentStatus === 'offline') {
-          logger.warn(`[CRON] PPPoE User ${username} (${customerName}) terdeteksi DISCONNECTED.`);
-          pppoeUserStates.set(username, { status: 'offline', lastIp });
+          // Anti-Flapping: Immediate Targeted Double-Check
+          let confirmedActive = null;
+          try {
+            confirmedActive = await mikrotikService.checkPppoeActiveUser(rawName, routerId);
+          } catch {}
+
+          if (confirmedActive) {
+            logger.info(`[CRON] User ${rawName} (${customerName}) sempat tidak masuk batch active, namun terverifikasi ONLINE saat double-check. Skip offline alert.`);
+            pppoeUserStates.set(normalizedName, {
+              status: 'online',
+              lastIp: confirmedActive.address || lastIp,
+              routerId,
+              routerName
+            });
+            pppoeOfflineCandidates.delete(normalizedName);
+            continue;
+          }
 
           let oltName = customer && customer.olt_name ? customer.olt_name : null;
           let ontStatus = null;
           let offlineReason = null;
           let rxPower = null;
+          let isOntPhysicallyDown = false;
 
           if (customer && customer.olt_id) {
             try {
@@ -932,7 +995,7 @@ function startCronJobs() {
                 oltName = oltStats.name || oltName;
                 if (Array.isArray(oltStats.onus)) {
                   const snTarget = String(customer.genieacs_tag || '').toUpperCase().trim();
-                  const userTarget = String(username).toLowerCase().trim();
+                  const userTarget = normalizedName;
                   const nameTarget = String(customer.name || '').toLowerCase().trim();
 
                   const matchedOnu = oltStats.onus.find(o => {
@@ -946,21 +1009,42 @@ function startCronJobs() {
                     ontStatus = matchedOnu.status || 'PwrDown / down';
                     offlineReason = matchedOnu.offline_reason || 'Dying_gasp / TIMEOUT / Other';
                     rxPower = matchedOnu.rx || null;
+
+                    const ontStatusNorm = String(ontStatus).toLowerCase();
+                    if (ontStatusNorm.includes('pwrdown') || ontStatusNorm.includes('down') || ontStatusNorm.includes('los') || ontStatusNorm.includes('dying')) {
+                      isOntPhysicallyDown = true;
+                    }
                   }
                 }
               }
             } catch (err) {
-              logger.warn(`[CRON] Gagal membaca status ONT OLT (${customer.olt_id}) untuk ${username}: ${err.message}`);
+              logger.warn(`[CRON] Gagal membaca status ONT OLT (${customer.olt_id}) untuk ${rawName}: ${err.message}`);
             }
           }
 
+          // Flap Damping / Multi-Strike Debounce:
+          // Jika ONT OLT masih Online / UP (tidak padam dan optik normal), kemungkinan besar ONT hanya re-negotiate PPP.
+          const candidate = pppoeOfflineCandidates.get(normalizedName) || { strikeCount: 0 };
+          candidate.strikeCount += 1;
+          pppoeOfflineCandidates.set(normalizedName, candidate);
+
+          if (!isOntPhysicallyDown && candidate.strikeCount < 2) {
+            logger.info(`[CRON] User ${rawName} offline di PPPoE namun ONT OLT terdeteksi ${ontStatus || 'Online'}. Menahan notifikasi (Strike ${candidate.strikeCount}/2) untuk verifikasi flapping.`);
+            continue;
+          }
+
+          logger.warn(`[CRON] PPPoE User ${rawName} (${customerName}) terkonfirmasi DISCONNECTED pada ${routerName}.`);
+          pppoeUserStates.set(normalizedName, { status: 'offline', lastIp, routerId, routerName });
+          pppoeOfflineCandidates.delete(normalizedName);
+
           await telegramBot.sendPppoeStatusNotification({
-            username,
+            username: rawName,
             customerName,
             phone,
             profile,
             ipAddress: lastIp,
             status: 'offline',
+            routerName,
             oltName,
             ontStatus,
             offlineReason,
@@ -968,8 +1052,9 @@ function startCronJobs() {
             time: getNowLocal()
           });
         } else if (prevStatus === 'offline' && currentStatus === 'online') {
-          logger.info(`[CRON] PPPoE User ${username} (${customerName}) terdeteksi RECOVERED (Online).`);
-          pppoeUserStates.set(username, { status: 'online', lastIp });
+          logger.info(`[CRON] PPPoE User ${rawName} (${customerName}) terdeteksi RECOVERED (Online) pada ${routerName}.`);
+          pppoeUserStates.set(normalizedName, { status: 'online', lastIp, routerId, routerName });
+          pppoeOfflineCandidates.delete(normalizedName);
 
           let oltName = customer && customer.olt_name ? customer.olt_name : null;
           let ontStatus = null;
@@ -982,7 +1067,7 @@ function startCronJobs() {
                 oltName = oltStats.name || oltName;
                 if (Array.isArray(oltStats.onus)) {
                   const snTarget = String(customer.genieacs_tag || '').toUpperCase().trim();
-                  const userTarget = String(username).toLowerCase().trim();
+                  const userTarget = normalizedName;
                   const nameTarget = String(customer.name || '').toLowerCase().trim();
 
                   const matchedOnu = oltStats.onus.find(o => {
@@ -999,24 +1084,28 @@ function startCronJobs() {
                 }
               }
             } catch (err) {
-              logger.warn(`[CRON] Gagal membaca status ONT OLT (${customer.olt_id}) untuk ${username}: ${err.message}`);
+              logger.warn(`[CRON] Gagal membaca status ONT OLT (${customer.olt_id}) untuk ${rawName}: ${err.message}`);
             }
           }
 
           await telegramBot.sendPppoeStatusNotification({
-            username,
+            username: rawName,
             customerName,
             phone,
             profile,
             ipAddress: lastIp,
             status: 'online',
+            routerName,
             oltName,
             ontStatus,
             rxPower,
             time: getNowLocal()
           });
         } else {
-          pppoeUserStates.set(username, { status: currentStatus, lastIp });
+          pppoeUserStates.set(normalizedName, { status: currentStatus, lastIp, routerId, routerName });
+          if (currentStatus === 'online') {
+            pppoeOfflineCandidates.delete(normalizedName);
+          }
         }
       }
     } catch (err) {

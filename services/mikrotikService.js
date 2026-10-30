@@ -539,7 +539,7 @@ async function kickHotspotUser(username, routerId = null) {
   }
 }
 
-async function getPppoeSecrets(routerId = null) {
+async function getPppoeSecrets(routerId = null, options = {}) {
   const ck = cacheKey(routerId, 'pppoeSecrets');
   const cached = getCachedList(ck, 5000); // Reduced cache to 5s for real-time consistency
   if (cached) return cached;
@@ -582,6 +582,9 @@ async function getPppoeSecrets(routerId = null) {
     if (staleCache && staleCache.data) {
       logger.warn('[MikroTik] Returning stale cache due to error');
       return staleCache.data;
+    }
+    if (options && options.throwOnError) {
+      throw e;
     }
     return [];
   } finally {
@@ -663,7 +666,7 @@ async function createPppoeSecret({ username, password, profile, remoteAddress, r
   }
 }
 
-async function getPppoeActive(routerId = null) {
+async function getPppoeActive(routerId = null, options = {}) {
   const ck = cacheKey(routerId, 'pppoeActive');
   const cached = getCachedList(ck, 2000); // Very short cache (2s) for real-time active sessions
   if (cached) return cached;
@@ -701,6 +704,9 @@ async function getPppoeActive(routerId = null) {
       logger.warn('[MikroTik] Returning stale active sessions cache due to error');
       return staleCache.data;
     }
+    if (options && options.throwOnError) {
+      throw e;
+    }
     return [];
   } finally {
     if (conn && conn.api) {
@@ -709,6 +715,58 @@ async function getPppoeActive(routerId = null) {
       } catch (closeErr) {
         // Ignore close errors
       }
+    }
+  }
+}
+
+/**
+ * Cek sesi aktif spesifik user PPPoE dengan query targeted ke MikroTik
+ * Berguna untuk double-check (anti-flapping) sebelum memicu alert offline
+ * @param {string} username
+ * @param {number|null} [routerId]
+ * @returns {Promise<object|null>}
+ */
+async function checkPppoeActiveUser(username, routerId = null) {
+  if (!username) return null;
+  const targetUser = String(username).trim();
+  let conn = null;
+  try {
+    conn = await getConnection(routerId);
+    let rows;
+    try {
+      rows = await withTimeout(
+        conn.api.send([
+          '/ppp/active/print',
+          `?name=${targetUser}`,
+          '=.proplist=.id,name,address,uptime,caller-id,service'
+        ]),
+        8000,
+        'checkPppoeActiveUser'
+      );
+    } catch (timeoutErr) {
+      logger.warn(`[MikroTik] Timeout targeted query active PPPoE user ${targetUser}, mencoba menu get: ${timeoutErr.message}`);
+      const allActive = await withTimeout(
+        conn.client.menu('/ppp/active').get(),
+        10000,
+        'checkPppoeActiveUser-fallback'
+      );
+      rows = Array.isArray(allActive)
+        ? allActive.filter(r => String(r.name || '').trim().toLowerCase() === targetUser.toLowerCase())
+        : [];
+    }
+
+    if (Array.isArray(rows) && rows.length > 0) {
+      return augmentRow(rows[0]);
+    }
+    return null;
+  } catch (err) {
+    logger.warn(`[MikroTik] Gagal re-check aktif user ${targetUser} (Router: ${routerId}): ${err.message}`);
+    return null;
+  } finally {
+    if (conn && conn.api) {
+      try {
+        await conn.api.close();
+      } catch {}
     }
   }
 }
@@ -2401,6 +2459,7 @@ module.exports = {
   upsertHotspotUser,
   getHotspotProfiles,
   getPppoeActive,
+  checkPppoeActiveUser,
   getHotspotActive,
   getIpPools,
   addPppoeProfile,

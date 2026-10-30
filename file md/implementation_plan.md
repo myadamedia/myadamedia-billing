@@ -1,139 +1,142 @@
-# Implementation Plan: Kalkulator Redaman Optik di Peta (Link Budget & Dual-ACS Integration)
+# Implementation Plan: Anti-False Alert PPPoE Disconnected & Multi-Router Monitoring Engine
 
-## 1. Analisis Kebutuhan & Problem Statement
-Pada Peta Jaringan (`http://localhost:3001/admin/map` dan `http://localhost:3001/tech/map`):
-Pengguna telah memiliki visualisasi kabel jaringan (feeder dari NOC ke ODC/ODP, kabel distribusi antar ODC-ODP, dan drop cable ke pelanggan) beserta kalkulasi jarak geodetik yang baru dibuat.
-Pengguna membutuhkan **Kalkulator Redaman Optik Interaktif di Peta** yang:
-1. **Menghitung Link Budget Optik Teoretis** berdasarkan akumulasi jarak kabel aktual (Feeder + Distribusi + Drop Cable) dikalikan koefisien redaman fiber optik ($\alpha \approx 0.35\text{ dB/km}$ pada panjang gelombang downstream 1490nm), redaman percabangan splitter (ODC Level-1 dan ODP Level-2), serta loss sambungan konektor/splicing ($\approx 1.5\text{ dB}$).
-2. **Mengintegrasikan RX Optical Power Aktual dari Dual-ACS** (Built-in ACS `acs_devices` dan External GenieACS) yang dilaporkan secara langsung oleh modem ONT pelanggan.
-3. **Mendiagnosa Deviasi & Kualitas Fisik Kabel Serat Optik**:
-   - Menghitung $\Delta = |\text{RX Aktual} - \text{RX Estimasi}|$.
-   - Mengkategorikan status: *Optimal* ($-15$ s/d $-22.99\text{ dBm}$), *Wajar* ($-23$ s/d $-26.99\text{ dBm}$), *Warning* ($-27$ s/d $-28.99\text{ dBm}$), dan *Kritis* ($< -29\text{ dBm}$ atau Overload $> -8\text{ dBm}$).
-   - Menganalisis potensi gangguan: *Macro-bending* (kabel tertekuk), sambungan redam, konektor kotor/rusak, atau kabel terjepit.
-4. **Penyajian Visual Kaya & Interaktif**:
-   - **Bagian Redaman Optik pada Tooltip Kabel Hover**: Ringkasan RX Teoretis, RX Aktual, Deviasi $\Delta$, dan status mutu sinyal.
-   - **Modal Interaktif "Kalkulator & Diagnosa Redaman Optik"**: Diagram topologi end-to-end dengan live simulation slider (TX Power OLT, koefisien kabel, rasio splitter, connector margin) dan rekomendasi teknisi.
-   - **Toggle Layer "Mode Redaman Optik"**: Mengubah warna polyline kabel drop dan pin pelanggan menjadi heatmap indikator kualitas sinyal optik (Neon Green, Gold Yellow, Orange, Red, Slate Gray) beserta Optical Legend Card.
-   - **REST API Live Refresh**: Endpoint `GET /admin/api/optical-budget/live` dan `GET /tech/api/optical-budget/live`.
+## 1. Analisis Masalah & Problem Statement
+Pengguna melaporkan kendala di mana bot Telegram sering kali memicu notifikasi:
+```text
+🚨 ALERT: USER PPPoE DISCONNECTED
+```
+Namun saat dicek langsung oleh administrator di router MikroTik dan perangkat OLT, perangkat fisik pelanggan (ONT) dan sesi PPPoE berstatus **ONLINE dan normal**.
+
+### Akar Permasalahan Teknis (Root Causes):
+1. **Multi-Router Disconnect (Salah Router Target)**:
+   - Task #9 pada `services/cronService.js` memanggil `mikrotikService.getPppoeSecrets()` dan `mikrotikService.getPppoeActive()` tanpa argumen (`routerId = null`).
+   - `routerId = null` mengarahkan koneksi ke router default di `settings.json` (`172.99.12.2:8778`), yang statusnya saat ini offline / tidak bisa diakses (`ECONNREFUSED`).
+   - Sedangkan router operasional sesungguhnya adalah **Router ID 1** (`10.10.10.1:8778`) yang tercatat di tabel `routers` dengan 85 secrets dan 84 sesi aktif.
+   - Sebanyak 49 dari 62 pelanggan yang ada di Router 1 memiliki kolom `router_id = NULL` di database `customers`.
+2. **Silent Failure & Cache Eviction pada `getPppoeActive()`**:
+   - Fungsi `getPppoeActive()` di `services/mikrotikService.js` menangkap error koneksi/timeout dan mengembalikan array kosong `[]` jika stale cache kedaluwarsa (> 2 detik).
+   - `cronService.js` menganggap array `[]` adalah respons valid dan membuat `activeMap` kosong (`size = 0`).
+   - Akibatnya, seluruh user yang sebelumnya online langsung dianggap terputus massal (`DISCONNECTED`).
+3. **Ketiadaan Flap Damping / Multi-Strike Confirmation (1-Strike Rule)**:
+   - Jika ONT mengalami re-negosiasi PPP singkat (2–5 detik) akibat LCP timeout atau lease renewal, link optik OLT tetap **Online / UP** (-19 dBm).
+   - Namun karena cron 2-menitan berjalan tepat di jeda tersebut, cron langsung mengirim alert offline tanpa verifikasi ulang (*debounce*).
+4. **Strict Case-Sensitive Matching**:
+   - `activeMap.set(name, row)` dan `activeMap.has(username)` bersifat case-sensitive, sehingga perbedaan kapitalisasi nama antara secret dan sesi aktif memicu false alert.
 
 ---
 
-## 2. Struktur Folder & File Terkait
+## 2. Struktur Folder & Modul Terkait
 ```text
 myadamedia-billing/
+├── config/
+│   └── database.js                       # [REFERENCE] Koneksi database SQLite billing.db
 ├── services/
-│   └── opticalPowerService.js     # [NEW] Service kalkulasi link budget, ekstraksi RX Dual-ACS, evaluasi diagnosa
-├── routes/
-│   ├── admin/
-│   │   └── maps.js                # [MODIFY] Integrasi optical budget data & API live endpoint di admin map
-│   ├── adminPortal.js             # [MODIFY] Suntikkan optical map data & rute live di portal admin
-│   └── techPortal.js              # [MODIFY] Suntikkan optical map data & rute live di portal teknisi
-├── views/
-│   ├── admin/
-│   │   └── map.ejs                # [MODIFY] Tooltip kabel optik, modal kalkulator simulator, toggle layer heatmap
-│   └── tech/
-│   │   └── map.ejs                # [MODIFY] Tooltip kabel optik teknisi, visualisasi status redaman, modal ringkas
+│   ├── cronService.js                    # [MODIFY] Refactoring Task 9: Multi-router aggregation, Circuit Breaker, 2-Strike Debounce, Case-insensitive matching
+│   ├── mikrotikService.js                # [MODIFY] Perbaikan error handling getPppoeActive & getPppoeSecrets (bedakan query error vs 0 active sessions)
+│   └── telegramBot.js                    # [MODIFY] Format pesan alert yang lebih informatif jika terjadi flapping / ONT UP
 ├── tests/
-│   └── opticalPowerBudget.test.js # [NEW] Test suite kalkulasi matematika, ekstraksi RX Dual-ACS, evaluasi deviasi & EJS
+│   └── telegramPppoeAntiFalseAlert.test.js # [NEW] Test suite pengujian multi-router, circuit breaker API, 2-strike debounce, & case-insensitivity
 ├── file md/
-│   └── implementation_plan.md     # [MODIFY] Dokumen arsitektur rencana kerja
-├── version.txt                    # [MODIFY] Bump versi ke 15.6.0
-└── proses.md                      # [MODIFY] Dokumentasi lengkap perubahan sistem & pengujian
+│   └── implementation_plan.md            # [MODIFY] Dokumen rencana implementasi ini
+├── version.txt                           # [MODIFY] Bump versi rilis (15.9.8)
+└── proses.md                             # [MODIFY] Riwayat dokumentasi perbaikan dan hasil pengujian
 ```
 
 ---
 
-## 3. Desain Arsitektur & Formula Link Budget Optik
+## 3. Desain Arsitektur & Logika Sistem
 
 ```text
-               +-------------------------------------------------------------+
-               |                  KANTOR PUSAT / NOC / OLT                   |
-               |                Tx Power SFP OLT: +3.50 dBm                  |
-               +------------------------------+------------------------------+
-                                              |
-                          Kabel Feeder (Jarak: D_feeder km * 0.35 dB/km)
-                                              |
-                                              v
-                              +-------------------------------+
-                              |          ODC (Cabinet)        |
-                              |   Splitter Level 1: 1:4 (7.2 dB)
-                              +---------------+---------------+
-                                              |
-                       Kabel Distribusi (Jarak: D_dist km * 0.35 dB/km)
-                                              |
-                                              v
-                              +-------------------------------+
-                              |          ODP (Box)            |
-                              |   Splitter Level 2: 1:8 (10.5 dB)
-                              +---------------+---------------+
-                                              |
-                         Drop Cable (Jarak: D_drop km * 0.35 dB/km)
-                                              |
-                                              v
-               +-------------------------------------------------------------+
-               |                  PELANGGAN / ONT (MODEM)                    |
-               |  Estimasi Rx: Tx - (L_kabel + L_splitter + L_konektor)      |
-               |  Aktual Rx: Diambil Realtime via Dual-ACS (Built-in / Genie)|
-               |  Delta Deviasi = |Rx_Aktual - Rx_Estimasi|                  |
-               +-------------------------------------------------------------+
+                  +----------------------------------------------+
+                  |  CRON Task #9: PPPoE Monitoring (Setiap 2m)   |
+                  +----------------------+-----------------------+
+                                         |
+             +---------------------------v---------------------------+
+             |         Multi-Router Aggregator: Ambil Router         |
+             |       (mikrotikService.getAllRouters() + default)     |
+             +---------------------------+---------------------------+
+                                         |
+                       Iterasi Tiap Router Aktif
+                                         |
+     +-----------------------------------+-----------------------------------+
+     |                                                                       |
+     v                                                                       v
++-----------------------------+                         +-----------------------------+
+| Router 1 (10.10.10.1:8778)  |                         | Router Default (172.99...)  |
+| getPppoeSecrets(1)          |                         | getPppoeSecrets(null)       |
+| getPppoeActive(1)           |                         | getPppoeActive(null)        |
++--------------+--------------+                         +--------------+--------------+
+               |                                                       |
+               v                                                       v
+       [STATUS: OK / ERROR]                                    [STATUS: OK / ERROR]
+               |                                                       |
+               +---------------------------+---------------------------+
+                                           |
+                                           v
+                       +---------------------------------------+
+                       |   CIRCUIT BREAKER & INTEGRITY CHECK   |
+                       +---------------------------------------+
+                       | 1. Jika query router gagal -> SKIP   |
+                       |    (Jangan anggap user offline!)      |
+                       | 2. Jika active drop drastis (>60%)    |
+                       |    dengan secrets tetap banyak,       |
+                       |    deteksi sebagai API Timeout Lag    |
+                       +-------------------+-------------------+
+                                           | Data Terverifikasi Valid
+                                           v
+                       +---------------------------------------+
+                       |    2-STRIKE DEBOUNCE & VERIFIKASI     |
+                       +---------------------------------------+
+                       | User hilang dari activeMap?           |
+                       | -> Strike 1: Catat & Re-check instan  |
+                       | -> Strike 2: Konfirmasi offline       |
+                       | -> Cek OLT: Jika ONT OLT 'Online/UP', |
+                       |    labeli 'PPPoE Reconnecting'        |
+                       +-------------------+-------------------+
+                                           |
+                                           v
+                       +---------------------------------------+
+                       |     Kirim Notifikasi Telegram Bot     |
+                       |    (Hanya untuk Gangguan Riil)        |
+                       +---------------------------------------+
 ```
-
-### Formula Matematis:
-1. **Total Redaman Kabel Fiber Optik ($L_{cable}$)**:
-   $$L_{cable} = (D_{feeder} + D_{distribusi} + D_{drop}) \times \frac{\alpha_{fiber}}{1000}$$
-   dengan $\alpha_{fiber} = 0.35\text{ dB/km}$ (@ 1490nm single-mode).
-2. **Total Redaman Splitter ($L_{splitters}$)**:
-   $$L_{splitters} = L_{split\_odc} + L_{split\_odp}$$
-   - Rasio 1:2: $3.7\text{ dB}$
-   - Rasio 1:4: $7.2\text{ dB}$
-   - Rasio 1:8: $10.5\text{ dB}$
-   - Rasio 1:16: $13.8\text{ dB}$
-   - Rasio 1:32: $17.1\text{ dB}$
-   - Direct/None: $0.0\text{ dB}$
-3. **Total Insertion Loss Konektor & Sambungan Splicing ($L_{conn}$)**:
-   $$L_{conn} = 1.50\text{ dB}\quad (\text{Adaptor ODF, ODC, ODP, Roset + Fusion Splices})$$
-4. **Estimasi RX Power Teoretis ($P_{rx\_est}$)**:
-   $$P_{rx\_est} = P_{tx\_olt} - (L_{cable} + L_{splitters} + L_{conn} + M_{safety})$$
-5. **Delta Deviasi ($\Delta$)**:
-   $$\Delta = |P_{rx\_act} - P_{rx\_est}|$$
-   - $\Delta \le 2.0\text{ dB}$: Normal / Optimal (Pemasangan presisi).
-   - $2.0 < \Delta \le 4.5\text{ dB}$: Toleransi Sedang (Potensi lekukan ringan / debu pada konektor).
-   - $\Delta > 4.5\text{ dB}$: Deviasi Tinggi (Macro-bending parah, kabel terjepit, atau konektor rusak).
 
 ---
 
-## 4. Rencana Implementasi Bertahap
+## 4. Alur Kerja Fitur (Detailed Workflow)
 
-### Tahap 1: Pembuatan `services/opticalPowerService.js`
-- `calculateTheoreticalLoss(params)`: Fungsi murni kalkulasi link budget.
-- `evaluateOpticalQuality(rxActual, rxEstimated)`: Evaluasi status mutu dan analisa diagnosa.
-- `extractRxFromParams(paramsJson)`: Helper ekstraksi dan konversi unit raw nanowatts ke dBm.
-- `getDualAcsRxPowerMap()`: Mengagregasi data RX power terkini dari tabel `acs_devices` dan mencocokkan ke database pelanggan.
-- `getOpticalNetworkTopologyData()`: Mengombinasikan data geografis ODP, ODC, pelanggan, jarak rute kabel, dan RX power untuk disuntikkan ke tampilan peta.
+1. **Step 1: Multi-Router Aggregator**:
+   - Mengambil seluruh router aktif dari `mikrotikService.getAllRouters()`.
+   - Mengambil secrets dan active sessions untuk setiap router.
+   - Memetakan username dalam format normalisasi `username.toLowerCase().trim()`.
+   - Menyimpan router origin untuk setiap secret dan session aktif: `routerMap.set(key, { routerId, secret, active })`.
+2. **Step 2: Circuit Breaker & Safe Fallback**:
+   - Jika sebuah router mengalami kegagalan koneksi API, log error dibuat tetapi state pelanggan di router tersebut **dipertahankan (tidak diubah menjadi offline)**.
+   - Mencegah false alarm massal saat jaringan MikroTik sibuk atau sedang reboot.
+3. **Step 3: 2-Strike Confirmation & Immediate Retest**:
+   - Jika user sebelumnya online dan tiba-tiba tidak ada di `activeMap`:
+     - Sistem melakukan re-test individual instan (`mikrotikService.getPppoeActiveUser(username, routerId)`) setelah jeda 3 detik.
+     - Jika pada re-test user ternyata ada, batalkan transisi offline (flapping teratasi).
+     - Jika tetap tidak ada, naikkan `strikeCount`. Notifikasi `ALERT DISCONNECTED` hanya dikirimkan jika terkonfirmasi.
+4. **Step 4: OLT Cross-Validation Intelligence**:
+   - Sebelum mengirim pesan Telegram:
+     - Jika ONT di OLT berstatus `PwrDown` atau `LOS` atau `Dying_gasp`: **Kategori: Pemadaman Listrik / Kabel Putus Fisik (Kritis)**.
+     - Jika ONT di OLT berstatus `Online / UP` dengan redaman optik bagus: **Kategori: Sesi PPP Terputus Sementara (ONT Normal di OLT)**.
+5. **Step 5: Logging & Audit Trail**:
+   - Setiap deteksi dicatat ke logger dengan label jelas untuk mempermudah pemantauan teknisi.
 
-### Tahap 2: Integrasi Rute Backend (`routes/admin/maps.js`, `routes/adminPortal.js`, `routes/techPortal.js`)
-- Menyuntikkan `opticalData` pada `res.render('admin/map')` dan `res.render('tech/map')` via `<script id="optical-data">`.
-- Menyediakan endpoint REST API:
-  - `GET /admin/api/optical-budget/live`
-  - `GET /tech/api/optical-budget/live`
+---
 
-### Tahap 3: Pembaruan Tampilan Frontend Peta (`views/admin/map.ejs` & `views/tech/map.ejs`)
-- Desain CSS Card Redaman Optik pada Tooltip Kabel Hover (panjang kabel, loss kabel, RX estimasi, RX aktual, deviasi, status badge).
-- Modal Interaktif "Kalkulator & Diagnosa Redaman Optik":
-  - Simulator interaktif dengan slider TX Power, koefisien redaman, dropdown rasio splitter.
-  - Diagram visual segmen jalur optik.
-  - Rekomendasi aksi teknisi lapangan.
-- Kontrol Layer "Mode Redaman Optik":
-  - Checkbox toggle filter layer.
-  - Pewarnaan dinamis kabel drop & pin pelanggan berdasarkan kualitas redaman.
-  - Floating Optical Legend Card.
-
-### Tahap 4: Pengujian Komprehensif (`tests/opticalPowerBudget.test.js`)
-- Uji perhitungan matematika link budget optik dengan berbagai parameter.
-- Uji ekstraksi RX power dari format TR-069 dan konversi raw optical units.
-- Uji evaluasi kualitas sinyal optik dan diagnosa deviasi.
-- Uji endpoint API dan integritas template EJS.
-
-### Tahap 5: Dokumentasi & Version Bump
-- Update `version.txt` ke `15.6.0`.
-- Tulis laporan implementasi di `proses.md`.
+## 5. Rencana Pengujian (Test Plan)
+1. **Unit Testing (`tests/telegramPppoeAntiFalseAlert.test.js`)**:
+   - Test 1: Aggregator membaca sesi dari Router ID 1 dan router default secara bersamaan.
+   - Test 2: Circuit breaker mencegah false alarm ketika salah satu router gagal dihubungi (API failure).
+   - Test 3: Normalisasi username case-insensitive (`User123` vs `user123`) berhasil mencocokkan sesi.
+   - Test 4: Mekanisme 2-strike debounce menyaring fluktuasi/flapping sesaat.
+   - Test 5: Format pesan notifikasi menyertakan status OLT yang akurat dan jelas.
+2. **Integration Verification**:
+   - Eksekusi `npm test` atau `npx jest tests/telegramPppoeAntiFalseAlert.test.js`.
+   - Uji koneksi router langsung via skrip mandiri untuk memastikan Router 1 (`10.10.10.1:8778`) terintegrasi penuh.
+3. **Dokumentasi**:
+   - Mencatat seluruh riwayat perubahan di `proses.md` sesuai SOP.
+   - Memperbarui versi pada `version.txt`.
