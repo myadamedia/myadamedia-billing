@@ -2,6 +2,60 @@
 
 ---
 
+## [2026-11-03] Preservasi State Filter & Sort Tagihan (/admin/billing) Setelah Aksi - Versi 15.9.9
+
+### 1. Masalah & Latar Belakang
+- **Keluhan Pengguna**: Saat administrator menggunakan fitur filter (pencarian nama/telepon, bulan, tahun, status tagihan) dan/atau sorting (pengurutan dropdown server-side maupun klik header kolom tabel client-side) di halaman Tagihan (`https://localhost:3001/admin/billing`), setiap kali administrator memilih dan mengeksekusi suatu aksi (seperti: Tandai Lunas, Bayar Parsial, Buat QRIS, Regenerate QRIS, Hapus QRIS, Buka Isolir, Isolir Manual, Kirim WA, Batalkan Lunas, Hapus, Bayar Massal, Hapus Massal, atau Generate Tagihan), halaman melakukan reload dan seluruh filter serta sort kembali ke posisi default (hilang).
+- **Akar Masalah (Root Causes)**:
+  1. **Helmet Referrer-Policy Default (`no-referrer`)**: Pada `app-customer.js`, middleware Helmet v8 menyetel header HTTP respons `Referrer-Policy: no-referrer`. Hal ini menyebabkan browser tidak mengirimkan header `Referer` saat form aksi di-submit via HTTP POST.
+  2. **Ketergantungan Tunggal `safeRedirectBack` pada Header Referer**: Fungsi `safeRedirectBack` di `routes/adminPortal.js` membaca `req.get('referrer')`. Karena referer bernilai `undefined` akibat poin 1, sistem selalu jatuh ke `fallbackUrl` (/admin/billing) tanpa query parameters.
+  3. **Absennya State URL / `return_to` pada Form Aksi**: Tidak ada form aksi di `views/admin/billing.ejs` yang membawa parameter query filter/sort aktif saat melakukan submit.
+  4. **Ketiadaan Persistence State Filter di Server Session**: Sistem tidak menyimpan filter aktif ke session (`req.session.billingFilter`) sehingga jika admin kembali atau refresh, filter tidak dipulihkan.
+  5. **Client-side Table Sort Transient**: Fungsi pengurutan header tabel (`initTableSort`) hanya memanipulasi baris DOM sementara tanpa menyimpan indeks dan arah sort ke `localStorage`.
+
+### 2. Solusi & Perubahan yang Diterapkan
+1. **Konfigurasi HTTP Referrer-Policy (`app-customer.js`)**:
+   - Menambahkan opsi `referrerPolicy: { policy: 'same-origin' }` pada middleware `helmet()`. Memungkinkan pengiriman referer internal yang aman antar-halaman aplikasi tanpa membocorkan data ke domain eksternal.
+2. **Peningkatan Determinisme & Keamanan `safeRedirectBack` (`routes/adminPortal.js`)**:
+   - Memprioritaskan parameter `return_to` dari `req.body` atau `req.query` sebelum memeriksa header `referer`.
+   - Menambahkan sanitasi ketat untuk mencegah kerentanan Open Redirect (memastikan URL diawali `/admin` dan bukan protokol eksternal atau `//`).
+   - Mendukung deteksi referer fleksibel (`req.get('referer') || req.get('referrer') || req.headers?.referer`).
+3. **Penyimpanan State Filter pada Session (`routes/adminPortal.js`)**:
+   - Menyimpan parameter filter aktif (`month`, `year`, `status`, `sort`, `search`) ke `req.session.billingFilter`.
+   - Secara otomatis memulihkan filter saat admin mengunjungi `/admin/billing` tanpa parameter query.
+   - Menyediakan penanganan khusus `?reset=1` untuk menghapus memory filter di session saat tombol Reset diklik.
+   - Mengirimkan variabel `currentUrl: req.originalUrl` ke view EJS.
+4. **Form Action Return URL Injection & Auto-Submit Filter (`views/admin/billing.ejs`)**:
+   - Menyematkan input hidden `return_to` pada seluruh form aksi modal (`#payForm`, `#partialForm`, `#genModal`), form massal (`#bulkDeleteForm`), dan form inline aksi tabel.
+   - Menambahkan event listener global `submit` yang otomatis menjamin semua form POST menyertakan URL aktif (`window.location.pathname + window.location.search`).
+   - Menambahkan `onchange="this.form.submit()"` pada dropdown bulan (`month`) dan tahun (`year`).
+   - Memperbarui tombol Reset menjadi `<a href="/admin/billing?reset=1" id="resetFilterBtn">`.
+5. **Persistensi Sorting Header Tabel Client-Side (`views/admin/billing.ejs`)**:
+   - Menyimpan indeks kolom, tipe data, dan orientasi sort (`isAsc`) ke `localStorage.setItem('billing_table_sort', ...)`.
+   - Memulihkan dan mengaplikasikan urutan sorting tabel secara otomatis setelah reload/redirect halaman.
+   - Menghapus storage sorting saat tombol Reset diklik.
+6. **Unit & Integration Test Suite (`tests/billingFilterSortPreserve.test.js`)**:
+   - Menambahkan 9 skenario pengujian Jest untuk memverifikasi validasi `safeRedirectBack`, mitigasi open redirect, mekanisme session restore, dan penanganan `reset=1`. Seluruh 9 test lulus 100%.
+
+### 3. File yang Diubah & Ditambahkan
+- `[MODIFY]` [`app-customer.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/app-customer.js)
+- `[MODIFY]` [`routes/adminPortal.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/routes/adminPortal.js)
+- `[MODIFY]` [`views/admin/billing.ejs`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/views/admin/billing.ejs)
+- `[NEW]` [`tests/billingFilterSortPreserve.test.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/tests/billingFilterSortPreserve.test.js)
+- `[MODIFY]` [`file md/implementation_plan.md`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/file%20md/implementation_plan.md)
+- `[MODIFY]` [`version.txt`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/version.txt)
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/proses.md)
+
+### 4. Hasil Pengujian & Verifikasi
+- **Unit Testing**:
+  - `tests/billingFilterSortPreserve.test.js`: 9/9 passed (100%).
+  - `tests/telegramPppoeAntiFalseAlert.test.js`: 12/12 passed (100%).
+- **Verifikasi Fungsional**:
+  - Filter (search, bulan, tahun, status) dan sorting (dropdown & table header) tetap bertahan 100% setelah memilih dan mengeksekusi aksi.
+  - Tombol Reset (`?reset=1`) berfungsi membersihkan seluruh filter dan sort kembali ke konfigurasi default.
+
+---
+
 ## [2026-10-30] Perbaikan Anti-False Alert PPPoE Disconnected & Multi-Router Monitoring Engine (Telegram Bot) - Versi 15.9.8
 
 ### 1. Masalah & Latar Belakang

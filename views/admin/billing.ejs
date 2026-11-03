@@ -78,7 +78,7 @@
         <i class="bi bi-search"></i>
         <input class="fc" name="search" placeholder="<%= t('admin.billing.search_placeholder', 'Cari nama / telepon...') %>" value="<%= search %>">
       </div>
-      <select class="fs" name="month" style="width:130px">
+      <select class="fs" name="month" style="width:130px" onchange="this.form.submit()">
         <option value=""><%= t('admin.billing.all_months', 'Semua Bulan') %></option>
         <% const monthNames = (lang === 'en')
           ? ['January','February','March','April','May','June','July','August','September','October','November','December']
@@ -87,7 +87,7 @@
         <option value="<%= m %>" <%= filterMonth==m?'selected':'' %>><%= monthNames[m-1] %></option>
         <% } %>
       </select>
-      <select class="fs" name="year" style="width:100px">
+      <select class="fs" name="year" style="width:100px" onchange="this.form.submit()">
         <% for(let y=new Date().getFullYear(); y>=2023; y--){ %>
         <option value="<%= y %>" <%= filterYear==y?'selected':'' %>><%= y %></option>
         <% } %>
@@ -109,7 +109,7 @@
         <option value="cust_id_asc" <%= typeof sort !== 'undefined' && sort==='cust_id_asc' ? 'selected':'' %>><%= t('admin.billing.sort.cust_id_asc', 'ID Pelanggan Lama') %></option>
       </select>
       <button class="btn btn-g btn-sm" type="submit"><i class="bi bi-funnel"></i> <%= t('common.filter', 'Filter') %></button>
-      <a href="/admin/billing" class="btn btn-g btn-sm"><i class="bi bi-x"></i> <%= t('common.reset', 'Reset') %></a>
+      <a href="/admin/billing?reset=1" id="resetFilterBtn" class="btn btn-g btn-sm"><i class="bi bi-x"></i> <%= t('common.reset', 'Reset') %></a>
     </form>
 
     <!-- Table -->
@@ -253,32 +253,40 @@
                     <i class="bi bi-pie-chart"></i>
                   </button>
                   <form method="POST" action="/admin/billing/<%= inv.id %>/qris-assign" style="display:inline" title="Buat nominal unik QRIS (semi-otomatis)" onsubmit="return true">
+                    <input type="hidden" name="return_to" class="return-to-input" value="<%= typeof currentUrl !== 'undefined' ? currentUrl : '/admin/billing' %>">
                     <button class="btn btn-g btn-icon btn-sm"><i class="bi bi-qr-code"></i></button>
                   </form>
                   <% if (inv.qris_amount_unique) { %>
                     <form method="POST" action="/admin/billing/<%= inv.id %>/qris-assign?force=1" style="display:inline" title="Regenerate kode QRIS" onsubmit="return confirm('Ganti kode QRIS untuk tagihan ini?')">
+                      <input type="hidden" name="return_to" class="return-to-input" value="<%= typeof currentUrl !== 'undefined' ? currentUrl : '/admin/billing' %>">
                       <button class="btn btn-w btn-icon btn-sm"><i class="bi bi-arrow-repeat"></i></button>
                     </form>
                     <form method="POST" action="/admin/billing/<%= inv.id %>/qris-clear" style="display:inline" title="Hapus kode QRIS" onsubmit="return confirm('Hapus kode QRIS dari tagihan ini?')">
+                      <input type="hidden" name="return_to" class="return-to-input" value="<%= typeof currentUrl !== 'undefined' ? currentUrl : '/admin/billing' %>">
                       <button class="btn btn-d btn-icon btn-sm"><i class="bi bi-x-lg"></i></button>
                     </form>
                   <% } %>
                   <form method="POST" action="/admin/customers/<%= inv.customer_id %>/unisolate" style="display:inline" class="needs-confirm" data-confirm-key="confirmUnisolate">
+                    <input type="hidden" name="return_to" class="return-to-input" value="<%= typeof currentUrl !== 'undefined' ? currentUrl : '/admin/billing' %>">
                     <button class="btn btn-p btn-icon btn-sm" title="<%= t('admin.billing.actions.unisolate', 'Buka Isolir') %>"><i class="bi bi-wifi"></i></button>
                   </form>
                   <form method="POST" action="/admin/billing/<%= inv.id %>/whatsapp" style="display:inline">
+                    <input type="hidden" name="return_to" class="return-to-input" value="<%= typeof currentUrl !== 'undefined' ? currentUrl : '/admin/billing' %>">
                     <button class="btn btn-icon btn-sm" style="background:#25d366;color:white" title="<%= t('admin.billing.actions.send_wa', 'Kirim Tagihan WA') %>"><i class="bi bi-whatsapp"></i></button>
                   </form>
                 <%}else{%>
                   <a href="/admin/billing/<%= inv.id %>/print" target="_blank" class="btn btn-s btn-icon btn-sm" title="<%= t('admin.billing.actions.print_invoice', 'Cetak Struk/Invoice') %>"><i class="bi bi-printer"></i></a>
                   <form method="POST" action="/admin/billing/<%= inv.id %>/unpay" style="display:inline" class="needs-confirm" data-confirm-key="confirmUnpay">
+                    <input type="hidden" name="return_to" class="return-to-input" value="<%= typeof currentUrl !== 'undefined' ? currentUrl : '/admin/billing' %>">
                     <button class="btn btn-w btn-icon btn-sm" title="<%= t('admin.billing.actions.unpay', 'Batalkan Lunas') %>"><i class="bi bi-arrow-counterclockwise"></i></button>
                   </form>
                 <%}%>
                   <form method="POST" action="/admin/customers/<%= inv.customer_id %>/isolate" style="display:inline" class="needs-confirm" data-confirm-key="confirmIsolateManual">
+                    <input type="hidden" name="return_to" class="return-to-input" value="<%= typeof currentUrl !== 'undefined' ? currentUrl : '/admin/billing' %>">
                     <button class="btn btn-w btn-icon btn-sm" title="<%= t('admin.billing.actions.isolate_manual', 'Isolir Manual') %>"><i class="bi bi-wifi-off"></i></button>
                   </form>
                   <form method="POST" action="/admin/billing/<%= inv.id %>/delete" style="display:inline" class="needs-confirm" data-confirm-key="confirmDelete">
+                    <input type="hidden" name="return_to" class="return-to-input" value="<%= typeof currentUrl !== 'undefined' ? currentUrl : '/admin/billing' %>">
                     <button class="btn btn-d btn-icon btn-sm" title="<%= t('common.delete', 'Hapus') %>"><i class="bi bi-trash"></i></button>
                   </form>
               </td>
@@ -288,7 +296,9 @@
         </table>
       </div>
     </div>
-    <form id="bulkDeleteForm" method="POST" action="/admin/billing/delete-bulk" style="display:none"></form>
+    <form id="bulkDeleteForm" method="POST" action="/admin/billing/delete-bulk" style="display:none">
+      <input type="hidden" name="return_to" class="return-to-input" value="<%= typeof currentUrl !== 'undefined' ? currentUrl : '/admin/billing' %>">
+    </form>
   </div>
 </div>
 
@@ -297,6 +307,7 @@
   <div class="mb">
     <div class="mh"><span class="mt"><i class="bi bi-lightning-charge"></i> <%= t('admin.billing.generate_monthly', 'Generate Tagihan Bulanan') %></span><button class="mc" onclick="closeModal('genModal')">&times;</button></div>
     <form method="POST" action="/admin/billing/generate">
+      <input type="hidden" name="return_to" class="return-to-input" value="<%= typeof currentUrl !== 'undefined' ? currentUrl : '/admin/billing' %>">
       <div class="mbody">
         <div class="alert alert-i"><i class="bi bi-info-circle"></i> <%= t('admin.billing.generate_hint', 'Tagihan akan dibuat untuk semua pelanggan aktif yang belum memiliki tagihan di periode yang dipilih.') %></div>
         <div class="form-row">
@@ -334,6 +345,7 @@
   <div class="mb">
     <div class="mh"><span class="mt"><i class="bi bi-cash-coin"></i> <%= t('admin.billing.actions.mark_paid', 'Tandai Lunas') %></span><button class="mc" onclick="closeModal('payModal')">&times;</button></div>
     <form method="POST" id="payForm">
+      <input type="hidden" name="return_to" class="return-to-input" value="<%= typeof currentUrl !== 'undefined' ? currentUrl : '/admin/billing' %>">
       <div class="mbody">
         <p class="text-muted" id="payDesc" style="margin-bottom:14px;font-size:13px"></p>
         
@@ -363,6 +375,7 @@
   <div class="mb">
     <div class="mh"><span class="mt"><i class="bi bi-pie-chart"></i> Bayar Parsial (Sebagian)</span><button class="mc" onclick="closeModal('partialModal')">&times;</button></div>
     <form method="POST" id="partialForm">
+      <input type="hidden" name="return_to" class="return-to-input" value="<%= typeof currentUrl !== 'undefined' ? currentUrl : '/admin/billing' %>">
       <div class="mbody">
         <p class="text-muted" id="partialDesc" style="margin-bottom:14px;font-size:13px"></p>
 
@@ -645,13 +658,92 @@ document.getElementById('bulkDeleteBtn')?.addEventListener('click', function() {
 
 updateBulkUi();
 
-// Client-side sorting function
+// Client-side sorting function with persistence
 function initTableSort(tableSelector) {
   const table = document.querySelector(tableSelector);
   if (!table) return;
   const headers = table.querySelectorAll('thead th');
   const tbody = table.querySelector('tbody');
   
+  function applySort(th, index, type, isAsc, saveState) {
+    headers.forEach((otherTh) => {
+      if (otherTh !== th) {
+        const otherIcon = otherTh.querySelector('i.bi-sort-indicator');
+        if (otherIcon) {
+          otherIcon.className = 'bi bi-arrow-down-up text-muted ms-1 bi-sort-indicator';
+        }
+      }
+    });
+    
+    const icon = th.querySelector('i.bi-sort-indicator');
+    if (icon) {
+      icon.className = isAsc
+        ? 'bi bi-sort-down text-primary ms-1 bi-sort-indicator'
+        : 'bi bi-sort-up-alt text-primary ms-1 bi-sort-indicator';
+    }
+    
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    const dataRows = rows.filter(row => row.cells.length > 1);
+    if (dataRows.length === 0) return;
+    
+    dataRows.sort((rowA, rowB) => {
+      let cellA = rowA.cells[index] ? rowA.cells[index].textContent.trim() : '';
+      let cellB = rowB.cells[index] ? rowB.cells[index].textContent.trim() : '';
+      
+      if (type === 'number') {
+        const cleanNum = (str) => {
+          const clean = str.replace(/MDE-/g, '').replace(/[^0-9,-]/g, '').replace(',', '.');
+          return parseFloat(clean) || 0;
+        };
+        return isAsc ? cleanNum(cellA) - cleanNum(cellB) : cleanNum(cellB) - cleanNum(cellA);
+      } else if (type === 'date') {
+        const parseDate = (str) => {
+          const parts = str.match(/(\d+)\/(\d+)\/(\d+)/);
+          if (parts) {
+            return new Date(parts[3], parts[2] - 1, parts[1]).getTime();
+          }
+          const monthsMap = {
+            jan: 0, feb: 1, mar: 2, apr: 3, mei: 4, jun: 5, jul: 6, agt: 7, sep: 8, okt: 9, nov: 10, des: 11,
+            january: 0, february: 1, march: 2, april: 3, may: 4, june: 5, july: 6, august: 7, september: 8, october: 9, november: 10, december: 11,
+            januari: 0, februari: 1, maret: 2, agustus: 7, desember: 11
+          };
+          const words = str.toLowerCase().trim().split(/\s+/);
+          if (words.length === 2) {
+            const mStr = words[0].substring(0, 3);
+            const m = monthsMap[mStr] !== undefined ? monthsMap[mStr] : 0;
+            const y = parseInt(words[1]) || 0;
+            return new Date(y, m, 1).getTime();
+          }
+          return 0;
+        };
+        return isAsc ? parseDate(cellA) - parseDate(cellB) : parseDate(cellB) - parseDate(cellA);
+      } else if (type === 'fup') {
+        const getGB = (str) => {
+          const match = str.match(/([\d.]+)\s*GB/i);
+          return match ? parseFloat(match[1]) : 0;
+        };
+        return isAsc ? getGB(cellA) - getGB(cellB) : getGB(cellB) - getGB(cellA);
+      } else {
+        return isAsc ? cellA.localeCompare(cellB) : cellB.localeCompare(cellA);
+      }
+    });
+    
+    dataRows.forEach(row => tbody.appendChild(row));
+    
+    const numColIndex = tableSelector.includes('billing') ? 1 : 0;
+    dataRows.forEach((row, i) => {
+      if (row.cells[numColIndex]) {
+        row.cells[numColIndex].textContent = i + 1;
+      }
+    });
+
+    if (saveState) {
+      try {
+        localStorage.setItem('billing_table_sort', JSON.stringify({ index, type, isAsc }));
+      } catch (e) {}
+    }
+  }
+
   headers.forEach((th, index) => {
     let type = 'string';
     const text = th.textContent.trim().toLowerCase();
@@ -671,6 +763,8 @@ function initTableSort(tableSelector) {
     
     th.style.cursor = 'pointer';
     th.style.userSelect = 'none';
+    th.dataset.sortable = '1';
+    th.dataset.sortType = type;
     
     let icon = th.querySelector('i.bi-sort-indicator');
     if (!icon) {
@@ -683,79 +777,43 @@ function initTableSort(tableSelector) {
     let isAsc = false;
     th.addEventListener('click', () => {
       isAsc = !isAsc;
-      
-      headers.forEach((otherTh) => {
-        if (otherTh !== th) {
-          const otherIcon = otherTh.querySelector('i.bi-sort-indicator');
-          if (otherIcon) {
-            otherIcon.className = 'bi bi-arrow-down-up text-muted ms-1 bi-sort-indicator';
-          }
-        }
-      });
-      
-      if (isAsc) {
-        icon.className = 'bi bi-sort-down text-primary ms-1 bi-sort-indicator';
-      } else {
-        icon.className = 'bi bi-sort-up-alt text-primary ms-1 bi-sort-indicator';
-      }
-      
-      const rows = Array.from(tbody.querySelectorAll('tr'));
-      const dataRows = rows.filter(row => row.cells.length > 1);
-      if (dataRows.length === 0) return;
-      
-      dataRows.sort((rowA, rowB) => {
-        let cellA = rowA.cells[index].textContent.trim();
-        let cellB = rowB.cells[index].textContent.trim();
-        
-        if (type === 'number') {
-          const cleanNum = (str) => {
-            const clean = str.replace(/MDE-/g, '').replace(/[^0-9,-]/g, '').replace(',', '.');
-            return parseFloat(clean) || 0;
-          };
-          return isAsc ? cleanNum(cellA) - cleanNum(cellB) : cleanNum(cellB) - cleanNum(cellA);
-        } else if (type === 'date') {
-          const parseDate = (str) => {
-            const parts = str.match(/(\d+)\/(\d+)\/(\d+)/);
-            if (parts) {
-              return new Date(parts[3], parts[2] - 1, parts[1]).getTime();
-            }
-            const monthsMap = {
-              jan: 0, feb: 1, mar: 2, apr: 3, mei: 4, jun: 5, jul: 6, agt: 7, sep: 8, okt: 9, nov: 10, des: 11,
-              january: 0, february: 1, march: 2, april: 3, may: 4, june: 5, july: 6, august: 7, september: 8, october: 9, november: 10, december: 11,
-              januari: 0, februari: 1, maret: 2, agustus: 7, desember: 11
-            };
-            const words = str.toLowerCase().trim().split(/\s+/);
-            if (words.length === 2) {
-              const mStr = words[0].substring(0, 3);
-              const m = monthsMap[mStr] !== undefined ? monthsMap[mStr] : 0;
-              const y = parseInt(words[1]) || 0;
-              return new Date(y, m, 1).getTime();
-            }
-            return 0;
-          };
-          return isAsc ? parseDate(cellA) - parseDate(cellB) : parseDate(cellB) - parseDate(cellA);
-        } else if (type === 'fup') {
-          const getGB = (str) => {
-            const match = str.match(/([\d.]+)\s*GB/i);
-            return match ? parseFloat(match[1]) : 0;
-          };
-          return isAsc ? getGB(cellA) - getGB(cellB) : getGB(cellB) - getGB(cellA);
-        } else {
-          return isAsc ? cellA.localeCompare(cellB) : cellB.localeCompare(cellA);
-        }
-      });
-      
-      dataRows.forEach(row => tbody.appendChild(row));
-      
-      const numColIndex = tableSelector.includes('billing') ? 1 : 0;
-      dataRows.forEach((row, i) => {
-        if (row.cells[numColIndex]) {
-          row.cells[numColIndex].textContent = i + 1;
-        }
-      });
+      applySort(th, index, type, isAsc, true);
     });
   });
+
+  // Restore client-side header sort state from localStorage
+  try {
+    const saved = JSON.parse(localStorage.getItem('billing_table_sort') || 'null');
+    if (saved && typeof saved.index === 'number' && headers[saved.index]) {
+      const targetTh = headers[saved.index];
+      if (targetTh.dataset.sortable === '1') {
+        applySort(targetTh, saved.index, saved.type || 'string', !!saved.isAsc, false);
+      }
+    }
+  } catch (e) {}
 }
+
+// Global hook to ensure all POST forms carry current return_to URL
+document.addEventListener('submit', function(e) {
+  const form = e.target;
+  if (form && form.method && form.method.toUpperCase() === 'POST') {
+    let returnInput = form.querySelector('input[name="return_to"]');
+    if (!returnInput) {
+      returnInput = document.createElement('input');
+      returnInput.type = 'hidden';
+      returnInput.name = 'return_to';
+      form.appendChild(returnInput);
+    }
+    returnInput.value = window.location.pathname + window.location.search;
+  }
+});
+
+// Clear table sort storage when reset button is clicked
+document.getElementById('resetFilterBtn')?.addEventListener('click', function() {
+  try {
+    localStorage.removeItem('billing_table_sort');
+  } catch (e) {}
+});
 
 initTableSort('.dtbl');
 

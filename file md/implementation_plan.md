@@ -1,45 +1,40 @@
-# Implementation Plan: Anti-False Alert PPPoE Disconnected & Multi-Router Monitoring Engine
+# Implementation Plan: Preservasi Status Filter & Sort pada Halaman Tagihan (/admin/billing)
 
 ## 1. Analisis Masalah & Problem Statement
-Pengguna melaporkan kendala di mana bot Telegram sering kali memicu notifikasi:
-```text
-🚨 ALERT: USER PPPoE DISCONNECTED
-```
-Namun saat dicek langsung oleh administrator di router MikroTik dan perangkat OLT, perangkat fisik pelanggan (ONT) dan sesi PPPoE berstatus **ONLINE dan normal**.
+Administrator melaporkan bahwa saat menggunakan fitur filter (pencarian, bulan, tahun, status tagihan) dan/atau sort (pengurutan dropdown server-side maupun klik header kolom tabel client-side) di halaman Tagihan (`https://localhost:3001/admin/billing`), setiap kali administrator memilih atau mengeksekusi suatu aksi (misal: "Tandai Lunas", "Bayar Parsial", "Buat QRIS", "Kirim WA", "Isolir/Buka Isolir", "Hapus", "Bayar Massal", "Hapus Massal"), halaman me-refresh dan seluruh kondisi filter serta sorting kembali ke default.
 
 ### Akar Permasalahan Teknis (Root Causes):
-1. **Multi-Router Disconnect (Salah Router Target)**:
-   - Task #9 pada `services/cronService.js` memanggil `mikrotikService.getPppoeSecrets()` dan `mikrotikService.getPppoeActive()` tanpa argumen (`routerId = null`).
-   - `routerId = null` mengarahkan koneksi ke router default di `settings.json` (`172.99.12.2:8778`), yang statusnya saat ini offline / tidak bisa diakses (`ECONNREFUSED`).
-   - Sedangkan router operasional sesungguhnya adalah **Router ID 1** (`10.10.10.1:8778`) yang tercatat di tabel `routers` dengan 85 secrets dan 84 sesi aktif.
-   - Sebanyak 49 dari 62 pelanggan yang ada di Router 1 memiliki kolom `router_id = NULL` di database `customers`.
-2. **Silent Failure & Cache Eviction pada `getPppoeActive()`**:
-   - Fungsi `getPppoeActive()` di `services/mikrotikService.js` menangkap error koneksi/timeout dan mengembalikan array kosong `[]` jika stale cache kedaluwarsa (> 2 detik).
-   - `cronService.js` menganggap array `[]` adalah respons valid dan membuat `activeMap` kosong (`size = 0`).
-   - Akibatnya, seluruh user yang sebelumnya online langsung dianggap terputus massal (`DISCONNECTED`).
-3. **Ketiadaan Flap Damping / Multi-Strike Confirmation (1-Strike Rule)**:
-   - Jika ONT mengalami re-negosiasi PPP singkat (2–5 detik) akibat LCP timeout atau lease renewal, link optik OLT tetap **Online / UP** (-19 dBm).
-   - Namun karena cron 2-menitan berjalan tepat di jeda tersebut, cron langsung mengirim alert offline tanpa verifikasi ulang (*debounce*).
-4. **Strict Case-Sensitive Matching**:
-   - `activeMap.set(name, row)` dan `activeMap.has(username)` bersifat case-sensitive, sehingga perbedaan kapitalisasi nama antara secret dan sesi aktif memicu false alert.
+1. **Helmet `Referrer-Policy: no-referrer`**:
+   - `app-customer.js` menggunakan Helmet v8 dengan konfigurasi default yang menyetel header HTTP `Referrer-Policy: no-referrer`.
+   - Akibatnya, saat form aksi melakukan POST ke server, browser **tidak menyertakan header `Referer`**.
+2. **Ketergantungan Tunggal `safeRedirectBack`**:
+   - Fungsi `safeRedirectBack` di `routes/adminPortal.js` membaca `req.get('referrer')`. Karena referer bernilai `undefined`, server selalu me-redirect ke fallback URL statis `/admin/billing` tanpa query parameter.
+3. **Absennya `return_to` pada Seluruh Form Aksi**:
+   - Tidak ada satu pun form aksi di `views/admin/billing.ejs` (`payForm`, `partialForm`, form inline tabel, `bulkDeleteForm`, dll.) yang mengirimkan state filter/sort atau query parameter aktif ke server.
+4. **Hardcoded Fallback URL**:
+   - Route `/customers/:id/isolate` dan `/unisolate` memiliki fallback URL ke `/admin/customers`, bukan `/admin/billing`.
+   - Route `/billing/generate` me-redirect hanya dengan `month` dan `year`, membuang status, search, dan sort.
+5. **Ketiadaan Persistence State (Session & Client-side Storage)**:
+   - Server tidak menyimpan filter terakhir ke session pengguna (`req.session.billingFilter`).
+   - Client-side header sort (`initTableSort`) hanya memanipulasi DOM sesaat tanpa menyimpan indeks kolom dan orientasi sort ke `localStorage` / `sessionStorage`.
 
 ---
 
 ## 2. Struktur Folder & Modul Terkait
 ```text
 myadamedia-billing/
-├── config/
-│   └── database.js                       # [REFERENCE] Koneksi database SQLite billing.db
-├── services/
-│   ├── cronService.js                    # [MODIFY] Refactoring Task 9: Multi-router aggregation, Circuit Breaker, 2-Strike Debounce, Case-insensitive matching
-│   ├── mikrotikService.js                # [MODIFY] Perbaikan error handling getPppoeActive & getPppoeSecrets (bedakan query error vs 0 active sessions)
-│   └── telegramBot.js                    # [MODIFY] Format pesan alert yang lebih informatif jika terjadi flapping / ONT UP
+├── app-customer.js                       # [MODIFY] Konfigurasi Helmet: Referrer-Policy 'same-origin'
+├── routes/
+│   └── adminPortal.js                    # [MODIFY] Peningkatan safeRedirectBack (dukungan return_to), session memory filter pada /admin/billing
+├── views/
+│   └── admin/
+│       └── billing.ejs                   # [MODIFY] Penambahan return_to pada semua form aksi, auto-submit month/year, & persistensi client-side sort
 ├── tests/
-│   └── telegramPppoeAntiFalseAlert.test.js # [NEW] Test suite pengujian multi-router, circuit breaker API, 2-strike debounce, & case-insensitivity
+│   └── billingFilterSortPreserve.test.js # [NEW] Unit & integration test untuk verifikasi safeRedirectBack return_to & billing filter persistence
 ├── file md/
 │   └── implementation_plan.md            # [MODIFY] Dokumen rencana implementasi ini
-├── version.txt                           # [MODIFY] Bump versi rilis (15.9.8)
-└── proses.md                             # [MODIFY] Riwayat dokumentasi perbaikan dan hasil pengujian
+├── version.txt                           # [MODIFY] Bump versi ke 15.9.9
+└── proses.md                             # [MODIFY] Dokumentasi riwayat perbaikan dan hasil pengujian
 ```
 
 ---
@@ -47,96 +42,85 @@ myadamedia-billing/
 ## 3. Desain Arsitektur & Logika Sistem
 
 ```text
-                  +----------------------------------------------+
-                  |  CRON Task #9: PPPoE Monitoring (Setiap 2m)   |
-                  +----------------------+-----------------------+
-                                         |
-             +---------------------------v---------------------------+
-             |         Multi-Router Aggregator: Ambil Router         |
-             |       (mikrotikService.getAllRouters() + default)     |
-             +---------------------------+---------------------------+
-                                         |
-                       Iterasi Tiap Router Aktif
-                                         |
-     +-----------------------------------+-----------------------------------+
-     |                                                                       |
-     v                                                                       v
-+-----------------------------+                         +-----------------------------+
-| Router 1 (10.10.10.1:8778)  |                         | Router Default (172.99...)  |
-| getPppoeSecrets(1)          |                         | getPppoeSecrets(null)       |
-| getPppoeActive(1)           |                         | getPppoeActive(null)        |
-+--------------+--------------+                         +--------------+--------------+
-               |                                                       |
-               v                                                       v
-       [STATUS: OK / ERROR]                                    [STATUS: OK / ERROR]
-               |                                                       |
-               +---------------------------+---------------------------+
-                                           |
-                                           v
-                       +---------------------------------------+
-                       |   CIRCUIT BREAKER & INTEGRITY CHECK   |
-                       +---------------------------------------+
-                       | 1. Jika query router gagal -> SKIP   |
-                       |    (Jangan anggap user offline!)      |
-                       | 2. Jika active drop drastis (>60%)    |
-                       |    dengan secrets tetap banyak,       |
-                       |    deteksi sebagai API Timeout Lag    |
-                       +-------------------+-------------------+
-                                           | Data Terverifikasi Valid
-                                           v
-                       +---------------------------------------+
-                       |    2-STRIKE DEBOUNCE & VERIFIKASI     |
-                       +---------------------------------------+
-                       | User hilang dari activeMap?           |
-                       | -> Strike 1: Catat & Re-check instan  |
-                       | -> Strike 2: Konfirmasi offline       |
-                       | -> Cek OLT: Jika ONT OLT 'Online/UP', |
-                       |    labeli 'PPPoE Reconnecting'        |
-                       +-------------------+-------------------+
-                                           |
-                                           v
-                       +---------------------------------------+
-                       |     Kirim Notifikasi Telegram Bot     |
-                       |    (Hanya untuk Gangguan Riil)        |
-                       +---------------------------------------+
++----------------------------------------------------------------------------------+
+|                            Browser: /admin/billing                               |
+|   (Filter aktif: ?status=unpaid&sort=amount_desc&month=11&year=2026&search=...)  |
++----------------------------------------------------------------------------------+
+          |
+          | 1. User melakukan aksi (Tandai Lunas / Parsial / QRIS / WA / Hapus / dll)
+          |    Form aksi menyertakan:
+          |    - input hidden: return_to = "/admin/billing?status=unpaid&sort=..."
+          |    - HTTP Header Referer dikirim berkat Referrer-Policy: same-origin
+          v
++----------------------------------------------------------------------------------+
+|                      Server: Express POST Handler                                |
+|   (routes/adminPortal.js: /admin/billing/:id/pay, pay-bulk, delete, etc.)       |
++----------------------------------------------------------------------------------+
+          |
+          | 2. Eksekusi logika bisnis pembayaran / manipulasi database
+          | 3. Pemanggilan safeRedirectBack(req, res, '/admin/billing'):
+          |    - Cek 1: req.body.return_to atau req.query.return_to (Prioritas Utama)
+          |    - Cek 2: req.get('referrer') (Fallback Sekunder)
+          |    - Cek 3: req.session.billingFilter (Fallback Tersimpan)
+          |    - Cek 4: Fallback default URL
+          v
++----------------------------------------------------------------------------------+
+|                      Redirect ke URL Asli Bersama Query Params                    |
+|   HTTP 302 Found -> /admin/billing?status=unpaid&sort=amount_desc&month=11...    |
++----------------------------------------------------------------------------------+
+          |
+          | 4. Halaman /admin/billing dimuat ulang:
+          |    - Dropdown filter & server sort terisi sesuai query parameter
+          |    - Jika ada client-side table sort di localStorage, urutkan ulang DOM
+          v
++----------------------------------------------------------------------------------+
+|             Hasil: Filter & Sort Tetap Berada di Posisi Terakhir!               |
++----------------------------------------------------------------------------------+
 ```
 
 ---
 
-## 4. Alur Kerja Fitur (Detailed Workflow)
+## 4. Langkah-Langkah Implementasi Lengkap
 
-1. **Step 1: Multi-Router Aggregator**:
-   - Mengambil seluruh router aktif dari `mikrotikService.getAllRouters()`.
-   - Mengambil secrets dan active sessions untuk setiap router.
-   - Memetakan username dalam format normalisasi `username.toLowerCase().trim()`.
-   - Menyimpan router origin untuk setiap secret dan session aktif: `routerMap.set(key, { routerId, secret, active })`.
-2. **Step 2: Circuit Breaker & Safe Fallback**:
-   - Jika sebuah router mengalami kegagalan koneksi API, log error dibuat tetapi state pelanggan di router tersebut **dipertahankan (tidak diubah menjadi offline)**.
-   - Mencegah false alarm massal saat jaringan MikroTik sibuk atau sedang reboot.
-3. **Step 3: 2-Strike Confirmation & Immediate Retest**:
-   - Jika user sebelumnya online dan tiba-tiba tidak ada di `activeMap`:
-     - Sistem melakukan re-test individual instan (`mikrotikService.getPppoeActiveUser(username, routerId)`) setelah jeda 3 detik.
-     - Jika pada re-test user ternyata ada, batalkan transisi offline (flapping teratasi).
-     - Jika tetap tidak ada, naikkan `strikeCount`. Notifikasi `ALERT DISCONNECTED` hanya dikirimkan jika terkonfirmasi.
-4. **Step 4: OLT Cross-Validation Intelligence**:
-   - Sebelum mengirim pesan Telegram:
-     - Jika ONT di OLT berstatus `PwrDown` atau `LOS` atau `Dying_gasp`: **Kategori: Pemadaman Listrik / Kabel Putus Fisik (Kritis)**.
-     - Jika ONT di OLT berstatus `Online / UP` dengan redaman optik bagus: **Kategori: Sesi PPP Terputus Sementara (ONT Normal di OLT)**.
-5. **Step 5: Logging & Audit Trail**:
-   - Setiap deteksi dicatat ke logger dengan label jelas untuk mempermudah pemantauan teknisi.
+1. **Step 1: Konfigurasi Header Referrer-Policy di `app-customer.js`**:
+   - Menambahkan opsi `referrerPolicy: { policy: 'same-origin' }` pada middleware `helmet()`.
+2. **Step 2: Peningkatan Logika `safeRedirectBack` di `routes/adminPortal.js`**:
+   - Mendukung parameter `return_to` dari `req.body` atau `req.query`.
+   - Memvalidasi bahwa `return_to` aman (diawali dengan `/admin` dan tidak mengandung karakter injeksi external).
+3. **Step 3: Manajemen Filter Session di `router.get('/billing', ...)`**:
+   - Mendukung query parameter `reset=1` untuk menghapus filter session jika admin menekan tombol "Reset".
+   - Menyimpan filter aktif (`month`, `year`, `status`, `sort`, `search`) ke `req.session.billingFilter`.
+   - Mengisi filter dari `req.session.billingFilter` jika admin mengakses `/admin/billing` tanpa query params.
+   - Mengirimkan `currentUrl` ke template `admin/billing`.
+4. **Step 4: Integrasi Form Aksi di `views/admin/billing.ejs`**:
+   - Menambahkan `<input type="hidden" name="return_to" class="return-to-input" value="<%= currentUrl %>">` pada:
+     - Form `#payForm` (Tandai Lunas)
+     - Form `#partialForm` (Bayar Parsial)
+     - Form inline tabel: `qris-assign`, `qris-clear`, `unisolate`, `isolate`, `whatsapp`, `unpay`, `delete`
+     - Form `#bulkDeleteForm` (Hapus Massal)
+     - Form `#genModal` (Generate Tagihan)
+   - Menambahkan script pelengkap dinamis agar saat form di-submit, nilai `return_to` selalu disinkronkan dengan `window.location.pathname + window.location.search`.
+   - Menambahkan `onchange="this.form.submit()"` pada select `month` dan `year`.
+   - Menyesuaikan tombol Reset menjadi `<a href="/admin/billing?reset=1" id="resetFilterBtn">`.
+5. **Step 5: Persistensi Client-side Table Header Sort**:
+   - Menyimpan `columnIndex` dan `isAsc` ke `localStorage.setItem('billing_table_sort', ...)` pada fungsi `initTableSort`.
+   - Memulihkan dan mengaplikasikan sorting otomatis saat halaman dirender.
+   - Menghapus `billing_table_sort` saat tombol Reset diklik.
+6. **Step 6: Unit & Integration Testing**:
+   - Membuat file pengujian baru `tests/billingFilterSortPreserve.test.js`.
+   - Menguji sanitasi `safeRedirectBack`, preservasi filter, dan penanganan `reset=1`.
 
 ---
 
 ## 5. Rencana Pengujian (Test Plan)
-1. **Unit Testing (`tests/telegramPppoeAntiFalseAlert.test.js`)**:
-   - Test 1: Aggregator membaca sesi dari Router ID 1 dan router default secara bersamaan.
-   - Test 2: Circuit breaker mencegah false alarm ketika salah satu router gagal dihubungi (API failure).
-   - Test 3: Normalisasi username case-insensitive (`User123` vs `user123`) berhasil mencocokkan sesi.
-   - Test 4: Mekanisme 2-strike debounce menyaring fluktuasi/flapping sesaat.
-   - Test 5: Format pesan notifikasi menyertakan status OLT yang akurat dan jelas.
+1. **Unit Test Suite (`tests/billingFilterSortPreserve.test.js`)**:
+   - Test 1: `safeRedirectBack` memprioritaskan `return_to` yang valid di atas referer.
+   - Test 2: `safeRedirectBack` menolak `return_to` berbahaya (external protocol/domain) dan jatuh ke referer/fallback yang aman.
+   - Test 3: Filter aktif tersimpan di `req.session.billingFilter`.
+   - Test 4: Query parameter `reset=1` membersihkan `req.session.billingFilter`.
 2. **Integration Verification**:
-   - Eksekusi `npm test` atau `npx jest tests/telegramPppoeAntiFalseAlert.test.js`.
-   - Uji koneksi router langsung via skrip mandiri untuk memastikan Router 1 (`10.10.10.1:8778`) terintegrasi penuh.
-3. **Dokumentasi**:
-   - Mencatat seluruh riwayat perubahan di `proses.md` sesuai SOP.
-   - Memperbarui versi pada `version.txt`.
+   - Jalankan `node ./node_modules/jest/bin/jest.js tests/billingFilterSortPreserve.test.js`.
+   - Jalankan test suite anti-false alert yang sudah ada untuk memastikan tidak ada regresi sistem.
+3. **Audit & Dokumentasi**:
+   - Catat seluruh rincian perbaikan di `proses.md` sesuai SOP.
+   - Perbarui versi sistem di `version.txt` menjadi `15.9.9`.

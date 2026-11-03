@@ -51,7 +51,8 @@ app.disable('x-powered-by');
 
 // Security headers with Helmet (exclude CSP to avoid breaking UI layout assets)
 app.use(helmet({
-  contentSecurityPolicy: false
+  contentSecurityPolicy: false,
+  referrerPolicy: { policy: 'same-origin' }
 }));
 
 // Rate limiter for authentication pages

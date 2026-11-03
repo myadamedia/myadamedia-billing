@@ -192,9 +192,20 @@ function requireAdminSession(req, res, next) {
 }
 
 function safeRedirectBack(req, res, fallbackUrl) {
-  const referer = req.get('referrer');
+  const returnTo = req.body?.return_to || req.query?.return_to;
+  if (returnTo && typeof returnTo === 'string' && returnTo.startsWith('/admin') && !returnTo.startsWith('//')) {
+    return res.redirect(returnTo);
+  }
+  const referer = (typeof req.get === 'function' ? (req.get('referer') || req.get('referrer')) : null) || req.headers?.referer || req.headers?.referrer;
   if (referer) {
-    return res.redirect(referer);
+    try {
+      const parsed = new URL(referer, 'http://localhost');
+      if (parsed.pathname.startsWith('/admin')) {
+        return res.redirect(parsed.pathname + parsed.search);
+      }
+    } catch {
+      return res.redirect(referer);
+    }
   }
   return res.redirect(fallbackUrl);
 }
@@ -2342,13 +2353,49 @@ router.post('/api/vouchers/packages/:id/delete', requireAdminSession, (req, res)
 // ─── BILLING ───────────────────────────────────────────────────────────────
 router.get('/billing', requireAdminSession, requireSidebarMenuAccess('billing'), (req, res) => {
   const timeInfo = getCurrentTimeInfo();
+
+  // Handle explicit reset request from user
+  if (req.query.reset === '1') {
+    delete req.session.billingFilter;
+    return res.redirect('/admin/billing');
+  }
+
+  // Restore filter from session if visiting /admin/billing without any query parameters
+  const hasQueryParams = Object.keys(req.query).length > 0;
+  if (!hasQueryParams && req.session?.billingFilter) {
+    const saved = req.session.billingFilter;
+    const params = new URLSearchParams();
+    if (saved.month) params.set('month', saved.month);
+    if (saved.year) params.set('year', saved.year);
+    if (saved.status && saved.status !== 'all') params.set('status', saved.status);
+    if (saved.sort && saved.sort !== 'period_desc') params.set('sort', saved.sort);
+    if (saved.search) params.set('search', saved.search);
+    const qs = params.toString();
+    if (qs) {
+      return res.redirect('/admin/billing?' + qs);
+    }
+  }
+
   const { month: filterMonth, year: filterYear = timeInfo.year, status: filterStatus = 'all', search = '', sort = 'period_desc' } = req.query;
+
+  // Persist current active filter to admin session
+  if (hasQueryParams) {
+    req.session.billingFilter = {
+      month: filterMonth || '',
+      year: filterYear,
+      status: filterStatus,
+      search: search || '',
+      sort: sort
+    };
+  }
+
   const summary = billingSvc.getInvoiceSummary(filterMonth || timeInfo.month, filterYear);
   const invoices = billingSvc.getAllInvoices({ month: filterMonth, year: filterYear, status: filterStatus, search, sortBy: sort });
   res.render('admin/billing', {
     title: 'Tagihan', company: company(), activePage: 'billing',
     invoices, summary, filterMonth, filterYear: parseInt(filterYear), filterStatus, search, sort,
     currentMonth: timeInfo.month, currentYear: timeInfo.year,
+    currentUrl: req.originalUrl,
     msg: flashMsg(req)
   });
 });
@@ -7978,4 +8025,5 @@ router.post('/onu-provision/delete', requireAdminSession, restrictToAdmin, expre
 });
 
 
+router.safeRedirectBack = safeRedirectBack;
 module.exports = router;
