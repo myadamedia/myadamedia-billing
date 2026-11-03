@@ -2,6 +2,52 @@
 
 ---
 
+## [2026-11-03] Implementasi Tema Claymorphism 3D (Theme Selector Opsi 1) - Versi 15.9.10
+
+### 1. Kebutuhan Fitur & Latar Belakang
+- **Permintaan Pengguna**: Pengguna meminta eksplorasi dan implementasi antarmuka bergaya **Claymorphism 3D** untuk panel admin dengan memilih **Opsi 1 (Theme Selector Dinamis)**.
+- **Tujuan Pengembangan**:
+  1. Menghadirkan gaya visual taktil modern (*pillowy 3D clay*) dengan perpaduan *dual shadow* (elevasi luar + pantulan cembung/cekung dalam).
+  2. Memberikan fleksibilitas penuh kepada admin dan kasir untuk berganti tema (Dark Mode Glassmorphism standar, Light Mode, Ocean Mode, Forest Mode, dan **Claymorphism 3D**) secara instan tanpa perlu me-reload halaman.
+  3. Mempertahankan persistensi tema di `localStorage` dan cookie `app-theme` dengan inisialisasi awal tanpa kedipan (*Zero-FOUC*).
+
+### 2. Solusi & Perubahan yang Diterapkan
+1. **Perancangan Token & Stylesheet Claymorphism (`public/css/admin.css`)**:
+   - Menambahkan ruleset komprehensif `.theme-clay` yang mendefinisikan variabel kanvas atmosfer (`--bg: #0e1626`, `--bg2: #182236`, `--bg3: #222f46`) dan preset bayangan Clay (`--clay-card-shadow`, `--clay-card-hover-shadow`, `--clay-input-shadow`).
+   - Menerapkan styling taktil 3D pada seluruh komponen antarmuka admin:
+     - **Cards & Stat Widgets (`.card`, `.sc`)**: Sudut melengkung tebal (`border-radius: 24px`), elevasi luar lembut dengan kedalaman inset ganda.
+     - **Chunky Tactile Buttons (`.btn-p`, `.btn-s`, `.btn-d`, `.btn-w`, `.btn-g`)**: Tombol cembung 3D dengan respons mikro-interaksi membal saat ditekan (`:active { transform: translateY(2px) scale(0.97) }`).
+     - **Filter Bar & Kontrol Input (`.filter-bar`, `.fc`, `.fs`)**: Kontur cekung-cembung lembut dengan fokus aksen indigo.
+     - **Badges (`.badge`)**: Kapsul melengkung 3D (`border-radius: 30px`).
+     - **Modal Dialog (`.mo .mb`)**: Elevasi dramatis (`border-radius: 28px`, shadow 60px).
+     - **Sidebar & Topbar (`.sidebar`, `.topbar`)**: Integrasi navigasi aktif dengan latar belakang gradien dan bayangan 3D.
+2. **Integrasi Dropdown Theme Selector (`views/admin/partials/sidebar.ejs`)**:
+   - Menambahkan opsi menu `Claymorphism 3D` dengan ikon `bi-box-fill` pada menu palet tema (`#themeMenu`) untuk mode sidebar normal dan minimized.
+   - Memperbarui fungsi `setTheme(theme)` untuk membersihkan class `theme-clay` saat berpindah ke tema lain.
+   - Memastikan pembacaan awal tema di baris 1-13 mengeksekusi class `theme-clay` secara instan sebelum rendering pertama.
+3. **Unit & Integration Testing (`tests/themeClaymorphism.test.js`)**:
+   - Membuat pengujian Jest untuk memverifikasi definisi token CSS `.theme-clay`, formula dual shadow, dan integrasi tombol di sidebar EJS. Seluruh test lulus 100%.
+
+### 3. File yang Diubah & Ditambahkan
+- `[MODIFY]` [`public/css/admin.css`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/public/css/admin.css)
+- `[MODIFY]` [`views/admin/partials/sidebar.ejs`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/views/admin/partials/sidebar.ejs)
+- `[NEW]` [`tests/themeClaymorphism.test.js`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/tests/themeClaymorphism.test.js)
+- `[MODIFY]` [`file md/implementation_plan.md`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/file%20md/implementation_plan.md)
+- `[MODIFY]` [`version.txt`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/version.txt)
+- `[MODIFY]` [`proses.md`](file:///d:/WEBAPP/MyAdamedia%20ALL/myadamedia-billing/proses.md)
+
+### 4. Hasil Pengujian & Verifikasi
+- **Unit Testing**:
+  - `tests/themeClaymorphism.test.js`: 2/2 passed (100%).
+  - `tests/adminSidebarResponsive.test.js`: 3/3 passed (100%).
+  - `tests/billingFilterSortPreserve.test.js`: 9/9 passed (100%).
+- **Verifikasi Visual & Fungsional**:
+  - Tombol palet tema di sidebar kini memiliki opsi **Claymorphism 3D**.
+  - Saat dipilih, antarmuka langsung beralih ke gaya 3D Clay tanpa reload.
+  - Nilai tema tersimpan otomatis di `localStorage` ('app-theme') dan cookie.
+
+---
+
 ## [2026-11-03] Preservasi State Filter & Sort Tagihan (/admin/billing) Setelah Aksi - Versi 15.9.9
 
 ### 1. Masalah & Latar Belakang

@@ -1,126 +1,71 @@
-# Implementation Plan: Preservasi Status Filter & Sort pada Halaman Tagihan (/admin/billing)
+# Implementation Plan: Implementasi Tema Claymorphism 3D (Theme Selector Opsi 1)
 
-## 1. Analisis Masalah & Problem Statement
-Administrator melaporkan bahwa saat menggunakan fitur filter (pencarian, bulan, tahun, status tagihan) dan/atau sort (pengurutan dropdown server-side maupun klik header kolom tabel client-side) di halaman Tagihan (`https://localhost:3001/admin/billing`), setiap kali administrator memilih atau mengeksekusi suatu aksi (misal: "Tandai Lunas", "Bayar Parsial", "Buat QRIS", "Kirim WA", "Isolir/Buka Isolir", "Hapus", "Bayar Massal", "Hapus Massal"), halaman me-refresh dan seluruh kondisi filter serta sorting kembali ke default.
-
-### Akar Permasalahan Teknis (Root Causes):
-1. **Helmet `Referrer-Policy: no-referrer`**:
-   - `app-customer.js` menggunakan Helmet v8 dengan konfigurasi default yang menyetel header HTTP `Referrer-Policy: no-referrer`.
-   - Akibatnya, saat form aksi melakukan POST ke server, browser **tidak menyertakan header `Referer`**.
-2. **Ketergantungan Tunggal `safeRedirectBack`**:
-   - Fungsi `safeRedirectBack` di `routes/adminPortal.js` membaca `req.get('referrer')`. Karena referer bernilai `undefined`, server selalu me-redirect ke fallback URL statis `/admin/billing` tanpa query parameter.
-3. **Absennya `return_to` pada Seluruh Form Aksi**:
-   - Tidak ada satu pun form aksi di `views/admin/billing.ejs` (`payForm`, `partialForm`, form inline tabel, `bulkDeleteForm`, dll.) yang mengirimkan state filter/sort atau query parameter aktif ke server.
-4. **Hardcoded Fallback URL**:
-   - Route `/customers/:id/isolate` dan `/unisolate` memiliki fallback URL ke `/admin/customers`, bukan `/admin/billing`.
-   - Route `/billing/generate` me-redirect hanya dengan `month` dan `year`, membuang status, search, dan sort.
-5. **Ketiadaan Persistence State (Session & Client-side Storage)**:
-   - Server tidak menyimpan filter terakhir ke session pengguna (`req.session.billingFilter`).
-   - Client-side header sort (`initTableSort`) hanya memanipulasi DOM sesaat tanpa menyimpan indeks kolom dan orientasi sort ke `localStorage` / `sessionStorage`.
+## 1. Analisis Kebutuhan & Problem Statement
+Pengguna menyetujui **Opsi 1**, yaitu menghadirkan tema **Claymorphism 3D** yang terintegrasi secara dinamis ke dalam sistem *theme switcher* aplikasi MyAdamedia Billing.
+Dengan opsi ini:
+- Administrator dan staf dapat beralih antara tema default (*Modern Glass Dark*), *Light Mode*, *Ocean Mode*, *Forest Mode*, dan **Claymorphism 3D** secara instan kapan saja melalui tombol palet di sidebar.
+- Preferensi tema disimpan di `localStorage` dan cookie `app-theme`, sehingga otomatis aktif di seluruh halaman panel admin dan tidak berkedip saat halaman dimuat ulang (*Zero-FOUC*).
 
 ---
 
 ## 2. Struktur Folder & Modul Terkait
 ```text
 myadamedia-billing/
-├── app-customer.js                       # [MODIFY] Konfigurasi Helmet: Referrer-Policy 'same-origin'
-├── routes/
-│   └── adminPortal.js                    # [MODIFY] Peningkatan safeRedirectBack (dukungan return_to), session memory filter pada /admin/billing
+├── public/
+│   └── css/
+│       └── admin.css                    # [MODIFY] Penambahan token CSS & styling lengkap .theme-clay
 ├── views/
 │   └── admin/
-│       └── billing.ejs                   # [MODIFY] Penambahan return_to pada semua form aksi, auto-submit month/year, & persistensi client-side sort
+│       └── partials/
+│           └── sidebar.ejs              # [MODIFY] Integrasi opsi Claymorphism 3D ke themeMenu & pembersihan class di setTheme()
 ├── tests/
-│   └── billingFilterSortPreserve.test.js # [NEW] Unit & integration test untuk verifikasi safeRedirectBack return_to & billing filter persistence
+│   └── themeClaymorphism.test.js        # [NEW] Test suite verifikasi CSS variables, dual shadow, class tokens, & UI integration
 ├── file md/
-│   └── implementation_plan.md            # [MODIFY] Dokumen rencana implementasi ini
-├── version.txt                           # [MODIFY] Bump versi ke 15.9.9
-└── proses.md                             # [MODIFY] Dokumentasi riwayat perbaikan dan hasil pengujian
+│   └── implementation_plan.md           # [MODIFY] Rencana implementasi fitur tema Claymorphism
+├── version.txt                          # [MODIFY] Bump versi ke 15.9.10
+└── proses.md                            # [MODIFY] Dokumentasi riwayat perbaikan dan hasil implementasi
 ```
 
 ---
 
-## 3. Desain Arsitektur & Logika Sistem
+## 3. Desain Arsitektur & Spesifikasi Claymorphism 3D
 
 ```text
-+----------------------------------------------------------------------------------+
-|                            Browser: /admin/billing                               |
-|   (Filter aktif: ?status=unpaid&sort=amount_desc&month=11&year=2026&search=...)  |
-+----------------------------------------------------------------------------------+
-          |
-          | 1. User melakukan aksi (Tandai Lunas / Parsial / QRIS / WA / Hapus / dll)
-          |    Form aksi menyertakan:
-          |    - input hidden: return_to = "/admin/billing?status=unpaid&sort=..."
-          |    - HTTP Header Referer dikirim berkat Referrer-Policy: same-origin
-          v
-+----------------------------------------------------------------------------------+
-|                      Server: Express POST Handler                                |
-|   (routes/adminPortal.js: /admin/billing/:id/pay, pay-bulk, delete, etc.)       |
-+----------------------------------------------------------------------------------+
-          |
-          | 2. Eksekusi logika bisnis pembayaran / manipulasi database
-          | 3. Pemanggilan safeRedirectBack(req, res, '/admin/billing'):
-          |    - Cek 1: req.body.return_to atau req.query.return_to (Prioritas Utama)
-          |    - Cek 2: req.get('referrer') (Fallback Sekunder)
-          |    - Cek 3: req.session.billingFilter (Fallback Tersimpan)
-          |    - Cek 4: Fallback default URL
-          v
-+----------------------------------------------------------------------------------+
-|                      Redirect ke URL Asli Bersama Query Params                    |
-|   HTTP 302 Found -> /admin/billing?status=unpaid&sort=amount_desc&month=11...    |
-+----------------------------------------------------------------------------------+
-          |
-          | 4. Halaman /admin/billing dimuat ulang:
-          |    - Dropdown filter & server sort terisi sesuai query parameter
-          |    - Jika ada client-side table sort di localStorage, urutkan ulang DOM
-          v
-+----------------------------------------------------------------------------------+
-|             Hasil: Filter & Sort Tetap Berada di Posisi Terakhir!               |
-+----------------------------------------------------------------------------------+
++------------------------------------------------------------------------------------+
+|                               <html> Element                                       |
+|                  class="theme-clay" (atau 'dark' / 'light' / etc)                  |
++------------------------------------------------------------------------------------+
+       |
+       +---> [Design Tokens & Variables: .theme-clay]
+       |     --bg: #0e1626 (Atmospheric Deep Clay Canvas)
+       |     --bg2: #182236 (Clay Puffy Surface)
+       |     --bg3: #222f46 (Subtle Clay Layer)
+       |     --border: rgba(255, 255, 255, 0.08)
+       |     --clay-shadow-card: 0 14px 28px rgba(0,0,0,0.45), inset 2px 2px 4px rgba(255,255,255,0.12), inset -3px -3px 6px rgba(0,0,0,0.5)
+       |     --clay-shadow-btn: 0 8px 18px rgba(0,0,0,0.3), inset 2px 2px 4px rgba(255,255,255,0.35), inset -2px -2px 4px rgba(0,0,0,0.4)
+       |
+       +---> [Komponen Visual Claymorphism]
+       |     ├── Kartu & Stat Widgets (.card, .sc) -> Tebal, mengembang (border-radius: 24px)
+       |     ├── Tombol Taktil (.btn-p, .btn-s, etc.) -> 3D pillowy dengan active pressed state
+       |     ├── Filter Bar & Inputs (.filter-bar, .fc, .fs) -> Kontur cekung-cembung halus
+       |     ├── Badges (.badge, .bs, .bd, etc.) -> Rounded capsule 3D
+       |     └── Modal Dialog (.mo .mb) -> Elevasi tinggi (0 25px 60px) + volume lembut
 ```
 
 ---
 
 ## 4. Langkah-Langkah Implementasi Lengkap
 
-1. **Step 1: Konfigurasi Header Referrer-Policy di `app-customer.js`**:
-   - Menambahkan opsi `referrerPolicy: { policy: 'same-origin' }` pada middleware `helmet()`.
-2. **Step 2: Peningkatan Logika `safeRedirectBack` di `routes/adminPortal.js`**:
-   - Mendukung parameter `return_to` dari `req.body` atau `req.query`.
-   - Memvalidasi bahwa `return_to` aman (diawali dengan `/admin` dan tidak mengandung karakter injeksi external).
-3. **Step 3: Manajemen Filter Session di `router.get('/billing', ...)`**:
-   - Mendukung query parameter `reset=1` untuk menghapus filter session jika admin menekan tombol "Reset".
-   - Menyimpan filter aktif (`month`, `year`, `status`, `sort`, `search`) ke `req.session.billingFilter`.
-   - Mengisi filter dari `req.session.billingFilter` jika admin mengakses `/admin/billing` tanpa query params.
-   - Mengirimkan `currentUrl` ke template `admin/billing`.
-4. **Step 4: Integrasi Form Aksi di `views/admin/billing.ejs`**:
-   - Menambahkan `<input type="hidden" name="return_to" class="return-to-input" value="<%= currentUrl %>">` pada:
-     - Form `#payForm` (Tandai Lunas)
-     - Form `#partialForm` (Bayar Parsial)
-     - Form inline tabel: `qris-assign`, `qris-clear`, `unisolate`, `isolate`, `whatsapp`, `unpay`, `delete`
-     - Form `#bulkDeleteForm` (Hapus Massal)
-     - Form `#genModal` (Generate Tagihan)
-   - Menambahkan script pelengkap dinamis agar saat form di-submit, nilai `return_to` selalu disinkronkan dengan `window.location.pathname + window.location.search`.
-   - Menambahkan `onchange="this.form.submit()"` pada select `month` dan `year`.
-   - Menyesuaikan tombol Reset menjadi `<a href="/admin/billing?reset=1" id="resetFilterBtn">`.
-5. **Step 5: Persistensi Client-side Table Header Sort**:
-   - Menyimpan `columnIndex` dan `isAsc` ke `localStorage.setItem('billing_table_sort', ...)` pada fungsi `initTableSort`.
-   - Memulihkan dan mengaplikasikan sorting otomatis saat halaman dirender.
-   - Menghapus `billing_table_sort` saat tombol Reset diklik.
-6. **Step 6: Unit & Integration Testing**:
-   - Membuat file pengujian baru `tests/billingFilterSortPreserve.test.js`.
-   - Menguji sanitasi `safeRedirectBack`, preservasi filter, dan penanganan `reset=1`.
-
----
-
-## 5. Rencana Pengujian (Test Plan)
-1. **Unit Test Suite (`tests/billingFilterSortPreserve.test.js`)**:
-   - Test 1: `safeRedirectBack` memprioritaskan `return_to` yang valid di atas referer.
-   - Test 2: `safeRedirectBack` menolak `return_to` berbahaya (external protocol/domain) dan jatuh ke referer/fallback yang aman.
-   - Test 3: Filter aktif tersimpan di `req.session.billingFilter`.
-   - Test 4: Query parameter `reset=1` membersihkan `req.session.billingFilter`.
-2. **Integration Verification**:
-   - Jalankan `node ./node_modules/jest/bin/jest.js tests/billingFilterSortPreserve.test.js`.
-   - Jalankan test suite anti-false alert yang sudah ada untuk memastikan tidak ada regresi sistem.
-3. **Audit & Dokumentasi**:
-   - Catat seluruh rincian perbaikan di `proses.md` sesuai SOP.
-   - Perbarui versi sistem di `version.txt` menjadi `15.9.9`.
+1. **Step 1: Spesifikasi CSS Claymorphism di `public/css/admin.css`**:
+   - Menambahkan ruleset `.theme-clay` yang mendefinisikan palet warna, dual-shadow (outset elevation + double inset highlight/depth), dan border-radius melengkung tebal.
+   - Mengatur styling khusus untuk `.card`, `.sc` (Stat Cards), `.btn` (semua varian warna), `.badge`, `.sidebar`, `.topbar`, `.filter-bar`, input `.fc`, select `.fs`, dan modal dialog `.mo .mb`.
+   - Mengoptimalkan performa rendering dengan hardware acceleration (`transform: translateZ(0)`).
+2. **Step 2: Integrasi Theme Switcher di `views/admin/partials/sidebar.ejs`**:
+   - Menambahkan opsi menu `<button onclick="setTheme('clay')">` pada kedua dropdown `#themeMenu` (mode sidebar lebar dan minimized).
+   - Memperbarui fungsi `setTheme(theme)` agar menghapus class `theme-clay` saat beralih ke tema lain.
+3. **Step 3: Unit & Integration Testing**:
+   - Membuat file test baru `tests/themeClaymorphism.test.js`.
+   - Menguji kelengkapan token CSS, format dual shadow, kelengkapan dropdown menu di template sidebar, dan logika penyimpanan storage.
+4. **Step 4: Dokumentasi & Versi**:
+   - Mencatat seluruh riwayat penambahan fitur di `proses.md`.
+   - Menaikkan versi sistem di `version.txt` menjadi `15.9.10`.

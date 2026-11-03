@@ -424,3 +424,273 @@ html,body{width:100%}
   pointer-events: auto !important;
   user-select: auto !important;
 }
+
+
+/* ══════════════════════════════════════════════════════════════════════════
+   CLAYMORPHISM 3D THEME (.theme-clay)
+   Enterprise-grade Tactile 3D Soft-Clay Aesthetic
+   ══════════════════════════════════════════════════════════════════════════ */
+.theme-clay {
+  --bg:       #0e1626;
+  --bg2:      #182236;
+  --bg3:      #222f46;
+  --border:   rgba(255, 255, 255, 0.08);
+  --text:     #f8fafc;
+  --muted:    #94a3b8;
+  --primary:  #6366f1;
+  --pdim:     rgba(99, 102, 241, 0.22);
+  --success:  #10b981;
+  --sdim:     rgba(16, 185, 129, 0.22);
+  --warning:  #f59e0b;
+  --wdim:     rgba(245, 158, 11, 0.22);
+  --danger:   #ef4444;
+  --ddim:     rgba(239, 68, 68, 0.22);
+  --info:     #38bdf8;
+  --idim:     rgba(56, 189, 248, 0.22);
+  
+  /* Claymorphism Shadow Presets */
+  --clay-card-shadow: 
+    0 14px 28px rgba(0, 0, 0, 0.45),
+    0 2px 8px rgba(0, 0, 0, 0.25),
+    inset 2px 2px 4px rgba(255, 255, 255, 0.12),
+    inset -3px -3px 6px rgba(0, 0, 0, 0.5);
+
+  --clay-card-hover-shadow:
+    0 20px 36px rgba(0, 0, 0, 0.55),
+    0 4px 12px rgba(0, 0, 0, 0.3),
+    inset 2px 2px 5px rgba(255, 255, 255, 0.18),
+    inset -3px -3px 7px rgba(0, 0, 0, 0.55);
+
+  --clay-input-shadow:
+    inset 2px 2px 5px rgba(0, 0, 0, 0.45),
+    inset -1px -1px 2px rgba(255, 255, 255, 0.08),
+    0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+/* Background Atmosphere */
+.theme-clay body {
+  background-color: var(--bg);
+  background-image: 
+    radial-gradient(circle at 10% 15%, rgba(99, 102, 241, 0.14) 0%, transparent 40%),
+    radial-gradient(circle at 90% 25%, rgba(236, 72, 153, 0.1) 0%, transparent 40%),
+    radial-gradient(circle at 50% 80%, rgba(16, 185, 129, 0.08) 0%, transparent 45%);
+}
+
+.theme-clay .mw {
+  background-image: 
+    radial-gradient(circle at 15% 15%, rgba(99, 102, 241, 0.12) 0%, transparent 45%),
+    radial-gradient(circle at 85% 25%, rgba(236, 72, 153, 0.09) 0%, transparent 45%);
+}
+
+/* Sidebar Clay Styling */
+.theme-clay .sidebar {
+  background: #111a2c !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.07) !important;
+  box-shadow: 6px 0 24px rgba(0, 0, 0, 0.35) !important;
+}
+
+.theme-clay .sb-brand {
+  background: #111a2c !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07) !important;
+}
+
+.theme-clay .sb-item.active,
+.theme-clay .sb-nav-link.active {
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%) !important;
+  color: #ffffff !important;
+  border-radius: 16px !important;
+  margin: 3px 10px !important;
+  border-left: none !important;
+  box-shadow: 
+    0 8px 18px rgba(79, 70, 229, 0.38),
+    inset 2px 2px 3px rgba(255, 255, 255, 0.3),
+    inset -2px -2px 3px rgba(0, 0, 0, 0.35) !important;
+}
+
+.theme-clay .sb-item.active i,
+.theme-clay .sb-nav-link.active i {
+  color: #ffffff !important;
+}
+
+.theme-clay .sb-icon-wrap {
+  border-radius: 16px !important;
+  box-shadow: 
+    0 8px 18px rgba(99, 102, 241, 0.35),
+    inset 2px 2px 4px rgba(255, 255, 255, 0.3),
+    inset -2px -2px 4px rgba(0, 0, 0, 0.35) !important;
+}
+
+/* Topbar Clay Styling */
+.theme-clay .topbar {
+  background: #141d2f !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28) !important;
+}
+
+/* Cards & Panels Clay Styling */
+.theme-clay .card {
+  background: var(--bg2) !important;
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+  border-radius: 24px !important;
+  box-shadow: var(--clay-card-shadow) !important;
+}
+
+.theme-clay .card-hd {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+}
+
+/* Stat Cards (Puffy 3D Clay Widgets) */
+.theme-clay .sc {
+  background: var(--bg2) !important;
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+  border-radius: 24px !important;
+  box-shadow: var(--clay-card-shadow) !important;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease !important;
+}
+
+.theme-clay .sc:hover {
+  transform: translateY(-5px) scale(1.015) !important;
+  box-shadow: var(--clay-card-hover-shadow) !important;
+}
+
+.theme-clay .sc::before {
+  display: none !important;
+}
+
+/* Filter Bar & Controls */
+.theme-clay .filter-bar {
+  background: var(--bg2) !important;
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+  border-radius: 22px !important;
+  box-shadow: var(--clay-card-shadow) !important;
+}
+
+.theme-clay .fc,
+.theme-clay .fs,
+.theme-clay .sinput {
+  border-radius: 14px !important;
+  background: #111a2a !important;
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+  box-shadow: var(--clay-input-shadow) !important;
+  color: var(--text) !important;
+}
+
+.theme-clay .fc:focus,
+.theme-clay .fs:focus {
+  border-color: var(--primary) !important;
+  box-shadow: 
+    inset 2px 2px 5px rgba(0, 0, 0, 0.45),
+    0 0 0 3px rgba(99, 102, 241, 0.25) !important;
+}
+
+/* Claymorphism Chunky Tactile Buttons */
+.theme-clay .btn {
+  border-radius: 16px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.2px !important;
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease !important;
+}
+
+.theme-clay .btn:hover {
+  transform: translateY(-2px) !important;
+}
+
+.theme-clay .btn:active {
+  transform: translateY(2px) scale(0.97) !important;
+}
+
+.theme-clay .btn-p {
+  background: linear-gradient(145deg, #6366f1, #4f46e5) !important;
+  color: #ffffff !important;
+  box-shadow: 
+    0 8px 18px rgba(79, 70, 229, 0.38),
+    inset 2px 2px 3px rgba(255, 255, 255, 0.35),
+    inset -2px -2px 4px rgba(0, 0, 0, 0.4) !important;
+}
+.theme-clay .btn-p:active {
+  box-shadow: 
+    0 3px 8px rgba(79, 70, 229, 0.25),
+    inset 3px 3px 5px rgba(0, 0, 0, 0.5),
+    inset -1px -1px 2px rgba(255, 255, 255, 0.2) !important;
+}
+
+.theme-clay .btn-s {
+  background: linear-gradient(145deg, #10b981, #059669) !important;
+  color: #ffffff !important;
+  box-shadow: 
+    0 8px 18px rgba(16, 185, 129, 0.38),
+    inset 2px 2px 3px rgba(255, 255, 255, 0.35),
+    inset -2px -2px 4px rgba(0, 0, 0, 0.4) !important;
+}
+.theme-clay .btn-s:active {
+  box-shadow: 
+    0 3px 8px rgba(16, 185, 129, 0.25),
+    inset 3px 3px 5px rgba(0, 0, 0, 0.5),
+    inset -1px -1px 2px rgba(255, 255, 255, 0.2) !important;
+}
+
+.theme-clay .btn-d {
+  background: linear-gradient(145deg, #ef4444, #dc2626) !important;
+  color: #ffffff !important;
+  box-shadow: 
+    0 8px 18px rgba(239, 68, 68, 0.38),
+    inset 2px 2px 3px rgba(255, 255, 255, 0.35),
+    inset -2px -2px 4px rgba(0, 0, 0, 0.4) !important;
+}
+.theme-clay .btn-d:active {
+  box-shadow: 
+    0 3px 8px rgba(239, 68, 68, 0.25),
+    inset 3px 3px 5px rgba(0, 0, 0, 0.5),
+    inset -1px -1px 2px rgba(255, 255, 255, 0.2) !important;
+}
+
+.theme-clay .btn-w {
+  background: linear-gradient(145deg, #f59e0b, #d97706) !important;
+  color: #ffffff !important;
+  box-shadow: 
+    0 8px 18px rgba(245, 158, 11, 0.38),
+    inset 2px 2px 3px rgba(255, 255, 255, 0.35),
+    inset -2px -2px 4px rgba(0, 0, 0, 0.4) !important;
+}
+.theme-clay .btn-w:active {
+  box-shadow: 
+    0 3px 8px rgba(245, 158, 11, 0.25),
+    inset 3px 3px 5px rgba(0, 0, 0, 0.5),
+    inset -1px -1px 2px rgba(255, 255, 255, 0.2) !important;
+}
+
+.theme-clay .btn-g {
+  background: #1c263a !important;
+  border: 1px solid rgba(255, 255, 255, 0.09) !important;
+  color: var(--text) !important;
+  box-shadow: 
+    0 6px 14px rgba(0, 0, 0, 0.3),
+    inset 1px 1px 2px rgba(255, 255, 255, 0.16),
+    inset -2px -2px 3px rgba(0, 0, 0, 0.4) !important;
+}
+.theme-clay .btn-g:active {
+  box-shadow: 
+    0 2px 6px rgba(0, 0, 0, 0.25),
+    inset 2px 2px 4px rgba(0, 0, 0, 0.5),
+    inset -1px -1px 1px rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Badges Clay Styling */
+.theme-clay .badge {
+  border-radius: 30px !important;
+  box-shadow: 
+    0 3px 8px rgba(0, 0, 0, 0.25),
+    inset 1px 1px 2px rgba(255, 255, 255, 0.2),
+    inset -1px -1px 2px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Modals (High-Elevation Soft Clay) */
+.theme-clay .mo .mb {
+  background: #172134 !important;
+  border-radius: 28px !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 
+    0 25px 60px rgba(0, 0, 0, 0.65),
+    inset 2px 2px 5px rgba(255, 255, 255, 0.14),
+    inset -3px -3px 6px rgba(0, 0, 0, 0.6) !important;
+}

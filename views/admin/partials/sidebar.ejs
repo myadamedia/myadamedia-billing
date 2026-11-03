@@ -357,6 +357,7 @@
               <button onclick="setTheme('light')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-sun-fill" style="color:#f59e0b"></i> Light Mode</button>
               <button onclick="setTheme('ocean')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-water" style="color:#00b4d8"></i> Ocean Mode</button>
               <button onclick="setTheme('forest')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-tree-fill" style="color:#a7c957"></i> Forest Mode</button>
+              <button onclick="setTheme('clay')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-box-fill" style="color:#ec4899"></i> Claymorphism 3D</button>
             </div>
           </div>
         </div>
@@ -390,6 +391,7 @@
               <button onclick="setTheme('light')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-sun-fill" style="color:#f59e0b"></i> Light Mode</button>
               <button onclick="setTheme('ocean')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-water" style="color:#00b4d8"></i> Ocean Mode</button>
               <button onclick="setTheme('forest')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-tree-fill" style="color:#a7c957"></i> Forest Mode</button>
+              <button onclick="setTheme('clay')" style="width:100%;text-align:left;background:none;border:none;color:var(--text);padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px"><i class="bi bi-box-fill" style="color:#ec4899"></i> Claymorphism 3D</button>
             </div>
           </div>
         </div>
@@ -628,7 +630,7 @@
   }
 
   function setTheme(theme) {
-    document.documentElement.classList.remove('theme-light', 'theme-ocean', 'theme-forest');
+    document.documentElement.classList.remove('theme-light', 'theme-ocean', 'theme-forest', 'theme-clay');
     if (theme !== 'dark') {
       document.documentElement.classList.add('theme-' + theme);
     }
